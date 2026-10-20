@@ -151,6 +151,8 @@ const FICHIERS = [
   { nom: 'worker LOD', source: 'src/renderer/lib/lod-worker.js', copie: 'cloud/public/app/lib/lod-worker.js' },
   { nom: 'meshoptimizer simplifier', source: 'src/renderer/lib/meshopt-simplifier.js', copie: 'cloud/public/app/lib/meshopt-simplifier.js' },
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
+  // filtrage anisotrope + mipmaps des textures des visualiseurs (2026-10-15) : MEME fichier sur le bureau et le web
+  { nom: 'filtrage des textures (anisotropie)', source: 'src/renderer/lib/filtrage-textures.js', copie: 'cloud/public/app/lib/filtrage-textures.js' },
   // redacteur de la fenetre New project (2026-09-30) : meme script sur le bureau (local) et sur Modal (site)
   { nom: 'redacteur (New project)', source: 'scripts/redacteur.py', copie: 'modal_app/redacteur/redacteur.py' },
   // fusion des masques de detourage (2026-10-03) : UNION u2net + Lucida, Python pur + numpy ; le bureau (_prep_image) et Modal (_detourage) l'appellent

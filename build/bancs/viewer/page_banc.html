@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>banc anisotropie</title>
+<!-- Page du banc build/bancs/viewer/banc_anisotropie.mjs : charge le VRAI lib/Viewer3D.js de la variante servie
+     (avant ou apres le correctif, bureau ou site), le VRAI GLTFLoader et un VRAI GLB texture, puis MESURE la nettete.
+     Le pilote remplace le jeton d'importmap de l'en-tete (bureau : ./lib/ ; site : URLs unpkg servies en local).
+     Parametres d'URL : mode=glb|damier, glb=<url>, forcer=<n> (anisotropie imposee a toutes les textures du modele). -->
+<style>html,body{margin:0;background:#000;color:#9f9}canvas{display:block;width:1024px;height:768px}pre{white-space:pre-wrap;word-break:break-all;font-size:10px}</style>
+__IMPORTMAP__
+</head>
+<body>
+<canvas id="c"></canvas>
+<pre id="resultat"></pre>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { Viewer3D } from './lib/Viewer3D.js';
+
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode') || 'glb';
+const L = 1024, H = 768;
+const sortie = (o) => { document.getElementById('resultat').textContent = JSON.stringify(o); document.body.dataset.fini = '1'; };
+const echec = (e) => { document.getElementById('resultat').textContent = JSON.stringify({ erreur: String((e && e.stack) || e) }); document.body.dataset.fini = 'erreur'; };
+const t0 = performance.now();
+const duree = () => Math.round(performance.now() - t0);
+const etape = (m) => console.log('[banc] ' + duree() + ' ms ' + m);   // trace d'avancement, relayee en direct par le pilote
+window.addEventListener('error', (e) => { console.log('[banc] ERREUR de page : ' + (e.message || e)); });
+window.addEventListener('unhandledrejection', (e) => { console.log('[banc] PROMESSE rejetee : ' + (e.reason && e.reason.stack || e.reason)); });
+
+// ---------- mesure ----------
+// Passe « incidence » : R = cos de l'angle entre la normale et la direction de vue (1 = de face, 0 = rasant), G = 255 sur le modele.
+const matIncidence = new THREE.ShaderMaterial({
+  vertexShader: 'varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vP = mv.xyz; gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'varying vec3 vN; varying vec3 vP; void main(){ float c = clamp(abs(dot(normalize(vN), normalize(-vP))), 0.0, 1.0); gl_FragColor = vec4(c, 1.0, 0.0, 1.0); }',
+});
+function lire(gl) { const t = new Uint8Array(L * H * 4); gl.readPixels(0, 0, L, H, gl.RGBA, gl.UNSIGNED_BYTE, t); return t; }
+function luminance(t) { const y = new Float32Array(L * H); for (let i = 0, j = 0; i < y.length; i++, j += 4) y[i] = 0.299 * t[j] + 0.587 * t[j + 1] + 0.114 * t[j + 2]; return y; }
+function laplacien(y) {
+  const r = new Float32Array(L * H);
+  for (let j = 1; j < H - 1; j++) for (let i = 1; i < L - 1; i++) { const k = j * L + i; r[k] = y[k - 1] + y[k + 1] + y[k - L] + y[k + L] - 4 * y[k]; }
+  return r;
+}
+function eroder(m, fois) {
+  let a = m;
+  for (let f = 0; f < fois; f++) {
+    const b = new Uint8Array(L * H);
+    for (let j = 1; j < H - 1; j++) for (let i = 1; i < L - 1; i++) {
+      const k = j * L + i;
+      b[k] = (a[k] && a[k - 1] && a[k + 1] && a[k - L] && a[k + L] && a[k - L - 1] && a[k - L + 1] && a[k + L - 1] && a[k + L + 1]) ? 1 : 0;
+    }
+    a = b;
+  }
+  return a;
+}
+function varianceSur(lap, masque, y) {
+  let n = 0, s = 0, s2 = 0, sy = 0;
+  for (let k = 0; k < masque.length; k++) if (masque[k]) { n++; const v = lap[k]; s += v; s2 += v * v; sy += y[k]; }
+  return n ? { n, lapVar: +(s2 / n - (s / n) * (s / n)).toFixed(3), lum: +(sy / n).toFixed(2) } : { n: 0, lapVar: null, lum: null };
+}
+function regions(inc, lap, y) {
+  const modele = new Uint8Array(L * H);
+  for (let k = 0; k < modele.length; k++) modele[k] = inc[k * 4 + 1] > 200 ? 1 : 0;
+  const ok = eroder(modele, 3);   // retire la silhouette (anti-crenelage) : son contraste ne dit rien de la texture
+  const rasant = new Uint8Array(L * H), oblique = new Uint8Array(L * H), face = new Uint8Array(L * H);
+  for (let k = 0; k < ok.length; k++) {
+    if (!ok[k]) continue;
+    const c = inc[k * 4] / 255;
+    if (c < 0.30) rasant[k] = 1; else if (c < 0.60) oblique[k] = 1; else face[k] = 1;
+  }
+  return { rasant: varianceSur(lap, rasant, y), oblique: varianceSur(lap, oblique, y), face: varianceSur(lap, face, y), tout: varianceSur(lap, ok, y) };
+}
+function mesurerCadre(viewer, ancienFond) {
+  const { renderer, scene, camera } = viewer;
+  const gl = renderer.getContext();
+  // 1) couleur : on lit les pixels ET le PNG dans la meme tache que le rendu (le tampon n'est pas conserve apres)
+  etape('rendu couleur...');
+  renderer.render(scene, camera);
+  etape('rendu couleur fini, lecture...');
+  const couleur = lire(gl);
+  const png = renderer.domElement.toDataURL('image/png');
+  // 2) incidence
+  const fond = scene.background; scene.background = new THREE.Color(0x000000);
+  scene.overrideMaterial = matIncidence;
+  etape('rendu incidence...');
+  renderer.render(scene, camera);
+  const inc = lire(gl);
+  scene.overrideMaterial = null; scene.background = fond;
+  const lum = luminance(couleur);
+  const lap = laplacien(lum);
+  return { regions: regions(inc, lap, lum), png };
+}
+function etatTextures(modele, renderer) {
+  const vus = new Set(), sortie = [];
+  const gl = renderer.getContext();
+  const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+  modele.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+      if (!m) continue;
+      for (const cle of Object.keys(m)) {
+        const t = m[cle];
+        if (!t || !t.isTexture || vus.has(t)) continue;
+        vus.add(t);
+        const im = t.image;
+        const e = { cle, nom: t.name || null, cs: t.colorSpace, aniso: t.anisotropy, min: t.minFilter, mag: t.magFilter, mips: t.generateMipmaps, w: im && im.width, h: im && im.height, version: t.version };
+        const p = renderer.properties.get(t);
+        if (p && p.__webglTexture) {
+          gl.bindTexture(gl.TEXTURE_2D, p.__webglTexture);
+          e.gl = { aniso: ext ? gl.getTexParameter(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT) : null, min: gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER), mag: gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER) };
+          gl.bindTexture(gl.TEXTURE_2D, null);
+        } else e.gl = null;
+        sortie.push(e);
+      }
+    }
+  });
+  renderer.resetState();
+  return sortie;
+}
+/** Etat REEL d'une texture cote pilote GL (apres au moins un rendu qui l'utilise), ou null si elle n'a pas ete televersee. */
+function etatGlDe(t, renderer) {
+  const p = renderer.properties.get(t);
+  if (!p || !p.__webglTexture) return null;
+  const gl = renderer.getContext();
+  const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+  gl.bindTexture(gl.TEXTURE_2D, p.__webglTexture);
+  const e = { aniso: ext ? gl.getTexParameter(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT) : null, min: gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER), mag: gl.getTexParameter(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER) };
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  renderer.resetState();
+  return e;
+}
+function etatJsDe(t) {
+  return { aniso: t.anisotropy, min: t.minFilter, mag: t.magFilter, mips: t.generateMipmaps, cs: t.colorSpace, version: t.version };
+}
+function placer(viewer, centre, rayon, az, el, facteur) {
+  const fov = viewer.camera.fov * Math.PI / 180;
+  const d = rayon * facteur / Math.tan(fov / 2);
+  const a = az * Math.PI / 180, e = el * Math.PI / 180;
+  viewer.camera.position.set(centre.x + d * Math.sin(a) * Math.cos(e), centre.y + d * Math.sin(e), centre.z + d * Math.cos(a) * Math.cos(e));
+  viewer.camera.near = d / 100; viewer.camera.far = d * 20;
+  viewer.camera.aspect = L / H;
+  viewer.camera.updateProjectionMatrix();
+  viewer.camera.lookAt(centre);
+  viewer.camera.updateMatrixWorld(true);
+}
+
+const canvas = document.getElementById('c');
+canvas.width = L; canvas.height = H;
+etape('module charge, creation du viewer...');
+const viewer = new Viewer3D({ canvas, fov: 40, bgColor: 0x1d1d2c, lighting: true, autoResize: false });
+etape('viewer cree');
+if (!viewer.renderer) throw new Error('pas de WebGL');
+viewer.renderer.setPixelRatio(1);
+viewer.renderer.setSize(L, H, false);
+const gl0 = viewer.renderer.getContext();
+const dbg = gl0.getExtension('WEBGL_debug_renderer_info');
+const extA = gl0.getExtension('EXT_texture_filter_anisotropic');
+const base = {
+  mode, rendu: dbg ? gl0.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : null,
+  maxAnisoGPU: extA ? gl0.getParameter(extA.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 0,
+  defautTextureNeuve: new THREE.Texture().anisotropy,
+  sortieCouleur: viewer.renderer.outputColorSpace, toneMapping: viewer.renderer.toneMapping, exposition: viewer.renderer.toneMappingExposure, pixelRatio: viewer.renderer.getPixelRatio(),
+  aMethodePreparer: typeof viewer.preparerTextures === 'function',
+  parseEnveloppe: !!GLTFLoader.prototype.parse.__filtrageTextures,
+};
+
+async function modeGlb() {
+  const url = params.get('glb');
+  const forcer = params.get('forcer') ? Number(params.get('forcer')) : null;
+  etape('telechargement du GLB...');
+  const tampon = await (await fetch(url)).arrayBuffer();
+  etape('GLB recu : ' + tampon.byteLength + ' octets, analyse...');
+  const tFetch = duree();
+  const gltf = await new Promise((ok, ko) => new GLTFLoader().parse(tampon, '', ok, ko));
+  const tParse = duree();
+  const modele = gltf.scene;
+  // etat des textures JUSTE APRES le chargement, avant tout rendu : c'est ce que voit le premier televersement
+  const apresChargement = [];
+  modele.traverse((o) => { if (!o.isMesh) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) for (const cle of Object.keys(m)) { const t = m[cle]; if (t && t.isTexture) apresChargement.push({ cle, aniso: t.anisotropy, min: t.minFilter, mag: t.magFilter, mips: t.generateMipmaps, version: t.version }); } });
+  if (forcer) modele.traverse((o) => { if (!o.isMesh) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) for (const cle of Object.keys(m)) { const t = m[cle]; if (t && t.isTexture) t.anisotropy = forcer; } });
+  etape('modele analysé');
+  viewer.scene.add(modele);
+  const boite = new THREE.Box3().setFromObject(modele);
+  const centre = boite.getCenter(new THREE.Vector3());
+  const rayon = boite.getSize(new THREE.Vector3()).length() / 2;
+  const hauteur = boite.max.y - boite.min.y;
+  const haut = (k) => new THREE.Vector3(centre.x, boite.min.y + hauteur * k, centre.z);
+  const poses = [
+    { nom: 'trois_quarts', az: 40, el: 10, f: 0.85, cible: centre },
+    { nom: 'cote_rasant', az: 85, el: 5, f: 0.85, cible: centre },
+    { nom: 'dessus_oblique', az: 20, el: 55, f: 0.85, cible: centre },
+    { nom: 'zoom_torse', az: 80, el: 8, f: 0.38, cible: haut(0.6) },
+    { nom: 'zoom_pieds', az: 30, el: 12, f: 0.3, cible: haut(0.08) },
+    { nom: 'zoom_visage', az: 35, el: 5, f: 0.25, cible: haut(0.88) },
+  ];
+  const filtre = params.get('poses');
+  const resultats = [], pngs = {};
+  for (const p of poses) {
+    if (filtre && !filtre.split(',').includes(p.nom)) continue;
+    placer(viewer, p.cible, rayon, p.az, p.el, p.f);
+    const r = mesurerCadre(viewer);
+    resultats.push({ nom: p.nom, az: p.az, el: p.el, facteur: p.f, regions: r.regions });
+    pngs[p.nom] = r.png;
+  }
+  const tRendu = duree();
+  const textures = etatTextures(modele, viewer.renderer);
+  const triangles = (() => { let n = 0; modele.traverse((o) => { if (o.isMesh && o.geometry) n += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; }); return Math.round(n); })();
+  return { ...base, glb: url, forcer, triangles, apresChargement, textures, poses: resultats, pngs, ms: { fetch: tFetch, parse: tParse - tFetch, rendu: tRendu - tParse } };
+}
+
+async function modeDamier() {
+  // Plan quasi horizontal vu de tres bas : la texture est tres etiree, cas d'ecole de l'anisotropie.
+  const cv = document.createElement('canvas'); cv.width = cv.height = 1024;
+  const c2 = cv.getContext('2d');
+  for (let j = 0; j < 64; j++) for (let i = 0; i < 64; i++) { c2.fillStyle = ((i + j) & 1) ? '#f2f2f2' : '#202020'; c2.fillRect(i * 16, j * 16, 16, 16); }
+  const plan = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ toneMapped: false }));
+  plan.rotation.x = -Math.PI / 2;
+  viewer.scene.add(plan);
+  viewer.scene.background = new THREE.Color(0x000000);
+  viewer.camera.fov = 40;
+  const sorties = [];
+  const reglages = [null, 1, 2, 4, 8, 16];
+  for (const a of reglages) {
+    const tex = new THREE.CanvasTexture(cv);   // creee SANS reglage : anisotropy = DEFAULT_ANISOTROPY du module charge
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    if (a !== null) tex.anisotropy = a;
+    const anisoJS = tex.anisotropy;
+    plan.material.map = tex; plan.material.needsUpdate = true;
+    viewer.camera.position.set(0, 0.6, 14);
+    viewer.camera.near = 0.1; viewer.camera.far = 400; viewer.camera.aspect = L / H; viewer.camera.updateProjectionMatrix();
+    viewer.camera.lookAt(0, 0, 0); viewer.camera.updateMatrixWorld(true);
+    const r = mesurerCadre(viewer);
+    const p = viewer.renderer.properties.get(tex);
+    const gl = viewer.renderer.getContext();
+    let glInfo = null;
+    if (p && p.__webglTexture) { gl.bindTexture(gl.TEXTURE_2D, p.__webglTexture); glInfo = extA ? gl.getTexParameter(gl.TEXTURE_2D, extA.TEXTURE_MAX_ANISOTROPY_EXT) : null; gl.bindTexture(gl.TEXTURE_2D, null); viewer.renderer.resetState(); }
+    sorties.push({ demande: a, anisoJS, anisoGL: glInfo, regions: r.regions, png: a === null || a === 1 || a === 16 ? r.png : undefined });
+  }
+  return { ...base, balayage: sorties };
+}
+
+// Echantillonneurs glTF du GLB de test (tests/bureau-interface/_glb-minimal.mjs, SAMPLERS) : ce que le fichier DEMANDE a three
+const ECHANTILLONNEURS = {
+  map: 'aucun (defauts de three)', roughnessMap: 'LINEAR / LINEAR 9729 (sans mipmaps)', metalnessMap: 'idem roughnessMap (meme objet)',
+  normalMap: 'LINEAR / LINEAR_MIPMAP_NEAREST 9985', aoMap: 'LINEAR / LINEAR_MIPMAP_LINEAR 9987', emissiveMap: 'NEAREST / NEAREST 9728 (voulu)',
+};
+
+async function modeEchant() {
+  // UN vrai GLB (carre de 40 x 40, damier 1024 px repete 4 fois) dont les cinq cartes ont chacune un echantillonneur
+  // different : pour chacune, l'etat de la texture apres le chargement, l'etat REEL dans le pilote GL apres un rendu, et la
+  // nettete du carre vu de tres bas. Puis le chemin « texture deja televersee » : viewer.preparerTextures() apres rendu.
+  const url = params.get('glb');
+  etape('echant : telechargement du GLB...');
+  const tampon = await (await fetch(url)).arrayBuffer();
+  const gltf = await new Promise((ok, ko) => new GLTFLoader().parse(tampon, '', ok, ko));
+  const modele = gltf.scene;
+  let maillage = null;
+  modele.traverse((o) => { if (o.isMesh && !maillage) maillage = o; });
+  const m0 = maillage.material;
+  const cartes = [['map', m0.map], ['roughnessMap', m0.roughnessMap], ['normalMap', m0.normalMap], ['aoMap', m0.aoMap], ['emissiveMap', m0.emissiveMap]];
+  const apresChargement = cartes.map(([cle, t]) => ({ cle, ...etatJsDe(t) }));
+  viewer.scene.add(modele);
+  viewer.scene.background = new THREE.Color(0x000000);
+  viewer.camera.fov = 40;
+  const placerBas = () => {
+    viewer.camera.position.set(0, 0.6, 14);
+    viewer.camera.near = 0.1; viewer.camera.far = 400; viewer.camera.aspect = L / H; viewer.camera.updateProjectionMatrix();
+    viewer.camera.lookAt(0, 0, 0); viewer.camera.updateMatrixWorld(true);
+  };
+  const sorties = [];
+  for (const [cle, t] of cartes) {
+    maillage.material = new THREE.MeshBasicMaterial({ map: t, toneMapped: false });
+    placerBas();
+    const r = mesurerCadre(viewer);
+    sorties.push({ cle, echantillonneur: ECHANTILLONNEURS[cle], js: etatJsDe(t), gl: etatGlDe(t, viewer.renderer), regions: r.regions, png: r.png });
+  }
+  // chemin « texture deja televersee » : une texture creee ailleurs avec une anisotropie de 1, deja sur la carte, puis reglee
+  let reTeleversement = null;
+  if (typeof viewer.preparerTextures === 'function') {
+    viewer.scene.remove(modele);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const c2 = cv.getContext('2d');
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { c2.fillStyle = ((i + j) & 1) ? '#f2f2f2' : '#202020'; c2.fillRect(i * 8, j * 8, 8, 8); }
+    const t2 = new THREE.CanvasTexture(cv);
+    t2.anisotropy = 1; t2.wrapS = t2.wrapT = THREE.RepeatWrapping; t2.repeat.set(8, 8);
+    const plan = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: t2, toneMapped: false }));
+    plan.rotation.x = -Math.PI / 2;
+    viewer.scene.add(plan);
+    placerBas();
+    mesurerCadre(viewer);
+    const avant = etatGlDe(t2, viewer.renderer);
+    const versionAvant = t2.version;
+    const bilan = viewer.preparerTextures(plan);
+    const resApres = mesurerCadre(viewer);
+    reTeleversement = { glAvant: avant, glApres: etatGlDe(t2, viewer.renderer), versionAvant, versionApres: t2.version, bilan, regions: resApres.regions };
+  }
+  return { ...base, glb: url, apresChargement, cartes: sorties, reTeleversement };
+}
+
+try {
+  const r = mode === 'damier' ? await modeDamier() : mode === 'echant' ? await modeEchant() : await modeGlb();
+  r.msTotal = duree();
+  sortie(r);
+} catch (e) { echec(e); }
+</script>
+</body>
+</html>
