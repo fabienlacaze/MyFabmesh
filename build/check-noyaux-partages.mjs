@@ -160,6 +160,9 @@ const FICHIERS = [
   // bureau / web (une derive entre les deux dictionnaires laissait des libelles traduits d'un seul cote).
   { nom: 'textes du serveur (traduction des refus)', source: 'src/renderer/lib/textes-serveur.js', copie: 'cloud/public/app/lib/textes-serveur.js' },
   { nom: 'traductions communes (lang/_additions6.js)', source: 'src/renderer/lang/_additions6.js', copie: 'cloud/public/app/lang/_additions6.js' },
+  // Modify image : retrait et remplacement (2026-10-20) : module pur + ses traductions, memes octets sur les deux pages
+  { nom: 'retrait dans Modify (JS)', source: 'src/renderer/lib/retrait-image.js', copie: 'cloud/public/app/lib/retrait-image.js' },
+  { nom: 'traductions de Modify (retrait)', source: 'src/renderer/lang/_additions_retrait.js', copie: 'cloud/public/app/lang/_additions_retrait.js' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

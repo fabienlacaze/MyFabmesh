@@ -93,6 +93,11 @@ const LIVRES = [
   'cloud/public/app/lang/_additions6.js',
   'src/renderer/lib/textes-serveur.js',
   'cloud/public/app/lib/textes-serveur.js',
+  // Modify image : retrait et remplacement (2026-10-20) — module pur et ses traductions (fichiers communs bureau / web)
+  'src/renderer/lib/retrait-image.js',
+  'cloud/public/app/lib/retrait-image.js',
+  'src/renderer/lang/_additions_retrait.js',
+  'cloud/public/app/lang/_additions_retrait.js',
 ];
 
 /** Les pages HTML embarquent des <script> EN LIGNE. Ils ne sont dans aucun

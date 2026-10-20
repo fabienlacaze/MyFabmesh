@@ -19,6 +19,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { analyserRetrait, estRoute } from './lib/retrait-image.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -656,7 +657,9 @@ function promptBuyCredits(message) {
  *
  * La signature reste identique au bureau (async, meme nom, meme retour) :
  * le jour ou une route de traduction existe, seul ce corps change. */
-async function translateUserPrompt(text) {
+async function translateUserPrompt(text, opts) {
+  // opts.silencieux (2026-10-20) : traduction faite en TAPANT (analyse de « Modify image ») — ne pas allumer le « Translating… » des zones de prompt.
+  const silencieux = !!(opts && opts.silencieux);
   // 2026-09-29 (user : « on doit taper dans la langue de l'appli ») : meme regle que le bureau — la langue de
   // l'INTERFACE est la langue source, traduite en anglais par /api/translate (Workers AI). en / echec : inchange.
   // Plafond dur de 8 s : une traduction lente ne doit jamais figer l'interface.
@@ -665,7 +668,7 @@ async function translateUserPrompt(text) {
   try { lang = (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
   if (lang === 'en') return String(text);
   if (_ressembleAnglais(text)) return String(text);  // deja de l'anglais (champ modifie a la main) : ne pas le repasser par le francais
-  try { _setPromptBusy(TRANSLATING_MSG); } catch (_) {}
+  if (!silencieux) { try { _setPromptBusy(TRANSLATING_MSG); } catch (_) {} }
   try {
     const r = await Promise.race([
       API.translatePrompt({ text: String(text), from: lang }),
@@ -673,7 +676,7 @@ async function translateUserPrompt(text) {
     ]);
     return (r && r.text) ? _corrigerFauxAmis(text, r.text, lang) : String(text);
   } catch (_) { return String(text); }
-  finally { try { _clearPromptBusy(); } catch (_) {} }
+  finally { if (!silencieux) { try { _clearPromptBusy(); } catch (_) {} } }
 }
 
 // Aide de langue sous « Generation prompt » / « Description » (portee du bureau, 2026-10-01) : sans elle, le texte tape en francais
@@ -6573,6 +6576,143 @@ window.addEventListener('fabmesh:langue', () => {
   try { _updateVarStrengthHint(); } catch (_) {}
 });
 
+/* MODIFY : RETRAIT ET REMPLACEMENT (2026-10-20, lib/retrait-image.js ; jumeau cote bureau : src/renderer/index2.js).
+ *
+ * CONSTAT (retour du proprietaire, 19/10) : « remove the wings » sur un cochon aile ne retirait rien. Modify est une img2img : elle sait
+ * retoucher, pas retirer (le prompt devient « same shape, same composition ... only change: remove the wings » : « wings » est lu comme
+ * quelque chose a dessiner). Une consigne de RETRAIT (« remove the wings », « without the hat ») ou de REMPLACEMENT explicite (« replace the
+ * wings with a hat ») est donc confiee a Auto Inpaint (detection par texte + remplissage), qui sait le faire.
+ *
+ * DECISION cote CLIENT, sur le texte DEJA TRADUIT en anglais. Le prix affiche est celui de la route REELLEMENT appelee (auto_inpaint) : la
+ * pastille de « Modify image » suit l'analyse du texte. Si le clic arrive avant la fin de l'analyse (prix pas encore a jour) et que le retrait
+ * coute plus cher, une confirmation annonce le prix avant tout debit. Une consigne qui n'est pas un retrait suit EXACTEMENT l'ancien chemin
+ * (API.img2img). Le filtre de securite porte sur les chaines envoyees au moteur (cible + remplacement) : main.js ('auto-inpaint') et le
+ * worker (/api/auto-inpaint). Le curseur Strength n'a pas de sens pour un retrait : il est grise et sans effet tant qu'un retrait est annonce.
+ */
+const modPromptEl = document.getElementById('mod-prompt');
+const modRetraitAide = document.getElementById('mod-retrait-hint');
+let _modRetrait = { texte: null, anglais: null, analyse: null };   // derniere analyse : texte tape -> anglais -> decision
+let _modRetraitSeq = 0;                                            // une frappe plus recente invalide une analyse en cours
+let _modRetraitMinuterie = null;
+const _modCacheTrad = new Map();
+function _modLangueAnglais() {
+  try { return (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase() === 'en'; } catch (_) { return true; }
+}
+/** Le site est TOUJOURS en mode Cloud : tout travail est facture. */
+function _modEnCloud() { return true; }
+/** Prix d'une cle de la grille /api/pricing (null tant qu'elle est inconnue : aucune pastille). */
+function _modPrix(cle) { return typeof window._prixDe === 'function' ? window._prixDe(cle) : null; }
+/** Vrai si le texte ACTUELLEMENT tape a ete analyse et sera confie au moteur de retrait (la pastille de prix le suit). */
+function _modRetraitActif() {
+  return !!(_modRetrait.analyse && estRoute(_modRetrait.analyse) && modPromptEl && modPromptEl.value.trim() === _modRetrait.texte);
+}
+/** Texte tape -> anglais (cache : une meme saisie n'est traduite qu'une fois). Un echec de traduction rend le texte tel quel, sans le garder. */
+async function _modAnglais(brut) {
+  if (_modCacheTrad.has(brut)) return _modCacheTrad.get(brut);
+  let anglais = brut;
+  try { anglais = (await translateUserPrompt(brut, { silencieux: true })) || brut; } catch (_) { anglais = brut; }
+  if (anglais !== brut) { if (_modCacheTrad.size > 30) _modCacheTrad.clear(); _modCacheTrad.set(brut, anglais); }
+  return anglais;
+}
+/** Ligne d'aide sous la zone de texte, curseur grise, pastille de prix : tout suit l'analyse du texte ACTUEL. */
+function _modAfficherRetrait() {
+  const a = (_modRetrait.analyse && modPromptEl && modPromptEl.value.trim() === _modRetrait.texte) ? _modRetrait.analyse : null;
+  const route = !!a && estRoute(a);
+  let ligne = '';
+  if (a && a.mode === 'retrait') ligne = _i18nTf('Erases "{x}" and fills the gap. The Strength slider is not used.', a.cible);
+  else if (a && a.mode === 'remplacement') ligne = _i18nTf('Replaces "{x}" with "{y}". The Strength slider is not used.', a.cible, a.remplacement);
+  else if (a && a.mode === 'mixte') ligne = _i18nT('To remove something, ask for it on its own (for example "remove the wings"), then make the other changes in a second step.');
+  if (modRetraitAide) { modRetraitAide.textContent = ligne; modRetraitAide.hidden = !ligne; }
+  if (modStrength) {
+    modStrength.disabled = route;
+    modStrength.classList.toggle('fen-inactif', route);
+    modStrength.title = route ? _i18nT('Not used when erasing or replacing') : '';
+  }
+  if (modStrengthVal) modStrengthVal.classList.toggle('fen-inactif', route);
+  // pastille de prix du bouton : la cle de grille est celle de la route REELLEMENT appelee (cloud-overrides.js la relit a chaque rafraichissement)
+  const badge = document.querySelector('#mod-apply .credit-badge[data-pricing-key]');
+  if (badge) {
+    badge.dataset.pricingKey = route ? 'auto_inpaint' : 'modify';
+    const v = _modPrix(badge.dataset.pricingKey);
+    badge.textContent = (v != null && v > 0) ? String(v) : '';
+  }
+}
+async function _modMajRetrait() {
+  const seq = ++_modRetraitSeq;
+  const brut = modPromptEl ? modPromptEl.value.trim() : '';
+  if (!brut || brut.length > 200) return;
+  const anglais = await _modAnglais(brut);
+  if (seq !== _modRetraitSeq) return;      // une frappe plus recente a pris la suite
+  _modRetrait = { texte: brut, anglais, analyse: analyserRetrait(anglais) };
+  _modAfficherRetrait();
+}
+/** A chaque frappe : retour immediat au prix et a l'aide neutres, puis analyse (au repos de 0,8 s hors anglais : la traduction coute un appel). */
+function _modPlanifierRetrait() {
+  _modRetraitSeq++;
+  _modRetrait = { texte: null, anglais: null, analyse: null };
+  clearTimeout(_modRetraitMinuterie);
+  _modAfficherRetrait();
+  if (!(modPromptEl && modPromptEl.value.trim())) return;
+  if (_modLangueAnglais()) _modMajRetrait();
+  else _modRetraitMinuterie = setTimeout(_modMajRetrait, 800);
+}
+modPromptEl?.addEventListener('input', _modPlanifierRetrait);
+window.addEventListener('fabmesh:langue', () => { _modCacheTrad.clear(); try { _modPlanifierRetrait(); } catch (_) {} });
+
+/** Decide de la route pour le texte tape. dejaAffiche : l'analyse etait faite AVANT le clic (prix et aide deja a l'ecran). */
+async function _modDecision(rawPrompt) {
+  if (_modRetrait.analyse && _modRetrait.texte === rawPrompt) return { etat: _modRetrait, dejaAffiche: true };
+  const anglais = await _modAnglais(rawPrompt);
+  return { etat: { texte: rawPrompt, anglais, analyse: analyserRetrait(anglais) }, dejaAffiche: false };
+}
+/** Le prix annonce doit etre le prix facture : si l'analyse n'etait pas encore a l'ecran et que le retrait coute plus que Modify, on le dit AVANT. */
+async function _modConfirmerPrix(analyse, dejaAffiche) {
+  if (dejaAffiche || !_modEnCloud()) return true;
+  const prixRetrait = _modPrix('auto_inpaint');
+  const prixModify = _modPrix('modify');
+  if (prixRetrait == null || prixRetrait === prixModify) return true;
+  return fabConfirm({
+    title: _i18nT('Modify image'),
+    message: _i18nTf('This is a removal: "{x}" will be erased with the removal tool, which costs {y} credits. Continue?', analyse.cible, prixRetrait),
+    okLabel: _i18nT('Continue'), cancelLabel: _i18nT('Cancel'), icon: '✂️', danger: false,
+  });
+}
+function _modMessageEchec(erreur, analyse) {
+  const brut = String(erreur || 'unknown');
+  if (/not found|not detected/i.test(brut)) {
+    return _i18nTf('"{x}" was not found in the image. Try a simpler word, or use Auto Inpaint.', analyse.cible)
+      + (_modEnCloud() ? ' ' + _i18nT('No credits were used.') : '');
+  }
+  return brut;
+}
+/** Lance le retrait / remplacement par le moteur d'Auto Inpaint. cible et remplacement sont les chaines que le filtre de securite verifie. */
+function _modLancerRetrait(p, target, rawPrompt, etat) {
+  const analyse = etat.analyse;
+  const dilate = parseInt(document.getElementById('ai-dilate')?.value, 10) || 15;
+  const remplace = analyse.mode === 'remplacement';
+  gatedRun('inpaint', `Modify image: ${p.name}`, async () => {
+    const job = pushJob(`Modify image: ${p.name}`, null, {
+      Target: analyse.cible,
+      Replace: remplace ? analyse.remplacement : '(remove)',
+      Padding: dilate + 'px',
+      Prompt: rawPrompt,
+    }, 180000, undefined, { sourceImageUrl: target, projectName: p.name });
+    try {
+      const r = await API.autoInpaint({ imagePath: target, targetText: analyse.cible, prompt: remplace ? analyse.remplacement : '', dilate, jobId: job.id });
+      if (r?.success) {
+        completeJob(job.id, true);
+        await reloadCurrentProject();
+      } else {
+        completeJob(job.id, false);
+        if (!job.cancelled) customError(_modMessageEchec(r?.error, analyse), 'Modify failed');
+      }
+    } catch (e) {
+      completeJob(job.id, false);
+      if (!job.cancelled) customError(_modMessageEchec(e?.error || e?.message || String(e), analyse), 'Modify error');
+    }
+  });
+}
+
 document.getElementById('ws-modify-btn').addEventListener('click', () => {
   const p = state.currentProject;
   const target = editTarget(p);
@@ -6582,12 +6722,13 @@ document.getElementById('ws-modify-btn').addEventListener('click', () => {
   if (srcImg) srcImg.src = _bust(_toFileUrl(target));
   modifyModal.dataset.targetPath = target;
   modifyModal.classList.remove('hidden');
+  _modPlanifierRetrait();   // le texte garde d'une ouverture a l'autre : aide, curseur et prix redeviennent justes
   setTimeout(() => document.getElementById('mod-prompt').focus(), 50);
 });
 document.getElementById('mod-cancel').addEventListener('click', () => {
   modifyModal.classList.add('hidden');
 });
-document.getElementById('mod-apply').addEventListener('click', async () => {
+async function _modAppliquer() {
   const p = state.currentProject;
   const target = modifyModal.dataset.targetPath || editTarget(p);
   if (!target) return;
@@ -6595,6 +6736,18 @@ document.getElementById('mod-apply').addEventListener('click', async () => {
   if (!prompt) { showToast('Type a modification first.', 'error'); return; }
   const engine = document.getElementById('mod-engine').value;
   const strength = parseInt(modStrength.value) / 100;
+  // RETRAIT / REMPLACEMENT : confie a Auto Inpaint (voir plus haut). Le bouton est inactif le temps de l'analyse (instantanee en anglais).
+  // NB : le chemin d'origine ci-dessous n'a JAMAIS traduit la consigne (le bureau, si) ; inchange ici, ecart de parite note dans AGENT_LOG.md.
+  const bouton = document.getElementById('mod-apply');
+  let decision;
+  if (bouton) bouton.disabled = true;
+  try { decision = await _modDecision(prompt); } finally { if (bouton) bouton.disabled = false; }
+  if (estRoute(decision.etat.analyse)) {
+    if (!(await _modConfirmerPrix(decision.etat.analyse, decision.dejaAffiche))) return;
+    modifyModal.classList.add('hidden');
+    _modLancerRetrait(p, target, prompt, decision.etat);
+    return;
+  }
   modifyModal.classList.add('hidden');
   // img2img is fast: ~5s on SDXL Turbo, ~20s on cloud
   const modifyExpected = engine === 'pollinations' ? 30000 : 15000;
@@ -6620,7 +6773,8 @@ document.getElementById('mod-apply').addEventListener('click', async () => {
       if (!job.cancelled) customError(e?.error || e?.message || String(e), 'Modify error');
     }
   });
-});
+}
+document.getElementById('mod-apply').addEventListener('click', _modAppliquer);
 
 // Image-side LICENCE bodies — mirror EXPORT_LICENCES (defined later
 // for the mesh modal). Repeated here so the image export can ship
