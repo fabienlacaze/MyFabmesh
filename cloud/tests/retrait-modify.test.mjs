@@ -89,3 +89,36 @@ test('admin : les cles modify et auto_inpaint existent dans la grille par defaut
   assert.match(bloc, /^\s*modify:\s*\d+,/m);
   assert.match(bloc, /^\s*auto_inpaint:\s*\d+,/m);
 });
+
+/* ═══════════ traductions RUNTIME : le VRAI i18n.js + les VRAIS dictionnaires, dans les 5 langues, sur les DEUX interfaces ═══════════ */
+import { creerPage as creerPageDom } from './_dom-minimal.mjs';
+
+const LANGUES_ESSAI = { fr: 'fr', es: 'es', zh: 'zh', hi: 'hi', ar: 'ar' };
+const FICHIERS_LANG = ['es.js', 'zh.js', 'hi.js', 'ar.js', '_additions.js', '_additions2.js', '_additions3.js', '_additions4.js', '_additions5.js', '_additions6.js', '_additions_retrait.js'];
+
+for (const [cible, base] of [['web', '../public/app/'], ['bureau', '../../src/renderer/']]) {
+  test(`${cible} : les textes de Modify (retrait) sortent traduits dans les 5 langues, avec leurs valeurs {x} / {y}, sans moteur nomme`, () => {
+    for (const lang of Object.keys(LANGUES_ESSAI)) {
+      const p = creerPageDom({ html: '<div id="reglages"><select id="lang-select"><option value="en">English</option></select></div>', langues: ['en-US'], stockage: { 'fabmesh.lang.choisi': lang, 'fabmesh.lang': lang } });
+      p.executer(readFileSync(new URL(base + 'i18n.js', import.meta.url), 'utf8'), 'i18n.js');
+      for (const f of FICHIERS_LANG) p.executer(readFileSync(new URL(base + 'lang/' + f, import.meta.url), 'utf8'), f);
+      p.charger();
+      const I = p.fenetre.FabI18n;
+      assert.equal(I.lang, lang);
+      const cas = [
+        [I.tf('Erases "{x}" and fills the gap. The Strength slider is not used.', 'wings'), 'wings'],
+        [I.tf('Replaces "{x}" with "{y}". The Strength slider is not used.', 'wings', 'a hat'), 'wings', 'a hat'],
+        [I.tf('This is a removal: "{x}" will be erased with the removal tool, which costs {y} credits. Continue?', 'wings', 6), 'wings', '6'],
+        [I.tf('"{x}" was not found in the image. Try a simpler word, or use Auto Inpaint.', 'wings'), 'wings'],
+        [I.t('To remove something, ask for it on its own (for example "remove the wings"), then make the other changes in a second step.')],
+        [I.t('Not used when erasing or replacing')],
+        [I.t('No credits were used.')],
+      ];
+      for (const [texte, ...valeurs] of cas) {
+        assert.ok(!/^(Erases|Replaces|This is a removal|To remove something|Not used when|No credits were used|"wings" was not found)/.test(texte), `${cible}/${lang} : non traduit : ${texte}`);
+        for (const v of valeurs) assert.ok(texte.includes(v), `${cible}/${lang} : valeur ${v} perdue : ${texte}`);
+        assert.ok(!/\{x\}|\{y\}/.test(texte), `${cible}/${lang} : gabarit non rempli : ${texte}`);
+      }
+    }
+  });
+}
