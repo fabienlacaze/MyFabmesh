@@ -19,6 +19,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { anglesDepuisCamera as _rrxAngles, validerVue as _rrxValiderVue, nomVue as _rrxNomVue, matriceVue as _rrxMatriceVue, vueNeutre as _rrxVueNeutre, xmagPourVue as _rrxXmagPourVue, affichageEtape as _rrxAffichage } from './lib/reshape-vue.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -14677,7 +14678,13 @@ function _peMeshCourant() {
 // 0,6, couleurs de la texture sans eclairage, fond blanc — exactement la projection de
 // scripts/mesh_inpaint.py (rendre), dont le recalage cote serveur depend pixel pour pixel.
 // ============================================================
-window.__rendreFaceAPlat = async function (url, taille = 1024) {
+// Vue CHOISIE (2026-10-19) : meme chaine que le bureau (mesh_inpaint.rendre yaw pitch). Le MAILLAGE tourne (matrice
+// Rx(pitch).Ry(-yaw), la direction de la camera du visualiseur va sur +Z), la camera reste de face. La demi-largeur
+// grandit par pas de 0,05 si le modele tourne deborde de la fenetre de 0,6. Rend { dataUrl, vue } ; vue = null en
+// vue de face (yaw 0 / pitch 0 : rendu identique a celui d'avant).
+window.__rendreVueAPlat = async function (url, taille = 1024, yaw = 0, pitch = 0) {
+  const choix = _rrxValiderVue(yaw, pitch);
+  if (!choix.ok) throw new Error('Invalid view: ' + choix.erreur);
   const gltf = await new Promise((ok, ko) => new GLTFLoader().load(url, ok, undefined, ko));
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xffffff);
@@ -14695,7 +14702,18 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
     o.material = plat;
   });
   scene.add(modele);
-  const cam = new THREE.OrthographicCamera(-0.6, 0.6, 0.6, -0.6, 0.01, 100);
+  let xm = 0.6;
+  const tourne = !_rrxVueNeutre(choix.yaw, choix.pitch);
+  if (tourne) {
+    const r = _rrxMatriceVue(choix.yaw, choix.pitch);
+    const m4 = new THREE.Matrix4();
+    m4.set(r[0][0], r[0][1], r[0][2], 0, r[1][0], r[1][1], r[1][2], 0, r[2][0], r[2][1], r[2][2], 0, 0, 0, 0, 1);
+    modele.applyMatrix4(m4);
+    modele.updateMatrixWorld(true);
+    const boite = new THREE.Box3().setFromObject(modele, true);       // sommets reels, pas la boite de leurs boites
+    xm = _rrxXmagPourVue(Math.max(Math.abs(boite.min.x), Math.abs(boite.max.x), Math.abs(boite.min.y), Math.abs(boite.max.y)));
+  }
+  const cam = new THREE.OrthographicCamera(-xm, xm, xm, -xm, 0.01, 100);
   cam.position.set(0, 0, 2);
   cam.lookAt(0, 0, 0);
   const rendu = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
@@ -14708,7 +14726,10 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
   rendu.dispose();
   jetables.forEach((m) => m.dispose());
   modele.traverse((o) => { if (o.isMesh) { o.geometry?.dispose?.(); } });
-  return dataUrl;
+  return { dataUrl, vue: tourne ? { yaw: choix.yaw, pitch: choix.pitch, xmag: xm } : null };
+};
+window.__rendreFaceAPlat = async function (url, taille = 1024) {
+  return (await window.__rendreVueAPlat(url, taille, 0, 0)).dataUrl;
 };
 
 (function _initReshapeWeb() {
@@ -14719,6 +14740,7 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
   if (!modal || !ctx) return;
   canvas.style.opacity = '0.5';        // transparence du calque entier (voir bureau, _dab)
   let peint = false, aPeint = false, vueUrl = null;
+  let vueChoisie = null;               // { yaw, pitch, xmag } rendue par l'etape 1 ; null = vue de face (comportement d'avant)
   // fenetre partagee avec le bureau : ici seulement le mode « forme »
   const h3 = modal.querySelector('h2, h3');
   if (h3) h3.innerHTML = '&#129516; ' + _i18nT('Reshape a region');
@@ -14756,24 +14778,115 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
   canvas.addEventListener('pointermove', (e) => { if (peint) touche(pos(e)); });
   window.addEventListener('pointerup', () => { peint = false; });
   $('rrx-clear')?.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; majPrix(); });
-  const fermer = () => modal.classList.add('hidden');
+  const fermer = () => { modal.classList.add('hidden'); arreter3d(); };
   $('rrx-cancel')?.addEventListener('click', fermer);
   $('rrx-close-x')?.addEventListener('click', fermer);
   const chargement = (t) => { const l = $('rrx-loading'); if (!l) return; l.textContent = t || ''; l.style.display = t ? 'flex' : 'none'; };
 
+  /* ETAPE 1 (2026-10-19) : visualiseur 3D, comme sur le bureau. Demande du proprietaire : « un viewer 3D pour
+   * afficher la zone que l'on souhaite, pas un 2D de face ». Le modele est affiche dans le meme composant que le
+   * reste du site (Viewer3D : orbite, zoom, deplacement, eclairage, texture) ; « Use this view » releve l'angle de
+   * la camera (yaw / pitch) et passe a l'etape 2 : la fenetre a plat d'avant sur le rendu pris DEPUIS cet angle
+   * (__rendreVueAPlat). Vue de depart de face : valider tout de suite redonne le comportement d'avant. */
+  let visualiseur = null, modele3d = null, jeton3d = 0;
+  const montrer = (id, oui) => { const e = $(id); if (e) e.style.display = oui ? '' : 'none'; };
+  function etape(n) {                   // 1 = visualiseur, 2 = fenetre a plat sur la vue choisie
+    for (const [id, oui] of Object.entries(_rrxAffichage(n))) montrer(id, oui);
+    if (n !== 1) arreter3d();
+  }
+  function arreter3d() { try { visualiseur?.stopTickLoop?.(); } catch (_) {} }
+  function vueCourante() {
+    if (!visualiseur) return null;
+    const a = _rrxAngles(visualiseur.camera.position, visualiseur.controls.target);
+    const v = _rrxValiderVue(a.yaw, a.pitch);
+    return v.ok ? { yaw: v.yaw, pitch: v.pitch } : null;
+  }
+  function libelleVue(v) {
+    return _i18nT('View') + ': ' + _i18nT(_rrxNomVue(v.yaw, v.pitch)) + ' (' + v.yaw + '\u00B0, ' + v.pitch + '\u00B0)';
+  }
+  function majInfo() {
+    const v = vueCourante();
+    const e = $('rrx-3d-info');
+    if (e && v) e.textContent = libelleVue(v);
+  }
+  function poserCamera(yaw, pitch) {    // camera a (yaw, pitch) autour de la cible, meme distance
+    if (!visualiseur) return;
+    const cible = visualiseur.controls.target;
+    const d = visualiseur.camera.position.distanceTo(cible) || 3;
+    const a = yaw * Math.PI / 180, b = pitch * Math.PI / 180;
+    visualiseur.camera.position.set(cible.x + d * Math.sin(a) * Math.cos(b), cible.y + d * Math.sin(b), cible.z + d * Math.cos(a) * Math.cos(b));
+    visualiseur.controls.update();
+    majInfo();
+  }
+  async function ouvrirVisualiseur(mp) {
+    const jeton = ++jeton3d;
+    const charge = (t) => { const l = $('rrx-3d-loading'); if (!l) return; l.textContent = t || ''; l.style.display = t ? 'flex' : 'none'; };
+    charge(_i18nT('Loading mesh…'));
+    try {
+      if (!visualiseur) {
+        visualiseur = new Viewer3D({ canvas: $('rrx-3d-canvas'), fov: 45, bgColor: 0x1b1b1b, cameraPos: [0, 0, 3], lighting: true });
+        visualiseur.controls.addEventListener('change', majInfo);
+        if (visualiseur.webglUnavailable) { charge(''); showToast(_i18nT('Could not open the 3D viewer.'), 'error'); fermer(); return; }
+      }
+      visualiseur.startTickLoop();
+      await new Promise((r) => requestAnimationFrame(r));        // la zone est visible : elle a maintenant une taille
+      visualiseur.resize();
+      if (modele3d) { visualiseur.scene.remove(modele3d); modele3d = null; }
+      const buffer = _etapeAffiche(mp, true) ? new ArrayBuffer(8) : await API.readMeshFile(mp);
+      if (!buffer) throw new Error('read');
+      const gltf = await new Promise((ok, ko) => _fauxChargeur(mp, { leger: true }).parse(buffer, '', ok, ko));
+      if (jeton !== jeton3d) return;                              // une ouverture plus recente a pris la main
+      modele3d = gltf.scene;
+      visualiseur.scene.add(modele3d);
+      // vue de depart : DE FACE (yaw 0, pitch 0). Le modele n'est ni tourne ni recentre : seul l'angle compte.
+      const centre = new THREE.Box3().setFromObject(modele3d).getCenter(new THREE.Vector3());
+      visualiseur.controls.target.copy(centre);
+      visualiseur.camera.position.set(centre.x, centre.y, centre.z + 3);
+      visualiseur.frame(modele3d, 0.62);        // le modele remplit la fenetre (1,1 le laissait tout petit)
+      poserCamera(0, 0);
+      visualiseur._initialCamPos = visualiseur.camera.position.clone();
+    } catch (e) {
+      showToast(_i18nT('Could not open the 3D viewer.'), 'error');
+      fermer();
+    } finally { if (jeton === jeton3d) charge(''); }
+  }
+  document.querySelectorAll('#rrx-3d-presets [data-rrx-yaw]').forEach((b) => {
+    b.addEventListener('click', () => poserCamera(Number(b.dataset.rrxYaw), Number(b.dataset.rrxPitch)));
+  });
+  async function utiliserVue() {        // « Use this view » : releve l'angle, rend la vue a plat, passe a l'etape 2
+    const mp = _peMeshCourant();
+    const v = vueCourante();
+    if (!mp || !v) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; vueUrl = null; vueChoisie = null; $('rrx-img').src = '';
+    majPrix();
+    etape(2);
+    chargement(_i18nT('Rendering mesh…'));
+    const r = await API.renderMeshFront({ meshPath: mp, yaw: v.yaw, pitch: v.pitch });
+    chargement('');
+    if (!r?.ok) { showToast(_i18nT('Could not render the mesh front.') + ' ' + (r?.error || ''), 'error'); etape(1); visualiseur?.startTickLoop?.(); return; }
+    $('rrx-img').src = r.dataUrl;
+    vueUrl = r.frontPath;
+    vueChoisie = r.vue || null;
+    const nom = $('rrx-vue-nom'); if (nom) nom.textContent = libelleVue(v);
+  }
+  $('rrx-use-view')?.addEventListener('click', utiliserVue);
+  $('rrx-change-view')?.addEventListener('click', () => {       // retour au visualiseur : la zone peinte appartenait a l'ancien angle
+    ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; vueUrl = null; vueChoisie = null;
+    majPrix();
+    etape(1);
+    visualiseur?.startTickLoop?.();
+    majInfo();
+  });
+
   async function ouvrir() {
     const mp = _peMeshCourant();
     if (!mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
-    ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; vueUrl = null;
+    ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; vueUrl = null; vueChoisie = null;
     $('rrx-prompt').value = ''; if ($('rrx-part')) $('rrx-part').value = ''; $('rrx-img').src = '';
     majPrix();
+    etape(1);
     modal.classList.remove('hidden');
-    chargement(_i18nT('Rendering mesh…'));
-    const r = await API.renderMeshFront({ meshPath: mp });
-    chargement('');
-    if (!r?.ok) { showToast(_i18nT('Could not render the mesh front.') + ' ' + (r?.error || ''), 'error'); fermer(); return; }
-    $('rrx-img').src = r.dataUrl;
-    vueUrl = r.frontPath;
+    await ouvrirVisualiseur(mp);
   }
   async function detecter() {
     const part = ($('rrx-part')?.value || '').trim();
@@ -14829,8 +14942,9 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
     const prompt = await translateUserPrompt(brut);
     const p = state.currentProject;
     const vue = vueUrl;
+    const vueAngle = vueChoisie;            // vue choisie (null = de face) : meme couple d'angles au rendu et a l'assemblage
     fermer();
-    _lancerReshape({ meshPath: mp, frontPath: vue, maskDataUrl, prompt, brut, projet: p });
+    _lancerReshape({ meshPath: mp, frontPath: vue, maskDataUrl, prompt, brut, projet: p, vue: vueAngle });
   });
   document.getElementById('ws-mesh-reshape-btn')?.addEventListener('click', ouvrir);
   document.getElementById('ws-mesh-reshape-draw-btn')?.addEventListener('click', () => {
@@ -14841,12 +14955,12 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
 })();
 
 /** Lance le travail (plusieurs minutes) en tache de fond : tuile « Reshape region », nouvelle version. */
-function _lancerReshape({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, brut, projet }) {
+function _lancerReshape({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, brut, projet, vue }) {
   const job = (typeof pushJob === 'function')
     ? pushJob(`Reshape region: ${projet?.name || ''}`, null,
         { 'Source mesh': _nomLisible(meshPath), Prompt: brut }, 300000, { projectName: projet?.name })
     : null;
-  API.reshapeRegion({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName: projet?.name }).then(async (r) => {
+  API.reshapeRegion({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName: projet?.name, ...(vue ? { vue } : {}) }).then(async (r) => {
     if (r?.ok && r.path) {
       if (job) completeJob(job.id, true);
       showToast(_i18nT('Region rebuilt: new 3D version added.'), 'success');
