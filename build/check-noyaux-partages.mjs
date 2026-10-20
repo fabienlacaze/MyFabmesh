@@ -153,6 +153,10 @@ const FICHIERS = [
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
   // redacteur de la fenetre New project (2026-09-30) : meme script sur le bureau (local) et sur Modal (site)
   { nom: 'redacteur (New project)', source: 'scripts/redacteur.py', copie: 'modal_app/redacteur/redacteur.py' },
+  // fusion des masques de detourage (2026-10-03) : UNION u2net + Lucida, Python pur + numpy ; le bureau (_prep_image) et Modal (_detourage) l'appellent
+  { nom: 'fusion des masques de detourage (union)', source: 'scripts/fusion_masques.py', copie: 'modal_app/fusion_masques.py' },
+  // substituts pur torch de timm / kornia pour le code distant de Lucida (2026-10-14) : bureau (lucida_matte) et Modal (conteneur image sans kornia)
+  { nom: 'substituts timm / kornia (Lucida)', source: 'scripts/lucida_shims.py', copie: 'modal_app/lucida_shims.py' },
   // composeur d'intention (2026-10-03) : objets tenus, negatifs d'armes, gabarit adapte a ce que l'utilisateur DEMANDE ; Python = bureau (pont) et Modal, JS = les deux pages
   { nom: 'composeur d intention (Python)', source: 'scripts/composeur_intention.py', copie: 'modal_app/composeur_intention.py' },
   { nom: 'composeur d intention (JS)', source: 'src/renderer/lib/composeur-intention.js', copie: 'cloud/public/app/lib/composeur-intention.js' },

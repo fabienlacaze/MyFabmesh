@@ -381,6 +381,36 @@ _U2NET_DANS_L_IMAGE = (
     "/root/.u2net/u2net.onnx' | sha256sum -c -",
 )
 
+# Detoureur LUCIDA (egeorcun/lucida, MIT, fine-tune de BiRefNet), 844 Mo, integre au conteneur IMAGE (Backview : rectification,
+# T-pose) et au conteneur du MAILLAGE (2026-10-14). Il complete u2net dans modal_app/_detourage.py (masque = UNION) : sur les
+# personnages en T-pose a fond gris, u2net perd en mediane 21,7 % de ce que Lucida garde (avant-bras, mains, ARMES ; mesure Modal du
+# 2026-10-03, 36 images). Sans ces poids, _detourage se replie sur u2net seul (resultat d'avant) : rien ne casse, rien ne change.
+#   * REVISION ET SHA-256 EPINGLES. Le modele est du code DISTANT (trust_remote_code) : sans epinglage, un changement du depot
+#     s'executerait dans nos conteneurs. Revision et empreintes des QUATRE fichiers (releves dans le cache du depot, 2026-10-14) sont fixes
+#     ici ; `sha256sum -c` fait ECHOUER la construction si un fichier differe (comme u2net et Real-ESRGAN ci-dessus).
+#   * DOSSIER LOCAL, PAS DE CACHE HF. Les fichiers sont deposes dans /opt/lucida et _detourage les charge PAR CE CHEMIN
+#     (FABMESH_LUCIDA_DIR). snapshot_download(revision=<sha>) n'ecrit pas refs/main dans le cache, et from_pretrained(depot,
+#     local_files_only=True) SANS revision echoue alors : Lucida declare indisponible en silence (prouve avec le vrai transformers hors
+#     ligne, revue du 2026-10-14). Le chemin local n'a pas ce piege.
+#   * AUCUNE DEPENDANCE AJOUTEE. timm est deja dans l'image (Florence-2) ; kornia n'est PAS dans celle du conteneur image : le code distant
+#     le demande (un seul appel, en entrainement) -> modal_app/lucida_shims.py (substituts pur torch, installes seulement si le vrai
+#     paquet manque). Le conteneur du maillage a les vrais timm et kornia.
+# Testee sur CPU : build/bancs/noyaux/test_lucida_image_modal.py (execute ces commandes telles quelles). JAMAIS execute sous
+# transformers 4.45.2 (conteneur image) : premiere validation = modal_app/test_lucida_union.py --conteneur backview.
+_LUCIDA_DIR = "/opt/lucida"
+_LUCIDA_DANS_L_IMAGE = (
+    "python -c \"from huggingface_hub import snapshot_download; "
+    "snapshot_download('egeorcun/lucida', revision='6cbedc9722652dc9a3df91dd871f0c4f3334e922', "
+    "local_dir='/opt/lucida', "
+    "allow_patterns=['config.json', 'birefnet.py', 'BiRefNet_config.py', 'model.safetensors'])\"",
+    "cd /opt/lucida && printf '%s  %s\\n' "
+    "'274c3949a052b9da73885c8df33e6cf8605ea4280668e194e4a249cbcda06ec2' config.json "
+    "'2a45b4e0ece72d7c4212bca1a988e7d7e52bfe9f98ec59c58b8809c8a8b7a831' birefnet.py "
+    "'e7b8c2a74f6cea6a59553d517f71d47f2c1d90e670a13416af17c25fe2f3dc52' BiRefNet_config.py "
+    "'2f1aa6913426537d4b93dd5f7138ae5c6664e99abda98c95f3d5b9101283e7d5' model.safetensors "
+    "| sha256sum -c -",
+)
+
 # Base image — CUDA + Python + the heavy pip deps shared by every
 # pipeline (torch, diffusers, fastapi). Both `image` (text2image +
 # back-view) and `mesh_image` (TRELLIS-2) extend from here.
@@ -607,6 +637,12 @@ predictor_image = _avec_sources(
         "python -c \"from huggingface_hub import hf_hub_download; "
         "hf_hub_download('ByteDance/SDXL-Lightning', 'sdxl_lightning_4step_lora.safetensors')\"",
     )
+)
+# Image du conteneur IMAGE (Backview) = celle-ci + les poids de Lucida (voir _LUCIDA_DANS_L_IMAGE). Derivee AVANT _avec_sources, EN FIN de
+# chaine : aucune couche precedente n'est reconstruite. Ni `image` ni `predictor_image` (text2image, qui ne detoure pas) ne portent
+# les 844 Mo.
+image_backview = _avec_sources(
+    image.run_commands(*_LUCIDA_DANS_L_IMAGE).env({"FABMESH_LUCIDA_DIR": _LUCIDA_DIR})
 )
 image = _avec_sources(image)
 
@@ -944,6 +980,10 @@ mesh_image = (
         "d('ZhengPeng7/BiRefNet', allow_patterns=['*.json', '*.safetensors', '*.py'])\"",
         secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
     )
+    # Poids de Lucida (detourage de la preparation d'image, avec u2net) : revision et SHA-256 epingles, voir _LUCIDA_DANS_L_IMAGE.
+    # Place AVANT les poids d'edition ci-dessous pour ne reconstruire que ceux-la, et loin de la fin de chaine (couche du correctif).
+    .run_commands(*_LUCIDA_DANS_L_IMAGE)
+    .env({"FABMESH_LUCIDA_DIR": _LUCIDA_DIR})
     # RealVisXL (fp16) + ControlNet-Tile + VAE fp16 : charges a la DEMANDE par ce conteneur (Reshape a
     # region / dessin, Face fix, Detail refine). Absents de cette image (ils ne sont que dans celle du
     # conteneur image), ils se telechargeaient depuis HuggingFace au premier usage de chaque conteneur
@@ -1320,6 +1360,7 @@ def _charger_pipe_tile(decharger_cpu):
 
 
 @app.cls(
+    image=image_backview,   # + poids de Lucida (detourage de rectify / T-pose : voir _LUCIDA_DANS_L_IMAGE)
     gpu="L40S",
     timeout=600,
     # SNAPSHOT GPU ESSAYE PUIS RETIRE LE 2026-08-04 — il ne prenait pas.
