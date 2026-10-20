@@ -39,8 +39,11 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     _filetLangue: async (_e, _u, texte) => { const textes = Array.isArray(texte) ? texte : [texte]; return { texte: textes[0], textes, traduit: false, langues: [] }; },
   };
   // filtre sur la chaine EXACTEMENT envoyee a Modal (quatrieme relecture du lot 2 de la langue) : la vraie aide, sur la doublure du filtre
+  // negations de l'utilisateur (2026-10-14) : handleGenerateImage nettoie `negativeExtra` et le montre au filtre ; charges seulement s'ils existent
+  // (WORKER_SRC=<ancien worker> reste executable)
+  const negations = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_TERMES', 'NEG_MAX_CARS', 'NEG_SENSIBLES'].filter((n) => existe(n));
   const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet',
-    ...['_refusChaineEnvoyee'].filter((n) => existe(n))], dbl);
+    ...['_refusChaineEnvoyee'].filter((n) => existe(n)), ...negations], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
   const appeler = (corps) => w.handleGenerateImage(
     new Request('https://x.example/api/generate-image', { method: 'POST', body: JSON.stringify(corps) }), env);
@@ -268,7 +271,8 @@ test('les deux interfaces portent la case, cochee par defaut, et la rendent visi
     assert.match(j, /\(function _wireCaseTpose\(\) \{/, js);
     assert.match(j, /row\.style\.display = \(at === 'character'\) \? '' : 'none'/, js);
     assert.match(j, /function _optionsPose\(assetType\)/, js);
-    assert.match(j, /buildFullPrompt\([^)]*_optionsPose\(assetType\)\)/, js);
+    // l'appel peut choisir entre deux reglages (bureau : `moteur sans negatif ? _optionsAffichage(assetType) : _optionsPose(assetType)`), sur une seule ligne
+    assert.match(j, /buildFullPrompt\([^\n]*_optionsPose\(assetType\)\)/, js);
     assert.match(j, /cbTpose\.checked = !\(meta && meta\.tpose === false\)/, js);
   }
 });

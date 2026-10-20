@@ -339,7 +339,11 @@ async function status() {
 // Retourne { success, images:[chemins locaux], creditsRemaining } ou
 // { success:false, needsCloudLogin:true } si aucune session valide.
 // -----------------------------------------------------------------------------
-async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee }) {
+async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee, negativeExtra }) {
+  // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : 8 au plus, 40 caracteres, lettres / espaces / tirets ; le serveur re-verifie.
+  const _negatifs = Array.isArray(negativeExtra)
+    ? negativeExtra.filter((x) => typeof x === 'string' && x.length <= 40 && /^[a-z]+(?:[ -][a-z]+)*$/.test(x)).slice(0, 8)
+    : [];
   const tok = await getAccessToken();
   if (!tok) {
     return { success: false, needsCloudLogin: true,
@@ -377,6 +381,7 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, assetSt
           ...(langueVerifiee ? { langueVerifiee: true } : {}),
           steps: Number(steps) || 30,
           turbo: !!turbo,
+          ...(_negatifs.length ? { negativeExtra: _negatifs } : {}),   // negations de l'utilisateur : ajoutees au negatif par le serveur
           // Passerelle desktop->web : le worker insère l'asset dans
           // user_assets => la génération apparaît aussi dans la
           // bibliothèque du compte sur le site.

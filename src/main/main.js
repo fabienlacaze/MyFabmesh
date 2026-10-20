@@ -9251,7 +9251,34 @@ function _causeHiDream(stderr, brut) {
   const derniere = t.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(-1)[0] || 'unknown error';
   return { bloque: false, detail: 'HiDream a echoue : ' + derniere.slice(0, 300), message: 'HiDream failed: ' + derniere.slice(0, 200) };
 }
-ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPromptAnglais, numImages, projectName, engine, quality, steps, vramFraction, assetType, assetStyle, buildStages, computeMode, langueVerifiee }) => {
+// NEGATIONS DE L'UTILISATEUR (2026-10-03). Le renderer sort « no helmet » du prompt et l'envoie au NEGATIF : champ `negativeExtra` (termes de 1 a 3 mots, 8 au plus, 40 caracteres
+// au plus, lettres / espaces / tirets ; meme regle que assainir_negatifs de scripts/composeur_intention.py). Tout ce qui arrive ici est re-verifie : un terme invalide est ecarte.
+// Garde-robe / nudite (2026-10-14) : jamais au negatif (ils pousseraient vers la nudite sans que le texte en garde la trace). MEME LISTE que _NEG_SENSIBLES de
+// scripts/composeur_intention.py : les entrees gravees de build/intention_attendus.json (cle `assainir`) la contiennent en entier, tests/main/negations_bureau.test.mjs les rejoue.
+function _assainirNegativeExtra(brut) {
+  const _NEG_SENSIBLES = new Set(('apparel attire bare bikini blouse blouses bottomless bottoms boxers bra bras briefs clothe clothed clothes clothing dress dresses '
+    + 'garment garments jeans knickers leggings lingerie loincloth naked nsfw nude nudity outfit outfits panties pants shirt shirts shorts singlet skirt skirts '
+    + 'swimsuit swimwear thong thongs top topless tops trousers tshirt tshirts undergarments underpants underwear').split(' '));
+  if (!Array.isArray(brut)) return [];
+  const sortie = [];
+  for (const x of brut) {
+    // la chaine BRUTE doit deja etre en lettres ASCII : toLowerCase() change certains caracteres non ASCII en lettres ASCII (signe Kelvin U+212A -> « k »)
+    if (typeof x !== 'string' || x.length > 200 || !/^[A-Za-z\- \t\r\n\u00a0]+$/.test(x)) continue;
+    const t = x.toLowerCase().split(/[ \t\r\n\u00a0]+/).filter(Boolean).join(' ');
+    if (!t || t.length > 40 || !/^[a-z]+(?:[ -][a-z]+)*$/.test(t) || sortie.includes(t)) continue;
+    if (t.split(/[ -]/).some((p) => _NEG_SENSIBLES.has(p))) continue;
+    sortie.push(t);
+    if (sortie.length >= 8) break;
+  }
+  return sortie;
+}
+// Le filtre de moderation (controle parental, plancher illicite) doit VOIR les negations : la locution a quitte le prompt (« a child, without clothes » deviendrait « a child »
+// alors que le terme « clothes » part au negatif). On la lui rend sous les deux formes que ses listes connaissent (« no X », « without X »).
+function _texteDeModeration(prompt, negatifs) {
+  if (!negatifs || !negatifs.length) return prompt;
+  return String(prompt) + ', ' + negatifs.map((t) => 'no ' + t + ', without ' + t).join(', ');
+}
+ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPromptAnglais, numImages, projectName, engine, quality, steps, vramFraction, assetType, assetStyle, buildStages, computeMode, langueVerifiee, negativeExtra }) => {
   // GARDE MANQUANTE — cause du REFUS STORE du 2026-08-08 (10.1.2.10
   // « Unusable Feature: Generate »).
   //
@@ -9292,13 +9319,16 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPrompt
     };
   }
   try {
+    // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : re-verifies, et montres au filtre de moderation (voir _texteDeModeration).
+    const _negatifs = _assainirNegativeExtra(negativeExtra);
+    const _texteModere = _texteDeModeration(prompt, _negatifs);
     // Parental control: check prompt for blocked content
-    const safety = checkPromptSafety(prompt);
+    const safety = checkPromptSafety(_texteModere);
     if (!safety.safe) {
       return { success: false, error: safety.reason };
     }
     // Layer 3: AI text classifier (local, no internet)
-    const aiSafety = await checkPromptSafetyAI(prompt);
+    const aiSafety = await checkPromptSafetyAI(_texteModere);
     if (!aiSafety.safe) {
       return { success: false, error: aiSafety.reason };
     }
@@ -9346,6 +9376,8 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPrompt
       // Sa TRADUCTION anglaise quand l'interface la fournit (2026-10-13, audit de la langue CHAMPS-09) : le lexique du composeur est anglais,
       // un orc « tenant une massue » decrit en francais n'etait pas reconnu. prompt.txt garde le texte d'origine.
       FABMESH_USER_PROMPT: String((typeof userPromptAnglais === 'string' && userPromptAnglais.trim()) ? userPromptAnglais.trim() : (rawPrompt || '')).slice(0, 2000),
+      // Termes de negatif deja extraits par le renderer (sur le texte TRADUIT : FABMESH_USER_PROMPT peut etre dans la langue de l'interface) ; le pont les ajoute a son negatif.
+      ...(_negatifs.length ? { FABMESH_NEGATIVE_EXTRA: JSON.stringify(_negatifs) } : {}),
       PYTORCH_CUDA_ALLOC_CONF: _allocConf,
       ..._ramLimitMB ? { FABMESH_RAM_LIMIT_MB: _ramLimitMB } : {},
       ..._gpuLimit   ? { FABMESH_GPU_LIMIT:   _gpuLimit   } : {},
@@ -9377,6 +9409,7 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPrompt
           assetStyle: (typeof assetStyle === 'string' && assetStyle.trim()) ? assetStyle.trim() : undefined,
           // « Envoyer tel quel » choisi apres un echec de traduction : le filet de langue du serveur respecte ce choix.
           langueVerifiee: langueVerifiee === true || undefined,
+          negativeExtra: _negatifs,   // « no helmet » du texte de l'utilisateur : termes de negatif pour le serveur (champ `negativeExtra` de /api/generate-image)
           steps,
           turbo: engine === 'local-lightning',
           // -> user_assets : visible aussi sur le site web. Le nom SAISI (« Épée magique », « 兽人战士 »), plus le nom de dossier

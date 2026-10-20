@@ -17,7 +17,8 @@ import { Viewer3D } from './lib/Viewer3D.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
-import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
+  positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules } from './lib/composeur-intention.js';
 import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
@@ -3623,7 +3624,7 @@ async function _preremplirPrompt(brut, assetType, assetStyle) {
   // ECHEC de traduction (2026-10-13, audit TRADUCTION-03 / CHAMPS-21) : le texte reste BRUT, sans gabarit. Enrichi, il passait pour
   // « deja traduit » et la generation ne le retraduisait jamais ; l'aide de langue dit l'echec et Generate retentera (et demandera).
   if (r.echec) return;
-  ta.value = buildFullPrompt(r.texte || brut, assetType, assetStyle);
+  ta.value = buildFullPrompt(r.texte || brut, assetType, assetStyle, { garderNegations: true });
 }
 
 function populateWorkspace(p) {
@@ -3706,7 +3707,7 @@ function populateWorkspace(p) {
   try {
     const atSel = document.getElementById('ws-asset-type');
     if (atSel && !p._assetTypeManual && (!p.assetType || atSel.value === 'character')) {
-      const guess = _autoDetectAssetType(rawPrompt || p.name || '');
+      const guess = _autoDetectAssetType(_sansNegations(rawPrompt) || p.name || '');   // « an orc, no sword » n'est pas une arme : les mots nies ne comptent pas
       if (guess && guess !== atSel.value) {
         atSel.value = guess; p.assetType = guess;
         _applyAssetOptionsProfile(guess);
@@ -4969,7 +4970,7 @@ document.getElementById('bs-start')?.addEventListener('click', async () => {
   if (!target) { showToast(_i18nT('Generate or pick an image first.'), 'error'); return; }
   const count = Math.max(2, Math.min(20, parseInt(document.getElementById('bs-count')?.value, 10) || 4));
   document.getElementById('modal-buildstages-options')?.classList.add('hidden');
-  const prompt = (p && (p.prompt || p.initialPrompt)) || '';
+  const prompt = _sansNegations((p && (p.prompt || p.initialPrompt)) || '');   // le prompt du projet garde les negations de l'utilisateur : pas dans un prompt positif
   gatedRun('img2img', `${_i18nT('Construction stages')}: ${p.name}`, async () => {
     const job = pushJob(`${_i18nT('Construction stages')}: ${p.name}`, null,
       { [_i18nT('Stages')]: count, Source: String(target).split(/[\\/]/).pop() },
@@ -7590,7 +7591,10 @@ function _choixTraductionEchouee(r) {
 async function _indiceDosAnglais(brut) {
   const base = stripKnownPromptSuffixes(String(brut || ''));
   if (!base.trim()) return { texte: '', telQuel: false };
-  return _traduirePourGeneration(base);
+  const tr = await _traduirePourGeneration(base);
+  // NEGATIONS de l'utilisateur (« no helmet ») : la vue de dos n'a pas de canal negatif, le modele dessinerait « helmet » -> texte sans les locutions
+  // (apres la traduction : c'est sur l'anglais que _sansNegations reconnait les locutions).
+  return tr ? Object.assign({}, tr, { texte: _sansNegations(tr.texte) }) : tr;
 }
 /** Texte de l'utilisateur EN ANGLAIS depuis le champ « Describe your asset » (Generate) : gabarit retire, reste traduit s'il n'est pas
  *  deja anglais. La decision se prend sur le CONTENU, plus sur la presence d'un mot du gabarit (MANQUE-01, CHAMPS-06/23). null = annule. */
@@ -7789,11 +7793,27 @@ function _parleDeVol(texte) {
 }
 const _DEMANDE_EN = /^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?/i;
 const _DEMANDE_FR = /^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais|(?:fais|cr[ée]e|g[ée]n[èe]re|dessine|fabrique)(?:-moi)?)\s+(?:(?:faire|cr[ée]er|g[ée]n[ée]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?/i;
+/** Retire « please / thanks / thank you / merci » de la FIN du texte, avec la ponctuation qui l'entoure. MEME resultat que l'ancienne regle de _epurerDemande
+ *  (une regex ancree en fin de chaine) mais en temps lineaire : celle-ci etait quadratique sur de longues suites de blancs (4 s pour 100 000 blancs, mesure du
+ *  2026-10-03), et buildFullPrompt comme _negativeExtraDe passent par _epurerDemande. */
+function _retirerPolitesseFin(s) {
+  let b = s.length;
+  while (b > 0 && /[\s.!]/.test(s[b - 1])) b--;
+  const fin = s.slice(Math.max(0, b - 9), b).toLowerCase();
+  for (const mot of ['please', 'thanks', 'thank you', 'merci']) {
+    if (!fin.endsWith(mot)) continue;
+    const debut = b - mot.length;
+    if (debut > 0 && /\w/.test(s[debut - 1])) continue;       // \b : pas au milieu d'un mot
+    let a = debut;
+    while (a > 0 && /[\s,;.!]/.test(s[a - 1])) a--;
+    return s.slice(0, a);
+  }
+  return s;
+}
 /** Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide. */
 function _epurerDemande(texte) {
   const brut = String(texte == null ? "" : texte);
-  const t = brut.replace(_DEMANDE_EN, "").replace(_DEMANDE_FR, "")
-    .replace(/[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$/i, "").trim();
+  const t = _retirerPolitesseFin(brut.replace(_DEMANDE_EN, "").replace(_DEMANDE_FR, "")).trim();
   return t.length >= 3 ? t : brut.trim();
 }
 /* _ressembleAnglais : remplacee le 2026-10-13 par la detection commune lib/langue-texte.js (bloc « TRADUCTION COMMUNE ») ; l'ancienne
@@ -7814,8 +7834,37 @@ function _optionsPose(assetType) {
   return (cb && assetType === 'character' && !cb.checked) ? { tpose: false } : {};
 }
 
+/* NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence numero 1 : « l'image doit correspondre EXACTEMENT au prompt »). Le modele d'image ne comprend pas la negation :
+ * dans « an orc, no helmet, holding a club » il voit « helmet » et le dessine. Avant, stripKnownPromptSuffixes SUPPRIMAIT en silence tout segment « no ... » du texte
+ * de l'utilisateur ; maintenant le texte garde sa negation, et c'est la GENERATION qui la sort du positif :
+ *   - buildFullPrompt (envoi) retire la locution du prompt envoye ; le terme (« helmet ») part au NEGATIF (champ `negativeExtra`, voir _negativeExtraDe) ;
+ *   - buildFullPrompt avec { garderNegations: true } (Enhance, pre-rempli, nouveau projet) GARDE la locution dans le texte AFFICHE : au « Generate » suivant, tout
+ *     est recalcule depuis la zone de texte, la negation y est donc encore. Le texte affiche n'est plus tout a fait ce que le moteur recoit (la negation est passee
+ *     au negatif), c'est le moindre mal : l'autre choix (la retirer de l'affichage) la perdait des l'etape Enhance.
+ * Interrupteur d'urgence : window.__composeurIntention = false -> ancien comportement (suppression par stripKnownPromptSuffixes, rien d'envoye au negatif). */
+/** Reglages d'AFFICHAGE du prompt (Enhance, pre-rempli) : comme _optionsPose, et les negations de l'utilisateur RESTENT dans le texte affiche. */
+function _optionsAffichage(assetType) {
+  return Object.assign({}, _optionsPose(assetType), { garderNegations: true });
+}
+
+/** Le texte sans ses locutions negatives (« an orc, no helmet » -> « an orc »), pour les generateurs qui n'ont PAS de canal negatif (vue de dos) : le modele d'image
+ *  voit « helmet » dans « no helmet » et le dessine. Interrupteur d'urgence coupe : texte tel quel. */
+function _sansNegations(texte) {
+  try { return composeurActif() ? positifSansNegations(texte) : texte; } catch (e) { return texte; }
+}
+
+/** Termes de negatif a envoyer au serveur (champ `negativeExtra` : 8 au plus, 40 caracteres, lettres / espaces / tirets) : les negations du texte, sans la locution.
+ *  [] si le composeur est coupe. Calcule sur le MEME texte que buildFullPrompt (apres _epurerDemande). */
+function _negativeExtraDe(texte) {
+  try { return composeurActif() ? assainirNegatifs(negationsDe(_epurerDemande(texte))) : []; } catch (e) { return []; }
+}
+
 function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
   userPrompt = _epurerDemande(userPrompt);
+  // NEGATIONS (voir _negativeExtraDe) : la detection (vol, reptation) et le composeur d'intention travaillent sur le texte SANS ses locutions negatives (« a bird, not flying »
+  // ne doit pas choisir le gabarit « en vol ») ; seul le texte ECRIT dans le prompt differe : avec { garderNegations: true } il garde ses locutions.
+  const texteAvecNegations = userPrompt;
+  userPrompt = _sansNegations(userPrompt);
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
   let typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
   // Animal SANS PATTES (serpent, ver) ou POISSON : gabarit dedie (corps etire / de profil), d'apres les
@@ -7843,9 +7892,17 @@ function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
       clauseTenue = clauseObjetTenu(intention, regles) || '';
     } catch (e) { console.warn('[composeur] ignore :', e && e.message); }
   }
-  const parts = _TYPES_UNITE.includes(assetType)
-    ? [typePrefix, ..._epoqueUnite(userPrompt), clauseTenue, stylePrefix, typeSuffix]
-    : [stylePrefix, typePrefix, userPrompt, typeSuffix];
+  const texteEcrit = (options && options.garderNegations) ? texteAvecNegations : userPrompt;
+  // Tenue et poids d'EPOQUE : toujours d'apres le texte SANS negations, comme a l'envoi. Dans le texte AFFICHE avec ses negations, le texte reste TEL QU'ECRIT : un poids
+  // insere dans une negation (« no (medieval:1.4) armor ») la rendrait illisible au « Generate » suivant, et l'objet nie serait dessine.
+  let epoque = null;
+  if (_TYPES_UNITE.includes(assetType)) {
+    epoque = _epoqueUnite(userPrompt);
+    if (texteEcrit !== userPrompt) epoque = [texteEcrit, epoque[1]];
+  }
+  const parts = epoque
+    ? [typePrefix, ...epoque, clauseTenue, stylePrefix, typeSuffix]
+    : [stylePrefix, typePrefix, texteEcrit, typeSuffix];
   return parts.filter(Boolean).join(', ');
 }
 
@@ -7894,6 +7951,7 @@ function stripKnownPromptSuffixes(raw) {
       'A detailed animal, full body, side angle, T-pose-equivalent legs apart, isolated on a neutral background, photorealistic, even lighting.',
       'A detailed ship or boat, full body, side angle, isolated on a neutral background, photorealistic, even lighting.',
       'ONE animal only, single creature, only one instance, isolated, full body, all four legs on the ground, natural quadruped standing pose, side angle profile view, plain white background, even studio lighting, no shadows, no human stance, no T-pose, no upright posture, centered, clean silhouette, no text, no UI, no duplicate, no second animal',
+      'ONE animal only, single instance, isolated, FULL BODY shown, complete animal from head to tail, all four legs visible, standing on all fours, full creature visible in frame, wide shot, animal photography full body, wildlife full-body photograph, plain white background, even studio lighting, no shadows, no humans, centered, side profile, clean silhouette, no text, no UI, no duplicate, NO close-up, NO portrait, NO headshot, NOT cropped, NOT zoomed on face, body and limbs clearly visible',
       'ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI, no duplicate, no second building',
       'ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second building, not a village, not a town',
       'ONE car only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second car, no twin, no rear view inset',
@@ -8031,16 +8089,17 @@ function stripKnownPromptSuffixes(raw) {
   /* La clause d'objet tenu posee par buildFullPrompt (composeur d'intention) reste en queue du texte une fois le style et le gabarit
    * coupes : on la retire, sinon chaque regeneration en ajouterait une de plus. Retiree seulement si le texte restant la regenere. */
   txt = retirerClauseFinale(txt);
-  /* Les negations n'ont aucun effet dans un prompt POSITIF -- SDXL dessine
-   * volontiers ce qu'on lui demande d'eviter, et elles mangent des jetons.
-   * Elles vivent dans _ANATOMY_NEG (modal_app/_realvis.py). On retire donc
-   * tout segment qui commence par « not » ou « never », quelle que soit la
-   * casse : c'est du gabarit, jamais une intention d'utilisateur utile. */
-  txt = txt.split(',')
-           .filter(seg => !/^\s*(not|never|no)\b/i.test(seg))
-           .join(',');
-  // Collapse any resulting double commas / leading comma / extra whitespace.
-  txt = txt.replace(/\s*,\s*,\s*/g, ', ').replace(/^\s*,\s*/, '').replace(/\s*,\s*$/, '').trim();
+  /* Les negations n'ont aucun effet dans un prompt POSITIF -- SDXL dessine volontiers ce qu'on lui demande d'eviter. Avant le 2026-10-03 on retirait ici tout segment
+   * qui commence par « not », « never » ou « no » (ancien comportement, garde quand l'interrupteur d'urgence est coupe). Maintenant : les gabarits connus ne sont retires
+   * qu'ENTIERS et EXACTS (plus haut, lot traduction) ; les negations de l'utilisateur restent, et buildFullPrompt les envoie au negatif. Integration 20/10 : les anciens
+   * residus negatifs (NEGATIONS_GABARIT_HISTORIQUES) partent avec leur gabarit exact, plus besoin de les reconnaitre un par un. */
+  if (!composeurActif()) {
+    txt = txt.split(',')
+             .filter(seg => !/^\s*(not|never|no)\b/i.test(seg))
+             .join(',');
+  }
+  // Collapse any resulting double commas / leading comma / extra whitespace (par boucles : les regex d'origine etaient quadratiques sur de longues suites de blancs).
+  txt = nettoyerVirgules(txt);
   return txt;
 }
 
@@ -8072,7 +8131,7 @@ document.getElementById('np-enhance-prompt')?.addEventListener('click', async ()
   const tr = await traduireTexteUtilisateur(baseRaw);
   if (tr.echec) { _stopCycle(); _promptHideOverlay(textarea); showToast(_messageTraduction('enhance', tr), 'error', 7000); return; }
   const englishRaw = tr.texte;
-  const enhanced = buildFullPrompt(englishRaw, assetType, assetStyle);
+  const enhanced = buildFullPrompt(englishRaw, assetType, assetStyle, { garderNegations: true });
   await new Promise((r) => setTimeout(r, 150));
   _stopCycle();
   textarea.value = enhanced;
@@ -8103,7 +8162,7 @@ document.getElementById('ws-enhance-prompt')?.addEventListener('click', async ()
   const tr = await traduireTexteUtilisateur(baseRaw);
   if (tr.echec) { _stopCycle(); _promptHideOverlay(textarea); showToast(_messageTraduction('enhance', tr), 'error', 7000); return; }
   const englishRaw = tr.texte;
-  const enhanced = buildFullPrompt(englishRaw, assetType, assetStyle, _optionsPose(assetType));
+  const enhanced = buildFullPrompt(englishRaw, assetType, assetStyle, _optionsAffichage(assetType));
   await new Promise((r) => setTimeout(r, 150));
   _stopCycle();
   textarea.value = enhanced;
@@ -8152,8 +8211,12 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   if (_aTraduire) _promptHideOverlay(_wsTa);
   if (!_tr) return;
   const englishUser = _tr.texte;
-  const prompt = buildFullPrompt(englishUser, assetType, assetStyle, _optionsPose(assetType));
   const engine = document.getElementById('ws-engine').value;
+  // NEGATIONS (voir _negativeExtraDe) : « an orc, no helmet » part SANS la locution et le terme « helmet » part au negatif (negativeExtra). Le moteur HiDream local n'a pas
+  // de negatif : son encodeur de texte lit la negation, le texte reste tel quel pour lui.
+  const _sansCanalNegatif = (engine === 'hidream') && !_isCloudMode();
+  const negativeExtra = _sansCanalNegatif ? [] : _negativeExtraDe(englishUser);
+  const prompt = buildFullPrompt(englishUser, assetType, assetStyle, _sansCanalNegatif ? _optionsAffichage(assetType) : _optionsPose(assetType));
   // AVERTISSEMENT MEMOIRE POUR LES IMAGES LOCALES (2026-10-02, rapport d'essais du 01/10 : un essai « Fast » avait demarre carte deja pleine, 10,9 Go
   // occupes, et depasse 5 min a 15,6 Go). Besoins MESURES : un moteur d'image local ajoute ~9 Go (Fast / Balanced : +8,9 Go sur 2,8 Go de base),
   // HiDream ~12 Go. Meme fenetre que la 3D : Annuler / Normal / Mode eco.
@@ -8235,7 +8298,7 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
     try {
       // userPrompt = texte d'ORIGINE (prompt.txt, pour la reouverture) ; userPromptAnglais = sa traduction, que le composeur
       // d'intention du pont local analyse (lexique anglais : CHAMPS-09) ; langueVerifiee = « Envoyer tel quel » (filet du serveur).
-      const _genArgs = { prompt, userPrompt, userPromptAnglais: englishUser, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM,
+      const _genArgs = { prompt, userPrompt, userPromptAnglais: englishUser, negativeExtra, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM,
         assetStyle, langueVerifiee: _tr.telQuel || undefined };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
@@ -8286,7 +8349,7 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
             // because they fight the photo reference style.
             // 2026-10-13 (lot 2) : englishUser = le texte de l'utilisateur DEJA TRADUIT (ou envoye tel quel avec son accord) ; avant,
             // dataset.rawPrompt (texte d'ORIGINE, non traduit) passait en premier (TRADUCTION-05, CHAMPS-08).
-            const rawPrompt = englishUser || '';
+            const rawPrompt = _sansNegations(englishUser || '');   // la vue de dos n'a pas de canal negatif (voir _sansNegations)
             for (const imgPath of r.images) {
               // STEP 1: BLIP-caption the front photo to extract outfit
               // description. This is added to the prompt so the back has
@@ -19511,7 +19574,7 @@ function _modeImpose() { try { return localStorage.getItem(_cleModeAnim()) || 'a
 /** Mode detecte : mots du projet d'abord, puis squelette du rig charge dans l'apercu. */
 function _modeDetecte() {
   const p = state.currentProject || {};
-  const parMots = modeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
+  const parMots = modeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType].filter(Boolean).join(' '));   // « a dragon, not flying » n'est pas un vol
   if (parMots) return parMots;
   const parSquelette = _apercuAnim?.modeSquelette?.();
   return parSquelette || 'pattes';
@@ -19533,7 +19596,7 @@ function _cleEspeceAnim() { return 'fabmesh.especeAnim.' + (state.currentProject
 function _especeImposee() { try { return localStorage.getItem(_cleEspeceAnim()) || 'auto'; } catch (_) { return 'auto'; } }
 function _especeDetectee() {
   const p = state.currentProject || {};
-  return especeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
+  return especeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType].filter(Boolean).join(' '));
 }
 function _especeAnim() { const e = _especeImposee(); return e !== 'auto' ? e : _especeDetectee(); }
 /** Types d'animation proposes : ceux de l'espece ; en generique, selon le nombre de pattes du rig. */
@@ -22470,7 +22533,7 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const _texteProjet = String((p && (p.prompt || p.initialPrompt)) || '').trim();
   const _trBase = _texteProjet ? await _traduirePourGeneration(_texteProjet) : { texte: 'high quality, detailed', telQuel: false };
   if (!_trBase) return;
-  const prompt = _trBase.texte;
+  const prompt = _sansNegations(_trBase.texte) || 'high quality, detailed';   // le prompt du projet garde les negations de l'utilisateur : pas dans un prompt positif
   showToast(count > 1 ? _i18nTf('Generating {x} variants…', count) : _i18nT('Generating 1 variant…'), 'info', 2000);
   for (let i = 0; i < count; i++) {
     const seed = Math.floor(Math.random() * 1000000);

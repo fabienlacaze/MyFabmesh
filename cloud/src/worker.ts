@@ -11289,6 +11289,7 @@ interface CogInput {
   unrestricted?: boolean;
   turbo?: boolean;
   pose_libre?: boolean;   // case « T-pose » decochee (2026-10-03) : Modal retire la T-pose du gabarit
+  negative_extra?: string[];   // negations de l'utilisateur (« no helmet » -> « helmet ») : termes AJOUTES au negatif par Modal (_nettoyerNegativeExtra)
 }
 
 // Cached version id for fabienlacaze/myfabmesh-cloud. We resolve it
@@ -11342,11 +11343,73 @@ async function resolveMyfabmeshCogVersion(token: string): Promise<string> {
  *  plutot plus cher qu'une generation nominale. */
 const COUT_REPRISE_IMAGE_USD = 0.006;
 
+/* NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence « l'image doit correspondre EXACTEMENT au prompt »).
+ *
+ * SDXL ne comprend pas la negation : dans « an orc, no helmet » il voit « helmet » et le dessine. Le client sort donc la locution du texte et envoie le
+ * terme a part, dans `negativeExtra` (« helmet »). Le worker le transmet a Modal (champ `negative_extra`), qui l'ajoute au NEGATIF, jamais au positif.
+ *
+ * POURQUOI CE CHAMP, QUE N'IMPORTE QUEL CLIENT PEUT REMPLIR, NE PEUT RIEN CASSER :
+ *  - il ne fait qu'AJOUTER au negatif, derriere les pieces de securite (« nude, naked, nsfw, undressed »), d'ombres et d'armes, qui gardent la priorite dans
+ *    le budget de 77 jetons (modal_app/_realvis.py, build_prompts) : aucun terme ne retire ni ne remplace une piece existante. Le worker, lui, ne touche
+ *    jamais au negatif : il ne fait que transporter des termes nettoyes ;
+ *  - il est nettoye de facon STRICTE ici, puis de nouveau cote Modal : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets, passes en
+ *    minuscules ; ni virgule, ni parenthese, ni deux-points, ni crochet, ni chiffre. Un terme ne peut donc ni ouvrir une autre piece du prompt ni fabriquer
+ *    une ponderation « (nude:0) » qui annulerait un terme de securite. Un element invalide est ECARTE, jamais corrige, sans erreur (jamais de 400 : un
+ *    client plus ancien ou plus recent que le serveur doit continuer a generer) ;
+ *  - les termes de garde-robe et de nudite (NEG_SENSIBLES : « clothes », « shirt »...) sont refuses : en NEGATIF ils pousseraient le modele vers la
+ *    nudite sans que le texte (donc le filtre de moderation) en garde la moindre trace. C'est la meme liste que le tri du client (composeur_intention.py,
+ *    _NEG_SENSIBLES) : le client ne les extrait jamais, elles RESTENT dans le texte, sous les yeux de _checkPromptSafetyAlerte. Le test
+ *    negations-utilisateur.test.mjs verifie que TOUTE negation de nudite connue du filtre (nsfw_filter.ts) est dans cette liste ;
+ *  - le filtre de moderation NE VOIT PLUS la locution quand le client est a jour (« a child, no weapon » arrive comme « a child » + le terme « weapon »).
+ *    Pour ne pas relacher la moderation en silence, handleGenerateImage lui REND les locutions sous les deux formes que ses listes connaissent
+ *    (_texteDeModerationNegations : « no X, without X », meme regle que _texteDeModeration de src/main/main.js) : il examine donc a peu pres le texte tel
+ *    que l'utilisateur l'a ecrit, comme avant. Un terme que le filtre jugerait grave bloque la demande AVANT tout debit ;
+ *  - un client qui inventerait d'autres termes ne peut, au pire, que changer le NEGATIF de SA propre generation, qui reste soumise au classifieur d'image
+ *    de Modal et au plancher dur du filtre (le texte positif, lui, passe par la moderation).
+ * Fonction PURE, sans acces au reseau : cloud/tests/negations-utilisateur.test.mjs l'execute telle quelle. */
+const NEG_MAX_TERMES = 8;
+const NEG_MAX_CARS = 40;
+const NEG_SENSIBLES: ReadonlySet<string> = new Set(
+  ('apparel attire bare bikini bra bras clothe clothed clothes clothing dress dresses garment garments lingerie naked nsfw nude nudity '
+    + 'outfit outfits panties pants shirt shirts skirt skirts swimsuit top topless tops trousers undergarments underpants underwear '
+    // 2026-10-14 (relecture) : vetements dont l'ABSENCE denude aussi (« no shorts »)
+    + 'blouse blouses bottomless bottoms boxers briefs jeans knickers leggings loincloth shorts singlet swimwear thong thongs tshirt tshirts').split(' '));
+
+function _nettoyerNegativeExtra(brut: unknown): string[] {
+  if (!Array.isArray(brut)) return [];
+  const sortie: string[] = [];
+  for (const x of brut.slice(0, 64)) {          // jamais plus de 64 elements lus, quelle que soit la taille du tableau recu
+    if (typeof x !== 'string' || x.length > 200) continue;
+    if (!/^[A-Za-z\- \t\r\n\u00a0]+$/.test(x)) continue;
+    const mots = x.toLowerCase().split(/[ \t\r\n\u00a0]+/).filter(Boolean);
+    if (!mots.length) continue;
+    // chaque mot : des lettres separees par des tirets simples ; aucun mot (ni morceau de mot a tiret) de garde-robe ou de nudite
+    if (mots.some((m) => !/^[a-z]+(?:-[a-z]+)*$/.test(m) || m.split('-').some((p) => NEG_SENSIBLES.has(p)))) continue;
+    const terme = mots.join(' ');
+    if (terme.length > NEG_MAX_CARS || sortie.includes(terme)) continue;
+    sortie.push(terme);
+    if (sortie.length >= NEG_MAX_TERMES) break;
+  }
+  return sortie;
+}
+
+/** Le texte que le filtre de moderation doit examiner : le texte envoye, plus les negations que le client en a SORTIES, rendues sous les deux formes que
+ *  les listes du filtre connaissent (« no X », « without X »). Meme regle que `_texteDeModeration` de src/main/main.js. Sans negation : le texte lui-meme. */
+function _texteDeModerationNegations(texte: string, negatifs: string[]): string {
+  if (!negatifs.length) return texte;
+  return texte + ', ' + negatifs.map((t) => 'no ' + t + ', without ' + t).join(', ');
+}
+
 async function callModalText2Image(env: Env, userId: string, input: CogInput, folder: string): Promise<string> {
   const url = env.MODAL_TEXT2IMAGE_URL;
   const secret = env.MODAL_SHARED_SECRET;
   if (!url) throw new Error('MODAL_TEXT2IMAGE_URL not set');
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
+  // Negations de l'utilisateur : re-nettoyees ici (derniere porte avant Modal). La cle n'est envoyee que s'il y en a : sans negation, le corps de la requete
+  // est identique, a l'octet, a celui d'avant. Les MEMES champs partent dans les reprises (524, image de remplacement du filtre) : une reprise ne doit
+  // perdre ni la case « T-pose » decochee ni les negations.
+  const negatifs = _nettoyerNegativeExtra(input.negative_extra);
+  const champsPose = { pose_libre: !!input.pose_libre, ...(negatifs.length ? { negative_extra: negatifs } : {}) };
 
   const t0 = Date.now();
   // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
@@ -11365,7 +11428,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
       steps: input.steps,
       unrestricted: !!input.unrestricted,
       turbo: !!input.turbo,
-      pose_libre: !!input.pose_libre,
+      ...champsPose,
     }),
     // Modal cold-start on the RealVis container can hit 90-120s when
     // the GPU snapshot is fully cold (first call of the day). Plus the
@@ -11468,6 +11531,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
         steps: input.steps,
         unrestricted: !!input.unrestricted,
         turbo: !!input.turbo,
+        ...champsPose,
       }),
       signal: AbortSignal.timeout(600_000),
     });
@@ -11815,6 +11879,7 @@ async function callModalTpose(env: Env, userId: string, input: {
   cn_scale?: number;
   ip_scale?: number;
   steps?: number;
+  negativeExtra?: string[];   // negations de l'utilisateur (« helmet » pour « no helmet ») : re-nettoyees ici, ajoutees au negatif par Modal
 }, folder: string): Promise<string> {
   const url = env.MODAL_TPOSE_URL;
   const secret = env.MODAL_SHARED_SECRET;
@@ -11825,6 +11890,9 @@ async function callModalTpose(env: Env, userId: string, input: {
   // meme cle pour TOUS les essais de cet appel : Modal rattache un rejeu (apres 524) au calcul
   // deja lance au lieu de tout recommencer (_calcul_protege, modal_app/app.py).
   const cleRejeu = crypto.randomUUID();
+  // Le prompt ENRICHI du client arrive ici sans ses negations (le client les sort du texte) : elles voyagent a part, dans `negative_extra`. Cle absente
+  // quand il n'y en a pas : corps identique, a l'octet, a celui d'avant.
+  const negatifs = _nettoyerNegativeExtra(input.negativeExtra);
   const doFetch = () => fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -11837,6 +11905,7 @@ async function callModalTpose(env: Env, userId: string, input: {
       cn_scale: input.cn_scale,
       ip_scale: input.ip_scale,
       steps: input.steps,
+      ...(negatifs.length ? { negative_extra: negatifs } : {}),
     }),
     // T-pose runs on the back-view container — same heavy pipeline,
     // same 5 min budget (cold start ~30s + diffusion ~35s, plenty of
@@ -12753,7 +12822,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const { prompt, numImages, seed, asset_type, asset_style, userPrompt, steps,
-          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo, langueVerifiee } = await req.json() as {
+          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo, langueVerifiee, negativeExtra } = await req.json() as {
     prompt?: string;
     userPrompt?: string;
     // L'interface a traite la langue (traduit, ou « Envoyer tel quel » choisi apres un echec) : le filet de langue ne repasse pas.
@@ -12774,10 +12843,15 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     // Case « T-pose » DECOCHEE (2026-10-03) : pose libre. Transmis a Modal (`pose_libre`) pour que le gabarit serveur, qui reconstruit le prompt depuis le
     // texte brut, n'impose plus la T-pose. Sans effet si `tpose` est vrai.
     poseLibre?: boolean;
+    // Negations de l'utilisateur (« no helmet » -> « helmet ») : le client les sort du texte et les envoie a part. Type `unknown` VOLONTAIREMENT : tout
+    // ce qui n'est pas un tableau de termes propres est ecarte par _nettoyerNegativeExtra, sans erreur (voir son commentaire).
+    negativeExtra?: unknown;
     refImageUrl?: string;   // T-pose img2img mode: re-pose this image
     cn_scale?: number;
     ip_scale?: number;
   };
+  // Negations de l'utilisateur (« no helmet » -> « helmet »), nettoyees UNE fois pour toutes les images du lot ; calculees AVANT le filtre : il doit les voir.
+  const negatifs = _nettoyerNegativeExtra(negativeExtra);
   // The Cog rebuilds the enriched prompt itself from userPrompt + type
   // + style — we forward those. Fall back to the full enriched prompt
   // the renderer sent in case userPrompt isn't broken out.
@@ -12795,7 +12869,8 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const userState = await getParentalState(env, user.id);
   const unrestricted = envUnrestricted || !!userState.unrestricted;
   {
-    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
+    // Le filtre voit aussi les negations que le client a sorties du texte (voir _texteDeModerationNegations) : la moderation ne se relache pas.
+    const safety = await _checkPromptSafetyAlerte(env, user.id, _texteDeModerationNegations(rawPrompt, negatifs), unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -12804,7 +12879,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     // Le mode T-pose envoie a Modal `prompt` (pas `userPrompt`) : ce champ-la doit passer le meme filtre (revue du 2026-10-01).
     const autre = (prompt ?? '').toString().trim();
     if (autre && autre !== rawPrompt) {
-      const s2 = await _checkPromptSafetyAlerte(env, user.id, autre, unrestricted);
+      const s2 = await _checkPromptSafetyAlerte(env, user.id, _texteDeModerationNegations(autre, negatifs), unrestricted);
       if (!s2.safe) {
         return json({ ok: false, success: false,
           error: s2.reason ?? 'prompt blocked by content filter',
@@ -12839,6 +12914,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // avant, le prompt enrichi etait decoupe autrement que le texte brut (ses gabarits anglais isolent chaque passage) : un prompt
   // allemand de 618 caracteres demandait 1 + 7 appels et etait refuse « too-long » apres un premier appel perdu. Les champs sont
   // planifies ENSEMBLE (_filetLangue) : un refus tombe avant le moindre appel.
+  const rawAvantFiletLangue = rawPrompt;
   let promptEnrichi: string | undefined = prompt;
   const languesTraduites: string[] = [];
   {
@@ -12870,12 +12946,24 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       }
     }
   }
+  /* INTEGRATION 20/10 (lot traduction x lot negations de l'utilisateur). Le client a jour sort « no weapon » du texte et envoie le terme a part
+   * (`negativeExtra`) ; Modal recoit donc (texte, termes de negatif), et le filtre doit avoir examine EXACTEMENT cela : le texte plus ses negations
+   * rendues « no X, without X » (_texteDeModerationNegations). Le premier controle (plus haut) le fait sur le texte D'ORIGINE ; mais le filet de
+   * langue REMPLACE ce texte par sa traduction, reverifiee seule : « ein Kind » + negation « weapon » passait le premier controle (mot etranger),
+   * la traduction « a child » passait seule, et Modal recevait « a child » + negatif « weapon », la paire que le filtre bloque. Toute chaine
+   * modifiee par le filet et envoyee a Modal repasse donc le filtre AVEC les negations (cloud/tests/chaine-verifiee-integration.test.mjs). */
+  const vueAvecNegations = (chaine: string): string => _texteDeModerationNegations(chaine, negatifs);
+  if (negatifs.length && !useTpose && rawPrompt !== rawAvantFiletLangue) {
+    const refusTraduit = await _refusChaineEnvoyee(env, user.id, vueAvecNegations(rawPrompt), unrestricted);
+    if (refusTraduit) return refusTraduit;
+  }
   /* Prompt EXACT de la route T-pose (quatrieme relecture du lot 2) : celui qui part a Modal (prompt enrichi sans blancs aux bords, sinon
-   * le texte brut) est verifie TEL QU'ENVOYE, comme toute chaine envoyee a Modal (_refusChaineEnvoyee). Le `prompt` (coupe a 512) et le
-   * `full_prompt` (coupe a 1 500) de insertUserAsset ne sont que l'historique du projet : ils ne partent jamais a Modal. */
+   * le texte brut) est verifie TEL QU'ENVOYE, comme toute chaine envoyee a Modal (_refusChaineEnvoyee), AVEC les negations qui voyagent a
+   * part (voir plus haut). Le `prompt` (coupe a 512) et le `full_prompt` (coupe a 1 500) de insertUserAsset ne sont que l'historique du
+   * projet : ils ne partent jamais a Modal. */
   const promptTpose = useTpose ? ((promptEnrichi ?? rawPrompt).toString().trim() || rawPrompt) : '';
   if (useTpose) {
-    const refusTpose = await _refusChaineEnvoyee(env, user.id, promptTpose, unrestricted);
+    const refusTpose = await _refusChaineEnvoyee(env, user.id, vueAvecNegations(promptTpose), unrestricted);
     if (refusTpose) return refusTpose;
   }
 
@@ -12958,6 +13046,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           cn_scale,
           ip_scale,
           steps: pas,
+          negativeExtra: negatifs,   // le prompt enrichi n'a plus les negations : elles voyagent a part
         }, 'front'));
       } else {
         paths.push(await callBackend(env, user.id, {
@@ -12970,6 +13059,10 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           steps: pas,
           turbo: !!turbo,  // SDXL-Lightning 4-step (Modal only; Cog ignores it)
           pose_libre: !!poseLibre,   // case « T-pose » decochee : le gabarit serveur n'impose pas la T-pose
+          // Negations : Modal les derive aussi du texte brut (anciens clients), mais un client a jour envoie le texte DEJA sans elles, les termes ne
+          // viennent alors QUE de ce champ. Cle absente sans negation : requete identique a celle d'avant. JAMAIS envoyee au repli Replicate (Cog ne connait
+          // pas ce champ, sa requete reste exactement celle d'avant) : la negation y est perdue, jamais dessinee.
+          ...(useModal && negatifs.length ? { negative_extra: negatifs } : {}),
         }, 'front'));
       }
     }
@@ -13014,6 +13107,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
             // reglages complets pour l'historique des generations (2026-09-29)
             steps: turbo ? 4 : (steps || 30), count: n, turbo: !!turbo || undefined, tpose: useTpose || undefined,
+            negative_extra: negatifs.length ? negatifs : undefined,
             full_prompt: String(promptEnrichi || '').slice(0, 1500),
             // langue(s) traduite(s) par le filet du serveur (lot 2 de l'audit de la langue) : le support sait ce qui est arrive
             langue_traduite: languesTraduites.length ? languesTraduites.join(',') : undefined });
