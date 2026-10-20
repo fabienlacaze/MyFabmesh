@@ -1,0 +1,535 @@
+{
+  "_commentaire": "Cas de validation de la vue choisie (Reshape a region, 2026-10-19), LUS par le banc Python (scripts/mesh_inpaint.py), le module du bureau (src/main/reshape_vue.js), celui des pages (src/renderer/lib/reshape-vue.js = cloud/public/app/lib/reshape-vue.js) et le worker (cloud/src/worker.ts). Jetons : __NaN__, __Infinity__, __-Infinity__ ; l absence de champ vaut null. Contrat : nombres finis (ou null = 0), yaw dans [-180, 180], pitch dans [-90, 90] ; une chaine, un booleen, un tableau ou un objet sont refuses.",
+  "cas": [
+    {
+      "yaw": 0,
+      "pitch": 0,
+      "ok": true,
+      "sortie": [
+        0,
+        0
+      ]
+    },
+    {
+      "yaw": null,
+      "pitch": null,
+      "ok": true,
+      "sortie": [
+        0,
+        0
+      ]
+    },
+    {
+      "yaw": 180,
+      "pitch": 90,
+      "ok": true,
+      "sortie": [
+        180,
+        90
+      ]
+    },
+    {
+      "yaw": -180,
+      "pitch": -90,
+      "ok": true,
+      "sortie": [
+        -180,
+        -90
+      ]
+    },
+    {
+      "yaw": 45.5,
+      "pitch": -30.25,
+      "ok": true,
+      "sortie": [
+        45.5,
+        -30.25
+      ]
+    },
+    {
+      "yaw": 37,
+      "pitch": null,
+      "ok": true,
+      "sortie": [
+        37,
+        0
+      ]
+    },
+    {
+      "yaw": 180.0001,
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": -181,
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": 90.0001,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": -91,
+      "ok": false
+    },
+    {
+      "yaw": 720,
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": "__NaN__",
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": "__NaN__",
+      "ok": false
+    },
+    {
+      "yaw": "__Infinity__",
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": "__-Infinity__",
+      "ok": false
+    },
+    {
+      "yaw": "abc",
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": "",
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": "12",
+      "ok": false
+    },
+    {
+      "yaw": true,
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": false,
+      "ok": false
+    },
+    {
+      "yaw": [],
+      "pitch": 0,
+      "ok": false
+    },
+    {
+      "yaw": 0,
+      "pitch": {},
+      "ok": false
+    }
+  ],
+  "xmag_pour_vue": [
+    [
+      0.0,
+      0.6
+    ],
+    [
+      0.3,
+      0.6
+    ],
+    [
+      0.5,
+      0.6
+    ],
+    [
+      0.6,
+      0.65
+    ],
+    [
+      0.707,
+      0.75
+    ],
+    [
+      0.85,
+      0.9
+    ],
+    [
+      1.0,
+      1.05
+    ],
+    [
+      99,
+      3.0
+    ]
+  ],
+  "xmag_valide": [
+    {
+      "x": null,
+      "ok": true,
+      "sortie": 0.6
+    },
+    {
+      "x": 0.6,
+      "ok": true,
+      "sortie": 0.6
+    },
+    {
+      "x": 0.75,
+      "ok": true,
+      "sortie": 0.75
+    },
+    {
+      "x": 3,
+      "ok": true,
+      "sortie": 3
+    },
+    {
+      "x": 0.59,
+      "ok": false
+    },
+    {
+      "x": 3.01,
+      "ok": false
+    },
+    {
+      "x": "__NaN__",
+      "ok": false
+    },
+    {
+      "x": "__Infinity__",
+      "ok": false
+    },
+    {
+      "x": "0.7",
+      "ok": false
+    },
+    {
+      "x": true,
+      "ok": false
+    },
+    {
+      "x": [],
+      "ok": false
+    }
+  ],
+  "camera": [
+    {
+      "position": [
+        0,
+        0,
+        2
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 0,
+      "pitch": 0
+    },
+    {
+      "position": [
+        0,
+        0,
+        -2
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 180,
+      "pitch": 0
+    },
+    {
+      "position": [
+        -0.0001,
+        0,
+        -2
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 180,
+      "pitch": 0
+    },
+    {
+      "position": [
+        0.0001,
+        0,
+        -2
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 180,
+      "pitch": 0
+    },
+    {
+      "position": [
+        2,
+        0,
+        0
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 90,
+      "pitch": 0
+    },
+    {
+      "position": [
+        -2,
+        0,
+        0
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": -90,
+      "pitch": 0
+    },
+    {
+      "position": [
+        0,
+        2,
+        0
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 0,
+      "pitch": 90
+    },
+    {
+      "position": [
+        0,
+        -2,
+        0
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 0,
+      "pitch": -90
+    },
+    {
+      "position": [
+        1,
+        1,
+        1
+      ],
+      "cible": [
+        0,
+        0,
+        0
+      ],
+      "yaw": 45,
+      "pitch": 35.3
+    },
+    {
+      "position": [
+        3,
+        2,
+        5
+      ],
+      "cible": [
+        1,
+        2,
+        3
+      ],
+      "yaw": 45,
+      "pitch": 0
+    }
+  ],
+  "matrice": [
+    {
+      "yaw": 0,
+      "pitch": 0,
+      "r": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "yaw": 180,
+      "pitch": 0,
+      "r": [
+        [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0
+        ]
+      ]
+    },
+    {
+      "yaw": 90,
+      "pitch": 0,
+      "r": [
+        [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "yaw": -90,
+      "pitch": 0,
+      "r": [
+        [
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "yaw": 0,
+      "pitch": 90,
+      "r": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "yaw": 37,
+      "pitch": -23,
+      "r": [
+        [
+          0.798635510047,
+          0.0,
+          -0.601815023152
+        ],
+        [
+          0.235147863138,
+          0.920504853452,
+          0.312051754092
+        ],
+        [
+          0.553973649692,
+          -0.390731128489,
+          0.735147863138
+        ]
+      ]
+    },
+    {
+      "yaw": -143,
+      "pitch": 61,
+      "r": [
+        [
+          -0.798635510047,
+          0.0,
+          0.601815023152
+        ],
+        [
+          0.526359279301,
+          0.484809620246,
+          0.698502355909
+        ],
+        [
+          -0.291765712833,
+          0.874619707139,
+          -0.387186178341
+        ]
+      ]
+    },
+    {
+      "yaw": 12.5,
+      "pitch": 45,
+      "r": [
+        [
+          0.97629600712,
+          0.0,
+          -0.216439613938
+        ],
+        [
+          -0.153045918733,
+          0.707106781187,
+          -0.69034552708
+        ],
+        [
+          0.153045918733,
+          0.707106781187,
+          0.69034552708
+        ]
+      ]
+    }
+  ]
+}

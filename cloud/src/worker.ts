@@ -14147,18 +14147,56 @@ async function handleMeshRetexture(req: Request, env: Env): Promise<Response> {
  *  recalage (MyFabmeshMesh.reshape_to_volume) ; le travail est suivi comme un re-texture (ligne
  *  jobs de type mesh, /api/jobs/:id, rangement dans R2), remboursement sur chaque echec. */
 const ESTIMATED_USD_RESHAPE = 0.2;
+
+/** « Reshape a region » : VUE CHOISIE dans le visualiseur 3D de la fenetre (2026-10-19).
+ *  `vue` = { yaw, pitch, xmag } : angles de la camera en degres (yaw autour de Y dans [-180, 180], pitch autour de X dans
+ *  [-90, 90]) et demi-largeur de la fenetre du rendu a plat ([0,6 ; 3], elargie par le navigateur si le modele tourne
+ *  deborde). Absente ou a zero = la vue de face d'avant (rien n'est transmis a Modal). Memes regles que
+ *  scripts/mesh_inpaint.py (valider_vue) et src/main/reshape_vue.js ; les cas de build/bancs/noyaux/reshape_vue_cas.json
+ *  sont rejoues par cloud/tests/reshape-vue.test.mjs. Nombres JSON uniquement : une chaine, un booleen ou NaN sont refuses. */
+function validerVueReshape(vue: unknown): { ok: true; vue: { yaw: number; pitch: number; xmag: number } | null } | { ok: false; erreur: string } {
+  if (vue === null || vue === undefined) return { ok: true, vue: null };
+  if (typeof vue !== 'object' || Array.isArray(vue)) return { ok: false, erreur: 'view must be an object' };
+  const v = vue as Record<string, unknown>;
+  const angle = (x: unknown, nom: string, borne: number): { ok: true; v: number } | { ok: false; erreur: string } => {
+    if (x === null || x === undefined) return { ok: true, v: 0 };
+    if (typeof x !== 'number') return { ok: false, erreur: `${nom} must be a number` };
+    if (!Number.isFinite(x)) return { ok: false, erreur: `${nom} must be a finite number` };
+    if (Math.abs(x) > borne) return { ok: false, erreur: `${nom} must be within [-${borne}, ${borne}]` };
+    return { ok: true, v: x + 0 };
+  };
+  const yaw = angle(v.yaw, 'yaw', 180);
+  if (!yaw.ok) return yaw;
+  const pitch = angle(v.pitch, 'pitch', 90);
+  if (!pitch.ok) return pitch;
+  if (yaw.v === 0 && pitch.v === 0) return { ok: true, vue: null };
+  let xmag = 0.6;
+  if (v.xmag !== null && v.xmag !== undefined) {
+    if (typeof v.xmag !== 'number' || !Number.isFinite(v.xmag) || v.xmag < 0.6 || v.xmag > 3) {
+      return { ok: false, erreur: 'xmag must be a number within [0.6, 3]' };
+    }
+    xmag = v.xmag;
+  }
+  return { ok: true, vue: { yaw: yaw.v, pitch: pitch.v, xmag } };
+}
+
 async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_MESH_START_URL || !env.MODAL_MESH_STATUS_URL || !env.MODAL_SHARED_SECRET) {
     return err(503, 'reshape backend unavailable (not configured)');
   }
-  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType } = await req.json() as {
+  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType, vue } = await req.json() as {
     meshUrl?: string; vueUrl?: string; maskDataUrl?: string; uvMaskDataUrl?: string;
-    prompt?: string; projectName?: string; assetType?: string;
+    prompt?: string; projectName?: string; assetType?: string; vue?: unknown;
   };
   if (!meshUrl || !vueUrl) return err(400, 'meshUrl and vueUrl required');
   if (!isTrustedAssetHost(env, meshUrl) || !isTrustedAssetHost(env, vueUrl)) return err(400, 'url host not allowed');
+  // Vue choisie dans le visualiseur 3D : validee AVANT tout debit (angles finis et bornes, demi-largeur bornee).
+  const choixVue = validerVueReshape(vue);
+  if (!choixVue.ok) return err(400, `invalid view: ${choixVue.erreur}`);
+  const vueChoisie = choixVue.vue;
+  if (vueChoisie && uvMaskDataUrl) return err(400, 'a painted-on-3D area and a chosen view cannot be combined');
   const texte = String(prompt || '').trim().slice(0, 500);
   if (!texte) return err(400, 'prompt required (what should replace the part)');
   // Filtre de contenu (revue de securite du 2026-10-01 : cette route etait la SEULE a prompt libre sans aucun filtre, plancher illegal compris).
@@ -14221,6 +14259,7 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
     options: {
       backend: 'modal', operation_type: 'reshape', prompt: texte,
       cost_usd: ESTIMATED_USD_RESHAPE, mesh_url_in: meshUrl, masque_3d: !!uvMaskDataUrl,
+      ...(vueChoisie ? { vue_yaw: vueChoisie.yaw, vue_pitch: vueChoisie.pitch } : {}),
       provenance: _provenance(req), pays: _paysRequete(req),
     },
     created_at: new Date().toISOString(),
@@ -14237,6 +14276,7 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
         _auth: env.MODAL_SHARED_SECRET, op_type: 'reshape', job_id: jobId,
         mesh_url: meshUrl, vue_url: vueUrl, prompt: texte,
         ...(uvMaskDataUrl ? { uv_mask_url: maskUrl } : { mask_url: maskUrl }),
+        ...(vueChoisie ? { vue: vueChoisie } : {}),
       }),
       signal: AbortSignal.timeout(90_000),
     });

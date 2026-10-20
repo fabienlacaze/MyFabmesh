@@ -136,6 +136,8 @@ const FICHIERS = [
   { nom: 'squelette complet (pilote)', source: 'scripts/rig_complet.py', copie: 'modal_app/squelette/rig_complet.py' },
   // Reshape a region (auto inpaint 3D) : rendu, masque 3D, decoupe, recalage — portage web du 2026-09-28
   { nom: 'reshape (auto inpaint 3D)', source: 'scripts/mesh_inpaint.py', copie: 'modal_app/reshape/mesh_inpaint.py' },
+  // Reshape a region : vue CHOISIE dans le visualiseur 3D (2026-10-19), validation des angles + conversion camera -> yaw / pitch : MEME fichier bureau et site
+  { nom: 'reshape (vue choisie)', source: 'src/renderer/lib/reshape-vue.js', copie: 'cloud/public/app/lib/reshape-vue.js' },
   { nom: 'serpent etire (silhouette)', source: 'scripts/serpent_etire.py', copie: 'modal_app/serpent_etire.py' },
   { nom: 'acceleration du GLB (atlas, WebP)', source: 'scripts/acceleration_glb.py', copie: 'modal_app/acceleration_glb.py' },
   // Face Fix image (2026-09-29) : visage humain ou TETE d'animal + retouche SDXL, bureau (serveur local) et web

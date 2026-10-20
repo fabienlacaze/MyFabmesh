@@ -2923,6 +2923,8 @@ class MyFabmeshMesh:
             _telecharger(payload["vue_url"], vue)
             taille = _PImg.open(vue).size[0]
             faces = None
+            # vue choisie : meme couple d'angles pour la repeinte, l'isolement de la piece et l'assemblage (le cadre le porte)
+            vue_choisie = mi.lire_vue(payload.get("vue") if isinstance(payload.get("vue"), dict) else None)
             if payload.get("uv_mask_url"):
                 # zone peinte EN 3D : faces peintes etendues a l'epaisseur, masque = leur projection
                 uv = os.path.join(dossier, "masque_uv.png")
@@ -2941,7 +2943,7 @@ class MyFabmeshMesh:
             print("[reshape] 2/4 piece isolee", flush=True)
             piece_png = os.path.join(dossier, "piece.png")
             cadre = os.path.join(dossier, "cadre.json")
-            mi.preparer(repeint, masque, piece_png, cadre, vue)   # vue d'origine : seule la partie modifiee est isolee
+            mi.preparer(repeint, masque, piece_png, cadre, vue, vue_choisie)   # vue d'origine : seule la partie modifiee est isolee
             print("[reshape] 3/4 piece en 3D", flush=True)
             piece_glb = os.path.join(dossier, "piece.glb")
             glb = generate(self.pipeline, self.o_voxel, _PImg.open(piece_png),
@@ -3451,6 +3453,18 @@ def mesh_router():
             if not payload.get("mesh_url") or not payload.get("vue_url") \
                     or not (payload.get("mask_url") or payload.get("uv_mask_url")) or not payload.get("prompt"):
                 raise HTTPException(status_code=400, detail="mesh_url, vue_url, mask_url or uv_mask_url, prompt required")
+            # Vue CHOISIE dans le visualiseur 3D (2026-10-19) : { yaw, pitch, xmag } validee ici AUSSI (le worker l'a deja fait ;
+            # cette route est exposee avec le secret partage, jamais de confiance aveugle). Absente = vue de face.
+            if payload.get("vue") is not None:
+                from modal_app.reshape import mesh_inpaint as _mi_vue
+                if not isinstance(payload["vue"], dict):
+                    raise HTTPException(status_code=400, detail="invalid view: view must be an object")
+                try:
+                    _vue = _mi_vue.lire_vue(payload["vue"])
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=f"invalid view: {e}")
+                if payload.get("uv_mask_url") and not _mi_vue.vue_neutre(_vue["yaw"], _vue["pitch"]):
+                    raise HTTPException(status_code=400, detail="a painted-on-3D area and a chosen view cannot be combined")
             job_id = payload.get("job_id") or uuid.uuid4().hex
             call = MyFabmeshMesh().reshape_to_volume.spawn(job_id, payload)
             try:

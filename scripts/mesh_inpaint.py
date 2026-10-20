@@ -17,13 +17,25 @@ Correspondance pixels <-> maillage : le rendu de face (face_inpaint_atlas.py,
 pyrender) est orthographique, camera sur +Z, demi-largeur XMAG = 0,6 : le pixel
 (px, py) d'une image de cote S vaut x = px/S*1,2 - 0,6, y = 0,6 - py/S*1,2.
 
+VUE CHOISIE (2026-10-19, demande du proprietaire : « un viewer 3D pour afficher la zone que l'on souhaite,
+pas un 2D de face »). La zone n'est plus forcement visee de face : la fenetre fait tourner le modele dans un
+visualiseur 3D, puis donne l'angle de la camera (yaw autour de Y, pitch autour de X, en degres). On NE TOUCHE
+PAS a la chaine : on fait tourner le MAILLAGE (matrice_vue) pour que la zone visee regarde +Z, on execute la
+chaine ci-dessus dans ce repere tourne (rendu a plat, masque, repeinture, piece, assemblage), puis
+`assembler` applique la rotation INVERSE au resultat (sommets et normales ; matieres, UV et textures ne
+bougent pas). Le cadre (cadre.json) PORTE les angles : l'assemblage retrouve seul le repere du rendu.
+yaw 0 / pitch 0 = le comportement d'avant, identique (aucune rotation, aucun champ ajoute au cadre).
+Une vue tournee peut sortir de la fenetre de 0,6 (un batiment vu en biais) : la demi-largeur est alors
+elargie par pas de 0,05 (`xmag_pour_vue`) et portee par le cadre elle aussi.
+
 Usage :
-  python mesh_inpaint.py rendre <maillage.glb> <vue.png> [taille]
+  python mesh_inpaint.py rendre <maillage.glb> <vue.png> [taille] [yaw] [pitch]   (vue tournee : ecrit <vue.png>.vue.json)
   python mesh_inpaint.py masque-uv <maillage.glb> <masque_uv.png> <masque_face.png> <faces.npy> [taille]
-  python mesh_inpaint.py preparer <rendu_repeint.png> <masque.png> <piece.png> <cadre.json>
+  python mesh_inpaint.py preparer <rendu_repeint.png> <masque.png> <piece.png> <cadre.json> [vue_origine.png] [vue.json]
   python mesh_inpaint.py assembler <maillage.glb> <masque.png> <cadre.json> <piece.glb> <sortie.glb> [faces.npy]
 """
 import json
+import math
 import os
 import sys
 import time
@@ -33,10 +45,95 @@ from PIL import Image, ImageFilter
 
 XMAG = 0.6            # demi-largeur de la camera orthographique du rendu de face
 BANDE = 0.045         # largeur du melange, en unites du modele
+PAS_XMAG = 0.05       # vue tournee : la demi-largeur est arrondie au pas superieur
+XMAG_MAX = 3.0
+YAW_MAX = 180.0       # degres, autour de Y
+PITCH_MAX = 90.0      # degres, autour de X
 
 
 def log(m):
     print(f'[mesh-inpaint] {m}', flush=True)
+
+
+# ------------------------------------------------------------------ vue choisie
+def valider_vue(yaw=0.0, pitch=0.0):
+    """(yaw, pitch) en degres, flottants. ValueError si non fini, non numerique ou hors bornes
+    (yaw dans [-180, 180], pitch dans [-90, 90]). None = 0. Meme regle cote main.js et worker."""
+    def un(v, nom, borne):
+        if v is None:
+            return 0.0
+        if isinstance(v, (bool, str, bytes, list, tuple, dict)):      # nombres seulement (la ligne de commande convertit avant)
+            raise ValueError(f'{nom} : nombre attendu')
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            raise ValueError(f'{nom} : nombre attendu')
+        if not math.isfinite(x):
+            raise ValueError(f'{nom} : nombre fini attendu')
+        if abs(x) > borne:
+            raise ValueError(f'{nom} : doit etre dans [-{borne:g}, {borne:g}]')
+        return x + 0.0                    # -0.0 -> 0.0
+    return un(yaw, 'yaw', YAW_MAX), un(pitch, 'pitch', PITCH_MAX)
+
+
+def vue_neutre(yaw, pitch):
+    return float(yaw) == 0.0 and float(pitch) == 0.0
+
+
+def matrice_vue(yaw, pitch):
+    """Matrice 4x4 (rotation pure) qui fait regarder +Z la direction ou se trouve la camera du visualiseur.
+    La camera est vue depuis le centre : d = (sin yaw cos pitch, sin pitch, cos yaw cos pitch) ; R = Rx(pitch) . Ry(-yaw)
+    envoie d sur +Z, et garde l'axe vertical du modele vers le haut de l'image (pas de roulis)."""
+    a = math.radians(-float(yaw))
+    b = math.radians(float(pitch))
+    ry = np.array([[math.cos(a), 0, math.sin(a)], [0, 1, 0], [-math.sin(a), 0, math.cos(a)]])
+    rx = np.array([[1, 0, 0], [0, math.cos(b), -math.sin(b)], [0, math.sin(b), math.cos(b)]])
+    m = np.eye(4)
+    m[:3, :3] = rx @ ry
+    return m
+
+
+def matrice_vue_inverse(yaw, pitch):
+    m = matrice_vue(yaw, pitch)
+    inv = np.eye(4)
+    inv[:3, :3] = m[:3, :3].T                 # rotation pure : l'inverse est la transposee, exacte
+    return inv
+
+
+def xmag_pour_vue(max_abs):
+    """Demi-largeur de la fenetre d'une vue TOURNEE : au moins 0,6, assez grande pour contenir tout le maillage
+    (marge de 3 %), arrondie au pas de 0,05 superieur. Vue de face : 0,6 toujours (comportement d'avant)."""
+    x = math.ceil(float(max_abs) * 1.03 / PAS_XMAG - 1e-9) * PAS_XMAG
+    return round(min(XMAG_MAX, max(XMAG, x)), 4)
+
+
+def valider_xmag(x):
+    if x is None:
+        return XMAG
+    if isinstance(x, (bool, str, bytes, list, tuple, dict)):
+        raise ValueError('xmag : nombre attendu')
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        raise ValueError('xmag : nombre attendu')
+    if not math.isfinite(v) or v < XMAG or v > XMAG_MAX:
+        raise ValueError(f'xmag : doit etre dans [{XMAG:g}, {XMAG_MAX:g}]')
+    return v
+
+
+def lire_vue(vue):
+    """`vue` : None, dict {yaw, pitch, xmag} ou chemin d'un JSON (ecrit par `rendre`) -> dict valide."""
+    if vue is None or vue == '':
+        d = {}
+    elif isinstance(vue, dict):
+        d = vue
+    else:
+        with open(vue, encoding='utf-8') as f:
+            d = json.load(f)
+    yaw, pitch = valider_vue(d.get('yaw', 0), d.get('pitch', 0))
+    if vue_neutre(yaw, pitch):
+        return {'yaw': 0.0, 'pitch': 0.0, 'xmag': XMAG}
+    return {'yaw': yaw, 'pitch': pitch, 'xmag': valider_xmag(d.get('xmag', XMAG))}
 
 
 def _masque(chemin, taille):
@@ -45,7 +142,7 @@ def _masque(chemin, taille):
 
 
 # ----------------------------------------------------------------------- rendre
-def rendre(maillage, sortie, taille=1024):
+def rendre(maillage, sortie, taille=1024, yaw=0, pitch=0):
     """Vue de face A PLAT (couleurs de la texture, sans eclairage) sur fond
     BLANC, meme camera que le rendu de la fenetre : c'est elle que la retouche
     IA repeint. Le rendu de la fenetre est eclaire et tres sombre (moyenne
@@ -54,11 +151,28 @@ def rendre(maillage, sortie, taille=1024):
     lu 1/255 (fond noir)."""
     import pyrender
     import trimesh
+    try:
+        yaw, pitch = valider_vue(yaw, pitch)
+    except ValueError as e:
+        raise SystemExit(f'vue invalide : {e}')
     sc = trimesh.load(maillage, force='scene')
+    geoms = list(sc.geometry.values())
+    xm = XMAG
+    if not vue_neutre(yaw, pitch):
+        # vue choisie : le MAILLAGE tourne, la camera reste de face (la chaine ne change pas)
+        R = matrice_vue(yaw, pitch)
+        tournes = []
+        for g in geoms:
+            g = g.copy()
+            g.apply_transform(R)
+            tournes.append(g)
+        geoms = tournes
+        xm = xmag_pour_vue(max(float(np.abs(np.asarray(g.vertices)[:, :2]).max()) for g in geoms if len(g.vertices)))
+        log(f'vue tournee : yaw {yaw:g} pitch {pitch:g}, demi-largeur {xm:g}')
     ps = pyrender.Scene(bg_color=[1.0, 1.0, 1.0, 1.0], ambient_light=[1.0, 1.0, 1.0])
-    for g in sc.geometry.values():
+    for g in geoms:
         ps.add(pyrender.Mesh.from_trimesh(g, smooth=False))
-    cam = pyrender.OrthographicCamera(xmag=XMAG, ymag=XMAG, znear=0.01, zfar=100)
+    cam = pyrender.OrthographicCamera(xmag=xm, ymag=xm, znear=0.01, zfar=100)
     pose = np.eye(4)
     pose[2, 3] = 2.0
     ps.add(cam, pose=pose)
@@ -68,6 +182,9 @@ def rendre(maillage, sortie, taille=1024):
     finally:
         r.delete()
     Image.fromarray(col).save(sortie)
+    if not vue_neutre(yaw, pitch):
+        with open(sortie + '.vue.json', 'w', encoding='utf-8') as f:
+            json.dump({'yaw': yaw, 'pitch': pitch, 'xmag': xm, 'taille': int(taille)}, f)
     log(f'vue de face a plat : {sortie}')
 
 
@@ -122,7 +239,12 @@ def masque_uv(maillage, uv_png, sortie_masque, sortie_faces, taille=1024):
 
 
 # --------------------------------------------------------------------- preparer
-def preparer(repeint, masque, sortie_piece, sortie_cadre, origine=None):
+def preparer(repeint, masque, sortie_piece, sortie_cadre, origine=None, vue=None):
+    try:
+        vu = lire_vue(vue)
+    except ValueError as e:
+        raise SystemExit(f'vue invalide : {e}')
+    xm = vu['xmag']
     img = Image.open(repeint).convert('RGB')
     S = img.size[0]
     m = _masque(masque, S)
@@ -176,10 +298,12 @@ def preparer(repeint, masque, sortie_piece, sortie_cadre, origine=None):
     px0, px1 = x0 + ax.min(), x0 + ax.max() + 1
     py0, py1 = y0 + ay.min(), y0 + ay.max() + 1
     cadre = {
-        'x': [px0 / S * 2 * XMAG - XMAG, px1 / S * 2 * XMAG - XMAG],
-        'y': [XMAG - py1 / S * 2 * XMAG, XMAG - py0 / S * 2 * XMAG],
+        'x': [px0 / S * 2 * xm - xm, px1 / S * 2 * xm - xm],
+        'y': [xm - py1 / S * 2 * xm, xm - py0 / S * 2 * xm],
         'taille_rendu': S,
     }
+    if not vue_neutre(vu['yaw'], vu['pitch']):          # vue tournee : le cadre porte le repere
+        cadre.update({'yaw': vu['yaw'], 'pitch': vu['pitch'], 'xmag': xm})
     with open(sortie_cadre, 'w', encoding='utf-8') as f:
         json.dump(cadre, f)
     try:
@@ -228,12 +352,24 @@ def assembler(maillage, masque, cadre_json, piece_glb, sortie, faces_npy=None):
     with open(cadre_json, encoding='utf-8') as f:
         cadre = json.load(f)
     S = int(cadre.get('taille_rendu', 1024))
+    try:
+        vu = lire_vue(cadre)                 # angles et demi-largeur portes par le cadre (absents = vue de face)
+    except ValueError as e:
+        raise SystemExit(f'cadre invalide : {e}')
+    xm = vu['xmag']
+    tournee = not vue_neutre(vu['yaw'], vu['pitch'])
+    if tournee and faces_npy:
+        raise SystemExit('zone peinte en 3D et vue choisie ne se combinent pas')
     base = _charger(maillage)
+    if tournee:
+        # le maillage passe dans le repere du rendu ; tout ce qui suit est la chaine d'avant, inchangee
+        base.apply_transform(matrice_vue(vu['yaw'], vu['pitch']))
+        log(f'vue tournee : yaw {vu["yaw"]:g} pitch {vu["pitch"]:g}, demi-largeur {xm:g}')
     m = _masque(masque, S)
     # 1. COUPE : faces dont le centre tombe dans le masque, sur toute la profondeur
     c = base.triangles_center
-    px = np.clip(((c[:, 0] + XMAG) / (2 * XMAG) * S).astype(int), 0, S - 1)
-    py = np.clip(((XMAG - c[:, 1]) / (2 * XMAG) * S).astype(int), 0, S - 1)
+    px = np.clip(((c[:, 0] + xm) / (2 * xm) * S).astype(int), 0, S - 1)
+    py = np.clip(((xm - c[:, 1]) / (2 * xm) * S).astype(int), 0, S - 1)
     dedans = m[py, px]
     if faces_npy:                           # zone peinte en 3D (variante manuelle)
         dedans = np.zeros(len(base.faces), bool)
@@ -347,6 +483,11 @@ def assembler(maillage, masque, cadre_json, piece_glb, sortie, faces_npy=None):
             log(f'melange de texture ignore ({e})')
 
     # 5. ASSEMBLAGE : un GLB, deux maillages, chacun sa texture
+    if tournee:
+        # retour dans le repere d'origine : rotation inverse des sommets ET des normales (UV, matieres, textures intacts)
+        inverse = matrice_vue_inverse(vu['yaw'], vu['pitch'])
+        reste.apply_transform(inverse)
+        piece.apply_transform(inverse)
     scene = trimesh.Scene()
     scene.add_geometry(reste, geom_name='corps')
     scene.add_geometry(piece, geom_name='zone_regeneree')
@@ -359,10 +500,15 @@ if __name__ == '__main__':
         print(__doc__)
         sys.exit(2)
     if sys.argv[1] == 'rendre':
-        rendre(*sys.argv[2:5])
+        a = sys.argv[2:7]
+        try:
+            a[3:5] = [float(v) for v in a[3:5]]           # yaw, pitch : la ligne de commande donne des chaines
+        except ValueError:
+            raise SystemExit('vue invalide : yaw et pitch doivent etre des nombres')
+        rendre(*a)
     elif sys.argv[1] == 'masque-uv':
         masque_uv(*sys.argv[2:7])
     elif sys.argv[1] == 'preparer':
-        preparer(*sys.argv[2:7])
+        preparer(*sys.argv[2:8])
     else:
         assembler(*sys.argv[2:8])

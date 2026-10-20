@@ -93,6 +93,10 @@ const LIVRES = [
   'cloud/public/app/lang/_additions6.js',
   'src/renderer/lib/textes-serveur.js',
   'cloud/public/app/lib/textes-serveur.js',
+  // Reshape a region, vue choisie dans le visualiseur 3D (2026-10-20) : module de validation des pages + celui du processus principal
+  'src/renderer/lib/reshape-vue.js',
+  'cloud/public/app/lib/reshape-vue.js',
+  'src/main/reshape_vue.js',
 ];
 
 /** Les pages HTML embarquent des <script> EN LIGNE. Ils ne sont dans aucun
