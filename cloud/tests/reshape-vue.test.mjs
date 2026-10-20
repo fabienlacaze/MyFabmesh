@@ -54,6 +54,9 @@ function monter({ vue, uvMask = false, corps = {} } = {}) {
     spendCredits: async () => 20,
     addCredits: async () => { journal.remboursements++; },
     refundModalSpend: async () => {},
+    // doublures INERTES sur ce code, utiles quand le lot « filet de langue » (integration-2) est fusionne : la fonction les appelle alors
+    _filetLangue: async (_env, _uid, texte) => ({ texte, refus: null }),
+    _refusChaineEnvoyee: async () => null,
     _spendRefusalMessage: async () => 'refus',
     signedR2Url: async (_env, cle) => 'https://site.example/r2/' + cle,
     _provenance: () => ({}), _paysRequete: () => 'FR',
