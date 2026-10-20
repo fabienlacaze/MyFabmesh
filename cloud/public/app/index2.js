@@ -14825,7 +14825,7 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
   canvas.addEventListener('pointermove', (e) => { if (peint) touche(pos(e)); });
   window.addEventListener('pointerup', () => { peint = false; });
   $('rrx-clear')?.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); aPeint = false; majPrix(); });
-  const fermer = () => { modal.classList.add('hidden'); jetonRendu++; chargement(''); arreter3d(); liberer(); };
+  const fermer = () => { modal.classList.add('hidden'); jeton3d++; jetonRendu++; chargement(''); arreter3d(); liberer(); };
   $('rrx-cancel')?.addEventListener('click', fermer);
   $('rrx-close-x')?.addEventListener('click', fermer);
   const chargement = (t) => { const l = $('rrx-loading'); if (!l) return; l.textContent = t || ''; l.style.display = t ? 'flex' : 'none'; };

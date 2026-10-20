@@ -708,6 +708,51 @@ class CommandeLigne(unittest.TestCase):
             self.assertNotEqual(r.returncode, 0, args)
             self.assertIn('vue invalide', r.stderr + r.stdout, args)
 
+    def test_rendre_et_assembler_en_ligne_de_commande(self):
+        """Les VRAIES lignes de commande que main.js lance : `rendre <glb> <png> <taille> <yaw> <pitch>` ecrit <png>.vue.json,
+        `assembler` relit le cadre (yaw / pitch / xmag) et rend le GLB dans le repere d'origine."""
+        import subprocess
+        try:
+            import pyrender  # noqa: F401
+        except Exception as e:
+            self.skipTest(f'pyrender indisponible : {e}')
+        d = tempfile.mkdtemp(prefix='reshape_vue_')
+        try:
+            centre = [0.3, 0.05, -0.25]
+            maillage, piece = fabriquer_cas(d, centre)
+            sonde = subprocess.run([sys.executable, MODULE, 'rendre', maillage, os.path.join(d, 'sonde.png'), '32'], capture_output=True, text=True)
+            if sonde.returncode != 0:
+                self.skipTest('rendu hors ecran impossible ici : ' + (sonde.stderr or sonde.stdout)[-200:])
+            vue = os.path.join(d, 'vue.png')
+            r = subprocess.run([sys.executable, MODULE, 'rendre', maillage, vue, '128', '180', '0'], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr[-300:])
+            vj = lire_json(vue + '.vue.json')
+            self.assertEqual((vj['yaw'], vj['pitch'], vj['taille']), (180.0, 0.0, 128))
+            xm = vj['xmag']
+            # masque la ou la zone est VUE de dos, cadre portant les angles : exactement ce que `preparer` ecrirait
+            vu = mi.matrice_vue(180, 0)[:3, :3] @ np.asarray(centre, float)
+            cx, cy = pixel(xm, 128, vu[0], vu[1])
+            masque = os.path.join(d, 'masque.png')
+            masque_disque(masque, 128, cx, cy, 12)
+            cadre = os.path.join(d, 'cadre.json')
+            with open(cadre, 'w', encoding='utf-8') as f:
+                json.dump({'x': [vu[0] - 0.1, vu[0] + 0.1], 'y': [vu[1] - 0.1, vu[1] + 0.1], 'taille_rendu': 128,
+                           'yaw': vj['yaw'], 'pitch': vj['pitch'], 'xmag': xm}, f)
+            sortie = os.path.join(d, 'sortie.glb')
+            r = subprocess.run([sys.executable, MODULE, 'assembler', maillage, masque, cadre, piece, sortie], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, (r.stderr or r.stdout)[-400:])
+            geoms = charger_sortie(sortie)
+            pz = next(g for n, g in geoms.items() if 'zone' in n)
+            self.assertLess(float(np.linalg.norm(np.asarray(pz.vertices).mean(0) - np.asarray(centre))), 0.03)
+            # meme masque, cadre SANS angles (chaine d'avant) : la zone n'est pas trouvee
+            with open(cadre, 'w', encoding='utf-8') as f:
+                json.dump({'x': [vu[0] - 0.1, vu[0] + 0.1], 'y': [vu[1] - 0.1, vu[1] + 0.1], 'taille_rendu': 128}, f)
+            r = subprocess.run([sys.executable, MODULE, 'assembler', maillage, masque, cadre, piece, sortie + '2'], capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn('aucune face sous le masque', r.stderr + r.stdout)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
 
 if __name__ == '__main__':
     unittest.main()
