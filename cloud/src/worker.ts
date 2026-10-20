@@ -2854,6 +2854,11 @@ interface GenerateInput {
   refine?: boolean;
   quality_plus?: boolean;
   ultra_q?: boolean;
+  /** OPTION « relief pour moteur de jeu » (case « Game-engine relief (normal map) », 2026-10-15) : carte de normales cuite par Modal,
+   *  plafonnee a 2048 px (+6 Mo sur le GLB). GRATUITE (aucun prix, aucune ligne de la grille), decochee par defaut, lue par
+   *  modal_app (generate_to_volume) : ce n'est donc PAS une option morte. Booleen STRICT : seule la chaine « true » du formulaire
+   *  l'active, et Modal ne recoit jamais autre chose qu'un booleen. */
+  normal_map?: boolean;
   /** Plafond de triangles choisi (5 000 - 3 000 000) ; absent = regle du mode. */
   max_tris?: number;
 }
@@ -9182,6 +9187,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     refine: form.get('refine') === 'true',
     quality_plus: form.get('quality_plus') === 'true',
     ultra_q: form.get('ultra_q') === 'true',
+    normal_map: form.get('normal_map') === 'true',
     preset: (form.get('preset') as GenerateInput['preset']) || undefined,
     max_tris: (() => {
       const n = parseInt(String(form.get('max_tris') ?? ''), 10);
@@ -9503,6 +9509,8 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         // C est exactement ce qui a bloque le diagnostic d une hutte a la
         // paille fragmentee le 2026-09-24. `refine` manquait aussi.
         refine: input.refine, quality_plus: input.quality_plus, ultra_q: input.ultra_q,
+        // option gratuite « relief pour moteur de jeu » : enregistree pour l'historique (fiche des parametres)
+        normal_map: input.normal_map === true,
         // preset de qualite : affiche dans la fiche d'un travail repris apres
         // un rechargement (2026-09-27, user : « il manque les settings »)
         ...(input.preset ? { preset: input.preset } : {}),
@@ -9603,6 +9611,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         smooth: input.smooth,
         ultra_hd: input.ultra_hd,
         multiref: input.multiref,
+        normal_map: input.normal_map === true,
         // Transmis pour information : Modal derive deja la resolution de
         // `mode`, mais les journaliser permet de savoir APRES COUP avec quels
         // reglages un mesh a ete fabrique. Leur absence a rendu impossible le
@@ -12390,6 +12399,7 @@ async function callModalMeshStart(env: Env, input: {
   smooth?: boolean;
   ultra_hd?: boolean;
   multiref?: boolean;
+  normal_map?: boolean;
 }): Promise<{ job_id: string }> {
   const url = env.MODAL_MESH_START_URL;
   const secret = env.MODAL_SHARED_SECRET;
@@ -12426,6 +12436,8 @@ async function callModalMeshStart(env: Env, input: {
       smooth:   !!input.smooth,
       ultra_hd: !!input.ultra_hd,
       multiref: !!input.multiref,
+      // option « relief pour moteur de jeu » : TOUJOURS un booleen (`=== true`), jamais la valeur brute d'un client
+      normal_map: input.normal_map === true,
     }),
     // mesh-start returns instantly (< 1 s) once the lightweight HTTP
     // container is warm, but a COLD container for the start endpoint

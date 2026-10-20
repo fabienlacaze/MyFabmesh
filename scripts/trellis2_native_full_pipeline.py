@@ -1189,11 +1189,30 @@ def main():
     except Exception as _e:
         log(f'retrait alpha ignore: {_e}')
 
+    # CARTE DE NORMALES (2026-10-14, meme branchement que modal_app/_mesh.py generate) : relief du maillage FIN cuit sur le
+    # maillage retenu, taille = atlas de couleur PLAFONNE a 2048 px (normal_bake.PLAFOND_DEFAUT). Tout echec : GLB sans carte.
+    # OPTION PAR GENERATION (2026-10-15, decision du proprietaire) : la carte n'est cuite que si le processus principal l'a
+    # demandee (case « Game-engine relief (normal map) » -> FABMESH_NORMAL_MAP_OPTION=1) ; sans option on n'entre meme pas
+    # dans ce bloc, le GLB est celui d'avant a l'octet. FABMESH_NORMAL_MAP=0 reste l'interrupteur d'urgence et l'emporte.
+    carte_normales = False
+    try:
+        from normal_bake import ajouter_carte_normales, carte_normales_voulue, option_carte_normales
+        if carte_normales_voulue(option_carte_normales()):
+            carte_normales = bool(ajouter_carte_normales(glb, mesh.vertices, mesh.faces, log=log).get('posee'))
+    except Exception as _e:
+        log(f'carte de normales ignoree : {type(_e).__name__}: {_e}')
+
     use_webp = os.environ.get('FABMESH_TRELLIS2_EXPORT_WEBP', '1') == '1'
     if use_webp:
         _t_webp = preencoder_couleur(glb, log)       # texture couleur encodee 8x plus vite, meme qualite
         if _t_webp:
             log(f'texture couleur encodee en {_t_webp:.1f}s (WebP method 2, qualite 90)')
+        if carte_normales:
+            try:
+                from acceleration_glb import preencoder_normales
+                preencoder_normales(glb, log)        # carte de normales en WebP SANS PERTE
+            except Exception as _e:
+                log(f'pre-encodage de la carte de normales ignore : {type(_e).__name__}')
         glb.export(out_glb, extension_webp=True)
     else:
         glb.export(out_glb)

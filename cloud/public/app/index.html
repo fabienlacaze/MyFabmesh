@@ -808,6 +808,15 @@
                         Face fix
                       </label>
                     </div>
+                    <!-- RELIEF POUR MOTEUR DE JEU (2026-10-15, decision du proprietaire) : carte de normales (glTF normalTexture) cuite depuis le maillage fin,
+                         plafonnee a 2048 px. DECOCHEE par defaut, GRATUITE, lue par le serveur / le pipeline (normal_map) : pas une option morte.
+                         Hors du tableau ASSET_OPTIONS_PROFILE et de la liste des options automatiques : c'est un choix d'EXPORT, jamais deduit de l'image. -->
+                    <div class="form-row check-row" style="margin-top:4px;">
+                      <label class="inline-check" style="font-size:11px;" title="Adds a normal map to the exported model: the fine relief of the detailed shape (skin, muscles, cloth folds) is baked into a texture of at most 2048px that game engines use for lighting. Off by default; adds a few MB to the file. The difference is subtle in a plain viewer.">
+                        <input type="checkbox" id="ws-trellis2-normal-map" />
+                        Game-engine relief (normal map)
+                      </label>
+                    </div>
                     <div class="form-hint" style="font-size:10px; margin-top:8px;">PBR baseColor + roughness + metallic exported in the GLB automatically.</div>
                   </details>
                   <button id="ws-generate-mesh" class="primary-btn" disabled title="Build a 3D mesh from the selected image. Quality and options are set just above.">Generate 3D <span id="ws-mesh-cost-pill" class="generate-cost-pill"><span class="generate-cost-bolt">⚡</span><span id="ws-mesh-cost-value"></span></span></button>

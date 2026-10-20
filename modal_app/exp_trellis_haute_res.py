@@ -8,7 +8,10 @@
 Le correctif de la table de hachage (volume calcule en int32 : deborde des la grille 1626) est installe a l'execution dans les deux cas.
 Lancer : PYTHONUTF8=1 python -m modal run modal_app/exp_trellis_haute_res.py --etape sampler
          PYTHONUTF8=1 python -m modal run modal_app/exp_trellis_haute_res.py --etape decoder --nom G1792 --mode verif
-Sortie GLB : C:/tmp/trellis_cloud/glb/hr_<nom>_<mode>.glb"""
+Carte de normales (2026-10-14, A/B de la branche carte-normales) : `--carte 1` cuit la carte comme la production (_poser_carte_normales),
+`--carte 0` (defaut) rend le GLB d'avant ; memes latents, meme export, seule la carte differe. FABMESH_NORMAL_MAP posee sur le PC
+n'atteint PAS le conteneur : c'est ce parametre qui decide.
+Sortie GLB : C:/tmp/trellis_cloud/glb/hr_<nom>_<mode>_t<texture>_f<faces>[_carte].glb"""
 import io
 import os
 import time
@@ -163,9 +166,27 @@ def _decoder_tranches(pipe, sh, tex, g, axe, K, halo, torch, SparseTensor, log):
 GPU_DEC = os.environ.get("EXP_GPU", "L40S")
 
 
+def _poser_carte_normales(glb, ov, carte, log=print) -> dict:
+    """carte != 0 : carte de normales cuite comme en PRODUCTION (modal_app/_mesh.py generate : normal_bake.ajouter_carte_normales sur
+    les sommets / faces FINS d'o_voxel, repere de la grille, taille = atlas de couleur) ; 0 : rien (GLB d'avant). Ne leve jamais
+    (ajouter_carte_normales rend la scene sans carte au moindre echec). Rend les mesures ({} sans carte)."""
+    if not carte:
+        return {}
+    from modal_app import normal_bake
+    ts = int(carte) if int(carte) >= 256 else None      # --carte 2048 : carte plafonnee a 2048 (essai du 15/10), 1 : taille de l'atlas
+    # le plafond de PRODUCTION (2048, normal_bake.PLAFOND_DEFAUT, depuis le 15/10) ne s'applique pas a un banc d'essai : on passe
+    # le plafond demande (--carte 4096 donne bien 4096), ou aucun plafond pratique (16384) pour --carte 1 = taille de l'atlas
+    st = normal_bake.ajouter_carte_normales(glb, ov.vertices, ov.faces, texture_size=ts, plafond=(ts or 16384), log=log)
+    return {k: st[k] for k in ("posee", "raison", "duree_s", "taille") if k in st}
+
+
+def _nom_glb(nom, mode, texture_size, faces_cible, carte) -> str:
+    return "hr_%s_%s_t%d_f%d%s.glb" % (nom, mode, texture_size, faces_cible, ("_carte" + (str(int(carte)) if int(carte) >= 256 else "")) if carte else "")
+
+
 @app.function(gpu=GPU_DEC, timeout=10800, secrets=SECRETS, volumes={"/lat": vol})
 def decoder(nom: str, mode: str = "tranches", K: int = 6, halo: int = 10, remesh: bool = True, texture_size: int = 4096, fill_holes: bool = False,
-            faces_cible: int = 500_000) -> dict:
+            faces_cible: int = 500_000, carte: int = 0) -> dict:
     import sys
     sys.path.insert(0, "/opt/trellis2_local")
     import gc
@@ -270,10 +291,11 @@ def decoder(nom: str, mode: str = "tranches", K: int = 6, halo: int = 10, remesh
         return stats
     stats["export_s"] = round(time.time() - t2, 1)
     stats["bornes_glb"] = [[round(float(x), 3) for x in r] for r in glb.bounds]
+    stats["carte_normales"] = _poser_carte_normales(glb, ov, carte, log)
     b = io.BytesIO()
-    glb.export(b, file_type="glb")
+    glb.export(b, file_type="glb")          # PNG dans les deux variantes : seule la carte differe (et elle est sans perte)
     os.makedirs("/lat/out", exist_ok=True)
-    chemin = "/lat/out/hr_%s_%s_t%d_f%d.glb" % (nom, mode, texture_size, faces_cible)
+    chemin = "/lat/out/" + _nom_glb(nom, mode, texture_size, faces_cible, carte)
     open(chemin, "wb").write(b.getvalue())
     vol.commit()
     stats["glb"] = chemin
@@ -285,7 +307,7 @@ def decoder(nom: str, mode: str = "tranches", K: int = 6, halo: int = 10, remesh
 
 @app.local_entrypoint()
 def main(etape: str = "sampler", nom: str = "G1792", mode: str = "tranches", k: int = 6, halo: int = 10, remesh: int = 1, grilles: str = "1792,3072,4096",
-         fill_holes: int = 0, texture: int = 4096, faces: int = 500000, image: str = "", tag: str = ""):
+         fill_holes: int = 0, texture: int = 4096, faces: int = 500000, image: str = "", tag: str = "", carte: int = 0):
     import json
     os.makedirs(SORTIE + "/glb", exist_ok=True)
     if etape == "sampler":
@@ -293,11 +315,11 @@ def main(etape: str = "sampler", nom: str = "G1792", mode: str = "tranches", k: 
         r = echantillonner.remote(png, [int(x) for x in grilles.split(",")], 7, tag)
         print(json.dumps(r))
     else:
-        r = decoder.remote(nom, mode, k, halo, bool(remesh), texture, bool(fill_holes), faces)
+        r = decoder.remote(nom, mode, k, halo, bool(remesh), texture, bool(fill_holes), faces, int(carte))
         print(json.dumps(r))
         if r.get("glb"):
             octets = b"".join(vol.read_file(r["glb"].replace("/lat", "", 1)))
-            cible = SORTIE + "/glb/hr_%s_%s_t%d_f%d.glb" % (nom, mode, texture, faces)
+            cible = SORTIE + "/glb/" + _nom_glb(nom, mode, texture, faces, carte)
             open(cible, "wb").write(octets)
             print("GLB ->", cible, len(octets))
 
