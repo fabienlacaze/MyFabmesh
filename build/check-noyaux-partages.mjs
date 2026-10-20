@@ -160,6 +160,8 @@ const FICHIERS = [
   // bureau / web (une derive entre les deux dictionnaires laissait des libelles traduits d'un seul cote).
   { nom: 'textes du serveur (traduction des refus)', source: 'src/renderer/lib/textes-serveur.js', copie: 'cloud/public/app/lib/textes-serveur.js' },
   { nom: 'traductions communes (lang/_additions6.js)', source: 'src/renderer/lang/_additions6.js', copie: 'cloud/public/app/lang/_additions6.js' },
+  // langue du texte de l'utilisateur (2026-10-13, audit de la langue) : bureau, site ET worker (cloud/src/worker.ts importe la copie du site)
+  { nom: 'langue du texte', source: 'src/renderer/lib/langue-texte.js', copie: 'cloud/public/app/lib/langue-texte.js' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

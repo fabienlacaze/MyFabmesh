@@ -78,6 +78,14 @@
     } catch (_) { return undefined; }
   }
 
+  /** Langue de l'INTERFACE, envoyee au serveur (en-tete X-Fabmesh-Langue) : ses refus du filet de langue (422) sont rediges dans
+   *  cette langue (troisieme relecture du lot 2, 14/10 : ils n'existaient qu'en anglais). Meme source que _langueInterface d'index2.js. */
+  function _enteteLangue() {
+    let lang = '';
+    try { lang = document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || ''; } catch (_) {}
+    lang = String(lang || '').toLowerCase().split(/[-_]/)[0];
+    return /^[a-z]{2,3}$/.test(lang) ? { 'X-Fabmesh-Langue': lang } : {};
+  }
   async function postJSON(url, body) {
     let corps = body || {};
     if (corps && typeof corps === 'object' && !Array.isArray(corps)
@@ -87,7 +95,7 @@
     }
     const r = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ..._enteteLangue() },
       body: JSON.stringify(corps),
       credentials: 'include',
     });
@@ -765,7 +773,7 @@
        Returns the EXACT shape the desktop IPC returns:
          { success: bool, images: [path, path, ...], error?: string }
        so the renderer's caller works unchanged. */
-    generateImages: async ({ prompt, userPrompt, projectName, numImages = 1, steps, jobId, engine, buildStages } = {}) => {
+    generateImages: async ({ prompt, userPrompt, projectName, numImages = 1, steps, jobId, engine, buildStages, langueVerifiee } = {}) => {
       console.log('[generateImages] ENTER projectName=', projectName, 'numImages=', numImages, 'buildStages=', !!buildStages);
       // Read asset type / style from the workspace dropdowns so the
       // Worker can rebuild the enriched prompt server-side using the
@@ -800,6 +808,8 @@
             poseLibre: _poseLibre,               // case decochee : pose libre
             turbo: engine === 'local-lightning',  // SDXL-Lightning 4-step (Modal text2image)
             projectName,         // for user_assets row insertion
+            // « Envoyer tel quel » choisi apres un echec de traduction : le filet de langue du serveur respecte ce choix (2026-10-13)
+            ...(langueVerifiee ? { langueVerifiee: true } : {}),
           }),
           credentials: 'include',
         });
@@ -902,12 +912,13 @@
     }),
 
     /* Back view via Worker (Pollinations under the hood, R2-tunneled). */
-    generateBackView: async ({ frontImage, frontImageUrl, prompt, promptHint, numImages = 1, assetType, projectName } = {}) => {
+    generateBackView: async ({ frontImage, frontImageUrl, prompt, promptHint, numImages = 1, assetType, projectName, langueVerifiee } = {}) => {
       try {
         const r = await postJSON('/api/generate-back-view', {
           prompt: prompt || promptHint || '',
           promptHint: promptHint || prompt || '',
           numImages, frontImageUrl: frontImageUrl || frontImage, assetType,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (r?.success && Array.isArray(r.paths)) {
           // C1: persist back images and front->back mapping so the
@@ -2529,7 +2540,7 @@
     refineMesh: async () => ({ success: false, ok: false, error: 'Mesh refine (Blender + Claude) is Desktop-only.' }),
     stopSdxlServer: async () => ({ ok: true }),
     checkMultiviewDir: async () => ({ ok: true, exists: false, files: [] }),
-    img2img: async ({ imagePath, prompt, strength, projectName: _projetDemande } = {}) => {
+    img2img: async ({ imagePath, prompt, strength, projectName: _projetDemande, langueVerifiee } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /img2img IPC handler (main.js:2874).
       // Worker POSTs to MODAL_MODIFY_URL with imageUrl + prompt + strength
@@ -2541,6 +2552,7 @@
       try {
         const r = await postJSON('/api/modify-image', {
           imageUrl: imagePath, prompt, strength: strength ?? 0.55,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
@@ -2551,7 +2563,7 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    autoInpaint: async ({ imagePath, targetText, prompt, dilate, projectName: _projetDemande } = {}) => {
+    autoInpaint: async ({ imagePath, targetText, prompt, dilate, projectName: _projetDemande, langueVerifiee } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /auto-inpaint IPC handler
       // (main.js:2824). CLIPSeg detects the area + SDXL Inpaint paints
@@ -2562,6 +2574,7 @@
       try {
         const r = await postJSON('/api/auto-inpaint', {
           imageUrl: imagePath, targetText, prompt: prompt || '', dilate: dilate || 15,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
@@ -2599,7 +2612,7 @@
         return { success: true, pieces: sorties, absentes: r.absentes || [] };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt, gris, motifs, projectName: _projetDemande } = {}) => {
+    texVariant: async ({ imagePath, prompt, strength, seed, cnScale, negPrompt, gris, motifs, projectName: _projetDemande, langueVerifiee } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Variante de texture a structure verrouillee (ControlNet-Tile) — c'est
       // aussi le moteur de l'outil « Age ». cnScale bas = les proportions
@@ -2614,6 +2627,7 @@
           negPrompt: negPrompt || undefined,
           gris: gris || 0,
           motifs: motifs || 0,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (r?.success && (r.newPath || r.path)) {
@@ -2624,7 +2638,7 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    recolor: async ({ imagePath, prompt, strength, dilate, recolorAll, projectName: _projetDemande } = {}) => {
+    recolor: async ({ imagePath, prompt, strength, dilate, recolorAll, projectName: _projetDemande, langueVerifiee } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Recolorier — port cloud de l'IPC bureau. CLIPSeg detecte la partie
       // nommee, puis : une couleur = virage HSV qui preserve la luminance ; une
@@ -2639,6 +2653,7 @@
           strength: strength != null ? strength : 1.0,
           dilate: dilate != null ? dilate : 15,
           recolorAll: !!recolorAll,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (r?.success && (r.newPath || r.path)) {
@@ -2658,13 +2673,22 @@
         return (r && r.meta) || null;
       } catch (_) { return null; }
     },
+    // 2026-10-13 (lot 2 de l'audit de la langue, TRADUCTION-03 / SERVEUR-03) : le drapeau `translated` et la `raison` du serveur sont
+    // RENDUS (ils etaient jetes : l'interface ne pouvait pas distinguer un echec d'un texte deja anglais). Erreur HTTP / reseau :
+    // { translated:false, raison, status }.
     translatePrompt: async ({ text, from } = {}) => {
       try {
         const r = await postJSON('/api/translate', { text: text || '', from: from || 'en' });
-        return { text: (r && typeof r.text === 'string' && r.text) ? r.text : (text || '') };
-      } catch (_) { return { text: text || '' }; }
+        const t = (r && typeof r.text === 'string' && r.text) ? r.text : (text || '');
+        if (r && r.ok === false) {
+          return { text: text || '', translated: false, status: r.status,
+            raison: r.status === 429 ? 'rate-limited' : r.status === 401 ? 'signed-out' : (r.raison || 'failed') };
+        }
+        return { text: t, translated: !!(r && r.translated), raison: r && r.raison, langue: r && r.langue,
+          ...(r && typeof r.portee === 'string' ? { portee: r.portee } : {}) };
+      } catch (_) { return { text: text || '', translated: false, raison: 'failed' }; }
     },
-    segmentMask: async ({ imagePath, targetText, dilate } = {}) => {
+    segmentMask: async ({ imagePath, targetText, dilate, langueVerifiee } = {}) => {
       // Detect-only CLIPSeg mask for the Auto Inpaint "Preview mask" button.
       // ONE GPU call on demand (not live-on-keystroke); returns { success,
       // maskUrl } so the renderer overlays the detected region on the source.
@@ -2673,6 +2697,7 @@
       try {
         const r = await postJSON('/api/segment-preview', {
           imageUrl: imagePath, targetText, dilate: dilate || 15,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (r?.success && (r.maskUrl || r.url)) {
@@ -2681,7 +2706,7 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    maskInpaint: async ({ imagePath, maskDataUrl, prompt, projectName: _projetDemande } = {}) => {
+    maskInpaint: async ({ imagePath, maskDataUrl, prompt, projectName: _projetDemande, langueVerifiee } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /mask-inpaint IPC (main.js:2790).
       // Frontend sends image URL + base64 mask + prompt; Worker
@@ -2691,7 +2716,8 @@
       if (!maskDataUrl) return { success: false, error: 'maskDataUrl required' };
       if (!prompt)      return { success: false, error: 'prompt required' };
       try {
-        const r = await postJSON('/api/mask-inpaint', { imageUrl: imagePath, maskDataUrl, prompt });
+        const r = await postJSON('/api/mask-inpaint', { imageUrl: imagePath, maskDataUrl, prompt,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}) });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
           await _attachToProject(_projetLancement, newPath, 'front');
@@ -3365,7 +3391,7 @@
       } catch (e) { return { ok: false, error: String(e?.message || e) }; }
     },
     // Travail de plusieurs minutes (SDXL + piece en 3D) : suivi comme un re-texture.
-    reshapeRegion: async ({ meshPath, meshUrl, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName } = {}) => {
+    reshapeRegion: async ({ meshPath, meshUrl, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName, langueVerifiee } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { ok: false, error: 'meshPath or meshUrl required' };
       if (!maskDataUrl && !uvMaskDataUrl) return { ok: false, error: 'mask required' };
@@ -3380,6 +3406,7 @@
         const r = await postJSON('/api/mesh-reshape', {
           meshUrl: url, vueUrl, maskDataUrl: maskDataUrl || undefined, uvMaskDataUrl: uvMaskDataUrl || undefined,
           prompt: prompt || '', projectName: projectName || p?.name || null, assetType: p?.assetType || null,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (!r?.jobId) return { ok: false, error: r?.error || 'unknown' };
@@ -3388,7 +3415,7 @@
         return { ok: true, path: fin.url };
       } catch (e) { return { ok: false, error: e?.message || String(e) }; }
     },
-    regionRetex: async ({ meshPath, meshUrl, maskDataUrl, prompt, strength } = {}) => {
+    regionRetex: async ({ meshPath, meshUrl, maskDataUrl, prompt, strength, langueVerifiee } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { ok: false, error: 'meshPath or meshUrl required' };
       if (!maskDataUrl) return { ok: false, error: 'mask required' };
@@ -3398,6 +3425,7 @@
           strength: typeof strength === 'number' ? strength : 0.8,
           projectName: (window.state && window.state.currentProject
                         && window.state.currentProject.name) || null,
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         const chemin = r?.path || r?.newPath || r?.mesh_url;
@@ -3430,7 +3458,7 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    meshTool: async ({ operation, meshPath, meshUrl, meshId, imagePath, params, projectName } = {}) => {
+    meshTool: async ({ operation, meshPath, meshUrl, meshId, imagePath, params, projectName, langueVerifiee } = {}) => {
       // 'retexture' is the desktop's quick re-texture (UV reproject via
       // Blender). Cloud has no Blender → we do a best-effort
       // baseColorTexture swap, which works when the new image was
@@ -3465,6 +3493,7 @@
             seed: a[1] != null ? parseInt(a[1], 10) : undefined,
             style: a[2] != null ? String(a[2]) : '',
             projectName: projectName || null,
+            ...(langueVerifiee ? { langueVerifiee: true } : {}),
           });
           if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           if (r?.success && (r.path || r.newPath || r.mesh_url)) {

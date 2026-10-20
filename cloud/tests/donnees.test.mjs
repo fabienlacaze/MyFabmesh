@@ -156,6 +156,8 @@ function mondeCompte() {
     [`_meta/userspend/${UID}/2026-10-02`]: '0.5', [`_meta/userspend_cap/${UID}/2026-10-02`]: '0.5',
     [`_meta/userdaily/${UID}/2026-10-02`]: '4', [`_meta/paidcheck/${UID}/2026-10-02`]: '1',
     [`_meta/userspend/${AUTRE}/2026-10-02`]: '9',
+    // compteurs du traducteur (revue du lot 2 de la langue, 2026-10-14 : absents de la purge, comme ceux du redacteur avant eux)
+    [`_meta/traduction/${UID}-2026100212.txt`]: '7', [`_meta/traduction/${AUTRE}-2026100212.txt`]: '3',
     '_market/listings/L1.json': { id: 'L1', user_id: UID, asset_url: 'mesh/j3.glb', mesh_url: 'mesh/j3.glb', status: 'approved' },
     '_market/listings/L2.json': { id: 'L2', user_id: UID, asset_url: 'mesh/j4.glb', mesh_url: 'mesh/j4.glb', status: 'pending' },
     '_market/listings/L3.json': { id: 'L3', user_id: AUTRE, asset_url: 'mesh/autre.glb', mesh_url: 'mesh/autre.glb', status: 'approved' },
@@ -235,7 +237,8 @@ test('D-06 : suppression du compte -> cles API, notifications, compteurs, achats
                    `_market/owners/L3/${UID}.json`, `_market/ratings/L3/${UID}.json`]) assert.ok(!cles.includes(k), 'supprime : ' + k);
   // l'autre compte et le systeme restent intacts
   for (const k of [`_meta/api_keys/${EMP2}.json`, `_meta/api_keys_user/${AUTRE}/${EMP2}`, `_notifications/${AUTRE}/n9.json`, `_meta/userspend/${AUTRE}/2026-10-02`,
-                   '_meta/rig_jobs/r2.json', '_meta/contact/200.json', '_meta/pricing.json', '_backup/2026-10-01/manifest.json', `_market/owners/L1/${AUTRE}.json`]) assert.ok(cles.includes(k), 'conserve : ' + k);
+                   '_meta/rig_jobs/r2.json', '_meta/contact/200.json', '_meta/pricing.json', '_backup/2026-10-01/manifest.json', `_market/owners/L1/${AUTRE}.json`,
+                   `_meta/traduction/${AUTRE}-2026100212.txt`]) assert.ok(cles.includes(k), 'conserve : ' + k);
 });
 
 test('D-01 : si Supabase est indisponible, 503 et RIEN n est supprime', async () => {

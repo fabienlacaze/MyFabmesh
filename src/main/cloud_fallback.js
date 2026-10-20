@@ -339,7 +339,7 @@ async function status() {
 // Retourne { success, images:[chemins locaux], creditsRemaining } ou
 // { success:false, needsCloudLogin:true } si aucune session valide.
 // -----------------------------------------------------------------------------
-async function generateImages({ prompt, numImages, imagesDir, assetType, steps, turbo, projectName }) {
+async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee }) {
   const tok = await getAccessToken();
   if (!tok) {
     return { success: false, needsCloudLogin: true,
@@ -364,12 +364,17 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ..._enteteLangue(),
           Cookie: `mfm-session=${jeton}`,   // le worker ne lit PAS Authorization
         },
         body: JSON.stringify({
           prompt,                          // prompt déjà enrichi par le desktop
           numImages: n,                    // 1 à 4 : plafond du worker par appel
           asset_type: assetType || 'character',
+          // style du prompt deja compose (2026-10-13) : sans lui le serveur ajoutait le style realiste (MANQUE-SERV-01)
+          ...(assetStyle ? { asset_style: assetStyle } : {}),
+          // « Envoyer tel quel » choisi apres un echec de traduction : respecte par le filet de langue du serveur
+          ...(langueVerifiee ? { langueVerifiee: true } : {}),
           steps: Number(steps) || 30,
           turbo: !!turbo,
           // Passerelle desktop->web : le worker insère l'asset dans
@@ -452,12 +457,22 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, steps, 
 // upload-mesh (GLB ≤50 Mo, 500/j), user-assets/record, cloud-projects,
 // meshes, market/list, market/download.
 // -----------------------------------------------------------------------------
+/** Langue de l'INTERFACE du bureau (fournie par main.js : config uiLang), envoyee au site en X-Fabmesh-Langue : les refus du filet de
+ *  langue du serveur (422) sont rediges dans cette langue (troisieme relecture du lot 2, 14/10). */
+let _fournisseurLangue = null;
+function definirLangueInterface(f) { _fournisseurLangue = typeof f === 'function' ? f : null; }
+function _enteteLangue() {
+  let lang = '';
+  try { lang = _fournisseurLangue ? _fournisseurLangue() : ''; } catch (_) { lang = ''; }
+  lang = String(lang || '').toLowerCase().split(/[-_]/)[0];
+  return /^[a-z]{2,3}$/.test(lang) ? { 'X-Fabmesh-Langue': lang } : {};
+}
 async function _authedFetch(pathname, init = {}) {
   const tok = await getAccessToken();
   if (!tok) return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR };
   const r = await fetch(`${WORKER_URL}${pathname}`, {
     ...init,
-    headers: { ...(init.headers || {}), Cookie: `mfm-session=${tok}` },
+    headers: { ..._enteteLangue(), ...(init.headers || {}), Cookie: `mfm-session=${tok}` },
   });
   if (r.status === 401) { logout(); return { needsCloudLogin: true, error: CLOUD_LOGIN_ERR }; }
   return { resp: r };
@@ -1604,8 +1619,20 @@ function register(deps) {
   });
 }
 
+/** Une session MyFabmesh existe-t-elle (SANS appel reseau) : jeton en memoire ou session enregistree ? Sert a l'aide de langue et a la
+ *  traduction du bureau par le site (2026-10-13, audit de la langue) : une session expiree est detectee au premier appel (401). */
+function aSession() {
+  try {
+    if (_mem && (_mem.access_token || _mem.refresh_token)) return true;
+    const s = _loadSession();
+    return !!(s && s.refresh_token);
+  } catch (_) { return false; }
+}
+
 module.exports = {
+  definirLangueInterface,
   authedFetch: _authedFetch,
+  aSession,
   register, generateImages, imageOp, outfitOp, generateMesh, getAccessToken, status, login, logout,
   // Cold start Modal : préchauffage à la demande + retry partagé
   prewarm,

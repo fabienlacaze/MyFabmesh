@@ -311,7 +311,7 @@ const MOTS_NAGE = new Set(('fish fishes tuna shark sharks whale whales dolphin d
   + 'poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie '
   + 'espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon '
   + 'pez peces atun tiburon ballena delfin salmon trucha anguila '
-  + 'fisch thunfisch hai wal delfin lachs forelle karpfen aal '
+  + 'fisch thunfisch delfin lachs forelle karpfen aal '
   + 'pesce tonno squalo balena delfino salmone trota '
   + 'peixe atum tubarao baleia golfinho').split(' '));
 const MOTS_REPTATION = new Set(('snake snakes serpent serpents python cobra viper boa anaconda mamba rattlesnake adder '
@@ -321,11 +321,34 @@ const MOTS_REPTATION = new Set(('snake snakes serpent serpents python cobra vipe
   + 'schlange wurm raupe schnecke '
   + 'serpente verme bruco lumaca '
   + 'cobra minhoca lagarta lesma').split(' '));
+/* FAUX AMIS ET MOTS A DOUBLE SENS (2026-10-13, audit de la langue SERVEUR-06 / MANQUE-SERV-04). Meme regle cote Modal
+ * (modal_app/_prompts.py, mode_depuis_texte) : un chat qui court « vers » la maison recevait le gabarit SERPENT (corps etire, pattes
+ * interdites), « a parrot on a wooden perch » le gabarit POISSON.
+ *  - « hai » (it : « tu as ») et « wal » (nl : « quai ») sont retires des listes : un texte allemand (Hai, Wal) arrive traduit ;
+ *  - « ver » / « vers » (fr : « vers la maison », es / pt : « ver el mar ») ne comptent pas devant un article ou un determinant ;
+ *  - les mots AMBIGUS (perch, bass, pike, ray, cod, carp, boa, python, adder, slug, ver, vers) ne comptent pas quand le texte nomme une
+ *    AUTRE espece (chat, cheval, lapin, chevalier... : MOTS_ESPECES ci-dessus, plus AUTRES_ANIMAUX). */
+const MOTS_AMBIGUS = new Set('perch bass pike ray cod carp boa python adder slug ver vers'.split(' '));
+// autres animaux absents des profils de marche (servent SEULEMENT a lever l'ambiguite, sans changer l'allure choisie)
+const AUTRES_ANIMAUX = new Set(('parrot parrots owl owls swan swans dove doves peacock flamingo falcon raven sparrow seagull '
+  + 'perroquet hibou chouette cygne colombe paon flamant faucon moineau mouette loro buho lechuza cisne paloma halcon gaviota '
+  + 'papagei schwan taube pfau falke mowe pappagallo gufo civetta cigno colomba pavone falco gabbiano papagaio coruja pomba '
+  + 'pavao falcao gaivota').split(' '));
+const DETERMINANTS = new Set(('le la les l un une des du au aux sa son ses ce cet cette ces mon ma mes ton ta tes notre nos votre vos '
+  + 'leur leurs el los las lo una unos unas o os as um uma uns umas il gli the').split(' '));
+function _compteMode(mots, i, liste, autreEspece) {
+  const m = mots[i];
+  if (!liste.has(m)) return false;
+  if (!MOTS_AMBIGUS.has(m)) return true;
+  if (autreEspece) return false;
+  return !((m === 'ver' || m === 'vers') && DETERMINANTS.has(mots[i + 1] || ''));
+}
 /** Mode d'apres les mots d'un texte (nom du projet, prompt…) : 'nage', 'reptation' ou null. */
 export function modeDepuisTexte(texte) {
-  const mots = String(texte || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/);
-  if (mots.some((m) => MOTS_NAGE.has(m))) return 'nage';
-  if (mots.some((m) => MOTS_REPTATION.has(m))) return 'reptation';
+  const mots = String(texte || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const autreEspece = mots.some((m) => INDEX_ESPECES.has(m) || AUTRES_ANIMAUX.has(m));
+  if (mots.some((m, i) => _compteMode(mots, i, MOTS_NAGE, autreEspece))) return 'nage';
+  if (mots.some((m, i) => _compteMode(mots, i, MOTS_REPTATION, autreEspece))) return 'reptation';
   return null;
 }
 /** Mode d'apres le SQUELETTE : 'pattes' si des pattes sont detectees, sinon 'reptation'. */

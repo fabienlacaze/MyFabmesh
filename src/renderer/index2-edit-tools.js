@@ -466,6 +466,9 @@
   }
 
   function _closeMask() {
+    // compteur de fermetures : une traduction du « Replace with » encore en cours quand la fenetre se ferme n'envoie plus rien
+    maskCtx.fermetures = (maskCtx.fermetures || 0) + 1;
+    maskCtx.enTraduction = false;
     maskModal.classList.add('hidden');
     if (_maskMgr) { _maskMgr.loupeEnabled = false; }
     var l = document.getElementById('clone-loupe');
@@ -536,6 +539,9 @@
     // Keyboard: Esc close, plain Z undo (legacy shortcut)
     document.addEventListener('keydown', function (e) {
       if (!maskModal || maskModal.classList.contains('hidden')) return;
+      // fenetre de confirmation ouverte PAR-DESSUS (« traduction impossible ») : Echap la ferme elle, pas la fenetre du masque
+      var conf = document.getElementById('modal-confirm');
+      if (conf && !conf.classList.contains('hidden')) return;
       var target = e.target;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
         if (e.key === 'Escape') { target.blur(); }
@@ -560,6 +566,7 @@
     var mApply = document.getElementById('mask-apply');
     if (mApply) mApply.addEventListener('click', function () {
       console.log('[edit-tools] mask Apply click, imagePath=', maskCtx.imagePath);
+      if (maskCtx.enTraduction) return;   // second clic pendant la traduction du « Replace with »
 
       var imgPath = maskCtx.imagePath;
       if (!imgPath) {
@@ -602,8 +609,8 @@
       var promptEl = document.getElementById('mask-prompt');
       var promptText = promptEl ? promptEl.value.trim() : '';
 
-      _closeMask();
-
+      // La fenetre du masque reste OUVERTE pendant la traduction du « Replace with » : si l'utilisateur annule apres un echec, il garde son
+      // masque (revue du 2026-10-14 ; avant, _closeMask() precedait la traduction et annuler faisait tout perdre).
       function runInpaint() {
         var job;
         try { job = addJob('Manual mask inpaint', 'inpaint', imgPath); }
@@ -646,10 +653,34 @@
         });
       }
 
-      if (window.fabmeshJobs && typeof window.fabmeshJobs.enqueue === 'function') {
-        window.fabmeshJobs.enqueue('inpaint', 'Manual mask inpaint', runInpaint);
+      function lancer() {
+        if (window.fabmeshJobs && typeof window.fabmeshJobs.enqueue === 'function') {
+          window.fabmeshJobs.enqueue('inpaint', 'Manual mask inpaint', runInpaint);
+        } else {
+          runInpaint();
+        }
+      }
+      // « Replace with » TRADUIT avant l'envoi (2026-10-13, lot 2 de l'audit de la langue, TRADUCTION-05 : il ne l'etait nulle part).
+      // Echec : l'utilisateur choisit (Reessayer / Envoyer tel quel) ; annule = rien n'est lance. Vide = « juste effacer ».
+      if (promptText && typeof window.fabmeshTraduirePourGeneration === 'function') {
+        maskCtx.enTraduction = true;
+        // Fenetre fermee PENDANT la traduction (Cancel, croix, Echap ; seconde relecture du 2026-10-14) : rien n'est lance ni debite.
+        var fermeturesAvant = maskCtx.fermetures || 0;
+        var toujoursOuverte = function () { return (maskCtx.fermetures || 0) === fermeturesAvant; };
+        window.fabmeshTraduirePourGeneration(promptText).then(function (tr) {
+          if (!toujoursOuverte()) return;
+          maskCtx.enTraduction = false;
+          if (!tr) return;   // annule : rien n'est lance, la fenetre du masque reste ouverte
+          promptText = tr.texte;
+          _closeMask();
+          lancer();
+        }, function () {
+          if (!toujoursOuverte()) return;
+          maskCtx.enTraduction = false; _closeMask(); lancer();
+        });
       } else {
-        runInpaint();
+        _closeMask();
+        lancer();
       }
     });
   }

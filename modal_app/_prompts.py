@@ -103,8 +103,67 @@ ASSET_STYLE_PROMPTS = {
 # Animal SANS PATTES (serpent, ver) ou POISSON (28/09/2026) : le gabarit « animal » (« all four feet on
 # ground ») faisait dessiner un serpent ENROULE sur lui-meme, inanimable. Mots = copie EXACTE de
 # MOTS_NAGE / MOTS_REPTATION du moteur de marche (src/renderer/lib/locomotion-procedurale.js).
-_MOTS_NAGE = set('fish fishes tuna shark sharks whale whales dolphin dolphins orca salmon trout carp cod eel ray manta stingray piranha goldfish koi marlin swordfish sardine herring mackerel pike perch catfish barracuda seahorse narwhal beluga porpoise bass tilapia sturgeon poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon pez peces atun tiburon ballena delfin salmon trucha anguila fisch thunfisch hai wal delfin lachs forelle karpfen aal pesce tonno squalo balena delfino salmone trota peixe atum tubarao baleia golfinho'.split())
+_MOTS_NAGE = set('fish fishes tuna shark sharks whale whales dolphin dolphins orca salmon trout carp cod eel ray manta stingray piranha goldfish koi marlin swordfish sardine herring mackerel pike perch catfish barracuda seahorse narwhal beluga porpoise bass tilapia sturgeon poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon pez peces atun tiburon ballena delfin salmon trucha anguila fisch thunfisch delfin lachs forelle karpfen aal pesce tonno squalo balena delfino salmone trota peixe atum tubarao baleia golfinho'.split())
 _MOTS_REPTATION = set('snake snakes serpent serpents python cobra viper boa anaconda mamba rattlesnake adder worm worms earthworm larva larvae maggot caterpillar slug leech couleuvre vipere ver vers lombric chenille limace sangsue asticot larve serpiente culebra gusano oruga babosa schlange wurm raupe schnecke serpente verme bruco lumaca cobra minhoca lagarta lesma'.split())
+# FAUX AMIS ET MOTS A DOUBLE SENS (2026-10-13, audit de la langue SERVEUR-06 / MANQUE-SERV-04) — MEME regle que modeDepuisTexte
+# (src/renderer/lib/locomotion-procedurale.js ; build/bancs/noyaux/test_faux_amis_gabarit.py compare les listes) : un chat qui court
+# « vers » la maison recevait le gabarit SERPENT et l'interdiction des pattes, « a parrot on a wooden perch » le gabarit POISSON.
+#  - « hai » (it : « tu as ») et « wal » (nl : « quai ») sont retires des listes : un texte allemand (Hai, Wal) arrive traduit ;
+#  - « ver » / « vers » (fr : « vers la maison », es / pt : « ver el mar ») ne comptent pas devant un article ou un determinant ;
+#  - les mots AMBIGUS ne comptent pas quand le texte nomme une AUTRE espece (_MOTS_AUTRES_ESPECES = MOTS_ESPECES + AUTRES_ANIMAUX du
+#    moteur de marche).
+_MOTS_AMBIGUS = set('perch bass pike ray cod carp boa python adder slug ver vers'.split())
+_DETERMINANTS = set(('le la les l un une des du au aux sa son ses ce cet cette ces mon ma mes ton ta tes notre nos votre vos '
+                     'leur leurs el los las lo una unos unas o os as um uma uns umas il gli the').split())
+_MOTS_AUTRES_ESPECES = set((
+    'horse horses pony stallion mare foal donkey mule zebra deer stag doe elk moose reindeer caribou antelope gazelle '
+    'cheval chevaux poney etalon jument poulain ane anes mulet zebre cerf biche daim elan orignal renne antilope caballo '
+    'burro mula cebra ciervo reno pferd esel maultier hirsch elch cavallo asino mulo cervo renna cavalo lion lions lioness '
+    'tiger tigers cat cats kitten leopard panther jaguar cheetah lynx puma cougar lionne tigre chat chats chaton panthere '
+    'guepard leon gato pantera guepardo lowe katze gepard luchs leone gatto leao onca dog dogs puppy wolf wolves fox husky '
+    'coyote jackal hyena chien chiens chiot loup loups renard chacal hyene perro lobo zorro hund fuchs cane lupo volpe '
+    'cachorro cao raposa cow cows cattle ox oxen bull bison buffalo yak goat goats sheep ram lamb pig pigs boar hog vache '
+    'vaches boeuf boeufs taureau buffle yack chevre mouton belier agneau cochon porc sanglier vaca buey toro cabra oveja '
+    'cerdo jabali kuh ochse stier ziege schaf schwein wildschwein mucca bue capra pecora maiale cinghiale boi touro ovelha '
+    'porco javali rabbit rabbits bunny hare squirrel rat rats mouse mice hamster lapin lapins lievre ecureuil souris conejo '
+    'liebre ardilla raton hase kaninchen ratte maus coniglio lepre scoiattolo ratto topo coelho lebre esquilo rato bear '
+    'bears panda badger wolverine raccoon ours blaireau glouton oso orso urso dachs elephant elephants mammoth rhino '
+    'rhinoceros hippo hippopotamus mammouth hippopotame elefante elefant nashorn nilpferd camel camels dromedary llama '
+    'alpaca giraffe chameau dromadaire lama alpaga girafe camello jirafa kamel cammello giraffa camelo girafa lizard '
+    'lizards gecko iguana crocodile alligator caiman komodo salamander newt monitor lezard iguane salamandre triton varan '
+    'lagarto cocodrilo eidechse krokodil lucertola coccodrillo crocodilo turtle turtles tortoise terrapin tortue tortues '
+    'tortuga schildkrote tartaruga bird birds chicken hen rooster chick duck goose geese ostrich emu turkey pigeon crow '
+    'vulture eagle hawk oiseau oiseaux poule coq poussin canard oie autruche emeu dinde corbeau vautour aigle pajaro ave '
+    'gallina gallo pato ganso avestruz pavo vogel huhn hahn ente gans uccello anatra oca struzzo passaro galinha galo human '
+    'humans man men woman women boy girl person people character warrior knight soldier guard orc orcs goblin troll elf '
+    'dwarf zombie wizard mage witch ninja samurai pirate viking king queen prince princess hero villain humain homme femme '
+    'garcon fille personnage guerrier chevalier soldat garde gobelin elfe nain sorcier sorciere hombre mujer guerrero '
+    'caballero mensch mann frau krieger ritter uomo donna guerriero cavaliere homem mulher guerreiro monkey monkeys ape '
+    'apes gorilla chimp chimpanzee orangutan baboon singe singes gorille chimpanze orang babouin mono gorila affe scimmia '
+    'macaco dinosaur dinosaurs trex rex tyrannosaurus raptor velociraptor allosaurus dinosaure dinosaures tyrannosaure '
+    'dinosaurio kangaroo kangaroos wallaby kangourou canguro kanguru penguin penguins manchot manchots pingouin pingouins '
+    'pinguino pinguin frog frogs toad toads grenouille grenouilles crapaud rana sapo frosch krote dragon dragons wyvern '
+    'drake drache drago dragao insect insects ant ants beetle bug bugs cockroach mantis wasp bee fly flies grasshopper '
+    'cricket insecte insectes fourmi fourmis scarabee cafard mante guepe abeille sauterelle criquet hormiga escarabajo '
+    'ameise kafer formica spider spiders tarantula scorpion scorpions araignee araignees tarentule arana spinne ragno '
+    'aranha crab crabs lobster crayfish crabe crabes homard ecrevisse cangrejo krabbe granchio caranguejo '
+    # AUTRES_ANIMAUX du moteur de marche (absents des profils d'allure, servent seulement a lever l'ambiguite)
+    'parrot parrots owl owls swan swans dove doves peacock flamingo falcon raven sparrow seagull '
+    'perroquet hibou chouette cygne colombe paon flamant faucon moineau mouette loro buho lechuza cisne paloma halcon gaviota '
+    'papagei schwan taube pfau falke mowe pappagallo gufo civetta cigno colomba pavone falco gabbiano papagaio coruja pomba '
+    'pavao falcao gaivota'
+).split())
+
+
+def _compte_mode(mots, i, liste, autre_espece):
+    m = mots[i]
+    if m not in liste:
+        return False
+    if m not in _MOTS_AMBIGUS:
+        return True
+    if autre_espece:
+        return False
+    return not (m in ('ver', 'vers') and i + 1 < len(mots) and mots[i + 1] in _DETERMINANTS)
 
 
 def mode_depuis_texte(texte: str):
@@ -113,10 +172,11 @@ def mode_depuis_texte(texte: str):
     import unicodedata as _ud
     t = _ud.normalize('NFD', str(texte or '').lower().replace('œ', 'oe').replace('æ', 'ae'))
     t = ''.join(c for c in t if _ud.category(c) != 'Mn')
-    m = set(_re.split(r'[^a-z0-9]+', t))
-    if m & _MOTS_NAGE:
+    mots = [m for m in _re.split(r'[^a-z0-9]+', t) if m]
+    autre_espece = any(m in _MOTS_AUTRES_ESPECES for m in mots)
+    if any(_compte_mode(mots, i, _MOTS_NAGE, autre_espece) for i in range(len(mots))):
         return 'nage'
-    if m & _MOTS_REPTATION:
+    if any(_compte_mode(mots, i, _MOTS_REPTATION, autre_espece) for i in range(len(mots))):
         return 'reptation'
     return None
 

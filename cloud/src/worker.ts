@@ -26,6 +26,10 @@ import {
   calculerPrevisionModal, alerteEmailModal, regrouperPostes, moisUtc, SEUIL_ARRETE_H,
   type PrevisionModal, type LimiteModal,
 } from './prevision_modal';
+// LANGUE DU TEXTE (2026-10-13, audit de la langue, lot 2) : MEME module que les deux interfaces (bureau, site), surveille par
+// build/check-noyaux-partages.mjs. JavaScript sans declaration de types : la forme utile est decrite par `LangueTexte` plus bas.
+// @ts-ignore -- module JS partage (cloud/public/app/lib), sans fichier de types
+import * as _langueTexteJs from '../public/app/lib/langue-texte.js';
 
 /* ──────────────────────────── env binding ──────────────────────────── */
 
@@ -3997,6 +4001,7 @@ async function _effacerEnregistrementsDuCompte(env: Env, userId: string): Promis
   await faire('compteurs', prefixes(
     `_meta/userspend/${userId}/`, `_meta/userspend_cap/${userId}/`, `_meta/userdaily/${userId}/`, `_meta/paidcheck/${userId}/`,
     `_meta/uploads_count/${userId}/`, `_meta/mesh_uploads_count/${userId}/`, `_meta/redacteur/${userId}-`,
+    `_meta/traduction/${userId}-`,                                                 // 2026-10-14 (revue du lot 2 de la langue)
     `_meta/anim_copy_count/${userId}/`, `_meta/anim_copy_bytes/${userId}/`,      // 2026-10-03 (CLOUD-06)
   ));
   await faire('divers', async () => await _supprimerCles(env, [`_meta/presence/${userId}`, `_market/payout_pref/${userId}.json`]));
@@ -12748,9 +12753,11 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const { prompt, numImages, seed, asset_type, asset_style, userPrompt, steps,
-          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo } = await req.json() as {
+          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo, langueVerifiee } = await req.json() as {
     prompt?: string;
     userPrompt?: string;
+    // L'interface a traite la langue (traduit, ou « Envoyer tel quel » choisi apres un echec) : le filet de langue ne repasse pas.
+    langueVerifiee?: boolean;
     turbo?: boolean;   // SDXL-Lightning 4-step turbo (Modal text2image only)
     numImages?: number;
     seed?: number;
@@ -12774,7 +12781,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // The Cog rebuilds the enriched prompt itself from userPrompt + type
   // + style — we forward those. Fall back to the full enriched prompt
   // the renderer sent in case userPrompt isn't broken out.
-  const rawPrompt = (userPrompt ?? prompt ?? '').toString().trim();
+  let rawPrompt = (userPrompt ?? prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
   // NSFW prompt pre-filter — block keywords and dangerous combos BEFORE
   // we spend credits or hit Modal/Replicate. Saves the user the cost
@@ -12805,6 +12812,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       }
     }
   }
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
   const n = Math.max(1, Math.min(4, numImages ?? 1));
   // borne aussi ce qui part au calcul : 500 pas se payaient au prix de 30
   // Turbo ne force plus 4 pas : l'accelerateur ne se charge pas sur Modal
@@ -12816,9 +12824,60 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // alors moins, jamais une image ratee.
   // T-pose mode requires Modal (no Replicate fallback yet). Decide AVANT le prix : la T-pose coute un supplement par image (2026-10-03).
   const useTpose = !!tpose && !!env.MODAL_TPOSE_URL;
+  /* 2026-10-03 (CLOUD-05) : la garde SSRF etait posee APRES les debits (budget, appels, credits) et renvoyait 400 sans rembourser : un
+   * refus coutait un credit. Troisieme relecture du lot 2 (14/10, B3) : remontee AVANT le filet de langue, qui traduisait puis laissait
+   * cette garde refuser sans debit (67 comptes a 15 credits epuisaient ainsi le compteur partage du filet avec des refus gratuits). */
+  if (useTpose && refImageUrl && !isTrustedAssetHost(env, refImageUrl)) {
+    return err(400, 'refImageUrl host not allowed');
+  }
   const supplementTpose = useTpose ? await getPrice(env, 'tpose') : 0;
   const COST_PER_IMAGE = _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
   const cost = n * COST_PER_IMAGE;
+  // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
+  // Le prompt enrichi (route T-pose, historique) recoit la MEME traduction. Seconde revue du 14/10 : quand il CONTIENT le texte brut
+  // (ancien client : gabarit + texte + gabarit), seul ce qui l'entoure repasse au filet et le texte brut traduit y est remis a sa place ;
+  // avant, le prompt enrichi etait decoupe autrement que le texte brut (ses gabarits anglais isolent chaque passage) : un prompt
+  // allemand de 618 caracteres demandait 1 + 7 appels et etait refuse « too-long » apres un premier appel perdu. Les champs sont
+  // planifies ENSEMBLE (_filetLangue) : un refus tombe avant le moindre appel.
+  let promptEnrichi: string | undefined = prompt;
+  const languesTraduites: string[] = [];
+  {
+    const avant = rawPrompt;
+    const enrichi = typeof prompt === 'string' && prompt.trim() ? prompt : '';
+    let ou = enrichi ? enrichi.indexOf(avant) : -1;
+    // le texte brut doit y etre un passage ENTIER (pas un bout de mot : « dragon » dans « dragonfly »)
+    if (ou >= 0 && (/[\p{L}\p{M}]/u.test(enrichi.charAt(ou - 1)) || /[\p{L}\p{M}]/u.test(enrichi.charAt(ou + avant.length)))) ou = -1;
+    const champs = !enrichi ? [rawPrompt]
+      : ou >= 0 ? [rawPrompt, enrichi.slice(0, ou), enrichi.slice(ou + avant.length)]
+      : [rawPrompt, enrichi];
+    const f = await _filetLangue(env, user.id, champs, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost,
+      langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (f.refus) return f.refus;
+    rawPrompt = f.textes[0];
+    if (enrichi) promptEnrichi = ou >= 0 ? f.textes[1] + f.textes[0] + f.textes[2] : f.textes[1];
+    languesTraduites.push(...f.langues);
+    /* FILTRE DE CONTENU SUR LA CHAINE ENTIERE (2026-10-14, troisieme relecture du lot 2). _filetLangue ne reverifie que chaque CHAMP
+     * modifie ; avec la substitution ci-dessus, les champs sont des MORCEAUX du prompt enrichi (gabarit | texte brut traduit | gabarit),
+     * et la chaine assemblee qui part a Modal (route T-pose) n'etait plus jamais vue entiere. Or les regles de combinaison de
+     * checkPromptSafety (contexte, mineur x chambre, personne x nudite, enfant x violence) portent sur la chaine ENTIERE, et /tpose
+     * n'applique que le plancher : une paire bloquee, coupee entre le gabarit et la traduction, atteignait Modal (200). Toute chaine
+     * modifiee par le filet et envoyee a Modal repasse donc le filtre en entier, comme avant la seconde revue. */
+    if (enrichi && promptEnrichi !== enrichi) {
+      const entier = await _checkPromptSafetyAlerte(env, user.id, promptEnrichi, unrestricted);
+      if (!entier.safe) {
+        return json({ ok: false, success: false, error: entier.reason ?? 'prompt blocked by content filter',
+          blocked: entier.blocked }, { status: 400 });
+      }
+    }
+  }
+  /* Prompt EXACT de la route T-pose (quatrieme relecture du lot 2) : celui qui part a Modal (prompt enrichi sans blancs aux bords, sinon
+   * le texte brut) est verifie TEL QU'ENVOYE, comme toute chaine envoyee a Modal (_refusChaineEnvoyee). Le `prompt` (coupe a 512) et le
+   * `full_prompt` (coupe a 1 500) de insertUserAsset ne sont que l'historique du projet : ils ne partent jamais a Modal. */
+  const promptTpose = useTpose ? ((promptEnrichi ?? rawPrompt).toString().trim() || rawPrompt) : '';
+  if (useTpose) {
+    const refusTpose = await _refusChaineEnvoyee(env, user.id, promptTpose, unrestricted);
+    if (refusTpose) return refusTpose;
+  }
 
   // Pick the backend BEFORE the budget check — the budget cap is
   // Replicate-only (Modal has its own provider-side spend cap and
@@ -12857,13 +12916,6 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const ESTIMATED_USD_PER_IMAGE = useTpose ? 0.02 : (useModal ? 0.006 : 0.30);
   const estimatedTotal = ESTIMATED_USD_PER_IMAGE * n;
 
-  /* 2026-10-03 (CLOUD-05) : la garde SSRF etait posee APRES les debits (budget, appels,
-   * credits) et renvoyait 400 sans rembourser : un refus coutait un credit. Elle est
-   * remontee ici, avant le moindre debit. */
-  if (useTpose && refImageUrl && !isTrustedAssetHost(env, refImageUrl)) {
-    return err(400, 'refImageUrl host not allowed');
-  }
-
   // Hard daily spend cap — refund the estimate if the call fails.
   // Conservative — never falsifies the budget upward. Modal uses its
   // own R2 counter so the two backends don't share a cap.
@@ -12899,8 +12951,8 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
       if (useTpose) {
         // Strict T-pose front — verbatim port of desktop generate_front_tpose.py.
         paths.push(await callModalTpose(env, user.id, {
-          // prompt ENRICHI (style + gabarit) : le texte brut perdait le style choisi (cartoon…)
-          prompt: (prompt ?? rawPrompt).toString().trim() || rawPrompt,
+          // prompt ENRICHI (style + gabarit) : le texte brut perdait le style choisi (cartoon…). Passe par le filet de langue.
+          prompt: promptTpose,
           refImageUrl,
           seed: seedBase + i,
           cn_scale,
@@ -12962,7 +13014,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
             // reglages complets pour l'historique des generations (2026-09-29)
             steps: turbo ? 4 : (steps || 30), count: n, turbo: !!turbo || undefined, tpose: useTpose || undefined,
-            full_prompt: String(prompt || '').slice(0, 1500) });
+            full_prompt: String(promptEnrichi || '').slice(0, 1500),
+            // langue(s) traduite(s) par le filet du serveur (lot 2 de l'audit de la langue) : le support sait ce qui est arrive
+            langue_traduite: languesTraduites.length ? languesTraduites.join(',') : undefined });
       }
     }
   }
@@ -12972,7 +13026,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
 async function handleGenerateBackView(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  const { prompt, promptHint, numImages, frontImageUrl, asset_type, projectName } = await req.json() as {
+  const { prompt, promptHint, numImages, frontImageUrl, asset_type, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     prompt?: string;
@@ -12980,11 +13034,16 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
     numImages?: number;
     frontImageUrl?: string;
     asset_type?: string;
+    langueVerifiee?: boolean;
   };
   if (!frontImageUrl) return err(400, 'frontImageUrl required for back-view generation');
   if (!isTrustedAssetHost(env, frontImageUrl)) return err(400, 'frontImageUrl host not allowed');
-  const hint = (prompt ?? promptHint ?? '').toString().slice(0, 400);
+  let hint = (prompt ?? promptHint ?? '').toString().slice(0, 400);
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const n = Math.max(1, Math.min(4, numImages ?? 1));
+  const COST_PER_BACK = await getPrice(env, 'back_view');
+  const cost = n * COST_PER_BACK;
   // NSFW prompt pre-filter — same policy as text2image / desktop checkPromptSafety.
   {
     // Mirror text2image/modify: per-user parental state OR the env flag (not env only).
@@ -12996,11 +13055,15 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : l'indice de la vue de dos etait le texte d'ORIGINE (TRADUCTION-05, CHAMPS-08).
+    const filet = await _filetLangue(env, user.id, hint, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost,
+      langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    hint = filet.texte.slice(0, 400);
+    // la traduction, verifiee ENTIERE par le filet, vient d'etre COUPEE : la chaine envoyee repasse le filtre (quatrieme relecture)
+    const refusCoupe = await _refusChaineEnvoyee(env, user.id, hint, unrestricted);
+    if (refusCoupe) return refusCoupe;
   }
-
-  const n = Math.max(1, Math.min(4, numImages ?? 1));
-  const COST_PER_BACK = await getPrice(env, 'back_view');
-  const cost = n * COST_PER_BACK;
 
   // Pick backend BEFORE budget check (same pattern as text2image).
   const useModal = !!env.MODAL_BACKVIEW_URL;
@@ -13083,7 +13146,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_IMAGE_OP_URL) {
     return err(503, 'modify backend unavailable (not configured)');
   }
-  const { imageUrl, prompt, strength, seed, steps, projectName } = await req.json() as {
+  const { imageUrl, prompt, strength, seed, steps, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imageUrl?: string;
@@ -13091,13 +13154,17 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
     strength?: number;
     seed?: number;
     steps?: number;
+    langueVerifiee?: boolean;
   };
   if (!imageUrl) return err(400, 'imageUrl required');
   // SSRF guard: only forward URLs from our trusted upstreams to Modal.
   if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed');
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER_MODIFY = await getPrice(env, 'modify');
+  const cost = COST_PER_MODIFY;
   // NSFW pre-filter — same policy as text2image/back-view/rectify.
   {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -13109,10 +13176,13 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : le site envoyait la consigne de Modify sans la traduire (TRADUCTION-04).
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost,
+      langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
-  const COST_PER_MODIFY = await getPrice(env, 'modify');
-  const cost = COST_PER_MODIFY;
   const estimatedTotal = 0.05;  // ≈ back-view cost, warm container
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13170,17 +13240,28 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'mask preview backend unavailable');
-  const { imagePath, imageUrl, targetText, dilate, projectName } = await req.json() as {
+  const { imagePath, imageUrl, targetText: cibleRecue, dilate, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string; imageUrl?: string; targetText?: string; dilate?: number;
+    langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  if (!targetText) return err(400, 'targetText required');
-
+  if (!cibleRecue) return err(400, 'targetText required');
+  let targetText = String(cibleRecue);
   const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
+  // FILET DE LANGUE (lot 2 de l'audit de la langue) : CLIPSeg ne comprend que l'anglais ; le site envoyait la cible telle quelle.
+  if (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length) {
+    const userState = await getParentalState(env, user.id);
+    const filet = await _filetLangue(env, user.id, targetText,
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted, credits: user.credits, prix: cost,
+        langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    targetText = filet.texte;
+  }
+
   const estimatedTotal = 0.05;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
   if (remainingBudget == null) {
@@ -13242,7 +13323,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_IMAGE_OP_URL) {
     return err(503, 'auto-inpaint backend unavailable');
   }
-  const { imagePath, imageUrl, targetText, prompt, dilate, projectName } = await req.json() as {
+  const { imagePath, imageUrl, targetText: cibleRecue, prompt, dilate, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string;
@@ -13250,27 +13331,43 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     targetText?: string;
     prompt?: string;
     dilate?: number;
+    langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  if (!targetText) return err(400, 'targetText required');
+  if (!cibleRecue) return err(400, 'targetText required');
+  let targetText = String(cibleRecue);
 
-  const rawPrompt = (prompt ?? '').toString().trim();
-  if (rawPrompt) {
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER_INPAINT = await getPrice(env, 'auto_inpaint');
+  const cost = COST_PER_INPAINT;
+  let rawPrompt = (prompt ?? '').toString().trim();
+  if (rawPrompt || (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length)) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
-    if (!safety.safe) {
-      return json({ ok: false, success: false,
-        error: safety.reason ?? 'prompt blocked by content filter',
-        blocked: safety.blocked }, { status: 400 });
+    if (rawPrompt) {
+      const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
+      if (!safety.safe) {
+        return json({ ok: false, success: false,
+          error: safety.reason ?? 'prompt blocked by content filter',
+          blocked: safety.blocked }, { status: 400 });
+      }
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : la CIBLE part a CLIPSeg, qui ne comprend que l'anglais (TRADUCTION-04) ; le
+    // remplacement part au moteur d'image. LIMITE (revue du 2026-10-14) : le filet ne traduit qu'un texte SUREMENT etranger (deux indices
+    // au moins, lib/langue-texte.js) : « le chapeau du chevalier » oui, un mot seul (« chapeau », « casque ») non, car « van » ou « den »
+    // seraient alors traduits aussi. Le mot seul est traduit par l'INTERFACE, qui connait la langue de l'utilisateur ; un client qui
+    // envoie un mot etranger seul (cle API, ancien client) le voit partir tel quel, comme avant le lot.
+    // Cible et remplacement planifies ENSEMBLE (seconde revue du 14/10) : un refus tombe avant le moindre appel du modele.
+    const f = await _filetLangue(env, user.id, [targetText, rawPrompt || ''],
+      { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost, langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (f.refus) return f.refus;
+    targetText = f.textes[0];
+    if (rawPrompt) rawPrompt = f.textes[1];
   }
 
-  const COST_PER_INPAINT = await getPrice(env, 'auto_inpaint');
-  const cost = COST_PER_INPAINT;
   const estimatedTotal = 0.08;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13330,17 +13427,20 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'tex-variant backend unavailable');
 
-  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName, gris, motifs } =
+  const { imagePath, imageUrl, prompt, strength, seed, cnScale, negPrompt, projectName, gris, motifs, langueVerifiee } =
     await req.json() as {
       projectName?: string; gris?: number; motifs?: number;
       imagePath?: string; imageUrl?: string; prompt?: string;
       strength?: number; seed?: number; cnScale?: number; negPrompt?: string;
+      langueVerifiee?: boolean;
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
 
-  const rawPrompt = (prompt ?? '').toString().trim();
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, 'tex_variant');
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
@@ -13350,9 +13450,14 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue)
+    const filet = await _filetLangue(env, user.id, rawPrompt,
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits, prix: cost,
+        langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
-  const cost = await getPrice(env, 'tex_variant');
   const estimatedTotal = 0.08;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13413,16 +13518,17 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'recolor backend unavailable');
 
-  const { imagePath, imageUrl, prompt, strength, dilate, recolorAll, projectName } =
+  const { imagePath, imageUrl, prompt, strength, dilate, recolorAll, projectName, langueVerifiee } =
     await req.json() as {
       projectName?: string;
       imagePath?: string; imageUrl?: string; prompt?: string;
       strength?: number; dilate?: number; recolorAll?: boolean;
+      langueVerifiee?: boolean;
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required (ex : « cape rouge »)');
 
   const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -13433,8 +13539,17 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
       error: safety.reason ?? 'prompt blocked by content filter',
       blocked: safety.blocked }, { status: 400 });
   }
-
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
   const cost = await getPrice(env, 'recolor');
+  // FILET DE LANGUE (lot 2 de l'audit de la langue) : la partie part a CLIPSeg, la couleur au lexique (anglais) du serveur.
+  {
+    const filet = await _filetLangue(env, user.id, rawPrompt,
+      { verifie: langueVerifiee, unrestricted: envUnrestricted || !!userState.unrestricted, credits: user.credits, prix: cost,
+        langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
+  }
+
   // Deux voies cote Modal (2026-09-30, « meme capacite que le PC ») : une COULEUR (« cape rouge ») = CLIPSeg + numpy (~0,02 $) ; une MATIERE
   // ou un STYLE (« cuir vieilli », « sunset gradient ») = re-rendu ControlNet-Tile (~0,08 $, comme tex_variant). La voie n'est connue
   // que de Modal (le lexique de couleurs vit dans le noyau partage scripts/recolor_core.py) : on reserve l'estimation haute, le prix
@@ -13586,24 +13701,38 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_IMAGE_OP_URL) return err(503, 'mask-inpaint backend unavailable');
 
-  const { imagePath, imageUrl, maskDataUrl, prompt, projectName } = await req.json() as {
+  const { imagePath, imageUrl, maskDataUrl, prompt, projectName, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string; imageUrl?: string; maskDataUrl?: string; prompt?: string;
+    langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
   if (!maskDataUrl) return err(400, 'maskDataUrl required');
-  const rawPrompt = (prompt ?? '').toString().trim();
+  /* Masque decode et VERIFIE avant le filet de langue (troisieme relecture du lot 2, 14/10, B3) : un masque invalide etait refuse APRES la
+   * traduction du « Replace with », sans debit — des refus gratuits qui consommaient les compteurs de traduction. Le depot dans R2 reste
+   * apres le filet (rien n'est depose pour une requete refusee). */
+  const formatMasque = /^data:image\/(\w+);base64,(.+)$/.exec(maskDataUrl);
+  if (!formatMasque) return err(400, 'invalid maskDataUrl (expected data:image/...;base64,...)');
+  let octetsMasque: Uint8Array;
+  try {
+    const bin = atob(formatMasque[2]);
+    octetsMasque = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) octetsMasque[i] = bin.charCodeAt(i);
+  } catch (e) {
+    return err(400, `mask decode failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required to forward mask');
+  let rawPrompt = (prompt ?? '').toString().trim();
   // Empty prompt = "just remove" (the UI hint "empty = just remove"). Inpaint
   // the masked region with surrounding background (object removal) instead of
   // requiring a replacement description.
   const isRemoval = !rawPrompt;
-  const effectivePrompt = isRemoval
-    ? 'clean empty background, seamless fill matching the surroundings, photorealistic, no object'
-    : rawPrompt;
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER = await getPrice(env, 'mask_inpaint');
   // NSFW pre-filter — only on a real user prompt (the removal prompt is our own
   // fixed, safe string).
   if (!isRemoval) {
@@ -13616,31 +13745,29 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : « Replace with » du Paint-mask n'etait traduit nulle part (TRADUCTION-05).
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: COST_PER,
+      langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
+  const effectivePrompt = isRemoval
+    ? 'clean empty background, seamless fill matching the surroundings, photorealistic, no object'
+    : rawPrompt;
 
-  // Decode the mask data URL → bytes → upload to R2 → get a stable URL
-  // for Modal to fetch.
+  // Mask bytes (decoded above, before the language net) → upload to R2 → get a stable URL for Modal to fetch.
   let maskUrl: string;
   try {
-    const m = /^data:image\/(\w+);base64,(.+)$/.exec(maskDataUrl);
-    if (!m) return err(400, 'invalid maskDataUrl (expected data:image/...;base64,...)');
-    const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-    const bin = atob(m[2]);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    if (!env.MESHES || !env.R2_PUBLIC_URL) {
-      return err(500, 'R2 binding required to forward mask');
-    }
+    const ext = formatMasque[1] === 'jpeg' ? 'jpg' : formatMasque[1];
     const key = `${user.id}/masks/${Date.now()}_user.${ext}`;
-    await env.MESHES.put(key, bytes, {
-      httpMetadata: { contentType: `image/${m[1]}` },
+    await env.MESHES.put(key, octetsMasque, {
+      httpMetadata: { contentType: `image/${formatMasque[1]}` },
     });
     maskUrl = await signedR2Url(env, key, 'image');
   } catch (e) {
     return err(400, `mask decode failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  const COST_PER = await getPrice(env, 'mask_inpaint');
   const estimatedTotal = 0.07;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -13949,6 +14076,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   libelle: string;             // pour les messages a l'utilisateur
   estimationUsd: number;       // plafond de depense reserve, pas une facture
   texteLibre?: (corps: Record<string, unknown>) => string;   // passe au filtre
+  champTexteLibre?: string;    // champ du corps qui porte ce texte : le filet de langue y ecrit la traduction
   champs: (corps: Record<string, unknown>) => Record<string, unknown>;
 }): Promise<Response> {
   const user = await getSessionUser(req, env);
@@ -13965,19 +14093,36 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
   const projectSlug = slugProjet((projectName || 'untitled').toString());   // nom non latin : segment unique (2026-10-13)
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, conf.prixCle);
   // Un texte libre part dans un prompt SDXL : meme filtre que tout le reste.
   const libre = conf.texteLibre ? conf.texteLibre(corps) : '';
+  let unrestricted = false;
   if (libre) {
     const userState = await getParentalState(env, user.id);
-    const unrestricted = env.FABMESH_UNRESTRICTED === '1' || userState.unrestricted;
+    unrestricted = env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted;
     const safety = await _checkPromptSafetyAlerte(env, user.id, libre, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter' }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue) : le Style des variantes de texture n'etait traduit nulle part (CHAMPS-03).
+    if (conf.champTexteLibre) {
+      const filet = await _filetLangue(env, user.id, libre, { verifie: corps.langueVerifiee, unrestricted, credits: user.credits, prix: cost,
+        langueInterface: req.headers.get('x-fabmesh-langue') });
+      if (filet.refus) return filet.refus;
+      corps[conf.champTexteLibre] = filet.texte;
+    }
+  }
+  /* Champs envoyes a Modal, calcules UNE fois : le corps de la requete les reprend TELS QUELS. champs() coupe le texte libre (Style a 200
+   * caracteres, prompt de la region a 300) : apres une traduction, la chaine envoyee n'est plus celle que le filet a verifiee. Elle repasse
+   * donc le filtre telle qu'envoyee (quatrieme relecture du lot 2, _refusChaineEnvoyee). */
+  const envoi = conf.champs(corps);
+  if (libre && conf.champTexteLibre) {
+    const refusCoupe = await _refusChaineEnvoyee(env, user.id, String(envoi[conf.champTexteLibre] ?? ''), unrestricted);
+    if (refusCoupe) return refusCoupe;
   }
 
-  const cost = await getPrice(env, conf.prixCle);
   const remainingBudget = await checkAndIncrementModalSpend(env, conf.estimationUsd, user.id);
   if (remainingBudget == null) {
     return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
@@ -14003,7 +14148,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   };
   try {
     const url = env.MODAL_IMAGE_OP_URL.replace(/\/[^/]*$/, conf.route);
-    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl, ...conf.champs(corps) });
+    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl, ...envoi });
     const envoyer = () => fetch(url, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body,
       signal: AbortSignal.timeout(300_000),
@@ -14153,14 +14298,21 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_MESH_START_URL || !env.MODAL_MESH_STATUS_URL || !env.MODAL_SHARED_SECRET) {
     return err(503, 'reshape backend unavailable (not configured)');
   }
-  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType } = await req.json() as {
+  const { meshUrl, vueUrl, maskDataUrl, uvMaskDataUrl, prompt, projectName, assetType, langueVerifiee } = await req.json() as {
     meshUrl?: string; vueUrl?: string; maskDataUrl?: string; uvMaskDataUrl?: string;
-    prompt?: string; projectName?: string; assetType?: string;
+    prompt?: string; projectName?: string; assetType?: string; langueVerifiee?: boolean;
   };
   if (!meshUrl || !vueUrl) return err(400, 'meshUrl and vueUrl required');
   if (!isTrustedAssetHost(env, meshUrl) || !isTrustedAssetHost(env, vueUrl)) return err(400, 'url host not allowed');
-  const texte = String(prompt || '').trim().slice(0, 500);
+  let texte = String(prompt || '').trim().slice(0, 500);
   if (!texte) return err(400, 'prompt required (what should replace the part)');
+  // Masque verifie AVANT le filet de langue (troisieme relecture du lot 2, 14/10, B3) : refuse apres, il laissait traduire sans debit.
+  const masqueDataUrl = String(uvMaskDataUrl || maskDataUrl || '');
+  const m = masqueDataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return err(400, 'mask required (PNG data URL)');
+  if (m[1].length > 24_000_000) return err(413, 'mask too large');
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const cost = await getPrice(env, 'reshape');
   // Filtre de contenu (revue de securite du 2026-10-01 : cette route etait la SEULE a prompt libre sans aucun filtre, plancher illegal compris).
   {
     const etat = await getParentalState(env, user.id);
@@ -14168,12 +14320,16 @@ async function handleMeshReshape(req: Request, env: Env): Promise<Response> {
     if (!surete.safe) {
       return json({ ok: false, success: false, error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue)
+    const filet = await _filetLangue(env, user.id, texte,
+      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted, credits: user.credits, prix: cost,
+        langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    texte = filet.texte.slice(0, 500);
+    // la traduction, verifiee ENTIERE par le filet, vient d'etre COUPEE : la chaine envoyee repasse le filtre (quatrieme relecture)
+    const refusCoupe = await _refusChaineEnvoyee(env, user.id, texte, env.FABMESH_UNRESTRICTED === '1' || !!etat.unrestricted);
+    if (refusCoupe) return refusCoupe;
   }
-  const masqueDataUrl = String(uvMaskDataUrl || maskDataUrl || '');
-  const m = masqueDataUrl.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
-  if (!m) return err(400, 'mask required (PNG data URL)');
-  if (m[1].length > 24_000_000) return err(413, 'mask too large');
-  const cost = await getPrice(env, 'reshape');
 
   const remainingBudget = await checkAndIncrementModalSpend(env, ESTIMATED_USD_RESHAPE, user.id);
   if (remainingBudget == null) return err(429, await _spendRefusalMessage(env, user.id));
@@ -14261,6 +14417,7 @@ function handleMeshTexVar(req: Request, env: Env): Promise<Response> {
     // tuiles de 25 pas. Majoree : c'est un plafond reserve, pas une facture.
     estimationUsd: 0.08,
     texteLibre: (c) => String(c.style ?? '').trim().slice(0, 200),
+    champTexteLibre: 'style',
     champs: (c) => ({
       strength: typeof c.strength === 'number' ? c.strength : 0.4,
       seed: Number.isFinite(Number(c.seed)) ? Number(c.seed) : Math.floor(Math.random() * 1e6),
@@ -14293,6 +14450,7 @@ function handleMeshRegionRetex(req: Request, env: Env): Promise<Response> {
     // depuis le disque a froid. Plafond reserve, pas une facture.
     estimationUsd: 0.06,
     texteLibre: (c) => String(c.prompt ?? '').trim().slice(0, 300),
+    champTexteLibre: 'prompt',
     champs: (c) => {
       // Le masque arrive en data URL PNG. On borne sa taille : un masque
       // binaire 1024x1024 pese quelques dizaines de Ko ; au-dela de 8 Mo ce
@@ -19004,7 +19162,7 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_RECTIFY_URL) {
     return err(503, 'rectify backend unavailable (not configured)');
   }
-  const { prompt, refImageUrl, mode, seeds, steps, guidance, ip_scale, projectName } =
+  const { prompt, refImageUrl, mode, seeds, steps, guidance, ip_scale, projectName, langueVerifiee } =
     await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
@@ -19015,8 +19173,9 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
       steps?: number;
       guidance?: number;
       ip_scale?: number;
+      langueVerifiee?: boolean;
     };
-  const rawPrompt = (prompt ?? '').toString().trim();
+  let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt && !refImageUrl) return err(400, 'prompt or refImageUrl required');
   /* 2026-10-03 (constat CLOUD-05, SSRF) : refImageUrl partait telle quelle vers Modal,
    * dont le telechargeur ouvre n'importe quelle adresse. Meme garde que les autres
@@ -19025,6 +19184,9 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
     return err(400, 'refImageUrl host not allowed');
   }
 
+  // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
+  const COST_PER_RECTIFY = await getPrice(env, 'rectify');   // etait 3 en dur
+  const cost = COST_PER_RECTIFY;
   // NSFW prompt pre-filter (same policy as text2image / back-view).
   if (rawPrompt) {
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
@@ -19036,13 +19198,16 @@ async function handleRectifyImage(req: Request, env: Env): Promise<Response> {
         error: safety.reason ?? 'prompt blocked by content filter',
         blocked: safety.blocked }, { status: 400 });
     }
+    // FILET DE LANGUE (lot 2 de l'audit de la langue)
+    const filet = await _filetLangue(env, user.id, rawPrompt, { verifie: langueVerifiee, unrestricted, credits: user.credits, prix: cost,
+      langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filet.refus) return filet.refus;
+    rawPrompt = filet.texte;
   }
 
   // Cost: 1 rectify call ≈ N seeds × back-view ≈ $0.10 × 3 = $0.30 estimate.
   // Credit-wise we charge 3 credits to match the GPU work.
   const nSeeds = Math.max(1, Math.min(5, seeds ?? 3));
-  const COST_PER_RECTIFY = await getPrice(env, 'rectify');   // etait 3 en dur
-  const cost = COST_PER_RECTIFY;
   const estimatedTotal = 0.10 * nSeeds;
 
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);
@@ -23815,25 +23980,413 @@ async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
 /* TRADUCTION DES PROMPTS (2026-09-29, user : « on doit taper dans la langue de l'appli »). Le bureau traduit la
  * description depuis la langue de l'INTERFACE vers l'anglais (Argos, en local) avant d'appliquer les gabarits
  * anglais ; le web l'envoyait telle quelle (« avion » : le moteur d'image comprend mal le francais). Workers AI
- * (m2m100) : ni GPU Modal ni credit facture. C'est un confort : toute erreur rend le texte d'origine. */
-const LANGUES_TRADUITES = new Set(['fr', 'es', 'zh', 'hi', 'ar']);
+ * (m2m100) : ni GPU Modal ni credit facture.
+ *
+ * 2026-10-13 (audit de la langue du 11/10, lot 2 — TRADUCTION-01/07/08/16, CHAMPS-04/25, SERVEUR-03/11) :
+ *  - TOUTES les langues que le modele traduit (m2m100 : 100 langues, lib/langue-texte.js LANGUES_TRADUCTIBLES), plus seulement fr, es,
+ *    zh, hi, ar : un texte allemand, japonais ou turc repartait tel quel, sans erreur ;
+ *  - la langue est d'abord celle du TEXTE (detection commune aux deux interfaces) ; `from` (normalise : « fr-FR » -> fr) ne sert que
+ *    sans indice ; un texte deja anglais n'est jamais envoye au modele ;
+ *  - longueur en CARACTERES (points de code, plus en unites UTF-16) ; un texte long est DECOUPE par phrases (le modele est plafonne a
+ *    1 000) au lieu d'un refus 400 que l'interface avalait ; sortie bornee ; corps nul ou illisible sans exception ;
+ *  - PLAFONDS comme le redacteur : 300 appels du modele par heure et par compte, 20 000 par jour au total ;
+ *  - toute reponse porte `translated` et, sinon, une `raison` (empty, already-english, unknown-language, unsupported, too-long,
+ *    rate-limited, unavailable, failed) : l'interface distingue enfin « rien a traduire » d'un ECHEC, qu'elle montre a l'utilisateur. */
+type DetectionLangue = { langue: string | null; sure: boolean; ecriture: string | null };
+type MorceauEtranger = { debut: number; fin: number; langue: string; traductible: boolean };
+const LangueTexte = _langueTexteJs as unknown as {
+  detecterLangue(t: string): DetectionLangue;
+  langueSource(t: string, langueInterface?: string): string | null;
+  morceauxEtrangers(t: string): MorceauEtranger[];
+  normaliserCodeLangue(c: unknown): string;
+  LANGUES_TRADUCTIBLES: Set<string>;
+};
+const TRADUCTION_MAX_CARACTERES = 4000;   // au-dela : raison too-long (un prompt fait rarement plus de quelques centaines de caracteres)
+const TRADUCTION_MORCEAU_MAX = 900;       // morceaux envoyes au modele (plafonne a 1 000 caracteres par appel)
+const TRADUCTION_PLAFOND_HEURE = 300;     // appels du modele par compte et par heure
+const TRADUCTION_PLAFOND_JOUR = 20_000;   // appels du modele par jour, comptes NON payants (compteurs partages, voir _quotaTraduction)
+/** Plafond du JOUR propre a chaque compte (troisieme relecture du lot 2, 14/10) : un compte qui n'a jamais paye en consomme au plus 300
+ *  des compteurs partages (« trois comptes sur 24 h » ne suffisent plus a les epuiser) ; un compte PAYANT n'a QUE ses propres plafonds
+ *  (300 par heure, 3 000 par jour) : le trafic des autres comptes ne peut jamais lui refuser une traduction. */
+const TRADUCTION_PLAFOND_JOUR_COMPTE = 300;
+const TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT = 3_000;
+/** Filet de langue : appels du modele pour UNE requete (champs cumules). 4 000 caracteres font au plus 14 morceaux (_decouperPourTraduction
+ *  coupe a plus de 300 caracteres) : un texte admis par TRADUCTION_MAX_CARACTERES n'est jamais refuse par cette borne-ci, qui ne vise
+ *  que les prompts MELANGES aux passages trop nombreux (au-dela, les passages voisins de meme langue sont fusionnes ; seconde revue du
+ *  14/10 : la borne de 6 refusait « too-long » un prompt de 253 caracteres a sept passages allemands). */
+const TRADUCTION_APPELS_PAR_REQUETE = 16;
+
+/** Fin de la DERNIERE correspondance de `re` (drapeau g) dans `tete`, hors debut de texte ; -1 sinon. */
+function _derniereCoupe(tete: string, re: RegExp): number {
+  let fin = -1;
+  for (const m of tete.matchAll(re)) if ((m.index ?? 0) > 0) fin = (m.index ?? 0) + m[0].length;
+  return fin;
+}
+/** Decoupe un texte en morceaux CONTIGUS de `max` caracteres au plus : aux fins de phrase, sinon aux virgules, sinon aux blancs. */
+function _decouperPourTraduction(texte: string, max = TRADUCTION_MORCEAU_MAX): string[] {
+  if ([...texte].length <= max) return [texte];
+  const morceaux: string[] = [];
+  let reste = texte;
+  while ([...reste].length > max) {
+    const tete = [...reste].slice(0, max).join('');
+    let coupe = -1;
+    for (const re of [/[.!?。！？\n]\s*/g, /[,;，；、،]\s*/g, /\s+/g]) {
+      const c = _derniereCoupe(tete, re);
+      if (c > tete.length / 3) { coupe = c; break; }
+    }
+    if (coupe <= 0) coupe = tete.length;
+    morceaux.push(reste.slice(0, coupe));
+    reste = reste.slice(coupe);
+  }
+  if (reste) morceaux.push(reste);
+  return morceaux;
+}
+
+/** Traduit `texte` (langue `de`) vers l'anglais avec le modele du site. Jamais d'exception : { ok:false, raison } en cas d'echec. */
+async function _traduireVersAnglais(env: Env, texte: string, de: string): Promise<{ texte: string; ok: boolean; raison?: string }> {
+  if (!env.AI) return { texte, ok: false, raison: 'unavailable' };
+  if (!LangueTexte.LANGUES_TRADUCTIBLES.has(de)) return { texte, ok: false, raison: 'unsupported' };
+  const sorties: string[] = [];
+  try {
+    for (const morceau of _decouperPourTraduction(texte)) {
+      if (!morceau.trim()) continue;
+      const r = await env.AI.run('@cf/meta/m2m100-1.2b',
+        { text: morceau, source_lang: de, target_lang: 'en' }) as { translated_text?: unknown };
+      const t = (r && typeof r.translated_text === 'string') ? r.translated_text.trim() : '';
+      if (!t) return { texte, ok: false, raison: 'failed' };
+      // sortie BORNEE : un modele qui boucle ne renvoie pas 50 000 caracteres a l'interface
+      sorties.push([...t].slice(0, 4 * [...morceau].length + 200).join(''));
+    }
+  } catch (e) {
+    console.log('[translate] echec', de, String((e as Error)?.message || e).slice(0, 200));
+    return { texte, ok: false, raison: 'failed' };
+  }
+  return sorties.length ? { texte: sorties.join(' '), ok: true } : { texte, ok: false, raison: 'failed' };
+}
+
+/** Compteur de plafond ATOMIQUE (2026-10-14, seconde revue du lot 2 de la langue, B3). Avant : le compteur etait LU puis ECRIT sans
+ *  condition ; cent requetes simultanees lisaient toutes la meme valeur : 500 appels du modele pour un plafond de 300 par heure, et le
+ *  compteur affichait 5. Desormais : comparaison-echange sur l'etag R2 (`onlyIf`), avec attente croissante et bruitee entre les essais
+ *  (meme methode que _casIncrementCounter, recopiee ici pour que la fonction reste autonome). `n` appels d'un coup (un texte decoupe
+ *  compte chaque appel du modele) ; `n` negatif rend des appels (jamais sous zero).
+ *  Rend 'ok' (compte), 'plein' (le plafond serait depasse : rien n'est compte), 'contention' (echange perdu a chaque essai : rien n'est
+ *  compte), 'panne' (R2 en erreur : rien n'est compte), 'absent' (pas de R2 : developpement local). L'appelant decide de ce qu'il laisse
+ *  passer. Troisieme relecture (14/10) : 'absent' est separe de 'panne'. Une erreur R2 — dont « Reduce your concurrent request rate for
+ *  the same object » (10058 : R2 n'accepte qu'environ une ecriture par seconde et par cle, et un compte qui envoie cent requetes
+ *  simultanees la provoque sur SA cle) — rendait 'panne', que _quotaTraduction laissait passer sans rien compter : 200 a 230 appels du
+ *  modele pour un plafond de 60. */
+async function _plafondTraduction(env: Env, cle: string, plafond: number, n = 1): Promise<'ok' | 'plein' | 'contention' | 'panne' | 'absent'> {
+  const delta = Math.round(Number(n)) || 0;
+  if (!delta) return 'ok';
+  if (!env.MESHES) return 'absent';
+  try {
+    for (let essai = 0; essai < 6; essai++) {
+      if (essai > 0) await new Promise((r) => setTimeout(r, Math.round([0, 25, 60, 110, 180, 280][essai] * (0.5 + Math.random()))));
+      const cur = await env.MESHES.get(cle);
+      const deja = cur ? parseInt(await cur.text(), 10) || 0 : 0;
+      const suivant = Math.max(0, deja + delta);
+      if (delta > 0 && suivant > plafond) return 'plein';
+      const pose = cur
+        ? await env.MESHES.put(cle, String(suivant), { onlyIf: { etagMatches: cur.etag } })
+        : await env.MESHES.put(cle, String(suivant), { onlyIf: { etagDoesNotMatch: '*' } });
+      if (pose) return 'ok';
+    }
+    return 'contention';
+  } catch (e) {
+    console.log('[translate] compteur indisponible', cle, String((e as Error)?.message || e).slice(0, 120));
+    return 'panne';
+  }
+}
+
+/** Quota du modele de traduction pour un COMPTE : `appels` appels du modele. Rend null s'ils sont accordes, sinon la PORTEE du refus :
+ *  'heure' (plafond horaire du compte), 'jour-compte' (plafond du jour du compte), 'jour' (plafond du jour PARTAGE par les comptes qui
+ *  n'ont jamais paye), 'indisponible' (un compteur du compte est illisible, ou dispute par des requetes simultanees du compte : refus,
+ *  rien n'est compte, « reessaie dans un instant »). Le message de refus le dit.
+ *  - Plafonds du COMPTE, STRICTS (une contention ou une erreur R2 refuse : seul ce compte les provoque) :
+ *      heure : `_meta/traduction/<uid>-<AAAAMMJJHH>.txt`, 300 appels (60 pour un compte sans credit) ;
+ *      jour  : `_meta/traduction/<uid>-jour-<AAAA-MM-JJ>.txt`, TRADUCTION_PLAFOND_JOUR_COMPTE (300) pour un compte qui n'a jamais paye,
+ *              TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT (3 000) pour un compte payant.
+ *  - Compteurs PARTAGES du jour (cout total borne), pour les SEULS comptes qui n'ont jamais paye (_isPaidAccount) : `jour-` (/api/translate
+ *    d'un compte credite, 20 000), `jour-sans-credit-` (/api/translate a 0 credit, 2 000), `jour-filet-` (filet des routes payantes,
+ *    20 000). Troisieme relecture (14/10, B3) : `jour-filet-` n'etait PAS reserve aux comptes qui paient — la garde « credits >= prix » ne
+ *    regarde que le SOLDE, et 67 comptes a 15 credits d'inscription (jamais un euro) l'epuisaient avec des requetes refusees ensuite sans
+ *    debit ; un client payant recevait 422. Meme chose pour /api/translate : sa traduction cote site etait refusee. Un compte PAYANT ne
+ *    touche plus aucun compteur partage : le trafic des autres comptes ne peut jamais lui refuser une traduction. Contention ou panne sur
+ *    un compteur partage : on laisse passer (les plafonds du compte sont stricts). Refuse par un compteur, l'appel est RENDU aux compteurs
+ *    du compte deja incrementes (aucun appel n'aura lieu).
+ *  R2 absent (developpement local) : on laisse passer, comme avant. */
+async function _quotaTraduction(env: Env, userId: string, appels: number,
+    porte: { filet?: boolean; sansCredit?: boolean } = {}): Promise<null | 'heure' | 'jour' | 'jour-compte' | 'indisponible'> {
+  const PLAFOND_HEURE_SANS_CREDIT = 60;
+  const PLAFOND_JOUR_SANS_CREDIT = 2_000;
+  const sansCredit = !!porte.sansCredit && !porte.filet;
+  const payant = await _isPaidAccount(env, userId);
+  const maintenant = new Date().toISOString();
+  const heure = maintenant.slice(0, 13).replace(/[-T]/g, '');
+  const jour = maintenant.slice(0, 10);
+  const pris: string[] = [];   // compteurs du compte deja incrementes : rendus si un compteur suivant refuse
+  const rendre = async () => { for (const c of pris) await _plafondTraduction(env, c, Infinity, -appels); };
+  const duCompte: Array<[string, number, 'heure' | 'jour-compte']> = [
+    [`_meta/traduction/${userId}-${heure}.txt`, sansCredit ? PLAFOND_HEURE_SANS_CREDIT : TRADUCTION_PLAFOND_HEURE, 'heure'],
+    [`_meta/traduction/${userId}-jour-${jour}.txt`, payant ? TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT : TRADUCTION_PLAFOND_JOUR_COMPTE, 'jour-compte'],
+  ];
+  for (const [cle, plafond, portee] of duCompte) {
+    const r = await _plafondTraduction(env, cle, plafond, appels);
+    if (r === 'ok') { pris.push(cle); continue; }
+    if (r === 'absent') continue;
+    await rendre();
+    console.log('[translate] plafond du compte', userId, portee, r);
+    /* 'plein' : plafond du compte atteint (le message nomme l'heure ou le jour). 'contention' (six echanges perdus sur SON compteur :
+     * des requetes simultanees du meme compte) et 'panne' (erreur R2) : rien n'est compte, refus 'indisponible' (« reessaie dans un
+     * instant »). Quatrieme relecture du lot 2 (15/10) : une contention rendait la portee du compteur ('heure'), et le message annoncait
+     * « trop de traductions cette heure-ci » a un compte loin de son plafond. */
+    return r === 'plein' ? portee : 'indisponible';
+  }
+  if (payant) return null;
+  const cleJour = porte.filet ? `_meta/traduction/jour-filet-${jour}.txt`
+    : sansCredit ? `_meta/traduction/jour-sans-credit-${jour}.txt` : `_meta/traduction/jour-${jour}.txt`;
+  const global = await _plafondTraduction(env, cleJour, sansCredit ? PLAFOND_JOUR_SANS_CREDIT : TRADUCTION_PLAFOND_JOUR, appels);
+  if (global === 'plein') {
+    await rendre();
+    console.log('[translate] plafond partage du jour', cleJour);
+    return 'jour';
+  }
+  if (global === 'contention' || global === 'panne') console.warn('[translate]', global, 'sur', cleJour, ': appel accorde (plafonds du compte stricts)');
+  return null;
+}
+
 async function handleTranslate(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
-  const b = await req.json().catch(() => ({})) as { text?: unknown; from?: unknown };
-  const texte = typeof b.text === 'string' ? b.text : '';
-  const de = typeof b.from === 'string' ? b.from.toLowerCase().slice(0, 5) : 'en';
-  if (!texte.trim() || !LANGUES_TRADUITES.has(de) || !env.AI) return json({ text: texte, translated: false });
-  if (texte.length > 1000) return err(400, 'text too long (1000 characters max)');
-  try {
-    const r = await env.AI.run('@cf/meta/m2m100-1.2b',
-      { text: texte, source_lang: de, target_lang: 'en' }) as { translated_text?: unknown };
-    const t = (r && typeof r.translated_text === 'string') ? r.translated_text.trim() : '';
-    return json({ text: t || texte, translated: !!t });
-  } catch (e) {
-    console.log('[translate] echec', de, String((e as Error)?.message || e).slice(0, 200));
-    return json({ text: texte, translated: false });
+  const b = await req.json().catch(() => null) as { text?: unknown; from?: unknown } | null;
+  const texte = (b && typeof b.text === 'string') ? b.text : '';
+  if (!texte.trim()) return json({ text: texte, translated: false, raison: 'empty' });
+  if ([...texte].length > TRADUCTION_MAX_CARACTERES) return json({ text: texte, translated: false, raison: 'too-long' });
+  const detection = LangueTexte.detecterLangue(texte);
+  if (detection.langue === 'en') return json({ text: texte, translated: false, raison: 'already-english', langue: 'en' });
+  const annoncee = LangueTexte.normaliserCodeLangue(b && b.from);
+  // Langue annoncee (celle de l'interface) : MEME regle que les deux interfaces (lib/langue-texte.js langueSource). Interface ANGLAISE :
+  // seul un texte SUREMENT etranger part au modele (revue du lot 2, B1 : « camper van » partait en neerlandais). Sans langue annoncee :
+  // la langue probable du texte.
+  const de = annoncee ? (LangueTexte.langueSource(texte, annoncee) || '') : (detection.langue || '');
+  if (!de) {
+    return json(annoncee === 'en' ? { text: texte, translated: false, raison: 'already-english', langue: 'en' }
+                                  : { text: texte, translated: false, raison: 'unknown-language' });
   }
+  if (!LangueTexte.LANGUES_TRADUCTIBLES.has(de)) return json({ text: texte, translated: false, raison: 'unsupported', langue: de });
+  if (!env.AI) return json({ text: texte, translated: false, raison: 'unavailable', langue: de });
+  // un appel du modele par morceau (un texte long en compte plusieurs) ; un compte a 0 credit a son propre plafond partage (B3)
+  const portee = await _quotaTraduction(env, user.id, _decouperPourTraduction(texte).length,
+    { sansCredit: typeof user.credits === 'number' && user.credits <= 0 });
+  if (portee === 'indisponible') return json({ text: texte, translated: false, raison: 'unavailable', langue: de });
+  if (portee) return json({ text: texte, translated: false, raison: 'rate-limited', portee, langue: de });
+  const r = await _traduireVersAnglais(env, texte, de);
+  return json(r.ok ? { text: r.texte, translated: true, langue: de }
+                   : { text: texte, translated: false, raison: r.raison, langue: de });
+}
+
+/** Refus du filet de langue : 422, rien n'est debite. `code`, `langue`, `raison` et `portee` decrivent le refus pour un programme ;
+ *  `error` le dit en toutes lettres (nom de la langue, quoi faire), dans la langue de l'INTERFACE de l'appelant (`langueUi` : en-tete
+ *  X-Fabmesh-Langue, pose par le site et par le bureau ; anglais sinon, par exemple pour une cle API). Troisieme relecture du lot 2
+ *  (14/10) : le message n'existait qu'en anglais. `precision` : 'heure' / 'jour' / 'jour-compte' pour rate-limited (plafond atteint),
+ *  'melange' pour un too-long du a trop de passages, pas a la longueur. */
+function _refusFiletLangue(langue: string, raison: string, precision?: string, langueUi?: unknown): Response {
+  const MESSAGES: Record<string, { phrase: string; pourquoi: Record<string, string> }> = {
+    en: { phrase: 'Your text looks like {nom} and {pourquoi}. The image engine only really understands English: write it in English, or try again in a moment. No credits were used.',
+      pourquoi: { 'trop-long': 'is too long to be translated automatically ({max} characters at most)',
+        melange: 'mixes too many separate passages to be translated automatically',
+        heure: 'could not be translated: too many translations this hour',
+        jour: 'could not be translated: the daily translation limit of the service has been reached',
+        'jour-compte': 'could not be translated: your account has reached its daily translation limit',
+        unsupported: 'is in a language the translator does not support', defaut: 'could not be translated automatically right now' } },
+    fr: { phrase: "Ton texte semble être en {nom} et {pourquoi}. Le moteur d'image ne comprend bien que l'anglais : écris-le en anglais, ou réessaie dans un instant. Aucun crédit n'a été utilisé.",
+      pourquoi: { 'trop-long': 'il est trop long pour être traduit automatiquement ({max} caractères au maximum)',
+        melange: 'il mélange trop de passages distincts pour être traduit automatiquement',
+        heure: "il n'a pas pu être traduit : trop de traductions cette heure-ci",
+        jour: "il n'a pas pu être traduit : la limite quotidienne de traductions du service est atteinte",
+        'jour-compte': "il n'a pas pu être traduit : ton compte a atteint sa limite quotidienne de traductions",
+        unsupported: "le traducteur ne prend pas en charge cette langue", defaut: "il n'a pas pu être traduit automatiquement pour le moment" } },
+    es: { phrase: 'Tu texto parece estar en {nom} y {pourquoi}. El motor de imágenes solo entiende bien el inglés: escríbelo en inglés o vuelve a intentarlo en un momento. No se ha usado ningún crédito.',
+      pourquoi: { 'trop-long': 'es demasiado largo para traducirlo automáticamente ({max} caracteres como máximo)',
+        melange: 'mezcla demasiados pasajes distintos para traducirlo automáticamente',
+        heure: 'no se pudo traducir: demasiadas traducciones en esta hora',
+        jour: 'no se pudo traducir: se alcanzó el límite diario de traducciones del servicio',
+        'jour-compte': 'no se pudo traducir: tu cuenta alcanzó su límite diario de traducciones',
+        unsupported: 'el traductor no admite este idioma', defaut: 'no se pudo traducir automáticamente en este momento' } },
+    zh: { phrase: '您的文本似乎是{nom}，{pourquoi}。图像引擎只能很好地理解英文：请用英文书写，或稍后重试。未使用任何积分。',
+      pourquoi: { 'trop-long': '文本过长，无法自动翻译（最多 {max} 个字符）', melange: '包含太多分散的段落，无法自动翻译',
+        heure: '无法翻译：本小时翻译次数过多', jour: '无法翻译：服务的每日翻译额度已用完', 'jour-compte': '无法翻译：您的账户已达到每日翻译上限',
+        unsupported: '翻译器不支持该语言', defaut: '目前无法自动翻译' } },
+    hi: { phrase: 'आपका पाठ {nom} में लगता है और {pourquoi}। इमेज इंजन ठीक से केवल अंग्रेज़ी समझता है: इसे अंग्रेज़ी में लिखें, या थोड़ी देर में फिर कोशिश करें। कोई क्रेडिट इस्तेमाल नहीं हुआ।',
+      pourquoi: { 'trop-long': 'यह स्वचालित अनुवाद के लिए बहुत लंबा है (अधिकतम {max} अक्षर)', melange: 'इसमें स्वचालित अनुवाद के लिए बहुत सारे अलग-अलग अंश हैं',
+        heure: 'इसका अनुवाद नहीं हो सका: इस घंटे बहुत अधिक अनुवाद', jour: 'इसका अनुवाद नहीं हो सका: सेवा की दैनिक अनुवाद सीमा पूरी हो गई है',
+        'jour-compte': 'इसका अनुवाद नहीं हो सका: आपके खाते की दैनिक अनुवाद सीमा पूरी हो गई है',
+        unsupported: 'अनुवादक इस भाषा का समर्थन नहीं करता', defaut: 'अभी इसका स्वचालित अनुवाद नहीं हो सका' } },
+    ar: { phrase: 'يبدو أن نصك باللغة {nom}، و{pourquoi}. محرك الصور لا يفهم جيدًا إلا الإنجليزية: اكتبه بالإنجليزية، أو أعد المحاولة بعد قليل. لم يُستخدم أي رصيد.',
+      pourquoi: { 'trop-long': 'هو طويل جدًا للترجمة التلقائية ({max} حرف كحد أقصى)', melange: 'يخلط مقاطع منفصلة كثيرة جدًا للترجمة التلقائية',
+        heure: 'تعذّرت ترجمته: ترجمات كثيرة جدًا في هذه الساعة', jour: 'تعذّرت ترجمته: تم بلوغ الحد اليومي للترجمة في الخدمة',
+        'jour-compte': 'تعذّرت ترجمته: بلغ حسابك حده اليومي من الترجمات', unsupported: 'المترجم لا يدعم هذه اللغة', defaut: 'تعذّرت ترجمته تلقائيًا حاليًا' } },
+  };
+  const demandee = String(langueUi || '').toLowerCase().split(/[-_]/)[0];
+  const ui = Object.prototype.hasOwnProperty.call(MESSAGES, demandee) ? demandee : 'en';
+  let nom = langue;
+  try { nom = new Intl.DisplayNames([ui], { type: 'language' }).of(langue) || langue; } catch { /* code brut */ }
+  const cle = raison === 'too-long' ? (precision === 'melange' ? 'melange' : 'trop-long')
+    : raison === 'rate-limited' ? (precision === 'jour' || precision === 'jour-compte' ? precision : 'heure')
+    : raison === 'unsupported' ? 'unsupported' : 'defaut';
+  const M = MESSAGES[ui];
+  const pourquoi = M.pourquoi[cle].replace('{max}', () => String(TRADUCTION_MAX_CARACTERES));
+  return json({ ok: false, success: false, code: 'non-english-text', langue, raison, ...(precision ? { portee: precision } : {}),
+    error: M.phrase.replace('{nom}', () => nom).replace('{pourquoi}', () => pourquoi) }, { status: 422 });
+}
+
+/* FILET DE LANGUE DU SERVEUR (2026-10-13, audit de la langue, lot 2 (i) — SERVEUR-01, CHAMPS-12). Le serveur transmettait au moteur
+ * d'image, octet pour octet, tout texte recu : un prompt allemand (cle API, page /m/, bureau en mode Cloud sans traducteur, client
+ * ancien, traduction en echec) partait dans des gabarits anglais et etait facture. Avant tout debit, les parties MANIFESTEMENT non
+ * anglaises (lib/langue-texte.js morceauxEtrangers : un gabarit anglais du produit n'est jamais vise) sont traduites par le modele du
+ * site ; si c'est impossible, la requete est REFUSEE (422, rien n'est debite) avec un message qui dit pourquoi. Le texte traduit repasse
+ * le filtre de contenu (qui ne connait que six langues : la traduction lui montre ce que le moteur verra). `verifie === true` :
+ * l'interface a deja traite la langue, ou l'utilisateur a choisi « Envoyer tel quel » apres un echec de traduction (choix respecte).
+ *
+ * `texte` peut etre une LISTE de champs d'une meme requete (userPrompt + prompt enrichi, cible + remplacement) : ils sont planifies
+ * ENSEMBLE, avant le moindre appel du modele (2026-10-14, seconde revue du lot 2) — un meme morceau present dans deux champs n'est traduit
+ * qu'une fois, et un refus tombe avant tout appel (avant : le premier champ etait traduit, puis le second depassait la borne : 422 apres
+ * des appels perdus). Rend `textes` (dans l'ordre) et `texte` (le premier). */
+async function _filetLangue(env: Env, userId: string, texte: string | string[],
+    opts: { verifie?: unknown; unrestricted?: boolean; credits?: number; prix?: number; langueInterface?: unknown } = {},
+): Promise<{ texte: string; textes: string[]; refus?: Response; traduit: boolean; langues: string[] }> {
+  const textes = (Array.isArray(texte) ? texte : [texte]).map((x) => String(x ?? ''));
+  const rendre = (r: { textes?: string[]; refus?: Response; traduit?: boolean; langues?: string[] } = {}) => {
+    const sorties = r.textes ?? textes;
+    return { texte: sorties[0] ?? '', textes: sorties, traduit: !!r.traduit, langues: r.langues ?? [], ...(r.refus ? { refus: r.refus } : {}) };
+  };
+  if (opts.verifie === true || !textes.some((x) => x.trim())) return rendre();
+  const parTexte = textes.map((x) => (x.trim() ? LangueTexte.morceauxEtrangers(x) : []));
+  const tous = parTexte.flat();
+  if (!tous.length) return rendre();
+  if (!env.AI) {   // liaison absente (developpement local) : comportement d'avant, signale au journal
+    console.warn('[filet-langue] Workers AI absent : texte non anglais transmis tel quel');
+    return rendre();
+  }
+  /* BORNES (2026-10-14, revue du lot 2, B3), toutes AVANT le premier appel du modele :
+   *  - compte qui ne peut PAS PAYER la requete (credits < `prix`, au moins 1 credit) : rien n'est traduit, la route refuse ensuite faute
+   *    de credit, comme pour un texte anglais ;
+   *  - plus de TRADUCTION_MAX_CARACTERES caracteres etrangers dans la requete (champs cumules, morceaux communs comptes une fois) : refus
+   *    « too-long » (meme borne que /api/translate) ;
+   *  - au plus TRADUCTION_APPELS_PAR_REQUETE appels du modele : un prompt MELANGE (« ein alter Ritter mit Schwert, highly detailed, eine
+   *    rostige Rüstung, cinematic lighting, ... ») fait un morceau par passage etranger ; au-dela de la borne, les passages voisins de la
+   *    meme langue sont FUSIONNES (les plus proches d'abord, les mots-cles anglais entre eux passent avec) au lieu d'un refus. Seconde
+   *    revue du 14/10 : la borne de 6 comptait les MORCEAUX, et refusait « too-long » un prompt de 253 caracteres ;
+   *  - chaque appel compte sur les plafonds du COMPTE (heure, jour) et, pour un compte qui n'a jamais paye, sur le plafond du jour
+   *    partage du filet (_quotaTraduction : un compte payant n'en depend jamais).
+   * Messages de refus dans la langue de l'interface de l'appelant (`langueInterface`, en-tete X-Fabmesh-Langue de la requete). */
+  if (typeof opts.credits === 'number' && opts.credits < Math.max(1, Number(opts.prix) || 0)) {
+    console.log('[filet-langue] credits insuffisants pour la requete : texte non traduit, la route refusera faute de credit');
+    return rendre();
+  }
+  const intraduisible = tous.find((m) => !m.traductible);
+  if (intraduisible) {
+    console.log('[filet-langue] refus', intraduisible.langue, 'unsupported');
+    return rendre({ langues: [intraduisible.langue], refus: _refusFiletLangue(intraduisible.langue, 'unsupported', undefined, opts.langueInterface) });
+  }
+  const premiere = tous[0].langue;
+  type Unite = { debut: number; fin: number; langue: string };
+  const unites: Unite[][] = parTexte.map((ms) => ms.map(({ debut, fin, langue }) => ({ debut, fin, langue })));
+  const cleUnite = (i: number, u: Unite) => u.langue + '|' + textes[i].slice(u.debut, u.fin);
+  const bilan = () => {
+    const extraits = new Map<string, { langue: string; extrait: string }>();
+    for (let i = 0; i < unites.length; i++) {
+      for (const u of unites[i]) extraits.set(cleUnite(i, u), { langue: u.langue, extrait: textes[i].slice(u.debut, u.fin) });
+    }
+    let caracteres = 0, appels = 0;
+    for (const { extrait } of extraits.values()) { caracteres += [...extrait].length; appels += _decouperPourTraduction(extrait).length; }
+    return { extraits, caracteres, appels };
+  };
+  let plan = bilan();
+  if (plan.caracteres > TRADUCTION_MAX_CARACTERES) {
+    return rendre({ langues: [premiere], refus: _refusFiletLangue(premiere, 'too-long', undefined, opts.langueInterface) });
+  }
+  while (plan.appels > TRADUCTION_APPELS_PAR_REQUETE) {
+    // paire de passages voisins de la meme langue la plus proche (dans n'importe quel champ)
+    let choix: { i: number; j: number; ecart: number } | null = null;
+    for (let i = 0; i < unites.length; i++) {
+      for (let j = 0; j + 1 < unites[i].length; j++) {
+        if (unites[i][j].langue !== unites[i][j + 1].langue) continue;
+        const ecart = unites[i][j + 1].debut - unites[i][j].fin;
+        if (!choix || ecart < choix.ecart) choix = { i, j, ecart };
+      }
+    }
+    if (!choix) break;
+    const langue = unites[choix.i][choix.j].langue;
+    const fusion = textes[choix.i].slice(unites[choix.i][choix.j].debut, unites[choix.i][choix.j + 1].fin);
+    // meme fusion dans TOUS les champs qui contiennent la meme paire : un morceau commun reste traduit une seule fois
+    for (let i = 0; i < unites.length; i++) {
+      for (let j = 0; j + 1 < unites[i].length; j++) {
+        const [a, z] = [unites[i][j], unites[i][j + 1]];
+        if (a.langue === langue && z.langue === langue && textes[i].slice(a.debut, z.fin) === fusion) {
+          unites[i].splice(j, 2, { debut: a.debut, fin: z.fin, langue });
+        }
+      }
+    }
+    plan = bilan();
+  }
+  if (plan.appels > TRADUCTION_APPELS_PAR_REQUETE) {
+    return rendre({ langues: [premiere], refus: _refusFiletLangue(premiere, 'too-long', 'melange', opts.langueInterface) });
+  }
+  const portee = await _quotaTraduction(env, userId, plan.appels, { filet: true });
+  if (portee) {
+    console.log('[filet-langue] plafond de traduction atteint', userId, portee);
+    return rendre({ langues: [premiere], refus: portee === 'indisponible'
+      ? _refusFiletLangue(premiere, 'unavailable', undefined, opts.langueInterface)
+      : _refusFiletLangue(premiere, 'rate-limited', portee, opts.langueInterface) });
+  }
+  // traduction des passages (en parallele : la latence d'un appel, pas de leur somme)
+  const entrees = [...plan.extraits.entries()];
+  const resultats = await Promise.all(entrees.map(([, { langue, extrait }]) => _traduireVersAnglais(env, extrait, langue)));
+  const traductions = new Map<string, string>();
+  for (let n = 0; n < entrees.length; n++) {
+    const r = resultats[n];
+    if (!r.ok) {
+      const langue = entrees[n][1].langue;
+      console.log('[filet-langue] refus', langue, r.raison);
+      return rendre({ langues: [langue], refus: _refusFiletLangue(langue, r.raison || 'failed', undefined, opts.langueInterface) });
+    }
+    traductions.set(entrees[n][0], r.texte);
+  }
+  const langues: string[] = [];
+  const sorties = textes.map((t, i) => {
+    let s = '', pos = 0;
+    for (const u of unites[i]) {
+      s += t.slice(pos, u.debut) + (traductions.get(cleUnite(i, u)) ?? t.slice(u.debut, u.fin));
+      pos = u.fin;
+      if (!langues.includes(u.langue)) langues.push(u.langue);
+    }
+    return s + t.slice(pos);
+  });
+  for (let i = 0; i < sorties.length; i++) {
+    if (sorties[i] === textes[i]) continue;
+    const surete = await _checkPromptSafetyAlerte(env, userId, sorties[i], !!opts.unrestricted);
+    if (!surete.safe) {
+      return rendre({ langues, refus: json({ ok: false, success: false,
+        error: surete.reason ?? 'prompt blocked by content filter', blocked: surete.blocked }, { status: 400 }) });
+    }
+  }
+  console.log('[filet-langue] traduit', langues.join(','));
+  return rendre({ textes: sorties, traduit: true, langues });
+}
+
+/** FILTRE DE CONTENU SUR LA CHAINE EXACTEMENT ENVOYEE A MODAL (2026-10-15, quatrieme relecture du lot 2 de la langue). Le filet verifie la
+ *  traduction ENTIERE ; quatre routes la COUPAIENT ensuite (vue de dos a 400 caracteres, Reshape a 500, Texture variants du maillage a
+ *  200, Re-texture d'une region a 300) et envoyaient a Modal une chaine que le filtre n'avait jamais vue. Or le filtre neutralise des
+ *  idiomes (_IDIOMES de nsfw_filter.ts) : une coupe au milieu de l'un d'eux laissait son premier mot, bloque SEUL, en fin de chaine, et
+ *  Modal, qui n'applique que le plancher, le recevait avec le statut 200 (8 chaines non sures sur le banc de la relecture). Avant le lot,
+ *  ces routes coupaient AVANT de verifier. Regle : toute chaine envoyee a Modal passe ce filtre TELLE QU'ENVOYEE, apres sa derniere coupe
+ *  ou retouche (le cout d'un passage du filtre). Rend la reponse de refus (400, meme forme que les autres refus du filtre), ou null. */
+async function _refusChaineEnvoyee(env: Env, userId: string, chaine: string, unrestricted: boolean): Promise<Response | null> {
+  if (!chaine) return null;
+  const s = await _checkPromptSafetyAlerte(env, userId, chaine, unrestricted);
+  if (s.safe) return null;
+  return json({ ok: false, success: false, error: s.reason ?? 'prompt blocked by content filter', blocked: s.blocked }, { status: 400 });
 }
 
 /* REDACTEUR DE LA FENETRE « NEW PROJECT » (2026-09-30). User : « il faut que ca genere aussi la description quand Auto est

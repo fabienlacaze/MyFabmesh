@@ -8136,8 +8136,14 @@ ipcMain.handle('redacteur:decrire', async (_e, { name, notes, lang, type } = {})
 ipcMain.handle('redacteur:arreter', async () => { redacteurArreter('fenetre fermee'); return { ok: true }; });
 
 let _translateWorkingPy = null;     // remember which interpreter has argostranslate (skip the failing embedded attempt next time)
-let _translateFailures = 0;         // échecs consécutifs du chemin de traduction
-let _translateBroken = false;       // argos définitivement indisponible pour cette session
+// DISJONCTEUR TEMPORAIRE du traducteur local (2026-10-13, audit de la langue TRADUCTION-11). Avant : deux echecs, meme separes par
+// des heures de succes (le compteur n'etait remis a zero que par un lancement direct reussi), coupaient la traduction pour TOUTE la
+// session, sans message, meme quand le serveur redevenait disponible. Desormais : deux echecs CONSECUTIFS (tout succes remet a zero)
+// mettent le traducteur local de cote 5 minutes ; pendant ce temps la traduction passe par le site si une session existe.
+let _translateFailures = 0;         // echecs CONSECUTIFS du traducteur local
+let _translateCoupeJusqua = 0;      // instant (ms) jusqu'auquel le traducteur local est mis de cote
+const TRADUCTION_COUPURE_MS = 5 * 60 * 1000;
+function _traducteurLocalCoupe() { return Date.now() < _translateCoupeJusqua; }
 // Reponse du serveur pendant le telechargement du modele d'une langue (premiere utilisation) : ni traduction, ni echec.
 const TRADUCTION_EN_ATTENTE = Object.freeze({ pending: true });
 
@@ -8309,7 +8315,7 @@ function nsfwServerCall(text) {
 ipcMain.handle('i18n-auto-translate', async (event, { texts, to } = {}) => {
   const out = {};
   if (!Array.isArray(texts) || !texts.length || !to || to === 'en') return out;
-  if (!_localPyLibsUsable() || _translateBroken) return out;   // pas d'argos sans venv IA
+  if (!_localPyLibsUsable() || _traducteurLocalCoupe()) return out;   // pas d'argos sans venv IA
   try {
     await ensureTranslateServer();
     for (const tx of texts) {
@@ -8328,32 +8334,27 @@ ipcMain.handle('i18n-auto-translate', async (event, { texts, to } = {}) => {
   return out;
 });
 
-ipcMain.handle('translate-prompt', async (event, { text, from } = {}) => {
-  const src = (from || 'en').toLowerCase();
-  if (src === 'en' || !text || !text.trim()) return { text: text || '' };
-  const _ck = src + '|' + text;
-  if (_translateCache.has(_ck)) return { text: _translateCache.get(_ck) };
-  // Sans venv IA (mode Cloud), argostranslate est absent : le chemin complet
-  // coûtait jusqu'à ~50 s de gel AVANT chaque génération (12 s d'attente serveur
-  // + 2 spawns à 20 s de timeout), pour finir en fail-open. On sort tout de
-  // suite avec le texte d'origine — le prompt part tel quel vers le cloud.
-  if (!_localPyLibsUsable() || _translateBroken) return { text };
-  // Fast path: the persistent translate server (argos kept warm).
+/* TRADUCTION DU PROMPT (bureau) — 2026-10-13, lot 2 de l'audit de la langue (TRADUCTION-02/10/11, CHAMPS-01/11, SERVEUR-02).
+ * Avant : sans moteur IA local (mode Cloud, PC sans GPU NVIDIA : la configuration par defaut du public), le texte repartait TEL QUEL,
+ * alors que l'aide promettait « traduit auto » ; un modele de langue en cours de telechargement rendait aussi le texte d'origine sans
+ * rien dire ; deux echecs coupaient la traduction pour la session. Desormais :
+ *  1. traducteur LOCAL (Argos, hors ligne) quand le moteur IA est installe et que son disjoncteur est ferme ;
+ *  2. sinon, ou s'il echoue, ou si le modele de la langue se telecharge : traducteur du SITE (/api/translate, m2m100, 100 langues)
+ *     avec la session MyFabmesh (cloud_fallback) ;
+ *  3. sinon : { translated:false, raison } — l'interface le DIT (aide de langue, fenetre « Reessayer / Envoyer tel quel »).
+ * Chaque reponse porte `translated` ; un echec porte `raison` (no-engine, signed-out, model-downloading, failed, rate-limited...). */
+async function _traduireLocal(text, src) {
   try {
     await ensureTranslateServer();
     const sv = await translateServerCall(text, src);
-    // Modele de cette langue en cours de telechargement (PC neuf) : texte d'origine, sans cache ni echec compte
-    if (sv === TRADUCTION_EN_ATTENTE) return { text };
-    if (sv != null && sv !== '') {
-      if (_translateCache.size > 500) _translateCache.clear();
-      _translateCache.set(_ck, sv);
-      return { text: sv };
-    }
+    // Modele de cette langue en cours de telechargement (PC neuf) : ni traduction, ni echec compte
+    if (sv === TRADUCTION_EN_ATTENTE) return { pending: true };
+    if (sv != null && sv !== '') return { text: sv };
   } catch (_) { /* fall through to per-call */ }
   const script = path.join(SCRIPTS_DIR, 'translate_prompt.py');
   // End-users have no python on PATH → prefer the bundled embedded interpreter.
   // If it lacks argostranslate (--strict → exit 3), fall back to system python
-  // (the dev box has argos there). Last resort: fail open with the original text.
+  // (the dev box has argos there).
   const embedded = _embeddedPython();
   const baseAttempts = embedded === 'python'
     ? [['python', false]]
@@ -8381,21 +8382,67 @@ ipcMain.handle('translate-prompt', async (event, { text, from } = {}) => {
   });
   for (const [py, strict] of attempts) {
     const out = await tryRun(py, strict);
-    if (out) {
-      _translateFailures = 0;
-      if (_translateCache.size > 500) _translateCache.clear();  // simple cap
-      _translateCache.set(_ck, out);
-      return { text: out };
+    if (out) return { text: out };
+  }
+  return null;
+}
+/** Traduction par le SITE (/api/translate) avec la session MyFabmesh du bureau : { text, translated, raison, langue }, ou null sans session. */
+async function _traduireParLeSite(text, src) {
+  if (!cloudFallback || typeof cloudFallback.authedFetch !== 'function') return null;
+  if (typeof cloudFallback.aSession === 'function' && !cloudFallback.aSession()) return null;
+  try {
+    const a = await cloudFallback.authedFetch('/api/translate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, from: src }),
+    });
+    if (!a || a.needsCloudLogin) return { text, translated: false, raison: 'signed-out' };
+    const j = await a.resp.json().catch(() => ({}));
+    if (j && j.translated === true && typeof j.text === 'string' && j.text.trim()) return { text: j.text, translated: true, langue: j.langue || src };
+    return { text, translated: false, raison: (j && j.raison) || (a.resp.status === 429 ? 'rate-limited' : 'failed'),
+      ...(j && typeof j.portee === 'string' ? { portee: j.portee } : {}) };
+  } catch (_) { return { text, translated: false, raison: 'failed' }; }
+}
+async function _traduirePrompt(text, from) {
+  const src = String(from || 'en').toLowerCase().split(/[-_]/)[0];
+  if (src === 'en' || !text || !String(text).trim()) return { text: text || '', translated: false, raison: 'already-english' };
+  const _ck = src + '|' + text;
+  if (_translateCache.has(_ck)) return { text: _translateCache.get(_ck), translated: true, langue: src };
+  const garder = (t) => { if (_translateCache.size > 500) _translateCache.clear(); _translateCache.set(_ck, t); };
+  let raison = 'no-engine';
+  let enAttente = false;
+  // 1. LOCAL. Sans venv IA (mode Cloud) on n'essaie PAS : le chemin complet coutait jusqu'a ~50 s de gel (12 s d'attente serveur
+  //    + 2 lancements a 20 s) pour finir en echec.
+  if (_localPyLibsUsable() && !_traducteurLocalCoupe()) {
+    const loc = await _traduireLocal(text, src);
+    if (loc && loc.text) { _translateFailures = 0; garder(loc.text); return { text: loc.text, translated: true, langue: src }; }
+    if (loc && loc.pending) { enAttente = true; raison = 'model-downloading'; }
+    else {
+      raison = 'failed';
+      if (++_translateFailures >= 2) {
+        _translateFailures = 0;
+        _translateCoupeJusqua = Date.now() + TRADUCTION_COUPURE_MS;
+        log.warn('main', 'translate: traducteur local mis de cote 5 min (2 echecs consecutifs) ; repli sur le site si une session existe');
+      }
     }
   }
-  // Cache négatif borné : après 2 échecs complets (argos absent / cassé), on
-  // arrête de repayer les spawns à chaque génération pour la session.
-  if (++_translateFailures >= 2) {
-    _translateBroken = true;
-    log.warn('main', 'translate: désactivé pour cette session (2 échecs — argos indisponible)');
-  }
-  return { text };  // fail open → original (don't cache failures)
-});
+  // 2. SITE (session MyFabmesh).
+  const site = await _traduireParLeSite(text, src);
+  if (site && site.translated) { garder(site.text); return site; }
+  if (site && site.raison === 'already-english') return { text, translated: false, raison: 'already-english' };
+  if (site && !enAttente && raison === 'no-engine') raison = site.raison || 'failed';
+  return { text, translated: false, raison, pending: enAttente || undefined };
+}
+// { prechauffer: true } : demarre le traducteur LOCAL seulement (ouverture d'une fenetre d'outil), sans rien traduire ni appeler le site.
+async function _prechaufferTraducteur() {
+  if (_localPyLibsUsable() && !_traducteurLocalCoupe()) { try { await ensureTranslateServer(); } catch (_) {} }
+  return { ok: true };
+}
+ipcMain.handle('translate-prompt', async (event, { text, from, prechauffer } = {}) =>
+  (prechauffer ? _prechaufferTraducteur() : _traduirePrompt(text, from)));
+// Etat du traducteur pour l'aide de langue de l'interface (2026-10-13) : moteur local utilisable, session MyFabmesh presente.
+ipcMain.handle('translate-status', async () => ({
+  local: _localPyLibsUsable() && !_traducteurLocalCoupe(),
+  cloud: !!(cloudFallback && typeof cloudFallback.aSession === 'function' && cloudFallback.aSession()),
+}));
 
 // LIMITE CPU (user 2026-09-30) : le curseur CPU des reglages pose FABMESH_CPU_LIMIT_PCT, lu au demarrage de chaque calcul (scripts/cloisonnement_memoire.py, _plafonner_cpu).
 ipcMain.handle('set-cpu-limit', (_e, pct) => {
@@ -9204,7 +9251,7 @@ function _causeHiDream(stderr, brut) {
   const derniere = t.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(-1)[0] || 'unknown error';
   return { bloque: false, detail: 'HiDream a echoue : ' + derniere.slice(0, 300), message: 'HiDream failed: ' + derniere.slice(0, 200) };
 }
-ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages, projectName, engine, quality, steps, vramFraction, assetType, buildStages, computeMode }) => {
+ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPromptAnglais, numImages, projectName, engine, quality, steps, vramFraction, assetType, assetStyle, buildStages, computeMode, langueVerifiee }) => {
   // GARDE MANQUANTE — cause du REFUS STORE du 2026-08-08 (10.1.2.10
   // « Unusable Feature: Generate »).
   //
@@ -9295,8 +9342,10 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
       HUGGINGFACE_HUB_CACHE: path.join(HF_CACHE_DIR, 'hub'),
       FABMESH_VRAM_FRACTION: String(fracVal),
       FABMESH_ASSET_TYPE: _assetType,
-      // Texte BRUT de l'utilisateur (sans gabarit) : le composeur d'intention du pont (scripts/composeur_intention.py) l'analyse pour adapter le negatif.
-      FABMESH_USER_PROMPT: String(rawPrompt || '').slice(0, 2000),
+      // Texte de l'utilisateur (sans gabarit) : le composeur d'intention du pont (scripts/composeur_intention.py) l'analyse pour adapter le negatif.
+      // Sa TRADUCTION anglaise quand l'interface la fournit (2026-10-13, audit de la langue CHAMPS-09) : le lexique du composeur est anglais,
+      // un orc « tenant une massue » decrit en francais n'etait pas reconnu. prompt.txt garde le texte d'origine.
+      FABMESH_USER_PROMPT: String((typeof userPromptAnglais === 'string' && userPromptAnglais.trim()) ? userPromptAnglais.trim() : (rawPrompt || '')).slice(0, 2000),
       PYTORCH_CUDA_ALLOC_CONF: _allocConf,
       ..._ramLimitMB ? { FABMESH_RAM_LIMIT_MB: _ramLimitMB } : {},
       ..._gpuLimit   ? { FABMESH_GPU_LIMIT:   _gpuLimit   } : {},
@@ -9323,6 +9372,11 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, numImages,
         const argsCloud = {
           imagesDir,
           assetType: _assetType,
+          // STYLE choisi (2026-10-13, audit de la langue MANQUE-SERV-01) : absent, le serveur prenait « realistic » et Modal ajoutait
+          // « realistic style, photorealistic... » derriere un prompt cartoon / anime / pixel art deja compose ici.
+          assetStyle: (typeof assetStyle === 'string' && assetStyle.trim()) ? assetStyle.trim() : undefined,
+          // « Envoyer tel quel » choisi apres un echec de traduction : le filet de langue du serveur respecte ce choix.
+          langueVerifiee: langueVerifiee === true || undefined,
           steps,
           turbo: engine === 'local-lightning',
           // -> user_assets : visible aussi sur le site web. Le nom SAISI (« Épée magique », « 兽人战士 »), plus le nom de dossier
@@ -12392,8 +12446,10 @@ ipcMain.handle('pick-data-folder', async () => {
 ipcMain.handle('restart-app', () => { app.relaunch(); app.exit(0); });
 
 // Langues dont l'assistant pose le modele de traduction des prompts (-> anglais) : celles du SYSTEME que l'interface du
-// bureau propose (meme liste que i18n.js : fr, es, zh, hi), au plus deux (telechargement mesure le 2026-09-30 : fr 66,6 Mo,
-// zh 74,5, hi 102,4, es 285,2). Une autre langue choisie plus tard se telecharge a la premiere traduction (translate_server.py).
+// bureau propose (fr, es, zh, hi, ar), au plus deux (telechargement mesure le 2026-09-30 : fr 66,6 Mo,
+// zh 74,5, hi 102,4, es 285,2 ; ar 93,3 mesure par l'audit du 11/10). Une autre langue choisie plus tard se telecharge a la premiere
+// traduction (translate_server.py) ; en attendant, la traduction passe par le site si une session existe (translate-prompt).
+// 2026-10-13 (audit de la langue TRADUCTION-10 / -12) : l'ARABE, propose par le selecteur du bureau, n'etait jamais pose.
 function _languesTraduction() {
   let prefs = [];
   try { prefs = app.getPreferredSystemLanguages() || []; } catch (_) {}
@@ -12401,7 +12457,7 @@ function _languesTraduction() {
   const out = [];
   for (const p of prefs) {
     const c = String(p || '').toLowerCase().split('-')[0];
-    if (['fr', 'es', 'zh', 'hi'].includes(c) && !out.includes(c)) out.push(c);
+    if (['fr', 'es', 'zh', 'hi', 'ar'].includes(c) && !out.includes(c)) out.push(c);
   }
   return out.slice(0, 2).join(',');
 }
@@ -13777,6 +13833,8 @@ try {
 let cloudFallback = { generateImages: async () => ({ success: false, error: 'cloud fallback unavailable' }) };
 try {
   cloudFallback = require('./cloud_fallback');
+  // langue de l'interface envoyee au site (X-Fabmesh-Langue) : ses refus du filet de langue sont rediges dans cette langue (14/10)
+  try { if (typeof cloudFallback.definirLangueInterface === 'function') cloudFallback.definirLangueInterface(() => _loadUiLang()); } catch (_) {}
   // safeSend : canal de progression partagé (« ai3d-progress ») — permet au
   // retry cold start d'annoncer « Cloud GPU is starting up… » sans toucher aux
   // 14 call sites cloud. isCloudMode : garde du heartbeat/préchauffage.
