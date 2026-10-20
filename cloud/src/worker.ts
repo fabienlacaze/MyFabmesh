@@ -13254,14 +13254,20 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  if (!targetText) return err(400, 'targetText required');
+  const cible = (targetText ?? '').toString().trim();
+  if (!cible) return err(400, 'targetText required');
 
   const rawPrompt = (prompt ?? '').toString().trim();
-  if (rawPrompt) {
+  // FILTRE DE SECURITE (2026-10-20) : il ne portait que sur `prompt`. Le texte de recherche (`targetText`) partait sans controle vers le
+  // moteur, alors que /api/modify-image refuse le meme texte ; or « Modify image » confie desormais ses retraits a cette route. On verifie
+  // les chaines EXACTES envoyees a Modal (cible et remplacement, rognees ci-dessus UNE fois) et leur assemblage : une combinaison
+  // « personne » + « nudite » repartie entre les deux champs n'est vue que sur le texte joint.
+  {
+    const texteVerifie = [cible, rawPrompt].filter(Boolean).join('. ');
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = await _checkPromptSafetyAlerte(env, user.id, rawPrompt, unrestricted);
+    const safety = await _checkPromptSafetyAlerte(env, user.id, texteVerifie, unrestricted);
     if (!safety.safe) {
       return json({ ok: false, success: false,
         error: safety.reason ?? 'prompt blocked by content filter',
@@ -13295,7 +13301,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   try {
     const result = await callModalImageOp(env, user.id, {
       op: 'auto_inpaint',
-      imageUrl: src, targetText, prompt: rawPrompt, dilate,
+      imageUrl: src, targetText: cible, prompt: rawPrompt, dilate,
     }, 'inpaint');
     if ('maskEmpty' in result) {
       // Refund — the GPU did NOT do any real work (just CLIPSeg, which
@@ -13303,12 +13309,12 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
       await addCredits(env, user.id, cost);
       await refundModalSpend(env, estimatedTotal, user.id);
       await logOperation(env, user.id, 'text2image', 0, opStart, Date.now(),
-                         'failed', { req, projectName, op: 'auto_inpaint', reason: 'mask_empty', target: targetText });
+                         'failed', { req, projectName, op: 'auto_inpaint', reason: 'mask_empty', target: cible });
       return json({ ok: false, success: false,
-        error: `auto-inpaint: "${targetText}" not found in the image (credits refunded)` }, { status: 422 });
+        error: `auto-inpaint: "${cible}" not found in the image (credits refunded)` }, { status: 422 });
     }
     await logOperation(env, user.id, 'text2image', cost, opStart, Date.now(),
-                       'succeeded', { req, projectName, op: 'auto_inpaint', target: targetText });
+                       'succeeded', { req, projectName, op: 'auto_inpaint', target: cible });
     return json({ ok: true, success: true, path: result.url, newPath: result.url, creditsRemaining: remaining });
   } catch (e) {
     await addCredits(env, user.id, cost);

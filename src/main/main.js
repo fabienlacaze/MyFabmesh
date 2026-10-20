@@ -6838,8 +6838,21 @@ ipcMain.handle('outfit-cutout', async (event, opts = {}) => {
   }
 });
 
-ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, dilate, rel }) => {
+ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute, prompt: remplacementBrut, dilate, rel }) => {
   try {
+    // FILTRE DE SECURITE (2026-10-20). Ce gestionnaire ne verifiait RIEN, alors que 'img2img' verifie son prompt : « Modify » refusait
+    // un texte que « Auto Inpaint » (et ses deux champs, « Find » et « Replace with ») laissait passer. Depuis que « Modify image » confie
+    // les retraits a ce moteur, les deux outils partagent la meme porte. On verifie les chaines EXACTES envoyees au moteur (cible et
+    // remplacement, rognees UNE fois ici puis utilisees telles quelles plus bas) et leur assemblage (une combinaison « personne » + « nudite »
+    // repartie entre les deux champs n'est vue que sur le texte joint).
+    const targetText = String(cibleBrute == null ? '' : cibleBrute).trim();
+    const prompt = String(remplacementBrut == null ? '' : remplacementBrut).trim();
+    const texteVerifie = [targetText, prompt].filter(Boolean).join('. ');
+    const safety = checkPromptSafety(texteVerifie);
+    if (!safety.safe) return { success: false, error: safety.reason };
+    const aiSafety = await checkPromptSafetyAI(texteVerifie);
+    if (!aiSafety.safe) return { success: false, error: aiSafety.reason };
+
     const dir = path.dirname(imagePath);
     const ext = path.extname(imagePath);
     const base = safeBase(path.basename(imagePath, ext));
