@@ -50,6 +50,8 @@ const DECLARATIONS = [
   'traduireTexteUtilisateur', 'translateUserPrompt', '_traduirePourGeneration', 'MSG_TRADUCTION', '_messageTraduction',
   '_choixTraductionEchouee', '_indiceDosAnglais', '_texteUtilisateurPourGeneration', '_corrigerFauxAmis', 'stripKnownPromptSuffixes',
   'ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', 'PROMPT_LANG_HINT', 'TRANSLATING_MSG',
+  // negations de l'utilisateur (piste N, fusionnee le 20/10) : les gestionnaires les appellent
+  '_sansNegations', '_negativeExtraDe', '_optionsAffichage', '_optionsPose', '_epurerDemande', '_retirerPolitesseFin', '_DEMANDE_EN', '_DEMANDE_FR',
   // outils
   '_stripColorWords', '_RC_COLOR_WORDS', '_ageBuildPrompt', '_ageStrength', '_preremplirPrompt',
   // New project (mode Auto)
@@ -209,6 +211,8 @@ function monter(plateforme, opts = {}) {
     clearTimeout: (t) => { MINUTERIES.delete(t); clearTimeout(t); },
     langueSource: LT.langueSource, normaliserCodeLangue: LT.normaliserCodeLangue, ressembleAnglais: LT.ressembleAnglais,
     retirerClauseFinale: COMPO.retirerClauseFinale,
+    composeurActif: COMPO.actif, nettoyerVirgules: COMPO.nettoyerVirgules, positifSansNegations: COMPO.positifSansNegations,
+    negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs,
     showToast: (message, genre) => { journal.toasts.push({ genre, message: String(message) }); },
     gatedRun: (_genre, _nom, fn) => { const pr = Promise.resolve().then(fn); journal.travaux.push(pr); return pr; },
     pushJob: () => ({ id: 'travail-1' }),

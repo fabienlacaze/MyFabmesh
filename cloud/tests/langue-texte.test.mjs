@@ -61,8 +61,11 @@ const ETRANGERS = [
 ];
 
 test('le corpus anglais du proprietaire (build/intention_cas.json) est reconnu en entier (43/64 avec l ancienne heuristique)', () => {
-  const corpus = JSON.parse(readFileSync(CORPUS, 'utf-8')).map((c) => c.texte);
+  // 64 prompts a l'origine, TOUJOURS en tete du fichier ; la piste des negations (integration 20/10) en a ajoute 214 apres eux (phrases courtes
+  // comme none ou no more, textes francais) qui ne sont pas du corpus anglais du proprietaire
+  const corpus = JSON.parse(readFileSync(CORPUS, 'utf-8')).map((c) => c.texte).slice(0, 64);
   assert.equal(corpus.length, 64);
+  assert.ok(corpus[0].startsWith('An orc warrior covered in blood'), 'le corpus du proprietaire ouvre toujours le fichier');
   const rates = corpus.filter((t) => LT.detecterLangue(t).langue !== 'en');
   assert.deepEqual(rates, [], 'prompts anglais pris pour une autre langue : ' + JSON.stringify(rates));
   for (const t of corpus) assert.equal(LT.langueSource(t, 'fr'), null, 'un prompt anglais ne part pas au traducteur, meme sous une interface fr : ' + t);

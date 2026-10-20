@@ -194,8 +194,11 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     r2PathFromPublicUrl: (_e, u) => u,
     // borne de longueur de lot-moderation-langue (MODERATION-07) : doublures neutres, utilisees seulement si le worker les appelle (apres fusion de ce lot)
     _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000,
+    // filet de langue du lot traduction (fusionne le 20/10, teste a part : traduction-serveur.test.mjs) : ici le texte est anglais, il passe tel quel
+    _filetLangue: async (_e, _u, texte) => { const textes = Array.isArray(texte) ? texte : [texte]; return { texte: textes[0], textes, traduit: false, langues: [] }; },
   };
-  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet'], dbl);
+  // la verification de la chaine EXACTEMENT envoyee a Modal (lot traduction) : la vraie aide, sur la doublure du filtre
+  const w = charger(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', ...['_refusChaineEnvoyee'].filter((n) => existe(n))], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
   const appeler = (corps) => w.handleGenerateImage(new Request('https://x.example/api/generate-image', { method: 'POST', body: JSON.stringify(corps) }), env);
   return { j, appeler };
@@ -305,7 +308,9 @@ test('le filtre examine le texte ET les negations rendues, pour `userPrompt` com
   const { j, appeler } = monter();
   const r = await appeler({ ...BASE, prompt: 'An orc, enriched', userPrompt: 'An orc', numImages: 1, tpose: true, negativeExtra: ['helmet'] });
   assert.equal(r.status, 200, await r.clone().text());
-  assert.deepEqual(j.moderation, ['An orc, no helmet, without helmet', 'An orc, enriched, no helmet, without helmet']);
+  // (integration 20/10 : la route T-pose verifie en plus la chaine EXACTEMENT envoyee a Modal, negations comprises - lot traduction)
+  assert.deepEqual(j.moderation.slice(0, 2), ['An orc, no helmet, without helmet', 'An orc, enriched, no helmet, without helmet']);
+  assert.ok(j.moderation.every((t) => t.endsWith(', no helmet, without helmet')), 'toute chaine examinee porte les negations : ' + JSON.stringify(j.moderation));
   // sans negation : exactement les textes d'avant
   const b = monter();
   await b.appeler({ ...BASE, prompt: 'An orc, enriched', userPrompt: 'An orc', numImages: 1 });

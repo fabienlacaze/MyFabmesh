@@ -51,7 +51,9 @@ function charger(chemin) {
   for (const n of NOMS) if (!vus.has(n) && n !== 'ASSET_TYPE_PREFIXES_ANCIENS') throw new Error(chemin + ' : ' + n + ' introuvable');
   const prelude = vus.has('ASSET_TYPE_PREFIXES_ANCIENS') ? '' : 'const ASSET_TYPE_PREFIXES_ANCIENS = [];\n';
   // eslint-disable-next-line no-new-func
-  return new Function('retirerClauseFinale', prelude + morceaux.join('\n') + '\nreturn stripKnownPromptSuffixes;')(COMPO.retirerClauseFinale);
+  // composeurActif / nettoyerVirgules : la queue de stripKnownPromptSuffixes (negations de l'utilisateur, fusionnees le 20/10)
+  return new Function('retirerClauseFinale', 'composeurActif', 'nettoyerVirgules', prelude + morceaux.join('\n') + '\nreturn stripKnownPromptSuffixes;')(
+    COMPO.retirerClauseFinale, COMPO.actif, COMPO.nettoyerVirgules);
 }
 
 const UTILISATEURS = ['a red dragon', 'medieval townhall', 'an orc warrior', 'wooden barrel', 'sports car', 'a stone golem'];
@@ -220,8 +222,10 @@ for (const [nom, chemin] of Object.entries(FICHIERS)) {
     assert.ok(t && s);
     assert.equal(strip(`${s}, ${s}, an orc warrior, ${t}, ${t}`), 'an orc warrior');
     assert.equal(strip(`${s}, an orc warrior, ${t}, with a red banner, ${t}`), 'an orc warrior, with a red banner');
-    // un gabarit MODIFIE a la main n'est plus reconnu : il reste (rien n'est detruit), Generate recolle le gabarit courant
+    // un gabarit MODIFIE a la main n'est plus reconnu : il reste ENTIER (rien n'est detruit), Generate recolle le gabarit courant.
+    // Depuis les negations de l'utilisateur (fusionnees le 20/10), les segments « no ... » ne sont plus retires non plus : ils sont a l'utilisateur,
+    // et partent au negatif a la generation (interrupteur d'urgence coupe : ancien comportement, teste par composeur-prompt.test.mjs).
     const modifie = t.split(', ').filter((p) => p !== 'centered').join(', ');
-    assert.equal(strip('an orc warrior, ' + modifie), 'an orc warrior, ' + modifie.split(', ').filter((p) => !/^(not|never|no)\b/i.test(p)).join(', '));
+    assert.equal(strip('an orc warrior, ' + modifie), 'an orc warrior, ' + modifie);
   });
 }

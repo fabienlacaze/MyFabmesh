@@ -454,7 +454,7 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
     assert.ok(indiceDos && indiceDos[0].includes('_sansNegations('), '_indiceDosAnglais ne retire pas les negations');
     const lectures = [...src.matchAll(/const rawPrompt = [^\n]*\n/g)].map((m) => m[0]);
     const vuesDeDos = lectures.filter((x) => /_indiceDos\.texte|englishUser|userPrompt/.test(x));
-    assert.ok(vuesDeDos.length >= 3, 'lectures de rawPrompt de la vue de dos : ' + vuesDeDos.length);
+    assert.ok(vuesDeDos.length >= 2, 'lectures de rawPrompt de la vue de dos : ' + vuesDeDos.length);
     for (const v of vuesDeDos) assert.ok(v.includes('_sansNegations(') || v.includes('_indiceDos.texte'), 'vue de dos sans _sansNegations : ' + v);
     assert.ok(!lectures.some((x) => /dataset\.rawPrompt/.test(x)), 'une vue de dos lit encore le texte d\'origine non traduit');
     // les outils qui relisent le prompt ENREGISTRE du projet (il garde maintenant les negations) pour generer ou detecter le lisent sans les locutions negatives

@@ -42,7 +42,8 @@ const NOMS = ['_cacheTraductions', '_etatTraduction', '_langueInterface', '_majE
   'traduireTexteUtilisateur', 'translateUserPrompt', '_traduirePourGeneration', 'MSG_TRADUCTION', '_messageTraduction',
   '_choixTraductionEchouee', '_indiceDosAnglais', '_texteUtilisateurPourGeneration', '_corrigerFauxAmis', 'stripKnownPromptSuffixes',
   'ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', 'PROMPT_LANG_HINT',
-  '_updatePromptLangHint', '_sonderTraducteur'];
+  '_updatePromptLangHint', '_sonderTraducteur',
+  '_sansNegations'];   // negations de l'utilisateur (fusionnees le 20/10) : _indiceDosAnglais retire les locutions negatives apres la traduction
 
 function extraire(chemin) {
   const src = readFileSync(chemin, 'utf-8');
@@ -106,6 +107,8 @@ function monter(cheminFichier, { langue = 'fr', traduire = null, choix = [], sta
     window, document, localStorage, setTimeout, clearTimeout, API: window.meshyAPI,   // l'ancien web appelait API.translatePrompt
     langueSource: LT.langueSource, normaliserCodeLangue: LT.normaliserCodeLangue, ressembleAnglais: LT.ressembleAnglais,
     retirerClauseFinale: COMPO.retirerClauseFinale,
+    composeurActif: COMPO.actif, nettoyerVirgules: COMPO.nettoyerVirgules, positifSansNegations: COMPO.positifSansNegations,
+    negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs,
     _setPromptBusy: () => {}, _clearPromptBusy: () => {}, TRANSLATING_MSG: {},
   };
   for (const n of ['_updatePromptLangHint', 'PROMPT_LANG_HINT', '_sonderTraducteur']) if (!vus.has(n)) doublures[n] = n === 'PROMPT_LANG_HINT' ? {} : (() => {});
@@ -117,7 +120,9 @@ function monter(cheminFichier, { langue = 'fr', traduire = null, choix = [], sta
   return { M: f(...cles.map((k) => doublures[k])), appels, fenetre, aides, vus };
 }
 
-const CORPUS = JSON.parse(readFileSync(join(RACINE, 'build/intention_cas.json'), 'utf-8')).map((c) => c.texte);
+// corpus du proprietaire = les 64 premiers cas du fichier ; la piste des negations (fusionnee le 20/10) en a ajoute 214 apres eux (textes francais,
+// phrases courtes) qui ne sont pas de l'anglais
+const CORPUS = JSON.parse(readFileSync(join(RACINE, 'build/intention_cas.json'), 'utf-8')).map((c) => c.texte).slice(0, 64);
 const traducteurOk = ({ text }) => ({ text: 'EN:' + text, translated: true });
 // prompts ANGLAIS a mots partages avec une autre langue (cloud/tests/langue-corpus-hostile.json : 451 cas, dont les 195 de la revue)
 const HOSTILE = JSON.parse(readFileSync(join(RACINE, 'cloud/tests/langue-corpus-hostile.json'), 'utf-8')).anglais;

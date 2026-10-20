@@ -38,6 +38,18 @@ function methodesImpl() {
   return m;
 }
 const METHODES = methodesImpl();
+// _assainirNegatifs (negations de l'utilisateur, fusionne le 20/10) : declaration de premier niveau du pont, extraite telle quelle
+// (sinon la doublure par defaut rend `undefined` et generateImages leve avant de poster)
+const _noeudAssainir = (function chercher(n) {
+  if (!n || typeof n.type !== 'string') return null;
+  if (n.type === 'FunctionDeclaration' && n.id && n.id.name === '_assainirNegatifs') return n;
+  for (const k of Object.keys(n)) {
+    const v = n[k];
+    for (const e of (Array.isArray(v) ? v : [v])) { const r = e && typeof e.type === 'string' ? chercher(e) : null; if (r) return r; }
+  }
+  return null;
+})(ast);
+const ASSAINIR = _noeudAssainir ? new Function('return (' + src.slice(_noeudAssainir.start, _noeudAssainir.end) + ')')() : null;
 
 /** Evalue une methode du pont avec des doublures ; un nom inconnu vaut une fonction vide (les globales du langage restent les vraies). */
 function methode(nom, doublures) {
@@ -80,6 +92,7 @@ async function corpsPostes(nom, args) {
   const f = methode(nom, {
     window: fenetre,
     document: { getElementById: (id) => ({ value: id === 'ws-asset-type' ? 'character' : 'realistic', checked: true }) },
+    ...(ASSAINIR ? { _assainirNegatifs: ASSAINIR } : {}),
     postJSON: async (url, corps) => { postes.push({ url, corps }); return { success: false, error: 'banc' }; },
     fetch: async (url, init) => { postes.push({ url, corps: JSON.parse(init.body) }); return { ok: false, status: 500, json: async () => ({ error: 'banc' }) }; },
     _projetAuLancement: (x) => x || 'P',
