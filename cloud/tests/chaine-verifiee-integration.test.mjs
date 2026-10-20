@@ -74,7 +74,7 @@ const CLIENTS = { site: chargerClient('cloud/public/app/index2.js'), bureau: cha
 const reponse = (o, init) => new Response(JSON.stringify(o), { status: (init && init.status) || 200, headers: { 'content-type': 'application/json' } });
 const err = (status, message) => reponse({ error: message }, { status });
 const json = (o, init) => reponse(o, init);
-const corpsRequete = (corps) => new Request('https://x.example/api/generate-image', { method: 'POST', body: JSON.stringify(corps) });
+const corpsRequete = (corps, url = '/api/generate-image') => new Request('https://x.example' + url, { method: 'POST', body: JSON.stringify(corps) });
 
 const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_derniereCoupe', '_plafondTraduction', 'TRADUCTION_MAX_CARACTERES',
   'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
@@ -91,7 +91,7 @@ function monter({ traduire = (t) => 'EN:' + t, credits = 100 } = {}) {
     getParentalState: async () => ({}),
     checkPromptSafety: (t, u) => { j.vus.push(String(t ?? '')); return FILTRE.checkPromptSafety(t, u); },
     _alerterContenuGrave: async () => {}, _isPaidAccount: async () => true,
-    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1 }[k]),
+    getPrice: async (_e, k) => ({ text2image: 6, tpose: 1, back_view: 3 }[k]),
     isTrustedAssetHost: () => true,
     checkAndIncrementModalSpend: async () => 100, checkAndIncrementDailySpend: async () => 100, _spendRefusalMessage: async () => 'refus',
     checkAndIncrementUserCalls: async () => 10, refundModalSpend: async () => {}, refundDailySpend: async () => {},
@@ -99,12 +99,13 @@ function monter({ traduire = (t) => 'EN:' + t, credits = 100 } = {}) {
     callModalTpose: async (_e, _u, i) => { j.modal.push({ route: 'tpose', prompt: i.prompt, negatifs: i.negativeExtra || [] }); return 'https://r2.example/front/t.png'; },
     callModalText2Image: async (_e, _u, i) => { j.modal.push({ route: 'text2image', prompt: i.prompt, negatifs: i.negative_extra || [] }); return 'https://r2.example/front/i.png'; },
     callMyfabmeshCog: async (_e, _u, i) => { j.modal.push({ route: 'cog', prompt: i.prompt, negatifs: [] }); return 'https://r2.example/front/c.png'; },
+    callModalBackView: async (_e, _u, i) => { j.modal.push({ route: 'backview', prompt: i.promptHint, negatifs: [] }); return 'https://r2.example/back/b.png'; },
     logOperation: async () => {}, insertUserAsset: async () => {}, r2PathFromPublicUrl: (_e, u) => u,
   };
   // lot de moderation de la langue (pas encore assemble a ce stade) : doublures neutres si le worker les appelle
   for (const n of ['neutraliserSyntaxePrompt']) if (existe(n)) doublures[n] = (t) => t;
   if (existe('_refusLongueur')) doublures._refusLongueur = () => null;
-  const noms = ['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet', '_checkPromptSafetyAlerte', 'categorieContenuGrave', ...AUXILIAIRES, ...NEGATIONS]
+  const noms = ['handleGenerateImage', 'handleGenerateBackView', '_prixImageSelonPas', '_prixImageComplet', '_checkPromptSafetyAlerte', 'categorieContenuGrave', ...AUXILIAIRES, ...NEGATIONS]
     .filter((n) => existe(n) && !(n in doublures));
   const w = chargerFonctions(noms, doublures);
   const env = { AI: ai, MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MESHES: creerR2() };
@@ -114,7 +115,13 @@ function monter({ traduire = (t) => 'EN:' + t, credits = 100 } = {}) {
     try { c = await r.json(); } catch { /* corps non JSON */ }
     return { status: r.status, corps: c };
   };
-  return { j, gen, w };
+  const dos = async (corps) => {
+    const r = await w.handleGenerateBackView(corpsRequete(corps, '/api/generate-back-view'), env);
+    let c = null;
+    try { c = await r.json(); } catch { /* corps non JSON */ }
+    return { status: r.status, corps: c };
+  };
+  return { j, gen, dos, w };
 }
 
 /** Le texte que le filtre doit avoir examine pour une chaine envoyee : le texte, plus ses termes de negatif rendus « no X, without X ». */
@@ -230,5 +237,24 @@ for (const plateforme of ['site', 'bureau']) {
     }
     assert.ok(acceptes >= 8, 'requetes acceptees : ' + acceptes);
     assert.ok(bloques >= 2, 'requetes bloquees (enfant + arme, avec ou sans locution) : ' + bloques);
+  });
+}
+
+// ── la vue de dos n'a pas de canal negatif : le client envoie le texte SANS les locutions negatives (_sansNegations) ; ce que Modal recoit est ce que le filtre a examine ──
+for (const plateforme of ['site', 'bureau']) {
+  test(`${plateforme} -> worker, VUE DE DOS : l'indice (sans les locutions negatives) part a Modal tel que le filtre l'a examine ; aucune locution negative n'y reste`, async () => {
+    const C = CLIENTS[plateforme];
+    let acceptes = 0;
+    for (const [texte] of TEXTES) {
+      const indice = C._sansNegations(C._epurerDemande(texte));
+      const { j, dos } = monter();
+      const r = await dos({ prompt: indice, promptHint: indice, frontImageUrl: 'https://r2.example/f.png', numImages: 1 });
+      if (r.status !== 200) { assert.deepEqual(j.modal, [], texte); continue; }
+      acceptes++;
+      assert.equal(j.modal.length, 1, texte);
+      assert.ok(j.vus.includes(j.modal[0].prompt), texte + ' : l\'indice envoye n\'a pas ete examine tel quel : ' + j.modal[0].prompt);
+      if (C._negativeExtraDe(texte).length) assert.ok(!/\b(?:no|without|not) /i.test(j.modal[0].prompt.replace(/\b(?:no|without|not) (?:one|longer|more)\b/ig, '')), texte + ' : une locution negative est restee dans l\'indice : ' + j.modal[0].prompt);
+    }
+    assert.ok(acceptes >= 5, 'indices acceptes : ' + acceptes);
   });
 }
