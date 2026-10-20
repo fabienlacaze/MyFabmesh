@@ -411,6 +411,39 @@ _LUCIDA_DANS_L_IMAGE = (
     "| sha256sum -c -",
 )
 
+# CuMesh RECONSTRUIT AVEC LE BVH MIT DE CUBVH + CORRECTIF DE FILL_HOLES (2026-10-14/15, verifie a la source :
+# docs/cumesh_licence_et_fill_holes_2026-10-15.md, modal_app/construction_cumesh.py, AGENT_LOG du 15/10).
+#   1) Licence : le CuMesh clone plus haut (sans commit fige) compile le sous-module cubvh de JeffreyXiang
+#      (ce92267), dont le BVH vient d'instant-ngp sous NVIDIA Source Code License (« research or evaluation
+#      purposes only ») ; ashawkey/cubvh l'a reecrit sous MIT (c7379c0, 26/08/2026). On recompile CuMesh
+#      (12289e1, base de la PR #41) avec ashawkey/cubvh epingle a de1badf, sans changer son API Python.
+#   2) fill_holes (PR #41 de CuMesh, non fusionnee) : la valeur initiale de la somme des sommets de bouchage
+#      est construite cote hote avec un constructeur __device__ seulement -> restes de pile, sommets faux des
+#      le 2e appel d'un processus. Correctif de la PR (constructeurs __host__ __device__) applique au texte
+#      EXACT attendu, sinon la construction s'arrete.
+# Gardes BRUYANTES : sources (commit epingle, descendant de c7379c0, ni LICENSE_NVIDIA ni code d'instant-ngp),
+# puis paquet INSTALLE (binaire sans BVH d'instant-ngp, origine = ce dossier, BVH construit sur le CPU). Couche
+# AJOUTEE EN DERNIER dans mesh_image : seule cette compilation (quelques minutes) est refaite ; o-voxel,
+# FlexGEMM, flash-attn et les ~25 Go de poids restent en cache. Teste sur CPU :
+# build/bancs/noyaux/test_cumesh_mit.py. Mesure sur GPU (rien n'a ete lance) : modal_app/test_cumesh_bvh.py (BVH MIT
+# juste sur CUDA 12.4 / L40S) et modal_app/test_cumesh_fill_holes.py (le defaut de la PR #41 touche-t-il la production ?).
+# Si une autre couche est ajoutee en fin de chaine (ex. correctif de hachage d'o_voxel, quelques secondes) : la mettre
+# APRES celle-ci, pour qu'une retouche ne recompile pas CuMesh.
+_CUMESH_MIT = (
+    "rm -rf /tmp/cumesh_mit "
+    "&& git clone --quiet https://github.com/JeffreyXiang/CuMesh.git /tmp/cumesh_mit "
+    "&& git -C /tmp/cumesh_mit checkout --quiet 12289e1062f0603f2f0d0771b02e1395d247f26f "
+    "&& rm -rf /tmp/cumesh_mit/third_party/cubvh "
+    "&& git clone --quiet https://github.com/ashawkey/cubvh.git /tmp/cumesh_mit/third_party/cubvh "
+    "&& git -C /tmp/cumesh_mit/third_party/cubvh checkout --quiet de1badf89b54975d407c42a02a47d41fa149e486 "
+    "&& git -C /tmp/cumesh_mit/third_party/cubvh submodule update --init --recursive --quiet",
+    "python /opt/construction_cumesh.py sources /tmp/cumesh_mit",
+    "pip install --force-reinstall --no-deps --no-build-isolation /tmp/cumesh_mit",
+    "python /opt/construction_cumesh.py installation --source /tmp/cumesh_mit",
+    # plus aucune source de CuMesh dans l'image (l'ancienne copie /tmp/cumesh contient LICENSE_NVIDIA)
+    "rm -rf /tmp/cumesh /tmp/cumesh_mit",
+)
+
 # Base image — CUDA + Python + the heavy pip deps shared by every
 # pipeline (torch, diffusers, fastapi). Both `image` (text2image +
 # back-view) and `mesh_image` (TRELLIS-2) extend from here.
@@ -858,6 +891,8 @@ mesh_image = (
         # upstream JeffreyXiang/CuMesh repo (same as TRELLIS-2 setup.sh)
         # and pip install --no-deps to preserve torch 2.4. CuMesh has
         # NO triton dependency — safe to keep.
+        # 2026-10-14 : ce CuMesh (cubvh d'instant-ngp, non commercial) est REMPLACE en fin d'image par
+        # _CUMESH_MIT ; commande laissee telle quelle pour ne pas reconstruire cette couche et les suivantes.
         "git clone --recursive https://github.com/JeffreyXiang/CuMesh.git /tmp/cumesh "
         "&& pip install /tmp/cumesh --no-build-isolation --no-deps",
         # flex-gemm — sparse GEMM kernels used by trellis2/representations/
@@ -994,6 +1029,10 @@ mesh_image = (
         "d('xinsir/controlnet-tile-sdxl-1.0', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors']); "
         "d('madebyollin/sdxl-vae-fp16-fix', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors'])\"",
     )
+    # CuMesh recompile avec le BVH MIT + correctif de fill_holes (voir _CUMESH_MIT). EN DERNIER : remplace le
+    # CuMesh installe plus haut sans reconstruire les couches lourdes ni retelecharger les poids.
+    .add_local_file("modal_app/construction_cumesh.py", "/opt/construction_cumesh.py", copy=True)
+    .run_commands(*_CUMESH_MIT)
     # Table de hachage d'o_voxel juste pour les grilles > 1625 (voir _CORRECTIF_HACHAGE_OVOXEL) : correctif
     # puis garde. EN DERNIER pour ne reconstruire que cette couche (quelques secondes), pas CuMesh ni les poids.
     .run_commands(*_CORRECTIF_HACHAGE_OVOXEL)

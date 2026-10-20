@@ -28,6 +28,17 @@ o_voxel/__init__.py imports eagerly. Since this wheel ships in the sold
 package, it is rewritten right after download by
 build/patch_ovoxel_wheel.py (kaolin shim, Apache-2.0). That step is part
 of provisioning, NOT an optional extra -- see the module docstring there.
+
+LICENSING (cumesh), measured 2026-10-15: the cumesh-1.0 wheel pinned below
+(sha256 d1ed72df...) carries cumesh/_cubvh.cp311-win_amd64.pyd compiled with
+the BVH of instant-ngp (NVIDIA Source Code License = research or evaluation
+only). ashawkey/cubvh rewrote that BVH under MIT on 2026-08-26 (c7379c0).
+The replacement wheel is built by build/reconstruire_roue_cumesh.py; until
+the pin below points at it, main() prints a WARNING (it does not fail: the
+old wheel is the state of the art that is currently shipped). To make the
+packaging refuse the old wheel, run
+`python build/reconstruire_roue_cumesh.py --verifier` from
+prebuild:licence-check (see docs/cumesh_licence_et_fill_holes_2026-10-15.md).
 """
 import hashlib
 import os
@@ -64,6 +75,27 @@ def sha256_of(path):
         for chunk in iter(lambda: f.read(1 << 20), b''):
             h.update(chunk)
     return h.hexdigest()
+
+
+def avertir_cumesh(dossier=OUT_DIR, out=print):
+    """WARN (never fail) when a cumesh wheel in `dossier` still embeds the non-commercial BVH.
+    Returns the number of refused wheels."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'modal_app'))
+    try:
+        import construction_cumesh as cc
+    except ImportError as e:
+        out(f'[cumesh] licence guard unavailable ({e})')
+        return 0
+    refus = 0
+    for roue in sorted(pathlib.Path(dossier).glob('cumesh-*.whl')):
+        try:
+            cc.verifier_roue(str(roue))
+        except cc.RefusConstruction as e:
+            refus += 1
+            out(f'[cumesh] WARNING -- {e}\n'
+                '         This wheel must not be redistributed commercially. Rebuild it with\n'
+                '         build/reconstruire_roue_cumesh.py (docs/cumesh_licence_et_fill_holes_2026-10-15.md).')
+    return refus
 
 
 def main():
@@ -109,6 +141,7 @@ def main():
         print('\nFAILED: could not remove nvdiffrast from the o_voxel wheel.')
         sys.exit(1)
 
+    avertir_cumesh()
     print(f'\nAll {len(WHEELS)} wheels ready in {OUT_DIR}')
 
 
