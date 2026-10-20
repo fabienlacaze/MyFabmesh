@@ -91,7 +91,7 @@
  *  - RACINES de la production retablies : « stabb* » (« stabbings »), « seminu* » (« seminudismo ») ; « seminuovo » et « seminuevo »
  *    (semi-neuf) a part (`IDIOMES_RACINES`).
  *
- * 2026-10-18 — CINQUIEME RELECTURE DU LOT (bloquants B1 a B5 ; meme critere : AUCUN recul par rapport a f86208c0, pour tous les
+ * 2026-10-18 / 20 — CINQUIEME RELECTURE DU LOT (bloquants B1 a B5 ; meme critere : AUCUN recul par rapport a f86208c0, pour tous les
  * comptes, `unrestricted` compris) :
  *  - B1 : la lecture « production » (`_nettoyerLecture`) mettait un ESPACE a la place des caracteres que la production laissait en
  *    place ; or pour la production tout caractere hors de [a-z0-9] et hors des blancs etait de la PONCTUATION, que `_joindrePonctue`
@@ -106,7 +106,15 @@
  *    non translittere (`souple`) ; le plancher, lui, ne lisait que les vues translitterees et ne change pas.
  *  - B4 : « torse nus » et « torses nu » (accords que IDIOMES_EXACTS retirait de la vue exacte) rejoignent NU_MOYEN.
  *  - B5 : un mot d'idiome retire laisse un JALON (« -- », un mot de deux signes) et non plus rien : « a snaked c h i l d naked »
- *    ne colle plus l'article « a » aux lettres epelees (`_simple`).
+ *    ne colle plus l'article « a » aux lettres epelees (`_simple`). Meme regle pour le mot retire d'une EXPRESSION SURE (« viol » de
+ *    « play a viol », « bath » de « bath toys ») : un MARQUEUR (`_MARQUEUR_RETRAIT`) prend sa place avant la simplification.
+ *  - Reciproquement, les expressions que la PRODUCTION retirait ENTIERES (`IDIOMES_PRODUCTION` : « bath toys », « baby shower »...)
+ *    rapprochaient les mots voisins (« age bath toys 1 » = « age 1 ») : quand le texte en contient une, les vues sont AUSSI lues comme
+ *    elle (`_simple(..., phrases = true)`), en plus des vues du lot (trouve par les mutations aleatoires des cas du banc).
+ *  - La lecture « production » est une fonction a part (`_lectureProduction`) qui suit la normalisation de f86208c0 dans le meme ordre ;
+ *    les caracteres que la production laissait en place y restent en place jusqu'aux minuscules (contexte du « Sigma » final).
+ *  - Refus a tort : « 积极性交流 » (communication active), « 安全性交易 » (securite des transactions)... : le lexique lit « 性交 » en infixe
+ *    sans segmentation ; ces SEULS mots entiers sont retires de la vue Unicode (`IDIOMES_UNICODE`) ; « 儿童性交易 » reste refuse.
  *
  * Le contrat de retour ne change pas : { safe, blocked?, reason? }. Deux
  * champs OPTIONNELS s'y ajoutent (IA-04) pour que l'appelant puisse compter
@@ -560,7 +568,13 @@ function _gardeExpression(garde: string, avant: string): boolean {
   return false;
 }
 
-const _RE_EXPRESSIONS_SURES: { cle: string; garde: string; balises: string[]; re: RegExp }[] = EXPRESSIONS_SURES.map((e) => {
+/** Marqueur laisse, avant simplification, a la place d'un mot d'expression sure retire (cinquieme relecture, B5 etendu) : `_simple` en
+ *  fait un jalon. Un caractere de controle : `_nettoyer` les a deja tous remplaces dans le texte de l'utilisateur, il ne peut donc venir
+ *  que d'ici. Sans lui, « play a viol y o u n g » rapprochait l'article « a » des lettres epelees (« ayoung ») alors que la production,
+ *  qui gardait « viol », les separait. */
+const _MARQUEUR_RETRAIT = '\u0001';
+
+const _RE_EXPRESSIONS_SURES: { cle: string; garde: string; balises: string[]; ordre: boolean[]; re: RegExp }[] = EXPRESSIONS_SURES.map((e) => {
   const g = _RE_GARDE_EXPRESSION.exec(e);
   const corps = g ? e.slice(g[0].length) : e;
   const balises = g ? g[1].slice(1, -1).split('><') : [];
@@ -568,6 +582,7 @@ const _RE_EXPRESSIONS_SURES: { cle: string; garde: string; balises: string[]; re
     cle: _cleExpression(corps),
     garde: balises.find((b) => b === 'coq' || b === 'chantier') ?? '',
     balises,
+    ordre: corps.split(' ').map((m) => m.startsWith('!')),
     re: new RegExp('(^|[^a-z0-9])'
       + corps.split(' ').map((m) => (m.startsWith('!') ? '(?:' + m.slice(1) + ')' : '(' + m + ')')).join(_SEPARATEUR_EXPRESSION)
       + '(?![a-z0-9])', 'g'),
@@ -602,13 +617,15 @@ const _RE_BEBE_ANIMAL = new RegExp('(^|[^a-z0-9])(?:baby|bebe)' + _SEPARATEUR_EX
  *  « personne ») est laissee telle quelle. */
 function _sansExpressionsSures(s: string, desactivees: string[] = []): string {
   let r = s.includes('baby') || s.includes('bebe') ? s.replace(_RE_BEBE_ANIMAL, '$1young ') : s;
-  for (const { cle, garde, balises, re } of _RE_EXPRESSIONS_SURES) {
+  for (const { cle, garde, balises, ordre, re } of _RE_EXPRESSIONS_SURES) {
     if (!r.includes(cle) || balises.some((b) => desactivees.includes(b))) continue;
-    // a = [expression, separateur avant, mots gardes..., position, texte] ; une expression gardee est laissee telle quelle
+    // a = [expression, separateur avant, mots gardes..., position, texte] ; une expression gardee est laissee telle quelle ;
+    // un marqueur occupe la place de chaque mot retire (les voisins ne se rapprochent pas)
     r = r.replace(re, (...a: unknown[]) => {
       const sep = String(a[1]);
       if (garde && _gardeExpression(garde, String(a[a.length - 1]).slice(0, (a[a.length - 2] as number) + sep.length))) return String(a[0]);
-      return sep + a.slice(2, a.length - 2).join(' ') + ' ';
+      let k = 2;
+      return sep + ordre.map((retire) => (retire ? ' ' + _MARQUEUR_RETRAIT + ' ' : String(a[k++]))).join(' ') + ' ';
     });
   }
   return r;
@@ -631,7 +648,9 @@ const _JALON_IDIOME = '--';
  *  retirait entieres (`IDIOMES_PRODUCTION`) le sont aussi, sans rien laisser : les mots voisins se rapprochent comme chez elle. */
 function _simple(s: string, jalon = true, phrases = false): string {
   const j = ' ' + _JALON_IDIOME + ' ';
-  let r = (' ' + s.replace(/[^a-z0-9]+/g, ' ').trim() + ' ').replace(_IDIOMES, jalon ? j : ' ')
+  // un marqueur de retrait d'expression sure (`_MARQUEUR_RETRAIT`) devient un jalon, comme un mot d'idiome retire
+  const corps = s.split(_MARQUEUR_RETRAIT).map((p) => p.replace(/[^a-z0-9]+/g, ' ')).join(jalon ? j : ' ');
+  let r = (' ' + corps.trim() + ' ').replace(_IDIOMES, jalon ? j : ' ')
     .replace(_IDIOMES_RACINES, (_m: string, fin: string) => (jalon ? j + (fin ? fin + j : '') : ' ' + fin));
   if (phrases) r = r.replace(_IDIOMES_PRODUCTION, ' ');
   return r.replace(/\s+/g, ' ').trim();
@@ -710,7 +729,9 @@ function _vueExacte(net: string, desactivees: string[] = [], translit = true): s
   // production, ou il n'etait ni lettre ni chiffre : « nu<U+0436> », « nue<U+4E2D> », « nua<U+05D0> » restent le mot « nu » (cinquieme
   // relecture, B3 ; avant, une lettre restante devenait « x » et « enfant nu<U+0436> » passait) et ce separateur est de la PONCTUATION
   // (« . »), qui relie les lettres epelees (« n.u<U+0436>e »). Les lettres a marque distinctive sont deja « x » plus haut.
-  s = _sansExpressionsSures((translit ? _translit(s) : s).replace(/[^\x00-\x7f]/gu, '.'), desactivees);
+  // Un BLANC non ASCII (U+2028, U+2029, U+1680 : `\s` pour JavaScript) reste un espace, comme dans la production : il coupe les series de
+  // lettres epelees (« n u<U+2013>e<U+2028>s » = « nues », trouve par le fuzz differentiel du 20/10).
+  s = _sansExpressionsSures((translit ? _translit(s) : s).replace(/[^\x00-\x7f]/gu, (c) => (/\s/.test(c) ? ' ' : '.')), desactivees);
   // Assemblee comme les autres vues du plancher (quatrieme relecture du 14/10, R3) : lettres separees par de la ponctuation ou des
   // espaces recollees (« n.u.e », « n-u-e », « n_u_s »), lettres repetees ecrasees (« nuuue »), leet (« nu3 ») ; la production
   // lisait ces formes (« nu », « nue » etaient des termes de ses vues ordinaires).
@@ -818,7 +839,10 @@ function _vuesPlancher(net: string, desactivees: string[] = []): VuesPlancher {
   // comme elle (mots voisins rapproches : « age bath toys 1 » = « age 1 », « k baby shower idporn » = « kidporn ») ; texte sans les
   // exceptions du lot (hors idiomes), qu'elle n'avait pas.
   const separeesPhrases: string[] = [];
-  if (_RE_INDICE_PHRASES.test(t0) && _RE_IDIOMES_PRODUCTION.test(_simple(t0))) {
+  // (le declencheur est teste sur CHAQUE variante — telle quelle, leet i, leet l — apres jonction par la ponctuation : la production retirait l'expression de chacune de
+  //  ses vues, « k bath t0ys id... », « age b.a.t.h t.o.y.s 12 » ; cinquieme relecture, controle d'inclusion des vues)
+  const variantes0 = [t0, _leet(t0, 'i'), _leet(t0, 'l')];
+  if (variantes0.some((x) => { const j = _simple(_joindrePonctue(x)); return _RE_INDICE_PHRASES.test(j) && _RE_IDIOMES_PRODUCTION.test(j); })) {
     const vp = (x: string) => _simple(_joindrePonctue(x), true, true);
     const existantes = [chiffres, leetI, leetL, ...avecChiffres];
     for (const x of [t0, _leet(t0, 'i'), _leet(t0, 'l')]) {
@@ -1001,7 +1025,12 @@ function _lire(prompt: unknown): Lecture {
 // Expressions chinoises / japonaises ou « 裸 » (nu) ne designe personne : pieds nus, oeil nu, couleur chair, seigle, plantes
 // gymnospermes, fil denude, ampoule nue, « sans le sou ». Retirees du texte (vue Unicode) avant la recherche du lexique.
 const IDIOMES_UNICODE: string[] = ['裸足', '裸眼', '裸色', '裸辞', '裸婚', '裸麦', '裸子植物', '裸线', '裸機', '裸机', '裸電球', '裸一貫',
-  '脱衣所', '脱衣場', '脱衣室', '脱衣间', '脱衣間'];
+  '脱衣所', '脱衣場', '脱衣室', '脱衣间', '脱衣間',
+  // 2026-10-20 (cinquieme relecture, refus a tort) : mots dont le « 性 » finit le mot precedent et dont « 交 » commence le suivant
+  // (積極性 / 积极性 + 交流 : « 儿童的积极性交流 » = la communication active des enfants). Le lexique lit « 性交 » en infixe, sans
+  // segmentation : ces SEULS mots entiers sont retires de la vue Unicode ; « 儿童性交易 » (commerce sexuel) reste refuse.
+  '积极性交流', '積極性交流', '主动性交流', '主動性交流', '创造性交流', '創造性交流', '安全性交易', '安全性交流', '稳定性交易', '穩定性交易',
+  '可靠性交易'];
 const _RE_IDIOMES_UNICODE = new RegExp(IDIOMES_UNICODE.join('|'), 'g');
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1851,8 +1880,8 @@ export function checkPromptSafety(
   const bruts = lecture.nets.map((n) => _simple(_sansExpressionsSures(_sansMarques(n), desactivees)));
   // texte lu aussi comme la production quand il contient une expression qu'elle retirait ENTIERE (`IDIOMES_PRODUCTION`)
   for (const n of lecture.nets) {
-    if (!_RE_INDICE_PHRASES.test(n)) continue;
     const sp = _sansMarques(n);
+    if (!_RE_INDICE_PHRASES.test(sp)) continue;   // (sans les marques : « sh<U+0301>ower » cachait le mot au declencheur)
     if (_RE_IDIOMES_PRODUCTION.test(_simple(sp))) { const v = _simple(sp, true, true); if (!bruts.includes(v)) bruts.push(v); }
   }
   const souples = [...bruts, ..._separees(bruts).filter((x) => !bruts.includes(x))];

@@ -653,7 +653,10 @@ IDIOMES_UNICODE = (
     "\u88f8\u8db3", "\u88f8\u773c", "\u88f8\u8272", "\u88f8\u8f9e", "\u88f8\u5a5a", "\u88f8\u9ea6",
     "\u88f8\u5b50\u690d\u7269", "\u88f8\u7ebf", "\u88f8\u6a5f", "\u88f8\u673a", "\u88f8\u96fb\u7403",
     "\u88f8\u4e00\u8cab", "\u8131\u8863\u6240", "\u8131\u8863\u5834", "\u8131\u8863\u5ba4", "\u8131\u8863\u95f4",
-    "\u8131\u8863\u9593",
+    "\u8131\u8863\u9593", "\u79ef\u6781\u6027\u4ea4\u6d41", "\u7a4d\u6975\u6027\u4ea4\u6d41",
+    "\u4e3b\u52a8\u6027\u4ea4\u6d41", "\u4e3b\u52d5\u6027\u4ea4\u6d41", "\u521b\u9020\u6027\u4ea4\u6d41",
+    "\u5275\u9020\u6027\u4ea4\u6d41", "\u5b89\u5168\u6027\u4ea4\u6613", "\u5b89\u5168\u6027\u4ea4\u6d41",
+    "\u7a33\u5b9a\u6027\u4ea4\u6613", "\u7a69\u5b9a\u6027\u4ea4\u6613", "\u53ef\u9760\u6027\u4ea4\u6613",
 )
 
 VETEMENTS_ANIMAL = (
@@ -1199,7 +1202,8 @@ def _compiler_expression_sure(e):
     balises = tuple(g.group(1)[1:-1].split("><")) if g else ()
     garde = next((b for b in balises if b in ("coq", "chantier")), "")
     regex = _SEPARATEUR_EXPRESSION.join(("(?:" + m[1:] + ")") if m.startswith("!") else ("(" + m + ")") for m in corps.split(" "))
-    return _cle_expression(corps), garde, balises, re.compile("(^|[^a-z0-9])" + regex + "(?![a-z0-9])")
+    ordre = tuple(m.startswith("!") for m in corps.split(" "))
+    return _cle_expression(corps), garde, balises, re.compile("(^|[^a-z0-9])" + regex + "(?![a-z0-9])"), ordre
 
 
 _RE_EXPRESSIONS_SURES = [_compiler_expression_sure(e) for e in EXPRESSIONS_SURES]
@@ -1211,15 +1215,24 @@ _RE_IDIOMES_EXACTS = re.compile(r"(?:^| )(?:" + "|".join(IDIOMES_EXACTS) + r")(?
 _RE_IDIOMES_UNICODE = re.compile("|".join(IDIOMES_UNICODE))
 
 
-def _garder_mots(m):
-    return m.group(1) + " ".join(m.groups()[1:]) + " "
+# Marqueur laisse, avant simplification, a la place d'un mot d'expression sure retire (cinquieme relecture, B5 etendu) : `_simple` en
+# fait un jalon. Un caractere de controle : `_nettoyer` les a deja tous remplaces dans le texte de l'utilisateur, il ne peut donc venir
+# que d'ici. Sans lui, « play a viol y o u n g » rapprochait l'article « a » des lettres epelees (« ayoung ») alors que la production,
+# qui gardait « viol », les separait.
+_MARQUEUR_RETRAIT = "\x01"
 
 
-def _garder_mots_garde(m, garde):
+def _garder_mots(m, ordre):
+    """Mots gardes de l'expression ; un marqueur occupe la place de chaque mot retire (les voisins ne se rapprochent pas)."""
+    gardes = iter(m.groups()[1:])
+    return m.group(1) + " ".join((" " + _MARQUEUR_RETRAIT + " ") if retire else next(gardes) for retire in ordre) + " "
+
+
+def _garder_mots_garde(m, garde, ordre):
     """Comme `_garder_mots`, mais une expression gardee (`_garde_expression`) est laissee telle quelle."""
     if _garde_expression(garde, m.string[:m.start() + len(m.group(1))]):
         return m.group(0)
-    return _garder_mots(m)
+    return _garder_mots(m, ordre)
 
 
 def _sans_expressions_sures(s, desactivees=()):
@@ -1227,9 +1240,9 @@ def _sans_expressions_sures(s, desactivees=()):
     simplification : la ponctuation y separe encore les mots. Une expression qui porte une balise de `desactivees` (« mineur »,
     « personne ») est laissee telle quelle."""
     r = _RE_BEBE_ANIMAL.sub(r"\1young ", s) if ("baby" in s or "bebe" in s) else s
-    for cle, garde, balises, expression in _RE_EXPRESSIONS_SURES:
+    for cle, garde, balises, expression, ordre in _RE_EXPRESSIONS_SURES:
         if cle in r and not any(b in desactivees for b in balises):
-            r = expression.sub(_garder_mots if not garde else (lambda m, g=garde: _garder_mots_garde(m, g)), r)
+            r = expression.sub((lambda m, o=ordre: _garder_mots(m, o)) if not garde else (lambda m, g=garde, o=ordre: _garder_mots_garde(m, g, o)), r)
     return r
 
 
@@ -1246,7 +1259,9 @@ def _simple(s, jalon=True, phrases=False):
     jalons), un jalon a leur place sauf pour les termes des listes (`jalon=False`). Avec `phrases`, les expressions que la production
     retirait entieres (`IDIOMES_PRODUCTION`) le sont aussi, sans rien laisser : les mots voisins se rapprochent comme chez elle."""
     j = " " + _JALON_IDIOME + " "
-    s = " " + _RE_NON_ALNUM.sub(" ", s).strip(" ") + " "
+    # un marqueur de retrait d'expression sure (`_MARQUEUR_RETRAIT`) devient un jalon, comme un mot d'idiome retire
+    s = (j if jalon else " ").join(_RE_NON_ALNUM.sub(" ", p) for p in s.split(_MARQUEUR_RETRAIT))
+    s = " " + s.strip(" ") + " "
     s = _IDIOMES.sub(j if jalon else " ", s)
     s = _IDIOMES_RACINES.sub((lambda m: j + (m.group(1) + j if m.group(1) else "")) if jalon else (lambda m: " " + m.group(1)), s)
     if phrases:
@@ -1325,8 +1340,9 @@ def _leet(translit, un_vers):
 def _hors_ascii_en_point(s):
     """Tout caractere hors ASCII qui reste (lettre d'une autre ecriture, symbole, ponctuation) est un SEPARATEUR, comme dans la
     production, ou il n'etait ni lettre ni chiffre : « nu<U+0436> » reste le mot « nu » (cinquieme relecture, B3) ; c'est de la
-    PONCTUATION (« . »), qui relie les lettres epelees."""
-    return "".join(c if ord(c) < 0x80 else "." for c in s)
+    PONCTUATION (« . »), qui relie les lettres epelees, SAUF un blanc non ASCII (U+2028, U+2029, U+1680 : `\\s` pour JavaScript), qui reste un
+    espace comme dans la production et coupe les series de lettres epelees (« n u<U+2013>e<U+2028>s » = « nues », fuzz du 20/10)."""
+    return "".join(c if ord(c) < 0x80 else (" " if _RE_WS.fullmatch(c) else ".") for c in s)
 
 
 def _vue_exacte(net, desactivees=(), translit=True):
@@ -1432,7 +1448,10 @@ def _vues_plancher(net, desactivees=()):
     # Quand le texte contient une expression que la PRODUCTION retirait ENTIERE (`IDIOMES_PRODUCTION`), toutes les vues sont AUSSI lues
     # comme elle (mots voisins rapproches) ; texte sans les exceptions du lot (hors idiomes), qu'elle n'avait pas.
     separees_phrases = []
-    if _RE_INDICE_PHRASES.search(t0) and _IDIOMES_PRODUCTION.search(_simple(t0)):
+    # (le declencheur est teste sur CHAQUE variante — telle quelle, leet i, leet l — apres jonction par la ponctuation : la production retirait l'expression de chacune de ses
+    #  vues, « k bath t0ys id... », « age b.a.t.h t.o.y.s 12 » ; cinquieme relecture, controle d'inclusion des vues)
+    variantes0 = (t0, _leet(t0, "i"), _leet(t0, "l"))
+    if any(_RE_INDICE_PHRASES.search(j) and _IDIOMES_PRODUCTION.search(j) for j in (_simple(_joindre_ponctue(x)) for x in variantes0)):
         def vp(x):
             return _simple(_joindre_ponctue(x), True, True)
 
@@ -1843,7 +1862,7 @@ def _vues_desactivees(nets, vs, desactivees):
         return vs
     textes = [_translit(_sans_marques(n)) for n in nets]
     touche = any(any(b in desactivees for b in balises) and any(cle in t for t in textes)
-                 for cle, _g, balises, _e in _RE_EXPRESSIONS_SURES)
+                 for cle, _g, balises, _e, _o in _RE_EXPRESSIONS_SURES)
     return [_vues_plancher(n, desactivees) for n in nets] if touche else vs
 
 
@@ -1959,8 +1978,8 @@ def check_prompt_safety(prompt, unrestricted=False):
     bruts = [_simple(_sans_expressions_sures(_sans_marques(n), desactivees)) for n in nets]
     # texte lu aussi comme la production quand il contient une expression qu'elle retirait ENTIERE (`IDIOMES_PRODUCTION`)
     for n in nets:
-        if _RE_INDICE_PHRASES.search(n):
-            sp = _sans_marques(n)
+        sp = _sans_marques(n)
+        if _RE_INDICE_PHRASES.search(sp):   # (sans les marques : « sh<U+0301>ower » cachait le mot au declencheur)
             if _IDIOMES_PRODUCTION.search(_simple(sp)):
                 v = _simple(sp, True, True)
                 if v not in bruts:
