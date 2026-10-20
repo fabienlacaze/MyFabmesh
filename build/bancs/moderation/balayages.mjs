@@ -27,7 +27,9 @@ export const EXOTIQUES = [
   0x667, 0x6f7, 0x7c0, 0xff10, 0x2460, 0xb2, 0xb9,
   0xd7, 0xf7, 0x2022, 0x2013, 0x2026, 0x30fb, 0x3002, 0xff0c, 0xff1a, 0xff3f, 0xfe4d, 0x1f600, 0x1f476,
   0xe000, 0x378, 0x1e030, 0x11f00, 0xe0001, 0xe0020, 0xe0100,
-  0x430, 0x435, 0x3b1, 0x585, 0x127, 0x1d00, 0x436, 0x5d0, 0x627, 0x4e2d, 0x3042].map(car);
+  0x430, 0x435, 0x3b1, 0x585, 0x127, 0x1d00, 0x436, 0x5d0, 0x627, 0x4e2d, 0x3042,
+  // blancs et points qui ne sont PAS ramenes en espace ou en ASCII par NFKC (U+2028, U+2029, U+1680) ou qui le sont (le fuzz du 20/10 a trouve un recul avec U+2028)
+  0x2029, 0x1680, 0x202f, 0x205f, 0x2007, 0x200a, 0x180b, 0x1d173, 0x2011, 0x2212, 0x2024, 0xfe52, 0xff0e, 0x2027, 0xb7].map(car);
 /** Une partie seulement, pour les balayages rapides (une par categorie). */
 export const EXOTIQUES_COURT = [0x61c, 0x200b, 0x2061, 0xfe0f, 0x115f, 0x17b5, 0x2800, 0x1, 0x7f, 0xa0, 0x336, 0x489, 0x20dd, 0x1dc0, 0x93f,
   0x1f1e6, 0x2122, 0x667, 0xff10, 0x2022, 0x1f600, 0xe000, 0x378, 0x430, 0x436, 0x127].map(car);
@@ -235,6 +237,45 @@ export const TACHES = {
     }
     return acc;
   },
+
+  /** Termes NON LATINS du plancher de la production (PLANCHER_UNICODE : substring sur le texte NFKC, invisibles retires) : invisibles et
+   *  caracteres exotiques au milieu, equivalents de compatibilite NFKC, blancs differents entre les deux mots, voisins ASCII ou non. */
+  unicode(ctx, i, n, p) {
+    const acc = nouvelAcc();
+    const termes = ctx.V.PROD.PLANCHER_UNICODE || [];
+    const INVIS = [0xad, 0x200b, 0x200c, 0x200d, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2060, 0xfeff].map(car);
+    const compat = new Map();
+    for (let cp = 0xa0; cp <= 0x2fa1d; cp++) {
+      if (cp > 0xffff && cp < 0x2f800) continue;
+      const c = String.fromCodePoint(cp);
+      let f; try { f = c.normalize('NFKC'); } catch { continue; }
+      if (f !== c && Array.from(f).length === 1) { if (!compat.has(f)) compat.set(f, []); compat.get(f).push(c); }
+    }
+    const exo = p.complet ? EXOTIQUES : EXOTIQUES_COURT;
+    const BLANCS = ['  ', '   ', '\t', '\n', '\r\n', '\u00a0', '\u3000', '\u2003', ' \u200b', '\u200b ', ' \u00ad ', '\u2028', '\u0085', '\u1680', '\u202f', '\u205f'];
+    const ENTOURS = ['', 'a ', ' a', 'ab', 'a1', '1a', '.', ',', '\u3001', '\u0436', '\u4e2d', 'xx ', ' xx', '(', ')'];
+    const essayer = (t) => { for (const e of ENTOURS) { juger(ctx, e + t, 'P', acc); if (e) juger(ctx, t + e, 'P', acc); } };
+    let k = 0;
+    for (const terme of termes) {
+      if (k++ % n !== i) continue;
+      const c = Array.from(terme);
+      essayer(terme); essayer(terme.toUpperCase());
+      for (let pos = 0; pos <= c.length; pos++) {
+        for (const x of [...INVIS, ...exo]) essayer(c.slice(0, pos).join('') + x + c.slice(pos).join(''));
+        for (const x of INVIS.slice(0, 4)) for (let q = pos; q <= c.length; q++) essayer(c.slice(0, pos).join('') + x + c.slice(pos, q).join('') + x + c.slice(q).join(''));
+      }
+      for (let pos = 0; pos < c.length; pos++) {
+        for (const v of compat.get(c[pos]) || []) essayer(c.slice(0, pos).join('') + v + c.slice(pos + 1).join(''));
+      }
+      for (const b of BLANCS) if (terme.includes(' ')) { essayer(terme.replace(' ', b)); essayer(terme.replace(' ', b).toUpperCase()); }
+      if (terme.includes(' ')) {
+        for (const x of exo) { essayer(terme.replace(' ', x)); essayer(terme.replace(' ', ' ' + x + ' ')); }
+        essayer(terme.replace(' ', ''));
+      }
+    }
+    return acc;
+  },
+
 
   /** B4 : chaque forme grammaticale des exceptions (idiomes de la vue exacte, expressions sures), avec un mineur ou un age. */
   exceptions(ctx, i, n) {

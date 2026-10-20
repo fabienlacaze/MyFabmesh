@@ -19,6 +19,24 @@ export function normaliser(t, leet = false) {
   return s.replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+/** Le texte non translittere (lettres d'autres ecritures = separateurs) : la lecture « souple » de la production, ou « attack pose<U+0435>babies » se lit
+ *  « attack pose babies ». */
+export function normaliserSouple(t) {
+  return t.normalize('NFKC').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Comme `normaliser(t, true)`, mais le leet ne touche pas un nombre qui suit un prefixe d'age (« edad5 $3m r0up@ » -> « edad5 sem roupa ») :
+ *  la production lisait l'age sur une vue SANS leet et la nudite sur une vue AVEC leet (les verdicts de ses vues se combinent). */
+export function normaliserMixte(t) {
+  let s = t.normalize('NFKC').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  s = s.replace(/[^\x00-\x7f]/gu, (c) => HOMO[c] ?? ' ');
+  const sauve = [];
+  s = s.replace(/(\b(?:aged?|ages|edad|alter|eta|idade)(?: de| von| di| of)? ?)([0-9]+)/g, (_m, pre, n) => { sauve.push(n); return pre + '\u0001' + String.fromCharCode(96 + sauve.length) + '\u0002'; });
+  s = s.replace(/[@4]/g, 'a').replace(/3/g, 'e').replace(/[1!]/g, 'i').replace(/0/g, 'o').replace(/[$5]/g, 's').replace(/7/g, 't');
+  s = s.replace(/\u0001([a-z])\u0002/g, (_m, c) => sauve[c.charCodeAt(0) - 97]);
+  return s.replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 /** Comme `normaliser`, mais les lettres EPELEES sont recollees comme le fait le filtre (« s*e*m*i*n*u*e*v » -> « seminuev », « c h i l d »
  *  -> « child ») : le passage d'une famille de politique y est reconnaissable meme s'il est ecrit lettre par lettre. */
 export function normaliserJoint(t, leet = false) {
@@ -64,7 +82,8 @@ export const FAMILLES = [
   ['« baby <animal> » (bebe dragon = jeune dragon)', new RegExp('(?:^| )(?:baby|bebe) (?:' + ANIMAUX_BEBE + ')'), 'politique (3)'],
   ['« nu » de corps ou d\'objet (pieds nus, tete nue, oeil nu, murs nus...)', /(?:^| )(?:pieds? nu|nus? pieds?|mains? nue|tetes? nue|oeil nu|bras nu|jambes? nue|arbres? nu|branches? nue|murs? nu|sols? nu|lames? nue|epees? nue|fils? nu|cables? nu|ciels? nu|pieces? nue|paredes? nua|stanz[ae] nud|mur[io] nud|paret[ei] nud)/, 'politique (3)'],
   ['« torse nu » (tenue, comme shirtless : refuse avec un mineur, pas avec un indice ni pour un adulte)', /(?:^| )tors[e]+s? nus?(?: |$)/, 'politique (3)'],
-  ['« nu » + lettre a marque distinctive (nữ, nụ, nữa, nửa, ñu : vue exacte)', /(?:^| )n ?(?:x|u)(?:e|s|es|a|as)? ?(?:x| |$)/, 'MODERATION-05'],
+  // (famille LARGE : elle ne vaut que si le texte d'origine PORTE une de ces marques, voir `explique` ; sinon « enfant nu » serait lui-meme une « politique »)
+  ['« nu » + lettre a marque distinctive (nữ, nụ, nữa, nửa, ñu : vue exacte)', /(?:^| )n ?(?:x|u)(?:e|s|es|a|as)? ?(?:x| |$)/, 'MODERATION-05', 'marque'],
   ['vocabulaire de jeu, outil ou objet (gore tex, hit points, toy gun, paint stripper, rapeseed, chinks of light...)', /(?:chinks? of light|gore tex|counter terror|anti terror|suicide door|opium popp|bedroom (?:furniture|set|decor|lamp|wallpaper|interior|design)|hit points?|hit box|critical hits?|scream mask|toy (?:gun|sword|knife|weapon|bow)|water gun|nerf gun|squirt gun|cap gun|bunk bed|hospital bed|knife and fork|attack (?:pose|animation|stance|move)|moby dick|dick whittington|pussy (?:cat|willow)|bottle nipple|cum laude|paint stripper|varnish stripper|wire stripper|anal fin|wild ass|senos? paranasal|spanking new|sperm whale|rapeseed|oilseed rape|rape (?:field|flower|plant|crop|seed|oil|blossom)|fields? of rape|yellow rape)/, 'politique (3)'],
   ['ferme et chantier (« a cock and two hens », « the erection of the tower »)', /(?:cock (?:and|or|with|among|beside|near) |(?:hens?|chickens?|chicks?|pullets?|poultry|ducks?|geese|turkeys?) (?:and|or|with) (?:a |an |the |one |two |its |their )?cocks?|crowing cock|crowed cock|cock crow|weather cock|cock a doodle|erection (?:of|crew|site|works|team|crane|phase|plan|stage|drawing))/, 'politique (2)'],
   ['pelada, viol, foursome, semen, cria, pupils', /(?:pelada|peladas|viol da|play(?:s|ing|ed)? (?:a|the|his|her) viol|bass viol|golf foursome|foursome of|semen (?:gudang|bangunan|putih)|pabrik semen|cria (?:um|uma)|pupils? (?:of|dilat)|(?:blank|dilated|slit|vertical|glowing|red|golden|gold|green|blue|empty|cat|catlike|feline|reptilian|snake|goat|pinpoint|eye|eyes) pupil)/, 'politique (3)'],
@@ -106,14 +125,16 @@ export function explique(texte, jug) {
       return 'caractere attribue apres Unicode 14 que NFKC change en lettre (efface comme par le tokenizer CLIP de Modal)';
     }
   }
-  const candidats = [...new Set([normaliser(texte), normaliser(texte, true), normaliserJoint(texte), normaliserJoint(texte, true)])];
+  const candidats = [...new Set([normaliser(texte), normaliser(texte, true), normaliserMixte(texte), normaliserSouple(texte), normaliserJoint(texte), normaliserJoint(texte, true)])];
   try { for (const v of [...jug.vuesProd(texte), ...jug.vues(texte)]) if (!candidats.includes(v)) candidats.push(v); } catch { /* pas de vues */ }
+  const porteMarque = /[\u0303\u0309\u031b\u0323]/u.test(texte.normalize('NFD'));
   for (const m of candidats) {
     const vp = jug.prod(m);
     if (vp === '.' || RANG[jug.apres(m)] >= RANG[vp]) continue;
     let neutre = m;
     const noms = [];
-    for (const [nom, re] of FAMILLES) {
+    for (const [nom, re, , exige] of FAMILLES) {
+      if (exige === 'marque' && !porteMarque) continue;
       if (new RegExp(re.source, 'g').test(neutre)) { noms.push(nom); neutre = neutre.replace(new RegExp(re.source, 'g'), ' zz '); }
     }
     if (noms.length && RANG[jug.prod(neutre)] < RANG[vp]) return noms.join(' + ');

@@ -7,7 +7,9 @@
 // ou au filtre general « G ») et la version APRES refuse MOINS. Chaque recul est reduit a son texte minimal (balayages.mjs : rapporter)
 // puis classe : famille de politique documentee, ou INEXPLIQUE (echec du banc).
 //
-// Modes : plancher | general | mixte | epeles | ages | courts | idiomes | tout (defaut : un melange de tous).
+// Modes : plancher | general | mixte | epeles | ages | courts | idiomes | expressions | tout (defaut : un melange de tous).
+// Suffixe « +pur » (ex. epeles+pur, plancher+pur) : AUCUN declencheur d'exception n'est glisse (ni idiome, ni expression sure, ni grand nombre,
+// ni duree, ni tournure de ferme, ni « baby <animal> »), seulement des mots neutres : tout recul y est un VRAI recul, pas une politique documentee.
 // Lu par banc_non_recul.mjs (option --fuzz N [--mode m] [--graine s]) ; execute par fil_bancs.mjs.
 import { verdict, recul, car, prng, vocabulaire } from './lib_bancs.mjs';
 import { EXCEPTIONS_TERMES } from './familles_politique.mjs';
@@ -50,7 +52,7 @@ const CIRC = (c) => (c >= 'a' && c <= 'z' ? String.fromCodePoint(c.charCodeAt(0)
 const NON_ASCII_LETTRES = cps(0x436, 0x5d0, 0x627, 0x4e2d, 0x3042, 0x3a9, 0xf0, 0xfe, 0x14b, 0x259, 0xdf, 0xf8, 0x142, 0xf1, 0x169, 0x1b0, 0x1ee5, 0x1eef, 0xe9, 0xfc);
 
 /** Generateur de textes ; `mode` choisit la famille de noyaux. */
-function creerGenerateur(ctx, graine, mode) {
+export function creerGenerateur(ctx, graine, mode) {
   const rnd = prng(graine);
   const pick = (l) => l[Math.floor(rnd() * l.length)];
   const P = ctx.V.PROD, A = ctx.V.APRES;
@@ -59,6 +61,7 @@ function creerGenerateur(ctx, graine, mode) {
 
   // ── Lexiques tires de la PRODUCTION, sans les termes dont l'exception est documentee au niveau du terme ──
   const exceptions = (w) => EXCEPTIONS_TERMES.some(([re]) => re.test(w.split(' ').pop()));
+  const retires = [];   // termes retires de l'echantillon parce que la version courante les accepte (recul DE TERME, hors exceptions documentees) : journalises
   const assainir = (liste, gabarits) => liste.filter((w) => {
     if (exceptions(w)) return false;
     for (const [niv, g] of gabarits) {
@@ -66,7 +69,7 @@ function creerGenerateur(ctx, graine, mode) {
       const vp = niv === 'P' ? P.checkHardFloor(t).safe : P.checkPromptSafety(t, false).safe;
       if (vp) continue;
       const va = niv === 'P' ? A.checkHardFloor(t).safe : A.checkPromptSafety(t, false).safe;
-      if (va) return false;
+      if (va) { retires.push(`${niv}:${w}`); return false; }
     }
     return true;
   });
@@ -80,6 +83,7 @@ function creerGenerateur(ctx, graine, mode) {
   const G_SEX = assainir(etendre(P.GENERAL_SEXUEL_DUR, mots, 2, rnd), [['G', (w) => `a woman ${w}`], ['G', (w) => `a ${w} scene`]]);
   const G_AUTRES = assainir([...P.GENERAL_VIOLENCE_DUR, ...P.GENERAL_DROGUE_DUR, ...P.GENERAL_EXTREMISME_DUR, ...P.GENERAL_AUTOBLESSURE_DUR,
     ...P.GENERAL_HAINE_DUR, ...P.GENERAL_ARMES_DUR].map(sansEtoile), [['G', (w) => `a scene ${w} here`], ['G', (w) => w]]);
+  if (retires.length && graine % 1000 === 0) console.error(`[fuzz] ${retires.length} terme(s) RETIRE(S) de l'echantillon (la version courante les accepte dans le gabarit ; a comparer aux exceptions documentees) : ${[...new Set(retires)].slice(0, 60).join(' | ')}`);
   const G_CTX_S = etendre(P.GENERAL_CTX_SEXUEL, mots, 1, rnd), G_CTX_SF = etendre(P.CONTEXTE_SEXUEL_FAIBLE, mots, 1, rnd);
   const G_CTX_V = etendre(P.GENERAL_CTX_VIOLENCE, mots, 1, rnd), MIN_V = etendre(P.MINEURS_VIOLENCE, mots, 1, rnd);
   const V_ENF_G = P.VIOLENCE_ENFANT_GENERAL, PERS = P.PERSONNES, NU_EXT = etendre(P.NUDITE_EXTREME, mots, 1, rnd), NU_FG = P.NU_FAIBLE_GENERAL;
@@ -175,6 +179,7 @@ function creerGenerateur(ctx, graine, mode) {
     if (m === 'ages') return [agePhrase(), rnd() < 0.7 ? pick(NU_F) : pick(NU_M)];
     if (m === 'courts') return [pick(MIN_F.concat(MIN_A)), pick(['nu', 'nue', 'nus', 'nues', 'nua', 'nuas'])];
     if (m === 'idiomes') return [pick(MIN_F), pick(NU_F)];
+    if (m === 'expressions') return k < 0.4 ? [agePhrase(), pick(NU_F)] : k < 0.8 ? [pick(MIN_F), pick(NU_F)] : [pick(PL_MOTS)];
     if (m === 'plancher' || m === 'mixte') {
       if (k < 0.34) return [pick(MIN_F), pick(NU_F)];
       if (k < 0.48) return [pick(MIN_F), pick(NU_M)];
@@ -200,14 +205,38 @@ function creerGenerateur(ctx, graine, mode) {
     return [pick(MIN_F), pick(G_SEX)];
   }
 
-  function fabriquer(m) {
+  function fabriquer(mode0) {
+    const pur = mode0.endsWith('+pur');
+    const m = pur ? mode0.slice(0, -4) : mode0;
+    if (m === 'ages-epeles') {
+      // un age (nombre + unite, ou prefixe + nombre) epele lettre par lettre, separateurs INDEPENDANTS, a cote d'une tenue explicite
+      const pool = [' ', ' ', '.', '-', '_', '*', '/', ',', '|', ':', '\u2013', '\u2028', '\u2029', '\u1680', '\u00a0', '\u3000', '\t', '\n', ...SPECIAUX];
+      const epele = (mot) => Array.from(mot).map((c, i, l) => c + (i < l.length - 1 ? (rnd() < 0.5 ? ' ' : pick(pool)) : '')).join('');
+      const nombre = rnd() < 0.7 ? pick(NB_DIG) : pick(NB_LET);
+      const age = rnd() < 0.6 ? epele(nombre) + (rnd() < 0.5 ? ' ' : pick(pool)) + epele(pick(UNI)) : epele(pick(PRE)) + (rnd() < 0.5 ? ' ' : pick(pool)) + epele(nombre);
+      const tenue = pick(NU_F);
+      const avant = rnd() < 0.15 ? pick(FILL) + sep() : '';
+      return avant + (rnd() < 0.5 ? age + sep() + tenue : tenue + sep() + age);
+    }
+    if (m === 'courts-epeles') {
+      // un mot court epele lettre par lettre, separateurs INDEPENDANTS (blancs, ponctuation, blancs non ASCII, caracteres exotiques)
+      const w = pick(['nu', 'nue', 'nus', 'nues', 'nua', 'nuas']);
+      const pool = [' ', ' ', '.', '-', '_', '*', '/', ',', '|', ':', '\u2013', '\u2028', '\u2029', '\u1680', '\u00a0', '\u3000', '\t', '\n', ...SPECIAUX];
+      const gaps = Array.from({ length: w.length - 1 }, () => (rnd() < 0.45 ? ' ' : pick(pool)));
+      const mot = Array.from(w).map((c, i) => c + (i < gaps.length ? gaps[i] : '')).join('');
+      const ctx = rnd() < 0.5 ? agePhrase() : pick(MIN_F.concat(MIN_A));
+      const avant = rnd() < 0.15 ? pick(FILL) + sep() : '';
+      return avant + (rnd() < 0.5 ? ctx + sep() + mot : mot + sep() + ctx);
+    }
     const coeur = noyau(m);
     const segs = coeur.slice();
-    const nf = m === 'idiomes' ? 1 + Math.floor(rnd() * 3) : Math.floor(rnd() * 4);
+    const nf = m === 'idiomes' || m === 'expressions' ? 1 + Math.floor(rnd() * 3) : Math.floor(rnd() * 4);
     for (let i = 0; i < nf; i++) {
       const r = rnd();
       let f;
-      if (m === 'idiomes') f = r < 0.6 ? pick(IDIO) : r < 0.8 ? pick(['a', 'an', 'the', '9', '1 2', 'xx']) : pick(FILL);
+      if (pur) f = pick(FILL);
+      else if (m === 'idiomes') f = r < 0.6 ? pick(IDIO) : r < 0.8 ? pick(['a', 'an', 'the', '9', '1 2', 'xx']) : pick(FILL);
+      else if (m === 'expressions') f = r < 0.6 ? pick(EXPR) : r < 0.85 ? pick(['a', 'an', 'the', '9', '1 2', 'xx', 'y', 'o', '1']) : pick(FILL);
       else if (r < 0.28) f = pick(EXPR);
       else if (r < 0.40) f = pick(IDIO);
       else if (r < 0.52) f = pick(GRANDS);
@@ -221,14 +250,14 @@ function creerGenerateur(ctx, graine, mode) {
       segs.splice(Math.floor(rnd() * (segs.length + 1)), 0, f);
     }
     // deguisements
-    const nt = m === 'idiomes' || m === 'epeles' ? 1 + Math.floor(rnd() * 2) : (rnd() < 0.5 ? 0 : 1 + Math.floor(rnd() * 2));
+    const nt = m === 'idiomes' || m === 'expressions' || m === 'epeles' ? 1 + Math.floor(rnd() * 2) : (rnd() < 0.5 ? 0 : 1 + Math.floor(rnd() * 2));
     for (let i = 0; i < nt; i++) {
       const j = Math.floor(rnd() * segs.length);
-      if (m === 'idiomes') segs[j] = segs[j].split('').join(' ');                                   // lettres isolees au contact des idiomes
+      if (m === 'idiomes' || m === 'expressions') segs[j] = segs[j].split('').join(' ');                                   // lettres isolees au contact des idiomes
       else if (rnd() < 0.2) segs[j] = segs[j].split(' ').map(transformerMot).join(' ');
       else segs[j] = transformerMot(segs[j]);
     }
-    if (rnd() < 0.05 && segs.length) segs[0] = 'baby ' + pick(ANIMAUX) + ' ' + segs[0];
+    if (!pur && rnd() < 0.05 && segs.length) segs[0] = 'baby ' + pick(ANIMAUX) + ' ' + segs[0];
     let texte = segs[0];
     for (let i = 1; i < segs.length; i++) texte += sep() + segs[i];
     if (rnd() < 0.3) texte = pick(['a ', 'an ', 'the ', 'portrait of ', 'photo, ', 'my ']) + texte;
@@ -238,15 +267,15 @@ function creerGenerateur(ctx, graine, mode) {
   return fabriquer;
 }
 
-const MODES = ['plancher', 'general', 'mixte', 'epeles', 'ages', 'courts', 'idiomes'];
+const MODES = ['plancher', 'general', 'mixte', 'epeles', 'ages', 'courts', 'courts-epeles', 'ages-epeles', 'idiomes', 'expressions'];
 /** Mode d'un texte quand `mode` est « tout » : repartition fixe. */
-const melange = (rnd) => { const r = rnd(); return r < 0.25 ? 'plancher' : r < 0.40 ? 'general' : r < 0.55 ? 'epeles' : r < 0.70 ? 'ages' : r < 0.80 ? 'courts' : r < 0.90 ? 'idiomes' : 'mixte'; };
+const melange = (rnd) => { const r = rnd(); return r < 0.25 ? 'plancher' : r < 0.40 ? 'general' : r < 0.55 ? 'epeles' : r < 0.70 ? 'ages' : r < 0.80 ? 'courts' : r < 0.88 ? 'idiomes' : r < 0.95 ? 'expressions' : 'mixte'; };
 
 export const TACHES_FUZZ = {
   fuzz(ctx, i, n, p) {
     const total = Math.floor(p.total / n);
     const mode = p.mode || 'tout';
-    if (mode !== 'tout' && !MODES.includes(mode)) throw new Error('mode de fuzz inconnu : ' + mode);
+    if (mode !== 'tout' && !MODES.includes(mode.replace(/\+pur$/, ''))) throw new Error('mode de fuzz inconnu : ' + mode);
     const fabriquer = creerGenerateur(ctx, p.graine * 1000 + i, mode === 'tout' ? 'mixte' : mode);
     const choix = prng(p.graine * 7919 + i);
     const acc = { n: 0, refusesProd: 0, reculs: [] };

@@ -15,16 +15,17 @@ const ts = requireCloud('typescript');
 
 export const arg = (nom, defaut) => { const i = process.argv.indexOf(nom); return i > 0 ? process.argv[i + 1] : defaut; };
 export const PROD = arg('--prod', 'f86208c0');
-export const AVANT = arg('--avant', 'd5c0c6a3');
+export const AVANT = arg('--avant', '5a302cea');
 
 /** Listes de la PRODUCTION que les bancs lisent (le module de production ne les exporte pas : on les exporte a l'evaluation). */
 export const LISTES_PROD = ['MINEURS_FORT', 'MINEURS_AMBIGUS', 'MINEURS_VIOLENCE', 'NU_FORT', 'NU_MOYEN', 'NU_FAIBLE_PLANCHER', 'NU_FAIBLE_GENERAL',
   'VIOLENCE_ENFANT_PLANCHER', 'PLANCHER_MOTS', 'PLANCHER_COLLES', 'PLANCHER_UNICODE', 'SERIE_MINEURS', 'SERIE_NUDITE', 'GENERAL_SEXUEL_DUR',
   'GENERAL_CTX_SEXUEL', 'CONTEXTE_SEXUEL_FAIBLE', 'GENERAL_CTX_VIOLENCE', 'GENERAL_VIOLENCE_DUR', 'GENERAL_DROGUE_DUR', 'GENERAL_EXTREMISME_DUR',
-  'GENERAL_AUTOBLESSURE_DUR', 'GENERAL_HAINE_DUR', 'GENERAL_ARMES_DUR', 'PERSONNES', 'NUDITE_EXTREME', 'VIOLENCE_ENFANT_GENERAL', '_vuesPlancher'];
+  'GENERAL_AUTOBLESSURE_DUR', 'GENERAL_HAINE_DUR', 'GENERAL_ARMES_DUR', 'PERSONNES', 'NUDITE_EXTREME', 'VIOLENCE_ENFANT_GENERAL', '_vuesPlancher', '_base', '_simple'];
 /** Listes de la version APRES lues par les bancs (idiomes et expressions sures, pour les balayages de leurs variantes). */
 export const LISTES_APRES = ['EXPRESSIONS_SURES', 'IDIOMES', 'IDIOMES_RACINES', 'IDIOMES_EXACTS', 'NU_EXACTS', 'NU_MOYEN', 'PLANCHER_MOTS',
-  'PLANCHER_COLLES', 'DUREES_NON_AGE', 'GRANDS_NOMBRES', 'NOMBRES_AMBIGUS', 'ANIMAUX_BEBE', 'CONTEXTE_DESACTIVATION', '_lire'];
+  'PLANCHER_COLLES', 'DUREES_NON_AGE', 'GRANDS_NOMBRES', 'NOMBRES_AMBIGUS', 'ANIMAUX_BEBE', 'CONTEXTE_DESACTIVATION', '_lire', '_simple',
+  '_sansExpressionsSures', '_sansMarques', '_separees', 'IDIOMES_PRODUCTION', '_RE_INDICE_PHRASES', '_RE_IDIOMES_PRODUCTION'];
 
 export function charger(src, noms = []) {
   const extra = noms.length ? '\nexport { ' + noms.join(', ') + ', _NOMBRES_LETTRES as __NOMBRES_LETTRES };\n' : '';

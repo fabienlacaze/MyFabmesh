@@ -1,5 +1,5 @@
 // BANC DE NON-RECUL du filtre de texte (lot « Securite des mineurs et robustesse du filtre de texte », troisieme et quatrieme
-// relectures du 14/10/2026, controle exhaustif du 15/10). Compare la PRODUCTION (f86208c0), la version AVANT (d5c0c6a3 ; option --avant)
+// relectures du 14/10/2026, controle exhaustif du 15/10). Compare la PRODUCTION (f86208c0), la version AVANT (5a302cea = la branche avant la cinquieme relecture ; option --avant)
 // et la version APRES (copie de travail) sur TOUS les contournements des relectures du lot (cas_non_recul.mjs), et verifie que les trois copies de la version
 // APRES rendent le meme verdict (worker TypeScript, miroir du bureau dans src/main/main.js, module Python de Modal).
 // Option --balayage : chaque point de code (grands blocs homogenes echantillonnes : non assignes, usage prive, ideogrammes) mis a
@@ -13,8 +13,16 @@
 // CHAQUE forme d'age qu'elle lit (nombre 0-17 en chiffres ou en lettres des six langues x unite, prefixe x nombre, suites, tenues).
 // Les seules differences admises sont les EXCEPTIONS DOCUMENTEES ci-dessous (faux positifs de la production corriges par le lot).
 //
-// Usage : node build/bancs/moderation/banc_non_recul.mjs [--balayage] [--exhaustif] [--fils N] [--prod <rev>] [--avant <rev>]
-//         [--sans-python] [--detail]
+// Cinquieme relecture (18-20/10) : le banc lit aussi les BALAYAGES DETERMINISTES (balayages.mjs : --epeles, --ages, --adjacents, --idiomes,
+// --exceptions, --unicode ; --balayages = tous ; --complet = version complete, longue), le FUZZ DIFFERENTIEL (--fuzz N [--mode m] [--graine s],
+// modes de fuzz.mjs), les MUTATIONS des cas du banc (--mutations N) et le CORPUS LEGITIME (--legitimes : refus a tort). Chaque recul y est reduit a son
+// texte minimal puis classe : famille de politique documentee (familles_politique.mjs) ou INEXPLIQUE (echec du banc). --exhaustif lance aussi les
+// balayages (version courte). Pour des balayages longs sur le poste du proprietaire : tranches.mjs (reprise, budget de temps).
+// Controle STRUCTUREL (plus fin que le verdict) : vues_sur.mjs (fuzz) et vues_points.mjs (chaque point de code, paires de caracteres exotiques) verifient que chaque
+// vue de la production se retrouve parmi celles de la version courante (inclusion.mjs) ; tranches.mjs reprend les balayages et le fuzz par tranches.
+//
+// Usage : node build/bancs/moderation/banc_non_recul.mjs [--balayage] [--exhaustif] [--balayages] [--epeles|--ages|--adjacents|--idiomes|--exceptions|--unicode]
+//         [--complet] [--fuzz N [--mode m] [--graine s]] [--mutations N] [--legitimes] [--fils N] [--prod <rev>] [--avant <rev>] [--sans-python] [--detail]
 // Code de sortie : 1 si un recul, un attendu non tenu ou un ecart de parite. Aucun reseau ; git et python (3.11) sur le poste.
 import { readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -28,7 +36,7 @@ const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const ts = createRequire(join(RACINE, 'cloud', 'package.json'))('typescript');
 const arg = (nom, defaut) => { const i = process.argv.indexOf(nom); return i > 0 ? process.argv[i + 1] : defaut; };
 const PROD = arg('--prod', 'f86208c0');
-const AVANT = arg('--avant', 'd5c0c6a3');
+const AVANT = arg('--avant', '5a302cea');
 
 function charger(src) {
   const js = ts.transpileModule(src, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
@@ -306,10 +314,49 @@ async function principal() {
   let reculsExhaustifs = 0;
   if (process.argv.includes('--exhaustif')) reculsExhaustifs = controleExhaustif(V.APRES);
 
+  // ── Balayages deterministes, fuzz differentiel, mutations, corpus legitime (cinquieme relecture) ──
+  let inexpliques = 0;
+  const NOMS_BALAYAGES = ['epeles', 'ages', 'adjacents', 'idiomes', 'exceptions', 'unicode'];
+  const tous = process.argv.includes('--balayages') || process.argv.includes('--exhaustif');
+  const choisis = NOMS_BALAYAGES.filter((n) => tous || process.argv.includes('--' + n));
+  const nFuzz = Number(arg('--fuzz', 0)), nMutations = Number(arg('--mutations', 0));
+  if (choisis.length || nFuzz || nMutations) {
+    const { lancer, rapporter } = await import(pathToFileURL(join(RACINE, 'build', 'bancs', 'moderation', 'balayages.mjs')).href);
+    const { versions: versionsAvecListes } = await import(pathToFileURL(join(RACINE, 'build', 'bancs', 'moderation', 'lib_bancs.mjs')).href);
+    const VL = versionsAvecListes({ prod: PROD, listes: true, sansAvant: true });
+    const filsB = Number(arg('--fils', 4));
+    const complet = process.argv.includes('--complet');
+    const executer = async (nom, params) => {
+      const t0 = Date.now();
+      const res = await lancer(nom, params, filsB);
+      const n = rapporter(nom + (params.complet ? ' (complet)' : ''), res, VL, { maxAffiches: 60, montrerPolitique: process.argv.includes('--detail') });
+      console.log(`    (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+      inexpliques += n;
+    };
+    console.log('');
+    for (const nom of choisis) await executer(nom, { complet });
+    if (nFuzz) await executer('fuzz', { total: nFuzz, mode: arg('--mode', 'tout'), graine: Number(arg('--graine', 1)) });
+    if (nMutations) await executer('mutations', { total: nMutations, mode: 'tout', graine: Number(arg('--graine', 1)) });
+  }
+  if (process.argv.includes('--legitimes')) {
+    const lignes = readFileSync(join(RACINE, 'build', 'bancs', 'moderation', 'corpus_legitime.txt'), 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+    const nouveauxProd = [], introduits = [];
+    for (const t of lignes) {
+      const vp = v3(V.PROD, t), va = v3(V.AVANT, t), vn = v3(V.APRES, t);
+      const refus = (x) => x[0].safe === false || x[1].safe === false;
+      if (!refus(vp) && refus(vn)) nouveauxProd.push(t);
+      if (!refus(va) && refus(vn)) introduits.push(t);
+    }
+    console.log(`\nCorpus legitime : ${lignes.length} textes ; refus a tort NOUVEAUX par rapport a la production : ${nouveauxProd.length} ; introduits par rapport a ${AVANT} : ${introduits.length}`);
+    for (const t of nouveauxProd.slice(0, 40)) console.log('    nouveau refus : ' + montrer(t));
+    for (const t of introduits.slice(0, 40)) console.log('    introduit     : ' + montrer(t));
+    inexpliques += introduits.length;
+  }
+
   if (problemes.length) console.log(`\nPROBLEMES (${problemes.length}) :\n  ` + problemes.slice(0, 400).join('\n  '));
-  const ko = problemes.length > 0 || reculsBalayage > 0 || reculsExhaustifs > 0;
+  const ko = problemes.length > 0 || reculsBalayage > 0 || reculsExhaustifs > 0 || inexpliques > 0;
   console.log(`\n${ko ? 'ECHEC' : 'OK'} : ${problemes.filter((x) => x.startsWith('RECUL')).length} recul(s) sur les cas, ${reculsBalayage} au balayage, `
-    + `${reculsExhaustifs} au controle exhaustif, `
+    + `${reculsExhaustifs} au controle exhaustif, ${inexpliques} recul(s) INEXPLIQUE(S) aux balayages / fuzz / corpus legitime, `
     + `${problemes.filter((x) => x.startsWith('ATTENDU')).length} attendu(s) non tenu(s), ${problemes.filter((x) => x.startsWith('PARITE')).length} ecart(s) de parite.`);
   process.exit(ko ? 1 : 0);
 }
