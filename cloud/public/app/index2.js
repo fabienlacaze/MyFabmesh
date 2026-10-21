@@ -19,6 +19,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { preparer as preparerTrous, analyser as analyserTrous, diagnostiquer as diagnostiquerTrous, agreger as agregerTrous, message_refus as messageRefusTrous, rendu_apercu as renduApercuTrous, indices_avec_rustines as indicesAvecRustines } from './lib/bouchage-trous.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -10313,6 +10314,12 @@ function _meshJobThumb(meshPath) {
   return t ? _toFileUrl(t) : null;
 }
 
+// Refus EXPLIQUE de Fill holes (rien a boucher : maillage ferme, hors plage...) : le texte du serveur ou du bureau, sans « Error: » ni suffixe.
+// Rend le texte a afficher, ou null si ce n'est pas un de ces refus.
+function _refusBouchage(msg) {
+  const s = String(msg == null ? '' : msg).replace(/^Error:\s*/i, '').trim();
+  return /^(Nothing to fill\b|No hole between \d+ and \d+ edges\b|Could not fill the \d+ open hole)/.test(s) ? s : null;
+}
 async function runMeshTool(operation, params = []) {
   const p = state.currentProject;
   // La version AFFICHEE (previewMeshPath), pas la derniere generee ni celle
@@ -10362,18 +10369,10 @@ async function runMeshTool(operation, params = []) {
       if (operation === 'fill_holes' && result.stats) {
         const s = result.stats;
         const d = s.holes_filled_delta_faces || 0;
-        switch (s.verdict) {
-          case 'CLOSED_OK':
-            if (d > 0) toastMsg = `Filled holes: +${d} faces, mesh is watertight.`;
-            else { toastMsg = 'Mesh already watertight — no holes to fill. Dark patches are texture/back-faces; try Fix Normals or Re-Texture.'; toastKind = 'info'; suppressPush = true; }
-            break;
-          case 'OPEN_HOLES':
-            toastMsg = `Filled some holes (+${d} faces); some remain unpatched. Re-run with a higher max or run Fix Normals first.`; break;
-          case 'WINDING_INCONSISTENT':
-            toastMsg = 'Winding inconsistent — run Fix Normals first, then Fill Holes again.'; toastKind = 'warning'; break;
-          case 'NONMANIFOLD_OR_DOUBLE_SKINNED':
-            toastMsg = 'Mesh is non-manifold / double-skinned — Fill Holes can\'t help. Re-mesh from source (Generate 3D).'; toastKind = 'warning'; break;
-        }
+        const h = s.holes_filled || 0;
+        // Plus de verdict « normales inversees / double peau » apres coup : le noyau ne retire rien, et un maillage sans trou est REFUSE (non facture).
+        if (s.verdict === 'OPEN_HOLES') toastMsg = _i18nTf('Filled {x} holes (+{y} faces). Some holes remain: widen the Min / Max range.', h, d);
+        else toastMsg = _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d);
       }
       showToast(toastMsg, toastKind, toastKind === 'success' ? 3000 : 6000);
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
@@ -10388,8 +10387,10 @@ async function runMeshTool(operation, params = []) {
       if (!suppressPush) populateWorkspace(p);
     } else {
       const msg = (result && result.error) || 'unknown';
-      showToast(`${operation} failed: ${msg}`, 'error', 5000);
-      if (job && typeof completeJob === 'function') completeJob(job.id, false, msg);
+      const refus = _refusBouchage(msg);
+      if (refus) showToast(refus, 'warning', 9000);
+      else showToast(`${operation} failed: ${msg}`, 'error', 5000);
+      if (job && typeof completeJob === 'function') completeJob(job.id, false, refus || msg);
     }
   } catch (e) {
     showToast(`${operation} error: ${e.message}`, 'error', 5000);
@@ -10501,315 +10502,56 @@ function _jsLaplacianSmooth(geom, iter, lambda) {
   return result;
 }
 
-// Fill Holes — Unreal-Modeling-Mode-style preview.
-// Highlights every detected hole boundary with a coloured line loop:
-//   grey   → smaller than minHoleSize, left untouched (e.g. micro-cracks
-//             you don't want to weld over).
-//   green  → minHoleSize ≤ size ≤ maxHoleSize → filled with a centroid-
-//             fan triangulation in the preview.
-//   red    → bigger than maxHoleSize, left untouched.
-// Caller drives both ends via the live sliders, so dragging shifts loops
-// between buckets in real time.
-//
-// Returns { geometry, helpers, stats: { loops, filled, tooBig, tooSmall,
-// biggest, smallest } } so the modal can render the status line.
+// Fill Holes — apercu (2026-10-21). C'est le MEME noyau que l'operation elle-meme (lib/bouchage-trous.js = scripts/bouchage_trous.py = Modal) :
+// meme soudure par position, meme tolerance (2 % de l'arete moyenne), meme regle de pourtour, memes rustines. La geometrie rendue est EXACTEMENT
+// l'originale PLUS les faces qui seront ajoutees (rien de retire, deplace ni reecrit) : « Apply on device » l'enregistre telle quelle.
+// Avant : un detecteur a part (tolerance 1e-4, boucles ouvertes comptees comme des trous), une rustine en eventail a l'ENVERS dont le sommet central
+// avait l'UV (0, 0), et des triangles degeneres RETIRES de la geometrie enregistree.
+//   vert  -> sera bouche ; gris -> plus petit que Min ; rouge -> plus grand que Max (ou impossible a remplir).
+// Rien a boucher : on ne rend PAS de geometrie (le bouton « Apply on device » reste desactive) mais les statistiques, pour dire pourquoi.
+function _positionsPlates(attr) {
+  if (!attr.isInterleavedBufferAttribute && !attr.normalized && attr.array instanceof Float32Array && attr.itemSize === 3) return attr.array;
+  const sortie = new Float32Array(attr.count * 3);
+  for (let i = 0; i < attr.count; i++) { sortie[i * 3] = attr.getX(i); sortie[i * 3 + 1] = attr.getY(i); sortie[i * 3 + 2] = attr.getZ(i); }
+  return sortie;
+}
 function _jsFillHoles(geom, minHoleSize, maxHoleSize) {
-  if (!geom.index) {
-    return { geometry: geom.clone(), helpers: [], stats: { loops: 0, filled: 0, tooBig: 0, tooSmall: 0, biggest: 0, smallest: 0 } };
-  }
-  const posAttr = geom.attributes.position;
-  const rawIndices = geom.index.array;
-  const rawTriCount = Math.floor(rawIndices.length / 3);
-  const n = posAttr.count;
-  const arr = posAttr.array;
-
-  // ── Step 1: Bbox + adaptive scales.
-  let bbMinX = Infinity, bbMinY = Infinity, bbMinZ = Infinity;
-  let bbMaxX = -Infinity, bbMaxY = -Infinity, bbMaxZ = -Infinity;
-  for (let i = 0; i < n; i++) {
-    const x = arr[i*3], y = arr[i*3+1], z = arr[i*3+2];
-    if (x < bbMinX) bbMinX = x; if (x > bbMaxX) bbMaxX = x;
-    if (y < bbMinY) bbMinY = y; if (y > bbMaxY) bbMaxY = y;
-    if (z < bbMinZ) bbMinZ = z; if (z > bbMaxZ) bbMaxZ = z;
-  }
-  const bbDiag = Math.hypot(bbMaxX-bbMinX, bbMaxY-bbMinY, bbMaxZ-bbMinZ) || 1;
-
-  // ── Step 2: Strip degenerate triangles (zero-area, duplicate index).
-  // Trellis2 marching cubes emits a lot of these and they show up as
-  // false boundary edges later. Mirror of UE's MeshAutoRepair early
-  // cleanup.
-  const indices = [];
-  const areaEps = bbDiag * 1e-12;
-  for (let t = 0; t < rawTriCount; t++) {
-    const i0 = rawIndices[t*3], i1 = rawIndices[t*3+1], i2 = rawIndices[t*3+2];
-    if (i0 === i1 || i1 === i2 || i2 === i0) continue;
-    const ax = arr[i0*3], ay = arr[i0*3+1], az = arr[i0*3+2];
-    const bx = arr[i1*3], by = arr[i1*3+1], bz = arr[i1*3+2];
-    const cx = arr[i2*3], cy = arr[i2*3+1], cz = arr[i2*3+2];
-    const ex = bx-ax, ey = by-ay, ez = bz-az;
-    const fx = cx-ax, fy = cy-ay, fz = cz-az;
-    const cross = Math.hypot(ey*fz-ez*fy, ez*fx-ex*fz, ex*fy-ey*fx);
-    if (cross * 0.5 < areaEps) continue;
-    indices.push(i0, i1, i2);
-  }
-  const triCount = Math.floor(indices.length / 3);
-
-  // ── Step 3: Weld vertices by quantized position. Tolerance bumped
-  // from bbDiag/1e5 to bbDiag/1e4 (10x more aggressive) so meshes whose
-  // hole borders store 4-5 digit drift on the same conceptual position
-  // (very common in Puppeteer / TRELLIS-2 output) merge correctly. The
-  // previous strict value reported 'mesh is closed' on rigs that
-  // clearly had visible holes because the duplicate-vertex pairs at
-  // the hole border never merged into the same group.
-  const tol = bbDiag / 1e4;
-  const Q = 1 / tol;
-  const groupKeyToId = new Map();
-  const groupOfVertex = new Int32Array(n);
-  let G = 0;
-  for (let v = 0; v < n; v++) {
-    const kx = Math.round(arr[v*3]   * Q);
-    const ky = Math.round(arr[v*3+1] * Q);
-    const kz = Math.round(arr[v*3+2] * Q);
-    const k = kx + ',' + ky + ',' + kz;
-    let gid = groupKeyToId.get(k);
-    if (gid === undefined) { gid = G++; groupKeyToId.set(k, gid); }
-    groupOfVertex[v] = gid;
-  }
-  const repOfGroup = new Int32Array(G).fill(-1);
-  for (let v = 0; v < n; v++) {
-    const g = groupOfVertex[v];
-    if (repOfGroup[g] === -1) repOfGroup[g] = v;
-  }
-
-  // ── Step 4: Count undirected edges in group space.
-  const undirectedCount = new Map();
-  for (let t = 0; t < triCount; t++) {
-    const i0 = indices[t*3], i1 = indices[t*3+1], i2 = indices[t*3+2];
-    const g0 = groupOfVertex[i0], g1 = groupOfVertex[i1], g2 = groupOfVertex[i2];
-    for (const [ga, gb] of [[g0,g1],[g1,g2],[g2,g0]]) {
-      if (ga === gb) continue;
-      const key = ga < gb ? ga + ',' + gb : gb + ',' + ga;
-      undirectedCount.set(key, (undirectedCount.get(key) || 0) + 1);
-    }
-  }
-
-  // ── Step 5: Collect directed boundary candidates (count === 1).
-  //   { ga, gb, mx, my, mz }
-  const candidates = [];
-  for (let t = 0; t < triCount; t++) {
-    const i0 = indices[t*3], i1 = indices[t*3+1], i2 = indices[t*3+2];
-    const g0 = groupOfVertex[i0], g1 = groupOfVertex[i1], g2 = groupOfVertex[i2];
-    for (const [ga, gb] of [[g0,g1],[g1,g2],[g2,g0]]) {
-      if (ga === gb) continue;
-      const key = ga < gb ? ga + ',' + gb : gb + ',' + ga;
-      if (undirectedCount.get(key) !== 1) continue;
-      const vA = repOfGroup[ga], vB = repOfGroup[gb];
-      const mx = (arr[vA*3]   + arr[vB*3])   * 0.5;
-      const my = (arr[vA*3+1] + arr[vB*3+1]) * 0.5;
-      const mz = (arr[vA*3+2] + arr[vB*3+2]) * 0.5;
-      candidates.push({ ga, gb, mx, my, mz, matched: false });
-    }
-  }
-
-  // ── Step 6: MergeCoincidentEdges — for each boundary candidate,
-  // search nearby candidates (spatial hash on midpoint) and match if
-  // there's one with OPPOSITE orientation AND midpoint distance < a
-  // generous tolerance (bbox/2000). This rescues seam edges whose
-  // endpoint positions slipped past the vertex weld in Step 3 — same
-  // logic as UE's FMergeCoincidentMeshEdges escalating tolerance.
-  const mergeTol = bbDiag / 2000;
-  const mergeTolSq = mergeTol * mergeTol;
-  const cellSize = mergeTol;
-  const cellQ = 1 / cellSize;
-  const spatial = new Map();
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    const cx = Math.floor(c.mx * cellQ);
-    const cy = Math.floor(c.my * cellQ);
-    const cz = Math.floor(c.mz * cellQ);
-    const k = cx + ',' + cy + ',' + cz;
-    let bucket = spatial.get(k);
-    if (!bucket) { bucket = []; spatial.set(k, bucket); }
-    bucket.push(i);
-  }
-  for (let i = 0; i < candidates.length; i++) {
-    const c1 = candidates[i];
-    if (c1.matched) continue;
-    const cx = Math.floor(c1.mx * cellQ);
-    const cy = Math.floor(c1.my * cellQ);
-    const cz = Math.floor(c1.mz * cellQ);
-    let matched = false;
-    for (let dx = -1; dx <= 1 && !matched; dx++) {
-      for (let dy = -1; dy <= 1 && !matched; dy++) {
-        for (let dz = -1; dz <= 1 && !matched; dz++) {
-          const k = (cx+dx) + ',' + (cy+dy) + ',' + (cz+dz);
-          const bucket = spatial.get(k);
-          if (!bucket) continue;
-          for (const j of bucket) {
-            if (j === i) continue;
-            const c2 = candidates[j];
-            if (c2.matched) continue;
-            // Opposite orientation: c2.ga's POSITION ≈ c1.gb's POSITION
-            // (and vice-versa). We compare positions, not groups, so a
-            // welding miss in Step 3 still gets caught here.
-            const v1a = repOfGroup[c1.ga], v1b = repOfGroup[c1.gb];
-            const v2a = repOfGroup[c2.ga], v2b = repOfGroup[c2.gb];
-            const dA = (arr[v1a*3]-arr[v2b*3])**2 + (arr[v1a*3+1]-arr[v2b*3+1])**2 + (arr[v1a*3+2]-arr[v2b*3+2])**2;
-            const dB = (arr[v1b*3]-arr[v2a*3])**2 + (arr[v1b*3+1]-arr[v2a*3+1])**2 + (arr[v1b*3+2]-arr[v2a*3+2])**2;
-            if (dA > mergeTolSq || dB > mergeTolSq) continue;
-            const dM = (c1.mx-c2.mx)**2 + (c1.my-c2.my)**2 + (c1.mz-c2.mz)**2;
-            if (dM > mergeTolSq) continue;
-            c1.matched = true;
-            c2.matched = true;
-            matched = true;
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // ── Step 7: Build boundarySuccessors from the SURVIVING candidates
-  // (still unmatched after the merge pass).
-  const candidatesBeforeMerge = candidates.length;
-  let candidatesAfterMerge = 0;
-  const boundarySuccessors = new Map();
-  for (const c of candidates) {
-    if (c.matched) continue;
-    candidatesAfterMerge++;
-    if (!boundarySuccessors.has(c.ga)) boundarySuccessors.set(c.ga, []);
-    boundarySuccessors.get(c.ga).push(c.gb);
-  }
-
-  // Walk loops by popping successors. Each successor is consumed once;
-  // a group with N unbalanced edges produces up to N loops branching
-  // through it (T-junction).
-  const loops = [];
-  const popNext = (g) => {
-    const arr2 = boundarySuccessors.get(g);
-    if (!arr2 || !arr2.length) return null;
-    return arr2.pop();
+  const prev = (mtState.lastStats && mtState.lastStats.fh) ? mtState.lastStats : null;   // plusieurs maillages : on cumule
+  const cumul = (k) => (prev ? prev[k] : 0);
+  if (!geom.attributes || !geom.attributes.position) return { geometry: null, helpers: [], stats: prev || { fh: true, loops: 0, filled: 0, tooBig: 0, tooSmall: 0, unfillable: 0, flat: 0, faces: 0, boundaryEdges: 0, analyses: [], preps: [], min: minHoleSize, max: maxHoleSize } };
+  const pos = _positionsPlates(geom.attributes.position);
+  const n = geom.attributes.position.count;
+  const indexed = !!geom.index;
+  const idx = indexed ? geom.index.array : (() => { const a = new Uint32Array(n - (n % 3)); for (let i = 0; i < a.length; i++) a[i] = i; return a; })();
+  const prep = preparerTrous(pos, idx);
+  const a = analyserTrous(pos, idx, minHoleSize, maxHoleSize, null, prep);
+  const r = renduApercuTrous(a, pos);
+  const stats = {
+    fh: true, min: minHoleSize, max: maxHoleSize,
+    loops: cumul('loops') + a.a_boucher + a.trop_petites + a.trop_grandes + a.non_triangulables,
+    filled: cumul('filled') + a.a_boucher, tooBig: cumul('tooBig') + a.trop_grandes, tooSmall: cumul('tooSmall') + a.trop_petites,
+    unfillable: cumul('unfillable') + a.non_triangulables, flat: cumul('flat') + a.degenerees, faces: cumul('faces') + a.faces_ajoutees,
+    boundaryEdges: cumul('boundaryEdges') + a.aretes_de_bord,
+    analyses: (prev ? prev.analyses : []).concat([a]), preps: (prev ? prev.preps : []).concat([prep]),
   };
-  for (const start of boundarySuccessors.keys()) {
-    while ((boundarySuccessors.get(start) || []).length) {
-      const loop = [];
-      let g = start;
-      for (let safety = 0; safety < 100000; safety++) {
-        loop.push(g);
-        const nxt = popNext(g);
-        if (nxt == null) break;
-        if (nxt === start) break;
-        g = nxt;
-      }
-      if (loop.length >= 3) loops.push(loop);
-      else break;
-    }
-  }
-
-  // Build the new geometry: copy of original + fan triangles for
-  // loops within budget. UVs on new center vertices = (0, 0).
-  const newPositions = Array.from(posAttr.array);
-  const newIndices = Array.from(indices);
-  const hasUV = !!geom.attributes.uv;
-  const newUVs = hasUV ? Array.from(geom.attributes.uv.array) : null;
-
-  // Pre-collect line vertices for the helpers.
-  // grey  = below minHoleSize (skipped on purpose)
-  // green = within [min,max] (will be filled in the preview)
-  // red   = above maxHoleSize (skipped — raise the max to include them)
-  const greyLineVerts = [];
-  const greenLineVerts = [];
-  const redLineVerts = [];
-
-  for (const loop of loops) {
-    let bucket;
-    if (loop.length < minHoleSize) bucket = greyLineVerts;
-    else if (loop.length > maxHoleSize) bucket = redLineVerts;
-    else bucket = greenLineVerts;
-    const willFill = bucket === greenLineVerts;
-    // Build the loop line geometry — LineSegments expects pairs, so
-    // we emit each edge as two vertices.
-    for (let i = 0; i < loop.length; i++) {
-      const va = repOfGroup[loop[i]];
-      const vb = repOfGroup[loop[(i + 1) % loop.length]];
-      bucket.push(
-        newPositions[va * 3], newPositions[va * 3 + 1], newPositions[va * 3 + 2],
-        newPositions[vb * 3], newPositions[vb * 3 + 1], newPositions[vb * 3 + 2],
-      );
-    }
-    if (!willFill) continue;
-
-    // Centroid fan triangulation. Cheap, works on convex-ish holes.
-    let cx = 0, cy = 0, cz = 0;
-    for (const g of loop) {
-      const v = repOfGroup[g];
-      cx += newPositions[v * 3];
-      cy += newPositions[v * 3 + 1];
-      cz += newPositions[v * 3 + 2];
-    }
-    cx /= loop.length; cy /= loop.length; cz /= loop.length;
-    const centerIdx = newPositions.length / 3;
-    newPositions.push(cx, cy, cz);
-    if (newUVs) newUVs.push(0, 0);
-    // Add triangles fanning out from the centroid. Boundary edges
-    // point ga->gb with the outside on the right, so we orient
-    // (a, b, center) — using the representative vertex of each group
-    // — to keep the fill facing the right way.
-    for (let i = 0; i < loop.length; i++) {
-      const va = repOfGroup[loop[i]];
-      const vb = repOfGroup[loop[(i + 1) % loop.length]];
-      newIndices.push(va, vb, centerIdx);
-    }
-  }
-
-  const result = new THREE.BufferGeometry();
-  result.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
-  if (newUVs) result.setAttribute('uv', new THREE.Float32BufferAttribute(newUVs, 2));
-  result.setIndex(newIndices);
-  result.computeVertexNormals();
-
   const helpers = [];
-  if (greyLineVerts.length) {
+  const lignes = (verts, couleur, opacite) => {
+    if (!verts.length) return;
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(greyLineVerts, 3));
-    helpers.push(new THREE.LineSegments(g, new THREE.LineBasicMaterial({
-      color: 0x888888, depthTest: false, transparent: true, opacity: 0.85,
-    })));
-  }
-  if (greenLineVerts.length) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(greenLineVerts, 3));
-    helpers.push(new THREE.LineSegments(g, new THREE.LineBasicMaterial({
-      color: 0x22cc66, depthTest: false, transparent: true, opacity: 0.95,
-    })));
-  }
-  if (redLineVerts.length) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(redLineVerts, 3));
-    helpers.push(new THREE.LineSegments(g, new THREE.LineBasicMaterial({
-      color: 0xff3344, depthTest: false, transparent: true, opacity: 0.95,
-    })));
-  }
-  // Render the lines on top of the mesh so they're not z-buried.
-  for (const h of helpers) h.renderOrder = 999;
-  // Stats so the modal can surface "0 loops found" (probably texture,
-  // not geometry) vs "5 loops, 2 filled, 1 too small, 2 too big".
-  let filled = 0, tooBig = 0, tooSmall = 0, biggest = 0, smallest = Infinity;
-  for (const loop of loops) {
-    if (loop.length > biggest) biggest = loop.length;
-    if (loop.length < smallest) smallest = loop.length;
-    if (loop.length < minHoleSize) tooSmall++;
-    else if (loop.length > maxHoleSize) tooBig++;
-    else filled++;
-  }
-  if (loops.length === 0) smallest = 0;
-  return {
-    geometry: result,
-    helpers,
-    stats: { loops: loops.length, filled, tooBig, tooSmall, biggest, smallest,
-             rawCandidates: candidatesBeforeMerge,
-             unmatched: candidatesAfterMerge },
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: couleur, depthTest: false, transparent: true, opacity: opacite }));
+    l.renderOrder = 999;
+    helpers.push(l);
   };
+  lignes(r.gris, 0x888888, 0.85);
+  lignes(r.vert, 0x22cc66, 0.95);
+  lignes(r.rouge, 0xff3344, 0.95);
+  if (!a.faces_ajoutees) return { geometry: null, helpers, stats };
+  const result = geom.clone();
+  result.setIndex(new THREE.BufferAttribute(indicesAvecRustines(idx, a), 1));
+  result.clearGroups();
+  result.addGroup(0, result.index.count, 0);
+  return { geometry: result, helpers, stats };
 }
 
 // Edge-collapse decimation via three.js SimplifyModifier. Quadric
@@ -11118,12 +10860,12 @@ const MESH_TOOL_SCHEMAS = {
   },
   fill_holes: {
     title: 'Fill holes',
-    subtitle: 'Cap mesh holes. Reports one of four outcomes: CLOSED_OK (watertight), OPEN_HOLES (some remain — re-run with a higher max), WINDING_INCONSISTENT (run Fix Normals first), NONMANIFOLD_OR_DOUBLE_SKINNED (re-mesh from source). Preview: green outlines will be filled, grey are smaller than min, red bigger than max.',
+    subtitle: 'Open holes whose outline has between Min and Max edges show in GREEN (they will be filled); grey = too small, red = too big. Apply only ADDS faces: nothing existing is removed or moved, and each patch takes its texture from the neighbouring faces. Missing or thin areas that are not open holes cannot be fixed here.',
     needsImage: false,
     supportsClientApply: true,
     params: [
-      { id: 'min_hole_size', label: 'Min hole size (edges)', type: 'range', min: 3,  max: 20000, step: 1,  default: 3 },
-      { id: 'max_hole_size', label: 'Max hole size (edges)', type: 'range', min: 3,  max: 20000, step: 10, default: 2000 },
+      { id: 'min_hole_size', label: 'Min hole size (edges)', type: 'range', min: 3,  max: 5000, step: 1,  default: 3 },
+      { id: 'max_hole_size', label: 'Max hole size (edges)', type: 'range', min: 3,  max: 5000, step: 10, default: 2000 },
     ],
     build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size)],
     preview: (geom, vals) => _jsFillHoles(
@@ -11133,33 +10875,18 @@ const MESH_TOOL_SCHEMAS = {
     ),
     previewStatus: (vals, st) => {
       const s = st.lastStats;
-      if (!s) return 'Computing…';
-      // Diagnostic suffix so we can SEE if the merge pass is killing
-      // candidates: rawCandidates = count===1 edges found, unmatched =
-      // what survived the MergeCoincidentEdges pass.
-      const diag = (s.rawCandidates != null)
-        ? ` [debug: ${s.rawCandidates} raw boundary edges → ${s.unmatched} after seam-merge]`
-        : '';
-      if (s.loops === 0) {
-        if (s.rawCandidates > 0 && s.unmatched === 0) {
-          return `Detector found ${s.rawCandidates} boundary edges but merged them ALL as seam pairs — likely a false positive on the merge pass. (try Fix Normals first; then re-run)${diag}`;
-        }
-        // The cloud pipeline runs T-junction splitting + winding fix
-        // that the local preview doesn't — it can find holes the JS
-        // detector misses. Surface that explicitly so the user clicks
-        // Apply instead of giving up.
-        return 'Local preview found 0 boundary edges, but the cloud detector has extra steps (T-junction split, winding repair) that may find holes this preview misses. Try "Apply on cloud" — you\'ll get one of 4 verdicts: CLOSED_OK / OPEN_HOLES / WINDING_INCONSISTENT / NONMANIFOLD.' + diag;
+      if (!s || !s.fh) return _i18nT('Computing…');
+      if (s.faces) {
+        return _i18nTf('Holes: {x} to fill (green)', s.filled) + ` · ` + _i18nTf('{x} too small (grey)', s.tooSmall) + ` · ` + _i18nTf('{x} too large (red)', s.tooBig)
+          + ` · ` + _i18nTf('+{x} faces will be added; nothing is removed', s.faces)
+          + (s.unfillable ? ` · ` + _i18nTf('{x} cannot be filled (red)', s.unfillable) : '')
+          + (s.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', s.flat) : '');
       }
-      if (s.filled === s.loops) {
-        return `Filled ${s.filled} hole${s.filled > 1 ? 's' : ''} (range ${s.smallest}–${s.biggest} edges).${diag}`;
-      }
-      const parts = [];
-      parts.push(`${s.loops} hole${s.loops > 1 ? 's' : ''} found`);
-      if (s.filled) parts.push(`${s.filled} filled (green)`);
-      if (s.tooSmall) parts.push(`${s.tooSmall} too small (grey)`);
-      if (s.tooBig) parts.push(`${s.tooBig} too big (red)`);
-      parts.push(`range ${s.smallest}–${s.biggest} edges`);
-      return parts.join(' · ') + '. Adjust min/max to include more.' + diag;
+      // Rien a boucher : dire POURQUOI (hors plage, ou maillage ferme + diagnostic) — meme texte que le refus du serveur.
+      const diags = s.analyses.map((a, i) => diagnostiquerTrous(s.preps[i], a));
+      const [somme, diag] = agregerTrous(s.analyses, diags);
+      const [, texte] = messageRefusTrous(somme, diag, s.min, s.max);
+      return (window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(texte) : texte;
     },
   },
   watertight: {
@@ -11507,6 +11234,11 @@ function _mtRunPreview() {
         // Surface tool-specific stats (e.g. Fill Holes loop count) so
         // previewStatus() can render them in the status bar.
         if (out.stats) mtState.lastStats = out.stats;
+      }
+      else if (out && out.stats && Array.isArray(out.helpers)) {
+        // Fill Holes sans rien a boucher : pas de geometrie (le bouton de l'appareil reste desactive), mais les traits et les nombres servent.
+        mtState.lastStats = out.stats;
+        nextHelpers = out.helpers;
       }
       if (nextGeom) e.mesh.geometry = nextGeom;
       // Pas de geometrie -> on REMET l'originale, sinon le viewport garde

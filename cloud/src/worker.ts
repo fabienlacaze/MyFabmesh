@@ -1406,6 +1406,14 @@ const REFUS_CONNUS: ReadonlyArray<readonly [RegExp, string, ((m: RegExpMatchArra
   [/^unauthori[sz]ed$/i, 'unauthorized', null],
   [/^forbidden$/i, 'forbidden', null],
   [/^not found$/i, 'not_found', null],
+    // Fill holes (2026-10-21) : refus EXPLIQUES quand il n'y a rien a boucher (scripts/bouchage_trous.py::message_refus, relayes par Modal, le worker
+    // et le bureau). Le generique « Nothing to fill: the mesh has no open hole. » doit rester apres les cas precis qui continuent par « , but ... ».
+    [/^No hole between (\d+) and (\d+) edges\b/i, 'fill_holes_range', (m) => ({ min: Number(m[1]), max: Number(m[2]) })],
+    [/^Nothing to fill: the mesh has no open hole, but (\d+) faces point the wrong way\b/i, 'fill_holes_closed_flipped', (m) => ({ n: Number(m[1]) })],
+    [/^Nothing to fill: the mesh has no open hole, but (\d+) edges are shared by more than two faces\b/i, 'fill_holes_closed_nonmanifold', (m) => ({ n: Number(m[1]) })],
+    [/^Nothing to fill: the mesh has no open hole, but (\d+) small loose pieces\b/i, 'fill_holes_closed_debris', (m) => ({ n: Number(m[1]) })],
+    [/^Nothing to fill: the mesh has no open hole\./i, 'fill_holes_closed', null],
+    [/^Could not fill the (\d+) open hole\(s\)/i, 'fill_holes_unfillable', (m) => ({ n: Number(m[1]) })],
 ];
 function codeRefus(message: unknown): { code: string; params?: ParamsRefus } | null {
   if (typeof message !== 'string' || !message) return null;

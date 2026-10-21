@@ -7,8 +7,9 @@ serves the async TRELLIS-2 dispatch).
 
 Most ops return the modified GLB as raw bytes. fill_holes returns a
 tuple (bytes, stats_dict) so the client can show a verdict-driven
-toast (CLOSED_OK / OPEN_HOLES / WINDING_INCONSISTENT /
-NONMANIFOLD_OR_DOUBLE_SKINNED). The OPS dispatch wraps every other op
+toast (CLOSED_OK / OPEN_HOLES). Quand il n'y a rien a boucher, il leve une
+RuntimeError EXPLIQUEE (diagnostic du maillage ferme) : refus non facture.
+The OPS dispatch wraps every other op
 as (bytes, None) so the worker has a uniform shape to forward.
 """
 import io
@@ -234,483 +235,79 @@ def fix_normals(glb_bytes: bytes) -> bytes:
     return _export(scene)
 
 
-def _boucles_de_bord(m):
-    """Reconstruit les boucles de bord (trous) d'un maillage.
+def _charger_sans_traitement(glb_bytes: bytes):
+    """Charge le GLB SANS aucun traitement de trimesh (process=False).
 
-    Renvoie une liste de listes d'indices de sommets, chaque liste etant
-    un cycle ferme. Les aretes de bord sont celles utilisees par UNE
-    SEULE face ; on les chaine par sommet partage.
-
-    Sert au filtrage min/max de fill_holes : trimesh.repair.fill_holes
-    bouche TOUT, sans notion de taille, alors que l'interface propose
-    deux curseurs et colorie l'apercu en vert/gris/rouge selon eux.
-    """
-    import numpy as np
-    if not hasattr(m, 'edges') or len(m.edges) == 0:
-        return []
-    e = np.sort(m.edges, axis=1)
-    uniq, counts = np.unique(e, axis=0, return_counts=True)
-    bords = uniq[counts == 1]
-    if len(bords) == 0:
-        return []
-
-    # Adjacence sommet -> sommets voisins par une arete de bord.
-    voisins = {}
-    for a, b in bords:
-        voisins.setdefault(int(a), []).append(int(b))
-        voisins.setdefault(int(b), []).append(int(a))
-
-    vus = set()
-    boucles = []
-    for depart in list(voisins):
-        if depart in vus:
-            continue
-        boucle = [depart]
-        vus.add(depart)
-        courant, precedent = depart, None
-        while True:
-            suivants = [v for v in voisins.get(courant, []) if v != precedent and v not in vus]
-            if not suivants:
-                # Boucle fermee si on peut revenir au depart.
-                if depart in voisins.get(courant, []) and len(boucle) >= 3:
-                    boucles.append(boucle)
-                break
-            precedent, courant = courant, suivants[0]
-            boucle.append(courant)
-            vus.add(courant)
-            if len(boucle) > 200_000:      # garde-fou anti-boucle infinie
-                break
-    return boucles
-
-
-def _remplir_boucles_filtrees(m, min_edges, max_edges):
-    """Bouche UNIQUEMENT les trous dont le nombre d'aretes est dans
-    [min_edges, max_edges], par eventail depuis le premier sommet.
-
-    Renvoie (remplis, trop_petits, trop_grands). Les UV ne sont pas
-    etendus : les faces ajoutees heritent du materiau mais pas d'une
-    coordonnee de texture propre — meme compromis que trimesh.
-    """
-    import numpy as np
-    boucles = _boucles_de_bord(m)
-    if not boucles:
-        return 0, 0, 0
-    remplis = petits = grands = 0
-    nouvelles = []
-    for b in boucles:
-        n = len(b)
-        if n < min_edges:
-            petits += 1
-            continue
-        if n > max_edges:
-            grands += 1
-            continue
-        for i in range(1, n - 1):
-            nouvelles.append([b[0], b[i], b[i + 1]])
-        remplis += 1
-    if nouvelles:
-        m.faces = np.vstack([np.asarray(m.faces), np.asarray(nouvelles, dtype=np.int64)])
-        try: m._cache.clear()
-        except Exception: pass
-    return remplis, petits, grands
-
-
-def _count_boundary_edges(m):
-    """Return (boundary_edges, nonmanifold_edges) using a sorted-edges
-    unique tally. boundary = edges used by exactly 1 triangle;
-    nonmanifold = edges used by >2 triangles (e.g. T-junctions, double
-    skin, fan-style stitching)."""
-    import numpy as np
-    if not hasattr(m, 'edges') or len(m.edges) == 0:
-        return 0, 0
-    e = np.sort(m.edges, axis=1)
-    _, _, counts = np.unique(e, axis=0, return_inverse=True, return_counts=True)
-    return int((counts == 1).sum()), int((counts > 2).sum())
-
-
-def _split_tjunctions(m, tol):
-    """Detect T-junctions on boundary edges and split the offending
-    edge so the two halves can pair with neighbouring triangles. A
-    T-junction is a vertex that lies (within tol) on another boundary
-    edge but isn't an endpoint of that edge.
-
-    Cheap approach: build a KDTree over boundary vertex positions, for
-    each boundary edge query the tree for points inside its segment
-    bounding box, classify hits by point-to-segment distance.
-
-    Returns the number of splits performed. This is a NO-OP on textured
-    meshes (UV-aware splitter would need to interpolate UVs at the
-    new vertex — out of scope for v1) and on very large meshes.
-    """
-    import numpy as np
-    from scipy.spatial import cKDTree
-
-    if not hasattr(m, 'edges') or len(m.edges) == 0:
-        return 0
-    e_sorted = np.sort(m.edges, axis=1)
-    uniq, inv, counts = np.unique(e_sorted, axis=0, return_inverse=True, return_counts=True)
-    bmask = (counts == 1)
-    if not bmask.any():
-        return 0
-    boundary_edges = uniq[bmask]  # (B, 2) vertex index pairs
-
-    boundary_verts = np.unique(boundary_edges.ravel())
-    if len(boundary_verts) == 0:
-        return 0
-    verts = m.vertices[boundary_verts]                  # (V, 3)
-    pos2idx = {v: i for i, v in enumerate(boundary_verts.tolist())}
-    tree = cKDTree(verts)
-
-    splits = 0
-    # For each boundary edge, find points close to the segment (not the
-    # endpoints) within tol and split. We don't actually split the edge
-    # in-place — trimesh would require re-meshing. Instead we record
-    # "phantom" vertex pairs that the merge_vertices in the caller can
-    # use on the next pass. Practically: bump the boundary vertex onto
-    # the edge by a tiny offset so the next merge_vertices catches it.
-    # This trades exactness for safety — no faces are modified.
-    bumps = {}  # idx in m.vertices -> new position
-    tol_sq = float(tol) ** 2
-    for a, b in boundary_edges.tolist():
-        pa = m.vertices[a]; pb = m.vertices[b]
-        ab = pb - pa
-        ab_len_sq = float(np.dot(ab, ab))
-        if ab_len_sq < tol_sq * 0.01:
-            continue
-        midpoint = (pa + pb) * 0.5
-        radius = float(np.sqrt(ab_len_sq)) * 0.5 + tol
-        # Candidates near the edge's midpoint within radius+tol.
-        cand_idx = tree.query_ball_point(midpoint, r=radius)
-        for ci in cand_idx:
-            v_world_idx = int(boundary_verts[ci])
-            if v_world_idx == a or v_world_idx == b:
-                continue
-            p = m.vertices[v_world_idx]
-            ap = p - pa
-            t = float(np.dot(ap, ab) / ab_len_sq)
-            if t <= 1e-3 or t >= 1.0 - 1e-3:
-                continue
-            proj = pa + t * ab
-            d2 = float(np.dot(p - proj, p - proj))
-            if d2 < tol_sq:
-                bumps[v_world_idx] = proj
-                splits += 1
-    if bumps:
-        for vi, new_pos in bumps.items():
-            m.vertices[vi] = new_pos
-        # Snap each bumped vertex onto its target → next merge_vertices
-        # collapses the pair, the edge becomes a true boundary.
-    return splits
-
-
-def _aggregate_diag(per_mesh):
-    """Decide the single verdict reported to the user from per-mesh
-    stats. Priority order — most actionable first:
-      WINDING_INCONSISTENT > NONMANIFOLD_OR_DOUBLE_SKINNED > OPEN_HOLES > CLOSED_OK
-    """
-    if not per_mesh:
-        return 'CLOSED_OK'
-    has_winding = any(d.get('winding_inconsistent') for d in per_mesh)
-    has_double = any(d.get('double_skin') or d.get('nonmanifold_edges_final', 0) > 0 for d in per_mesh)
-    has_open = any(d.get('boundary_edges_final', 0) > 0 for d in per_mesh)
-    if has_winding:
-        return 'WINDING_INCONSISTENT'
-    if has_double:
-        return 'NONMANIFOLD_OR_DOUBLE_SKINNED'
-    if has_open:
-        return 'OPEN_HOLES'
-    return 'CLOSED_OK'
+    Le chargement par defaut fusionne les sommets identiques et peut les reordonner ; pour boucher des trous on veut les sommets, les UV et
+    les faces TELS QUE LE FICHIER LES PORTE : rien n'est supprime, deplace ni reecrit (invariants de modal_app/bouchage_trous.py)."""
+    import trimesh
+    return trimesh.load(io.BytesIO(glb_bytes), file_type='glb', force='scene', process=False)
 
 
 def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000):
-    """Diagnostic-first hole filling. Returns (glb_bytes, stats_dict).
+    """Bouche les trous (pourtours d'aretes de bord) dont le nombre d'aretes est dans [min_edges, max_edges]. Rend (glb_bytes, stats).
 
-    Pipeline per mesh:
-      0. Strip degenerate faces + unreferenced verts (mirror cloud client)
-      1. Count baseline boundary + non-manifold + winding state
-      2. merge_vertices with tol = clamp(bbDiag * 1e-4, 1e-7, bbDiag*1e-2)
-      3. T-junction split (gated on size + non-textured to stay safe in v1)
-      4. fix_winding + fill_holes(use_fan=True)
-      5. Recount + aggregate verdict
+    NON DESTRUCTIF (refonte du 2026-10-21) : le noyau modal_app/bouchage_trous.py LIT les sommets et les faces et ne rend que des faces a
+    AJOUTER. Aucune face n'est supprimee, aucune UV reecrite, aucun sommet deplace : la version precedente fusionnait les sommets
+    (merge_vertices), supprimait les « faces cassees » et normalisait les normales, ce qui, mesure sur l'orc de 512 000 faces, supprimait
+    11,9 % des faces, reecrivait 38 % des UV et creait 204 boucles ouvertes (ou refusait a 17 % apres 74 a 160 s).
 
-    The 4-verdict vocabulary lets the client show ONE actionable toast
-    instead of "0 boundary edges found" when the real problem is
-    inverted normals or double-skinning.
-    """
+    Rien a boucher -> RuntimeError EXPLIQUEE (le worker rembourse, le maillage n'est pas touche), avec le diagnostic du maillage ferme :
+    faces retournees, aretes a plus de deux faces, miettes flottantes, ou « la matiere manquante n'est pas un trou »."""
     import numpy as np
-    import trimesh
+    from modal_app.bouchage_trous import preparer, analyser, diagnostiquer, faces_ajoutees, agreger, message_refus
 
-    scene = _load_scene(glb_bytes)
-    per_mesh = []
-    total_dfaces = 0
-
-    # GARDE 1 — DES VRAIS TROUS D'ABORD (2026-09-29). Sur un maillage texture, chaque couture d'UV
-    # duplique ses sommets : vue par trimesh, c'est une arete de BORD. La suite du pipeline prenait
-    # ces coutures pour des trous et SUPPRIMAIT les faces qui les bordent (« broken faces ») :
-    # chevre du user, 5 194 faces, 9 204 « bords » (des coutures), 3 448 faces supprimees, maillage
-    # detruit. On compte donc les bords sur une copie SOUDEE PAR POSITION : zero = maillage ferme,
-    # rien a boucher -> inchange et non facture (meme politique que le filtre min/max ci-dessous).
-    maillages = [m for m in _meshes(scene) if hasattr(m, 'faces') and len(m.faces)]
-    faces_avant_total = sum(int(len(m.faces)) for m in maillages)
-    vrais_bords = 0
-    for m in maillages:
+    scene = _charger_sans_traitement(glb_bytes)
+    maillages = [(nom, m) for nom, m in scene.geometry.items() if hasattr(m, 'faces') and len(m.faces)]
+    analyses, diagnostics, preps, ajouts = [], [], [], []
+    for nom, m in maillages:
         V = np.asarray(m.vertices, dtype=np.float64)
         F = np.asarray(m.faces, dtype=np.int64)
-        pas = max(float(np.ptp(V, axis=0).max()) * 1e-5, 1e-12)
-        _, inv = np.unique(np.round(V / pas).astype(np.int64), axis=0, return_inverse=True)
-        Fw = inv.reshape(-1)[F]
-        Fw = Fw[(Fw[:, 0] != Fw[:, 1]) & (Fw[:, 1] != Fw[:, 2]) & (Fw[:, 0] != Fw[:, 2])]
-        aretes = np.sort(np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]]), axis=1)
-        _, n = np.unique(aretes, axis=0, return_counts=True)
-        vrais_bords += int((n == 1).sum())
-    if maillages and vrais_bords == 0:
-        print('[mesh-op] fill_holes: maillage ferme (0 bord une fois soude), rien a boucher', flush=True)
-        raise RuntimeError(
-            'aucun trou a boucher : le maillage est ferme. Les zones qui paraissent percees sont des '
-            'triangles retournes (parties fines) — le maillage est inchange.')
+        prep = preparer(V, F)
+        a = analyser(V, F, min_edges, max_edges, prep=prep)
+        analyses.append(a)
+        preps.append(prep)
+        ajouts.append(faces_ajoutees(a))
+        print(f'[mesh-op] fill_holes mesh={nom} faces={len(F)} bord={a["aretes_de_bord"]} boucles: a_boucher={a["a_boucher"]} '
+              f'trop_petites={a["trop_petites"]} trop_grandes={a["trop_grandes"]} degenerees={a["degenerees"]} '
+              f'non_triangulables={a["non_triangulables"]} -> +{a["faces_ajoutees"]} faces modes={a["modes"]}', flush=True)
 
-    for m in _meshes(scene):
-        if not hasattr(m, 'faces'):
-            continue
-        diag = {'name': getattr(m, 'metadata', {}).get('name', 'mesh')}
+    total_ajoute = sum(len(x) for x in ajouts)
+    if total_ajoute == 0:
+        diagnostics = [diagnostiquer(p, a) for p, a in zip(preps, analyses)]
+        somme, diag = agreger(analyses, diagnostics)
+        code, texte = message_refus(somme, diag, min_edges, max_edges)
+        print(f'[mesh-op] fill_holes: rien a boucher ({code})', flush=True)
+        raise RuntimeError(texte)
 
-        # Step 0 — clean degenerates so boundary counts aren't polluted.
-        try:
-            m.update_faces(m.nondegenerate_faces())
-            m.remove_unreferenced_vertices()
-            try: m._cache.clear()
-            except Exception: pass
-        except Exception as e:
-            print(f'[mesh-op] fill_holes clean step warn: {e}', flush=True)
-
-        # Auto-tol from bounding box diagonal — bumped 1e-4 → 1e-3 so
-        # TRELLIS meshes with sub-mm vertex gaps actually weld together
-        # before fill_holes runs. The previous 1e-4 left visible holes
-        # uncounted (boundary edges not detected because the gap was
-        # below merge tolerance but still rendered as a hole).
-        try:
-            bb_diag = float(np.linalg.norm(m.bounds[1] - m.bounds[0])) or 1.0
-        except Exception:
-            bb_diag = 1.0
-        tol = float(np.clip(bb_diag * 1e-3, 1e-6, bb_diag * 1e-2))
-        diag['bb_diag'] = round(bb_diag, 6)
-        diag['tol'] = round(tol, 9)
-
-        faces_before = int(len(m.faces))
-        be_before, nm_before = _count_boundary_edges(m)
-        try:
-            winding_inconsistent = not bool(getattr(m, 'is_winding_consistent', True))
-        except Exception:
-            winding_inconsistent = False
-        try:
-            watertight_before = bool(getattr(m, 'is_watertight', False))
-        except Exception:
-            watertight_before = False
-        diag.update({
-            'faces_before': faces_before,
-            'boundary_edges_before': be_before,
-            'nonmanifold_edges_before': nm_before,
-            'winding_inconsistent': winding_inconsistent,
-            'watertight_before': watertight_before,
+    per_mesh = []
+    avant = 0
+    apres = 0
+    for (nom, m), a, ajout in zip(maillages, analyses, ajouts):
+        F = np.asarray(m.faces, dtype=np.int64)
+        V_avant = np.asarray(m.vertices).copy() if len(ajout) else None
+        if len(ajout):
+            m.faces = np.vstack([F, ajout])
+            # garde : le noyau ne fait QU'AJOUTER (aucune face existante touchee, aucun sommet deplace)
+            if not np.array_equal(np.asarray(m.faces)[:len(F)], F) or not np.array_equal(np.asarray(m.vertices), V_avant):
+                raise RuntimeError('internal check failed: the mesh would have been altered, nothing was changed.')
+        avant += len(F)
+        apres += len(m.faces)
+        per_mesh.append({
+            'name': nom, 'faces_before': int(len(F)), 'faces_after': int(len(m.faces)),
+            'holes_filled': a['a_boucher'], 'skipped_too_small': a['trop_petites'], 'skipped_too_big': a['trop_grandes'],
+            'degenerate_loops': a['degenerees'], 'unfillable': a['non_triangulables'], 'boundary_edges': a['aretes_de_bord'],
+            'holes_filled_delta_faces': int(len(ajout)), 'modes': a['modes'],
         })
-
-        # Step 2 — aggressive position-only merge.
-        try:
-            digits = max(1, int(round(-np.log10(tol))))
-            m.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=digits)
-        except TypeError:
-            try: m.merge_vertices(merge_tex=True, merge_norm=True)
-            except Exception as e: print(f'[mesh-op] merge_vertices fallback warn: {e}', flush=True)
-        try: m._cache.clear()
-        except Exception: pass
-        be_after_merge, _ = _count_boundary_edges(m)
-        diag['boundary_edges_after_merge'] = be_after_merge
-
-        # Step 3 — T-junction split (gated).
-        is_textured = isinstance(getattr(m, 'visual', None), trimesh.visual.TextureVisuals)
-        if be_after_merge <= 200_000 and not is_textured:
-            try:
-                splits = _split_tjunctions(m, tol)
-                diag['tjunction_splits'] = int(splits)
-                if splits:
-                    try: m.merge_vertices(merge_tex=True, merge_norm=True,
-                                           digits_vertex=max(1, int(round(-np.log10(tol)))))
-                    except TypeError: m.merge_vertices(merge_tex=True, merge_norm=True)
-                    try: m._cache.clear()
-                    except Exception: pass
-            except Exception as e:
-                print(f'[mesh-op] tjunction split warn: {e}', flush=True)
-                diag['tjunction_splits'] = 0
-        else:
-            diag['tjunction_splits'] = 0
-            diag['tjunc_skipped_reason'] = ('TEXTURED' if is_textured else 'TOO_LARGE')
-        be_after_tjunc, nm_after_tjunc = _count_boundary_edges(m)
-        diag['boundary_edges_after_tjunc'] = be_after_tjunc
-
-        # Step 4 — re-orient + clean + fill, ITERATED with non-manifold
-        # cleanup interleaved. TRELLIS meshes are often non-manifold AND
-        # have winding-inconsistent triangles AND have small open holes
-        # all at once. Cycle through the repairs until either watertight
-        # or stable (no more improvement).
-        def _clean_nonmanifold(mesh):
-            try:
-                # Drop duplicate faces (collapse double-skin layers).
-                mesh.update_faces(mesh.unique_faces())
-            except Exception: pass
-            try:
-                # Drop "broken" faces — those incident to non-manifold edges
-                # that can't be salvaged. Aggressive but the alternative
-                # is leaving holes that fill_holes can't close.
-                broken = trimesh.repair.broken_faces(mesh)
-                if broken is not None and len(broken) > 0:
-                    keep = np.ones(len(mesh.faces), dtype=bool)
-                    keep[np.asarray(broken)] = False
-                    mesh.update_faces(keep)
-                    print(f'[mesh-op] dropped {int((~keep).sum())} broken faces', flush=True)
-            except Exception as e:
-                print(f'[mesh-op] broken_faces warn: {e}', flush=True)
-            try: mesh.remove_unreferenced_vertices()
-            except Exception: pass
-            try: mesh._cache.clear()
-            except Exception: pass
-
-        last_be = be_after_tjunc
-        for pass_i in range(4):
-            try: trimesh.repair.fix_winding(m)
-            except Exception as e: print(f'[mesh-op] fix_winding pass{pass_i} warn: {e}', flush=True)
-            try: m._cache.clear()
-            except Exception: pass
-            # Clean non-manifold *between* passes so fill_holes can see
-            # legitimate boundaries instead of being blocked by the
-            # double-skin/non-manifold mess.
-            _clean_nonmanifold(m)
-            # FILTRAGE PAR TAILLE. L'interface propose deux curseurs
-            # (min/max aretes) et colorie l'apercu en vert/gris/rouge
-            # selon eux — mais le cloud les JETAIT et bouchait tout.
-            # L'apercu contredisait donc le resultat.
-            #
-            # Repli deliberement conservateur : aux valeurs par defaut
-            # (min<=3 et max tres grand), on garde EXACTEMENT le chemin
-            # trimesh d'origine. Le filtrage maison ne s'active que si
-            # l'utilisateur a vraiment bouge un curseur, pour ne pas
-            # risquer de regression sur le cas courant.
-            filtre_actif = (min_edges > 3) or (max_edges < 1_000_000)
-            fait = False
-            if filtre_actif:
-                try:
-                    r, p, g = _remplir_boucles_filtrees(m, min_edges, max_edges)
-                    diag['filled_loops'] = diag.get('filled_loops', 0) + r
-                    diag['skipped_too_small'] = diag.get('skipped_too_small', 0) + p
-                    diag['skipped_too_big'] = diag.get('skipped_too_big', 0) + g
-                    fait = True
-                    # ARRET IMMEDIAT si le filtre n'a RIEN a boucher.
-                    # Sans ca, les 4 passes continuaient a nettoyer un
-                    # maillage qu'on a decide de ne pas reparer : le
-                    # nettoyage non-manifold supprimait des faces a chaque
-                    # tour et le maillage ressortait PIRE qu'a l'entree
-                    # (27 -> 62 aretes de bord sur le test). Un outil qui
-                    # abime le maillage est pire qu'un curseur ignore.
-                    if r == 0:
-                        print(f'[mesh-op] fill_holes: aucun trou dans '
-                              f'[{min_edges},{max_edges}] — arret sans modifier',
-                              flush=True)
-                        break
-                except Exception as e:
-                    print(f'[mesh-op] filtrage min/max echoue ({e}) — repli trimesh', flush=True)
-            if not fait:
-                try:
-                    trimesh.repair.fill_holes(m, use_fan=True)
-                except TypeError:
-                    try: trimesh.repair.fill_holes(m)
-                    except Exception as e: print(f'[mesh-op] fill_holes pass{pass_i} skipped: {e}', flush=True)
-                except Exception as e:
-                    print(f'[mesh-op] fill_holes pass{pass_i} skipped: {e}', flush=True)
-            try: m._cache.clear()
-            except Exception: pass
-            try:
-                if bool(getattr(m, 'is_watertight', False)):
-                    break
-            except Exception:
-                pass
-            try:
-                be_now, _ = _count_boundary_edges(m)
-            except Exception:
-                be_now = last_be
-            if be_now >= last_be and pass_i >= 1:
-                break  # no progress, stop trying
-            last_be = be_now
-        # Final fix_normals — flips remaining backward-facing triangles.
-        try:
-            m.fix_normals()
-            m._cache.clear()
-        except Exception as e:
-            print(f'[mesh-op] fix_normals final warn: {e}', flush=True)
-
-        be_final, nm_final = _count_boundary_edges(m)
-        faces_after = int(len(m.faces))
-        dfaces = max(0, faces_after - faces_before)
-        total_dfaces += dfaces
-        try: watertight_after = bool(getattr(m, 'is_watertight', False))
-        except Exception: watertight_after = (be_final == 0)
-        # Double-skin heuristic: lots of non-manifold edges but no
-        # boundary → two layers of triangles stitched together.
-        double_skin = (nm_final > max(50, int(faces_after * 0.05))) and be_final == 0
-        diag.update({
-            'faces_after': faces_after,
-            'holes_filled_delta_faces': dfaces,
-            'boundary_edges_final': be_final,
-            'nonmanifold_edges_final': nm_final,
-            'watertight_after': watertight_after,
-            'double_skin': double_skin,
-        })
-        per_mesh.append(diag)
-        print(f'[mesh-op] fill_holes mesh={diag["name"]} '
-              f'be:{be_before}→{be_final} nm:{nm_before}→{nm_final} '
-              f'Δfaces={dfaces} verdict-input={diag}', flush=True)
-
+    restantes = sum(a['restantes'] for a in analyses)
     stats = {
-        'verdict': _aggregate_diag(per_mesh),
-        'holes_filled_delta_faces': total_dfaces,
+        'verdict': 'OPEN_HOLES' if restantes else 'CLOSED_OK',
+        'holes_filled_delta_faces': total_ajoute,
+        'holes_filled': sum(a['a_boucher'] for a in analyses),
+        'holes_remaining': restantes,
         'meshes': per_mesh,
     }
-
-    # GARDE 2 — BOUCHER N'ENLEVE PAS DE MATIERE (2026-09-29). Le nettoyage non-manifold supprime des
-    # faces avant de boucher ; s'il en retire plus de 5 %, le resultat est abime (chevre : 5 194 ->
-    # ~1 750 faces). Annule : maillage inchange, non facture.
-    faces_apres_total = sum(int(len(m.faces)) for m in _meshes(scene) if hasattr(m, 'faces'))
-    if faces_avant_total and faces_apres_total < 0.95 * faces_avant_total:
-        perte = 100 * (1 - faces_apres_total / faces_avant_total)
-        print(f'[mesh-op] fill_holes: {perte:.0f} % des faces perdues, resultat refuse', flush=True)
-        raise RuntimeError(
-            f'le bouchage aurait supprime {perte:.0f} % des faces du maillage : annule, le maillage '
-            'est inchange.')
-
-    # GARANTIE : SI RIEN N'A ETE BOUCHE, RIEN NE CHANGE.
-    #
-    # Le pipeline nettoie AVANT de remplir (faces degenerees, fusion de
-    # sommets, decoupe des T-jonctions, non-manifold). Quand le filtre
-    # min/max ecarte tous les trous, ce nettoyage reste applique sans que
-    # le remplissage ne repare derriere : le maillage ressortait ABIME
-    # (mesure : 1191 -> 1164 faces, 27 -> 46 aretes de bord).
-    #
-    # On renvoie donc les octets d'ORIGINE. L'utilisateur qui restreint
-    # la plage obtient « aucun trou dans cet intervalle », pas un
-    # maillage degrade.
-    filtre_actif = (min_edges > 3) or (max_edges < 1_000_000)
-    if filtre_actif:
-        boucles_remplies = sum(int(d.get('filled_loops', 0) or 0) for d in per_mesh)
-        if boucles_remplies == 0:
-            # ON LEVE plutot que de renvoyer un maillage intact contre un
-            # credit, meme politique que decimate() : le worker debite
-            # AVANT l'appel, et une operation qui ne change rien ne doit
-            # pas etre facturee. L'utilisateur elargit la plage et
-            # relance. Le message porte le diagnostic.
-            print(f'[mesh-op] fill_holes: aucun trou entre {min_edges} et '
-                  f'{max_edges} aretes', flush=True)
-            raise RuntimeError(
-                f'aucun trou entre {min_edges} et {max_edges} aretes — '
-                'elargis la plage. Le maillage est inchange.')
-
+    print(f'[mesh-op] fill_holes: {avant} -> {apres} faces (+{total_ajoute}), verdict={stats["verdict"]}', flush=True)
     return _export(scene), stats
 
 

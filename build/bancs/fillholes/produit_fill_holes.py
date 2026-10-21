@@ -55,10 +55,10 @@ def main():
             out['sortie'] = a.sortie.replace('\\', '/')
         out['verdict'] = stats.get('verdict')
         out['faces_ajoutees'] = stats.get('holes_filled_delta_faces')
-        out['meshes'] = [{k: m.get(k) for k in ('boundary_edges_before', 'boundary_edges_after_merge', 'boundary_edges_final',
-                                                'faces_before', 'faces_after', 'nonmanifold_edges_before', 'nonmanifold_edges_final')}
+        out['meshes'] = [{k: m.get(k) for k in ('boundary_edges', 'faces_before', 'faces_after', 'holes_filled', 'skipped_too_small',
+                                                'skipped_too_big', 'degenerate_loops', 'unfillable')}
                          for m in stats.get('meshes', [])]
-    except Exception as e:  # les gardes levent RuntimeError
+    except Exception as e:  # rien a boucher -> RuntimeError EXPLIQUEE (noyau bouchage_trous)
         out['resultat'] = 'refus'
         out['message'] = '%s: %s' % (type(e).__name__, e)
     out['duree_s'] = round(time.time() - t, 1)
