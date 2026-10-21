@@ -13242,7 +13242,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_IMAGE_OP_URL) {
     return err(503, 'auto-inpaint backend unavailable');
   }
-  const { imagePath, imageUrl, targetText, prompt, dilate, projectName } = await req.json() as {
+  const { imagePath, imageUrl, targetText, prompt, dilate, projectName, consigne, consigneOriginale } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string;
@@ -13250,28 +13250,42 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     targetText?: string;
     prompt?: string;
     dilate?: number;
+    /** Consigne COMPLETE de « Modify image » (traduite en anglais) et telle que tapee : verifiees comme /api/modify-image les verifie, JAMAIS
+     *  envoyees a Modal. Absentes pour l'outil Auto Inpaint lui-meme. */
+    consigne?: string;
+    consigneOriginale?: string;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
   const cible = (targetText ?? '').toString().trim();
   if (!cible) return err(400, 'targetText required');
+  const consignes = [consigne, consigneOriginale]
+    .map((x) => (typeof x === 'string' ? x.trim() : ''))
+    .filter((x, i, tous) => x && tous.indexOf(x) === i);
+  if (consignes.some((x) => x.length > 1000)) return err(400, 'consigne too long');   // une consigne de Modify tient en 200 caracteres
 
   const rawPrompt = (prompt ?? '').toString().trim();
   // FILTRE DE SECURITE (2026-10-20) : il ne portait que sur `prompt`. Le texte de recherche (`targetText`) partait sans controle vers le
   // moteur, alors que /api/modify-image refuse le meme texte ; or « Modify image » confie desormais ses retraits a cette route. On verifie
   // les chaines EXACTES envoyees a Modal (cible et remplacement, rognees ci-dessus UNE fois) et leur assemblage : une combinaison
   // « personne » + « nudite » repartie entre les deux champs n'est vue que sur le texte joint.
+  // CONSIGNE COMPLETE (2026-10-20, relecture securite) : « Modify image » extrait la cible et le remplacement de la consigne ; les mots de
+  // contexte (« girl », « woman », « on the girl ») en sont RETIRES, de sorte que le filtre ne voyait plus que « dress. no clothing » et laissait
+  // passer ce que /api/modify-image refuse. La consigne entiere (texte traduit ET texte tape) passe donc par le meme filtre, en plus des deux
+  // champs, avant tout debit ; elle n'est jamais envoyee a Modal.
   {
     const texteVerifie = [cible, rawPrompt].filter(Boolean).join('. ');
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    const safety = await _checkPromptSafetyAlerte(env, user.id, texteVerifie, unrestricted);
-    if (!safety.safe) {
-      return json({ ok: false, success: false,
-        error: safety.reason ?? 'prompt blocked by content filter',
-        blocked: safety.blocked }, { status: 400 });
+    for (const texte of [texteVerifie, ...consignes.filter((x) => x !== texteVerifie)]) {
+      const safety = await _checkPromptSafetyAlerte(env, user.id, texte, unrestricted);
+      if (!safety.safe) {
+        return json({ ok: false, success: false,
+          error: safety.reason ?? 'prompt blocked by content filter',
+          blocked: safety.blocked }, { status: 400 });
+      }
     }
   }
 

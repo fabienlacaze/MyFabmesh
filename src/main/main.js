@@ -6838,7 +6838,7 @@ ipcMain.handle('outfit-cutout', async (event, opts = {}) => {
   }
 });
 
-ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute, prompt: remplacementBrut, dilate, rel }) => {
+ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute, prompt: remplacementBrut, dilate, rel, consigne: consigneBrute, consigneOriginale: consigneOriginaleBrute }) => {
   try {
     // FILTRE DE SECURITE (2026-10-20). Ce gestionnaire ne verifiait RIEN, alors que 'img2img' verifie son prompt : « Modify » refusait
     // un texte que « Auto Inpaint » (et ses deux champs, « Find » et « Replace with ») laissait passer. Depuis que « Modify image » confie
@@ -6848,10 +6848,20 @@ ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute
     const targetText = String(cibleBrute == null ? '' : cibleBrute).trim();
     const prompt = String(remplacementBrut == null ? '' : remplacementBrut).trim();
     const texteVerifie = [targetText, prompt].filter(Boolean).join('. ');
-    const safety = checkPromptSafety(texteVerifie);
-    if (!safety.safe) return { success: false, error: safety.reason };
-    const aiSafety = await checkPromptSafetyAI(texteVerifie);
-    if (!aiSafety.safe) return { success: false, error: aiSafety.reason };
+    // CONSIGNE COMPLETE (2026-10-20, relecture securite). « Modify image » extrait la cible et le remplacement de la consigne ; les mots de
+    // contexte (« girl », « woman », « on the girl ») en sont RETIRES, de sorte que le filtre ne voyait plus que « dress. no clothing » et
+    // laissait passer ce que 'img2img' refuse. Le renderer joint donc la consigne entiere (texte traduit ET texte tape) : elle passe par
+    // les memes filtres que le prompt de 'img2img', avant tout appel au moteur, et n'est JAMAIS envoyee au moteur.
+    const consignes = [consigneBrute, consigneOriginaleBrute]
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter((x, i, tous) => x && tous.indexOf(x) === i);
+    if (consignes.some((x) => x.length > 1000)) return { success: false, error: 'instruction too long' };
+    for (const texte of [texteVerifie, ...consignes.filter((x) => x !== texteVerifie)]) {
+      const safety = checkPromptSafety(texte);
+      if (!safety.safe) return { success: false, error: safety.reason };
+      const aiSafety = await checkPromptSafetyAI(texte);
+      if (!aiSafety.safe) return { success: false, error: aiSafety.reason };
+    }
 
     const dir = path.dirname(imagePath);
     const ext = path.extname(imagePath);
