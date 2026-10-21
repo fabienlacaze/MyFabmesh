@@ -2551,7 +2551,7 @@
         return { success: false, error: r?.error || 'unknown' };
       } catch (e) { return { success: false, error: String(e) }; }
     },
-    autoInpaint: async ({ imagePath, targetText, prompt, dilate, projectName: _projetDemande } = {}) => {
+    autoInpaint: async ({ imagePath, targetText, prompt, dilate, consigne, consigneOriginale, projectName: _projetDemande } = {}) => {
       const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       // Cloud port of the desktop /auto-inpaint IPC handler
       // (main.js:2824). CLIPSeg detects the area + SDXL Inpaint paints
@@ -2560,9 +2560,12 @@
       if (!imagePath)  return { success: false, error: 'imagePath required' };
       if (!targetText) return { success: false, error: 'targetText required' };
       try {
-        const r = await postJSON('/api/auto-inpaint', {
-          imageUrl: imagePath, targetText, prompt: prompt || '', dilate: dilate || 15,
-        });
+        const corps = { imageUrl: imagePath, targetText, prompt: prompt || '', dilate: dilate || 15 };
+        // « Modify image » confie ses retraits a cette route : la consigne COMPLETE (traduite, puis telle que tapee) est verifiee par le serveur
+        // comme /api/modify-image la verifie (les mots de contexte « girl », « woman » ne sont pas dans la cible). Jamais envoyee au moteur.
+        if (typeof consigne === 'string' && consigne.trim()) corps.consigne = consigne;
+        if (typeof consigneOriginale === 'string' && consigneOriginale.trim()) corps.consigneOriginale = consigneOriginale;
+        const r = await postJSON('/api/auto-inpaint', corps);
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
           await _attachToProject(_projetLancement, newPath, 'front');

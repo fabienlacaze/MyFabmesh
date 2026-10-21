@@ -8240,8 +8240,10 @@ window.addEventListener('fabmesh:langue', () => {
  * DECISION cote CLIENT, sur le texte DEJA TRADUIT en anglais. Le prix affiche est celui de la route REELLEMENT appelee (auto_inpaint) : la
  * pastille de « Modify image » suit l'analyse du texte. Si le clic arrive avant la fin de l'analyse (prix pas encore a jour) et que le retrait
  * coute plus cher, une confirmation annonce le prix avant tout debit. Une consigne qui n'est pas un retrait suit EXACTEMENT l'ancien chemin
- * (API.img2img). Le filtre de securite porte sur les chaines envoyees au moteur (cible + remplacement) : main.js ('auto-inpaint') et le
- * worker (/api/auto-inpaint). Le curseur Strength n'a pas de sens pour un retrait : il est grise et sans effet tant qu'un retrait est annonce.
+ * (API.img2img). Le filtre de securite porte sur les chaines envoyees au moteur (cible + remplacement) ET sur la consigne COMPLETE (texte tape
+ * et texte traduit, joints a l'appel pour verification seulement : les mots de contexte « girl », « woman » ne sont pas dans la cible) :
+ * main.js ('auto-inpaint') et le worker (/api/auto-inpaint). Le curseur Strength n'a pas de sens pour un retrait : il est grise et sans effet
+ * tant qu'un retrait est annonce.
  */
 const modPromptEl = document.getElementById('mod-prompt');
 const modRetraitAide = document.getElementById('mod-retrait-hint');
@@ -8348,7 +8350,7 @@ function _modLancerRetrait(p, target, rawPrompt, etat) {
     }, 180000, { sourceImageUrl: target, projectName: p.name });
     try {
       const r = await API.autoInpaint({ imagePath: target, targetText: analyse.cible, prompt: remplace ? analyse.remplacement : '', dilate, rel, jobId: job.id,
-        origine: 'modify', consigne: etat.anglais });   // origine et consigne : seulement pour l'historique (sidecar), jamais envoyes au moteur
+        origine: 'modify', consigne: etat.anglais, consigneOriginale: rawPrompt });   // consigne / consigneOriginale : verifiees par main.js ('auto-inpaint') comme le prompt de img2img, jamais envoyees au moteur ; origine : reserve a l'historique (main.js ne la lit pas encore)
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();

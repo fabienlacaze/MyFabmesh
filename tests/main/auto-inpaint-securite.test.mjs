@@ -10,54 +10,7 @@
 // AUCUN contenu explicite reel : cas assembles a partir de fragments.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import * as acorn from 'acorn';
-
-const cheminMain = process.env.MAIN_JS || new URL('../../src/main/main.js', import.meta.url);
-const main = readFileSync(cheminMain, 'utf8').replace(/\r\n/g, '\n');
-
-// ── le filtre, tel que main.js le definit ─────────────────────────────────
-const d = main.indexOf('const __filtreModeration');
-const fin = main.indexOf('function checkPromptSafety(prompt) {\n  return __filtreModeration');
-assert.ok(d > 0 && fin > d, 'bloc du filtre introuvable dans main.js');
-const morceauFiltre = main.slice(d, main.indexOf('}\n', fin) + 2);
-let sansRestriction = false;
-const filtre = new Function('isUnrestrictedMode', morceauFiltre + '\n;return { checkPromptSafety };')(() => sansRestriction);
-
-// ── le gestionnaire, tel que main.js le definit ───────────────────────────
-const ast = acorn.parse(main, { ecmaVersion: 'latest', sourceType: 'script', allowHashBang: true, allowReturnOutsideFunction: true });
-let sourceGestionnaire = null;
-(function visiter(n) {
-  if (!n || typeof n.type !== 'string' || sourceGestionnaire) return;
-  if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && n.callee.property.name === 'handle'
-      && n.arguments[0] && n.arguments[0].value === 'auto-inpaint') { sourceGestionnaire = main.slice(n.arguments[1].start, n.arguments[1].end); return; }
-  for (const k of Object.keys(n)) {
-    const v = n[k];
-    if (Array.isArray(v)) v.forEach(visiter); else if (v && typeof v.type === 'string') visiter(v);
-  }
-})(ast);
-assert.ok(sourceGestionnaire, "gestionnaire 'auto-inpaint' introuvable");
-
-function monter({ cloud = false, aiSafe = true } = {}) {
-  const j = { cloud: [], serveur: [], processus: [], ia: [], multivue: [] };
-  const doublures = {
-    path: { dirname: () => '/proj', extname: () => '.png', basename: () => 'pig', join: (...a) => a.join('/') },
-    safeBase: (b) => b, safeSend: () => {}, SCRIPTS_DIR: '/scripts', _aiPython: () => 'python',
-    isCloudMode: () => cloud,
-    cloudFallback: { imageOp: async (o) => { j.cloud.push(o); return { success: true, newPath: o.outPath, creditsRemaining: 10 }; } },
-    ensureSdxlServer: async () => {},
-    sdxlServerCall: async (route, corps) => { j.serveur.push([route, corps]); return { ok: true }; },
-    _handleMultiviewInheritance: async () => {},
-    execFile: (...a) => { j.processus.push(a); return { stdout: { on() {} }, stderr: { on() {} }, on() {} }; },
-    fs: { existsSync: () => true },
-    checkPromptSafety: (t) => filtre.checkPromptSafety(t),
-    checkPromptSafetyAI: async (t) => { j.ia.push(t); return aiSafe ? { safe: true } : { safe: false, reason: 'ia' }; },
-    sdxlReady: true,
-  };
-  const noms = Object.keys(doublures);
-  const gestionnaire = new Function(...noms, 'return (' + sourceGestionnaire + ');')(...noms.map((n) => doublures[n]));
-  return { j, appeler: (args) => gestionnaire({}, { imagePath: '/proj/pig.png', ...args }) };
-}
+import { filtre, monter, regler } from './_auto-inpaint-main.mjs';
 
 const F = (...m) => m.join('');
 const NU = F('na', 'ked');
@@ -96,13 +49,13 @@ test("une combinaison repartie entre « Find » et « Replace with » (personne 
 });
 
 test('le plancher illegal reste intouchable, meme en mode sans restriction', async () => {
-  sansRestriction = true;
+  regler.sansRestriction(true);
   try {
     const m = monter();
     const r = await m.appeler({ targetText: 'dress', prompt: F('child ', NU) });
     assert.equal(r.success, false);
     assert.equal(m.j.serveur.length + m.j.cloud.length, 0);
-  } finally { sansRestriction = false; }
+  } finally { regler.sansRestriction(false); }
 });
 
 test('un retrait legitime passe : « wings », remplacement vide (serveur local)', async () => {
