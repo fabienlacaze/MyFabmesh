@@ -594,6 +594,14 @@ class TestPlancherSansNode(unittest.TestCase):
                   'Nudeln mit Soße', 'kid scream mask'):
             self.assertTrue(M.check_prompt_safety(p, False)['safe'], p)
 
+    def test_lettres_epelees_autour_d_une_expression_retiree_entiere(self):
+        # 21/10 : la production rapprochait « n » et « u s » en retirant « baby shower » ; la vue exacte (« nus ») ne le faisait plus
+        for e in ('baby shower', 'bridal shower', 'bath toys', 'suicide squad', 'nu metal'):
+            for t in ('%s n %s u s' % (MIN_ENFANT, e), '%s n %s u e s' % (MIN_ENFANT, e)):
+                self.assertFalse(M.check_hard_floor(t)['safe'], t)
+        for t in ('a baby shower with balloons', 'a child at a baby shower', 'a child n a u s'):
+            self.assertTrue(M.check_hard_floor(t)['safe'], t)
+
     def test_longueur_et_syntaxe(self):
         self.assertEqual(M.controler_longueur_prompt('x' * 2000), {'safe': True})
         self.assertEqual(M.controler_longueur_prompt('x' * 2001)['blocked'], 'length')

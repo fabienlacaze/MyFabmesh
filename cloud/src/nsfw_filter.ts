@@ -731,13 +731,24 @@ function _vueExacte(net: string, desactivees: string[] = [], translit = true): s
   // (« . »), qui relie les lettres epelees (« n.u<U+0436>e »). Les lettres a marque distinctive sont deja « x » plus haut.
   // Un BLANC non ASCII (U+2028, U+2029, U+1680 : `\s` pour JavaScript) reste un espace, comme dans la production : il coupe les series de
   // lettres epelees (« n u<U+2013>e<U+2028>s » = « nues », trouve par le fuzz differentiel du 20/10).
-  s = _sansExpressionsSures((translit ? _translit(s) : s).replace(/[^\x00-\x7f]/gu, (c) => (/\s/.test(c) ? ' ' : '.')), desactivees);
+  const avantExpressions = (translit ? _translit(s) : s).replace(/[^\x00-\x7f]/gu, (c) => (/\s/.test(c) ? ' ' : '.'));
+  s = _sansExpressionsSures(avantExpressions, desactivees);
   // Assemblee comme les autres vues du plancher (quatrieme relecture du 14/10, R3) : lettres separees par de la ponctuation ou des
   // espaces recollees (« n.u.e », « n-u-e », « n_u_s »), lettres repetees ecrasees (« nuuue »), leet (« nu3 ») ; la production
   // lisait ces formes (« nu », « nue » etaient des termes de ses vues ordinaires).
   const sortie: string[] = [];
   for (const x of [s, _leet(s, 'i'), _leet(s, 'l')]) {
     const v = _ecraser(_joindre(_simple(_joindrePonctue(x)))).replace(_RE_IDIOMES_EXACTS, ' ').replace(/ +/g, ' ').trim();
+    if (!sortie.includes(v)) sortie.push(v);
+  }
+  // Sixieme passe (21/10, trouve par les mutations aleatoires du banc : « child n baby shower u s » refuse par la production, accepte
+  // ensuite) : la production retirait ENTIERE l'expression d'`IDIOMES_PRODUCTION` (« baby shower ») et rapprochait ainsi les lettres
+  // epelees qui l'entouraient (« n  u s » = « nus ») ; le lot ne retire que le mot sensible, et un jalon separe les voisins. Quand le
+  // texte contient une de ces expressions, la vue exacte est AUSSI lue comme la production (meme regle que `separees`, dans `_vues`).
+  for (const x of [avantExpressions, _leet(avantExpressions, 'i'), _leet(avantExpressions, 'l')]) {
+    const j = _simple(_joindrePonctue(x));
+    if (!_RE_INDICE_PHRASES.test(j) || !_RE_IDIOMES_PRODUCTION.test(j)) continue;
+    const v = _ecraser(_joindre(_simple(_joindrePonctue(x), true, true))).replace(_RE_IDIOMES_EXACTS, ' ').replace(/ +/g, ' ').trim();
     if (!sortie.includes(v)) sortie.push(v);
   }
   return sortie;

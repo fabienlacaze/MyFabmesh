@@ -445,6 +445,12 @@ export function cas() {
     ajouter('V6-B5y', 'P', `${NA} person, age ${e} 12`, `a person aged ${e} 10 ${NA}`, `${NA} person, 12 ${e} yo`, `${NA} person, 9 ${e} y r old`,
       F('k ', e, ' id', 'por', 'n'));
   }
+  // B5w (21/10, mutations aleatoires du banc : « child n baby shower u s ») : la VUE EXACTE (mots « nu », « nus »...) etait lue sans le
+  // rapprochement des lettres epelees que fait la production quand elle retire l'expression entiere
+  for (const e of ['bath toys', 'bridal shower', 'baby shower', 'meteor shower', 'shower of', 'chinks in', 'suicide squad',
+    'snuff box', 'snuff bottles', 'bikini atoll', 'bikini bottom', 'nu metal', 'anal retentive']) {
+    ajouter('V6-B5w', 'P', `${ENF} n ${e} u ${F('s')}`, `a ${KID} n ${e} u e s`, `${ENF} n ${e} u ${F('e')}`);
+  }
   // B5z : les expressions retirees de CHACUNE des vues de la production, deguisees en leet, jointes par la ponctuation ou avec marque
   for (const e of ['bath t0ys', 'b4th toys', 'bridal sh0wer', 'snuff b0x', 'nu m3tal', 'chinks 1n', 'suicide squ4d', 'meteor sh0wer', 'anal r3tentive',
     'bath;toys', 'bath,toys', 'baby sh' + String.fromCodePoint(0x301) + 'ower', 'bikini at0ll']) {
