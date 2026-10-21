@@ -21,6 +21,7 @@ installation, aucun GPU. Tout calcul de plus de ~20 s passe par `bash /c/tmp/lou
 | `produit_fill_holes.py` | lance le `fill_holes` du produit (`modal_app/_mesh_op.py`) sur un GLB et rapporte verdict / refus / faces |
 | `rappel.py` | rappel et précision d'un DÉTECTEUR contre les zones de référence (`--reference visuel|fenetres`) |
 | `synthese.py`, `tableaux_rapport.py` | tableaux (aucun chiffre du rapport n'est tapé à la main) |
+| `avant_apres.py` | AVANT / APRES du Fill holes sur le VRAI orc (496 242 faces) auquel on ajoute 3 trous : `_mesh_op.fill_holes` de release-1.0.45 contre celui du depot (faces supprimees, UV reecrites, boucles restantes, duree) ; ecrit `resultats/orc_avant_apres.json`, le GLB a trous va hors depot |
 | `versions.py` | liste les résultats manquants ou produits par une autre `VERSION_OUTIL` |
 | `test_diagnostic.py` | 21 tests sur des maillages synthétiques à vérité connue (`python build/bancs/fillholes/test_diagnostic.py`) |
 | `corpus.json` | les maillages mesurés (chemins de la machine du propriétaire ; AUCUN GLB dans le dépôt, public) |

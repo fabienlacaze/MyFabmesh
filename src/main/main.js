@@ -10991,7 +10991,9 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
         case 'subdivide':   opParams = { iterations: Number(p[0]) || 1 }; break;
         // Mode 'seal' (p[1], keepDetail) desktop-only — Modal ne lit que resolution.
         case 'watertight':  opParams = { resolution: Number(p[0]) || 512 }; break;
-        case 'fill_holes':  // sliders min/max ignorés par Modal (défauts cloud)
+        // Fill holes : les curseurs Min / Max (en ARETES du pourtour) sont TRANSMIS, comme le fait le site (meshyAPI-cloud.js). Avant, ils etaient
+        // jetes (« ignorés par Modal ») alors que l'apercu coloriait les trous selon eux : le bouchage ne correspondait pas a ce qui etait montre.
+        case 'fill_holes':  opParams = { min_hole_size: Math.max(3, parseInt(p[0], 10) || 3), max_hole_size: Math.max(3, parseInt(p[1], 10) || 2000) }; break;
         case 'center':
         case 'fix_normals': opParams = {}; break;
         case 'retexture': {
@@ -11050,6 +11052,10 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
       if (stdout) log.info('mesh-tool', stdout.trim());
       if (error) {
         log.error('mesh-tool', error.message);
+        // Refus EXPLIQUE (Fill holes : rien a boucher) : mesh_tools.py ecrit « [mesh_tools] REFUS: <phrase> » et sort avec le code 3. La phrase
+        // est montree telle quelle (traduite par son code, lib/textes-serveur.js), pas la ligne « Command failed: python... ».
+        const _refus = /\[mesh_tools\] REFUS: ([^\r\n]+)/.exec(stdout || '');
+        if (_refus) { resolve({ success: false, error: _refus[1].trim(), refus: true }); return; }
         // Plafond memoire atteint : la phrase exacte du script (traduite par le renderer).
         const _manque = _manqueMemoireDansSortie((stdout || '') + '\n' + (stderr || ''));
         resolve({ success: false, error: _manque || error.message, stderr });

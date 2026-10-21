@@ -18,6 +18,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { preparer as preparerTrous, analyser as analyserTrous, diagnostiquer as diagnostiquerTrous, agreger as agregerTrous, message_refus as messageRefusTrous, rendu_apercu as renduApercuTrous } from './lib/bouchage-trous.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
 // hundreds of raycasts per stamp; native three.js raycast is O(triangles) and
@@ -11880,6 +11881,12 @@ function _meshJobThumb(meshPath) {
   return String(t).startsWith('file:') ? t : 'file:///' + String(t).replace(/\\/g, '/');
 }
 
+// Refus EXPLIQUE de Fill holes (rien a boucher : maillage ferme, hors plage...) : le texte du serveur ou du bureau, sans « Error: » ni suffixe.
+// Rend le texte a afficher, ou null si ce n'est pas un de ces refus.
+function _refusBouchage(msg) {
+  const s = String(msg == null ? '' : msg).replace(/^Error:\s*/i, '').trim();
+  return /^(Nothing to fill\b|No hole between \d+ and \d+ edges\b|Could not fill the \d+ open hole)/.test(s) ? s : null;
+}
 async function runMeshTool(operation, params = [], namedParams = null) {
   const p = state.currentProject;
   // Operate on the DISPLAYED mesh version (previewMeshPath) — not the rig-selected
@@ -11933,8 +11940,10 @@ async function runMeshTool(operation, params = [], namedParams = null) {
         (result && result.error) || 'unknown',
         result && result.stderr ? String(result.stderr).slice(-400) : '',
       ].filter(Boolean).join(' — ');
-      showToast(`${operation} failed: ${msg}`, 'error', 5000);
-      if (job && typeof completeJob === 'function') completeJob(job.id, false, msg);
+      const refus = _refusBouchage(msg);
+      if (refus) showToast(refus, 'warning', 9000);
+      else showToast(`${operation} failed: ${msg}`, 'error', 5000);
+      if (job && typeof completeJob === 'function') completeJob(job.id, false, refus || msg);
     }
   } catch (e) {
     showToast(`${operation} error: ${e.message}`, 'error', 5000);
@@ -12415,121 +12424,36 @@ function _jsFixNormalsWelded(geom) {
   return result;
 }
 
-// Boundary-loop hole finder for the Fill-holes live preview. Returns the
-// green fan-fill triangle positions (geom-local) + per-size outline line
-// vertices (green=will fill, grey=too small, red=too big) + stats. Adapted
-// from the cloud _jsFillHoles.
+// Fill-holes live preview (2026-10-21). C'est le MEME noyau que Fill holes lui-meme (lib/bouchage-trous.js = scripts/bouchage_trous.py = Modal) :
+// meme soudure par position, meme tolerance (2 % de l'arete moyenne), meme regle de pourtour, memes rustines. Ce que l'apercu montre en VERT est
+// donc ce qui sera AJOUTE — rien n'est retire, deplace ni reecrit. Avant : un detecteur a part (tolerance propre, boucles ouvertes comptees
+// comme des trous, rustine en eventail) dont le resultat n'avait aucun lien garanti avec l'operation.
+// Rend les aretes des pourtours par couleur (vert : sera bouche ; gris : trop petit ; rouge : trop grand ou impossible a remplir), les triangles
+// des rustines et les nombres. Les boucles degenerees (aire nulle, ex. T-jonctions) ne sont pas dessinees : il n'y a rien a y boucher.
+function _positionsPlates(attr) {
+  if (!attr.isInterleavedBufferAttribute && !attr.normalized && attr.array instanceof Float32Array && attr.itemSize === 3) return attr.array;
+  const sortie = new Float32Array(attr.count * 3);
+  for (let i = 0; i < attr.count; i++) { sortie[i * 3] = attr.getX(i); sortie[i * 3 + 1] = attr.getY(i); sortie[i * 3 + 2] = attr.getZ(i); }
+  return sortie;
+}
 function _jsHoleFillPreview(geom, minHoleSize, maxHoleSize) {
-  const empty = { greenFaces: [], green: [], grey: [], red: [], stats: { loops: 0, filled: 0, tooBig: 0, tooSmall: 0, boundaryEdges: 0, indexed: false } };
+  const empty = { greenFaces: [], green: [], grey: [], red: [], analyse: null, prep: null,
+    stats: { loops: 0, filled: 0, tooBig: 0, tooSmall: 0, unfillable: 0, flat: 0, faces: 0, boundaryEdges: 0, indexed: false } };
   if (!geom.attributes || !geom.attributes.position) return empty;
-  const arr = geom.attributes.position.array;
+  const pos = _positionsPlates(geom.attributes.position);
   const n = geom.attributes.position.count;
-  // Non-indexed geometry: build a sequential index (every 3 verts = 1 tri)
-  // so triangle soups (some GLTF exports) still get a hole preview instead
-  // of silently returning nothing.
+  // Geometrie non indexee (soupe de triangles) : indice sequentiel, la soudure par position fait le reste.
   const indexed = !!geom.index;
-  const rawIndices = indexed ? geom.index.array : (() => { const a = new Uint32Array(n); for (let i = 0; i < n; i++) a[i] = i; return a; })();
-  const rawTriCount = Math.floor(rawIndices.length / 3);
-  let mnx = Infinity, mny = Infinity, mnz = Infinity, mxx = -Infinity, mxy = -Infinity, mxz = -Infinity;
-  for (let i = 0; i < n; i++) {
-    const x = arr[i * 3], y = arr[i * 3 + 1], z = arr[i * 3 + 2];
-    if (x < mnx) mnx = x; if (x > mxx) mxx = x;
-    if (y < mny) mny = y; if (y > mxy) mxy = y;
-    if (z < mnz) mnz = z; if (z > mxz) mxz = z;
-  }
-  const bbDiag = Math.hypot(mxx - mnx, mxy - mny, mxz - mnz) || 1;
-  // Strip degenerate triangles (TRELLIS marching cubes emits many) and, in the
-  // same pass, sample edge lengths so we can weld RELATIVE to the actual mesh
-  // resolution instead of a fixed fraction of the bbox (which is a knife-edge
-  // on dense meshes).
-  const indices = [];
-  const areaEps = bbDiag * 1e-12;
-  let edgeSum = 0, edgeCnt = 0;
-  for (let t = 0; t < rawTriCount; t++) {
-    const i0 = rawIndices[t * 3], i1 = rawIndices[t * 3 + 1], i2 = rawIndices[t * 3 + 2];
-    if (i0 === i1 || i1 === i2 || i2 === i0) continue;
-    const ax = arr[i0 * 3], ay = arr[i0 * 3 + 1], az = arr[i0 * 3 + 2];
-    const ex = arr[i1 * 3] - ax, ey = arr[i1 * 3 + 1] - ay, ez = arr[i1 * 3 + 2] - az;
-    const fx = arr[i2 * 3] - ax, fy = arr[i2 * 3 + 1] - ay, fz = arr[i2 * 3 + 2] - az;
-    if (Math.hypot(ey * fz - ez * fy, ez * fx - ex * fz, ex * fy - ey * fx) * 0.5 < areaEps) continue;
-    indices.push(i0, i1, i2);
-    if ((edgeCnt & 7) === 0) { edgeSum += Math.hypot(ex, ey, ez); }  // sample 1/8 of edges
-    edgeCnt++;
-  }
-  const triCount = Math.floor(indices.length / 3);
-  const meanEdge = edgeCnt ? (edgeSum / Math.max(1, (edgeCnt >> 3))) : bbDiag * 1e-3;
-  // Detect boundary loops for a given weld tolerance. Returns { loops, boundaryEdges, groupOf, repOf }.
-  const detect = (tol) => {
-    const Qd = 1 / Math.max(tol, 1e-12);
-    const keyToId = new Map(); const groupOf = new Int32Array(n); let G = 0;
-    for (let v = 0; v < n; v++) {
-      const k = Math.round(arr[v * 3] * Qd) + ',' + Math.round(arr[v * 3 + 1] * Qd) + ',' + Math.round(arr[v * 3 + 2] * Qd);
-      let gid = keyToId.get(k); if (gid === undefined) { gid = G++; keyToId.set(k, gid); } groupOf[v] = gid;
-    }
-    const repOf = new Int32Array(G).fill(-1);
-    for (let v = 0; v < n; v++) { const g = groupOf[v]; if (repOf[g] === -1) repOf[g] = v; }
-    const cnt = new Map();
-    for (let t = 0; t < triCount; t++) {
-      const g0 = groupOf[indices[t * 3]], g1 = groupOf[indices[t * 3 + 1]], g2 = groupOf[indices[t * 3 + 2]];
-      for (const [a, b] of [[g0, g1], [g1, g2], [g2, g0]]) { if (a === b) continue; const k = a < b ? a + ',' + b : b + ',' + a; cnt.set(k, (cnt.get(k) || 0) + 1); }
-    }
-    let boundaryEdges = 0;
-    const succ = new Map();
-    for (let t = 0; t < triCount; t++) {
-      const g0 = groupOf[indices[t * 3]], g1 = groupOf[indices[t * 3 + 1]], g2 = groupOf[indices[t * 3 + 2]];
-      for (const [a, b] of [[g0, g1], [g1, g2], [g2, g0]]) { if (a === b) continue; const k = a < b ? a + ',' + b : b + ',' + a; if (cnt.get(k) !== 1) continue; if (!succ.has(a)) succ.set(a, []); succ.get(a).push(b); }
-    }
-    for (const v of cnt.values()) if (v === 1) boundaryEdges++;
-    const lps = [];
-    const popNext = (g) => { const a = succ.get(g); return a && a.length ? a.pop() : null; };
-    for (const start of succ.keys()) {
-      while ((succ.get(start) || []).length) {
-        const loop = []; let g = start; let closed = false;
-        for (let s = 0; s < 100000; s++) { loop.push(g); const nx = popNext(g); if (nx == null) break; if (nx === start) { closed = true; break; } g = nx; }
-        // Keep CLOSED loops (any size) AND long OPEN chains: interior holes on
-        // TRELLIS meshes often have a boundary broken by a non-manifold junction
-        // so they never close — dropping them (closed-only) hid every hole except
-        // the clean bottom rim. Open chains ≥6 edges are real holes worth showing.
-        if (loop.length >= 3 && (closed || loop.length >= 6)) lps.push(loop);
-      }
-    }
-    return { loops: lps, boundaryEdges, groupOf, repOf };
-  };
-  // Single fixed weld tolerance — no ladder, no max-loops heuristic.
-  // Seam/marching-cubes duplicate verts are (near-)bit-exact and merge at any
-  // tol>0, while the nearest DISTINCT boundary verts sit ~hundreds× farther
-  // apart — so any tol in [1e-6,1e-4]·bbDiag reveals the SAME correct hole set
-  // (verified on the real meshes). We pick 1e-5·bbDiag, floored at 1e-6·bbDiag
-  // and capped below 0.25·meanEdge so a real hole's rim can never collapse.
-  // The old meanEdge ladder selected on loop count, which is INVERTED: a finer
-  // tol under-welds → thousands of spurious seam loops → wrongly "preferred".
-  const bestTol = Math.max(bbDiag * 1e-6, Math.min(bbDiag * 1e-5, meanEdge * 0.25));
-  const best = detect(bestTol);
-  const { loops, boundaryEdges, repOf } = best;
+  const idx = indexed ? geom.index.array : (() => { const a = new Uint32Array(n - (n % 3)); for (let i = 0; i < a.length; i++) a[i] = i; return a; })();
+  const prep = preparerTrous(pos, idx);
+  const a = analyserTrous(pos, idx, minHoleSize, maxHoleSize, null, prep);
+  const r = renduApercuTrous(a, pos);
   try {
-    console.log(`[fill-holes] indexed=${indexed} verts=${n} tris=${triCount} bbDiag=${bbDiag.toFixed(4)} meanEdge=${meanEdge.toExponential(2)} weldTol=${bestTol.toExponential(2)} boundaryEdges=${boundaryEdges} loops=${loops.length} (min=${minHoleSize} max=${maxHoleSize})`);
+    console.log(`[fill-holes] indexed=${indexed} verts=${n} tris=${a.faces} tol=${a.tolerance.toExponential(2)} boundaryEdges=${a.aretes_de_bord} loops: fill=${a.a_boucher} small=${a.trop_petites} big=${a.trop_grandes} flat=${a.degenerees} unfillable=${a.non_triangulables} -> +${a.faces_ajoutees} faces (min=${minHoleSize} max=${maxHoleSize})`);
   } catch (_) {}
-  const greenFaces = [], green = [], grey = [], red = [];
-  let filled = 0, tooBig = 0, tooSmall = 0;
-  for (const loop of loops) {
-    let bucket;
-    if (loop.length < minHoleSize) { bucket = grey; tooSmall++; }
-    else if (loop.length > maxHoleSize) { bucket = red; tooBig++; }
-    else { bucket = green; filled++; }
-    for (let i = 0; i < loop.length; i++) {
-      const va = repOf[loop[i]], vb = repOf[loop[(i + 1) % loop.length]];
-      bucket.push(arr[va * 3], arr[va * 3 + 1], arr[va * 3 + 2], arr[vb * 3], arr[vb * 3 + 1], arr[vb * 3 + 2]);
-    }
-    if (bucket !== green) continue;
-    let cx = 0, cy = 0, cz = 0;
-    for (const g of loop) { const v = repOf[g]; cx += arr[v * 3]; cy += arr[v * 3 + 1]; cz += arr[v * 3 + 2]; }
-    cx /= loop.length; cy /= loop.length; cz /= loop.length;
-    for (let i = 0; i < loop.length; i++) {
-      const va = repOf[loop[i]], vb = repOf[loop[(i + 1) % loop.length]];
-      greenFaces.push(arr[va * 3], arr[va * 3 + 1], arr[va * 3 + 2], arr[vb * 3], arr[vb * 3 + 1], arr[vb * 3 + 2], cx, cy, cz);
-    }
-  }
-  return { greenFaces, green, grey, red, stats: { loops: loops.length, filled, tooBig, tooSmall, boundaryEdges, indexed } };
+  return { greenFaces: r.faces, green: r.vert, grey: r.gris, red: r.rouge, analyse: a, prep,
+    stats: { loops: a.a_boucher + a.trop_petites + a.trop_grandes + a.non_triangulables, filled: a.a_boucher, tooBig: a.trop_grandes, tooSmall: a.trop_petites,
+      unfillable: a.non_triangulables, flat: a.degenerees, faces: a.faces_ajoutees, boundaryEdges: a.aretes_de_bord, indexed } };
 }
 
 // Remove the Fill-holes preview overlays (green fills + coloured outlines).
@@ -12600,7 +12524,8 @@ function _mtBuildFillOverlays(vals) {
   _mtClearOverlays();
   const minE = Math.max(3, Number(vals.min_hole_size) || 3);
   const maxE = Math.max(minE, Number(vals.max_hole_size) || 2000);
-  let loops = 0, filled = 0, tooSmall = 0, tooBig = 0, boundaryEdges = 0;
+  let loops = 0, filled = 0, tooSmall = 0, tooBig = 0, unfillable = 0, flat = 0, faces = 0, boundaryEdges = 0;
+  const analyses = [], preps = [];
   const addLines = (mesh, verts, color, opacity) => {
     if (!verts.length) return;
     const g = new THREE.BufferGeometry();
@@ -12611,7 +12536,9 @@ function _mtBuildFillOverlays(vals) {
   for (const e of mtState.origGeoms) {
     const r = _jsHoleFillPreview(e.originalGeom, minE, maxE);
     loops += r.stats.loops; filled += r.stats.filled; tooSmall += r.stats.tooSmall; tooBig += r.stats.tooBig;
+    unfillable += r.stats.unfillable; flat += r.stats.flat; faces += r.stats.faces;
     boundaryEdges += (r.stats.boundaryEdges || 0);
+    if (r.analyse) { analyses.push(r.analyse); preps.push(r.prep); }
     if (r.greenFaces.length) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(r.greenFaces, 3));
@@ -12623,7 +12550,15 @@ function _mtBuildFillOverlays(vals) {
     addLines(e.mesh, r.grey, 0x888888, 0.6);
     addLines(e.mesh, r.red, 0xff4455, 0.9);
   }
-  return { loops, filled, tooSmall, tooBig, boundaryEdges };
+  // Rien a boucher : DIRE POURQUOI (hors plage, ou maillage ferme + diagnostic : faces retournees, aretes a plus de deux faces, miettes), au
+  // lieu d'affirmer sans preuve que les taches sombres sont des normales inversees.
+  let refus = null;
+  if (!faces && analyses.length) {
+    const [somme, diag] = agregerTrous(analyses, analyses.map((a, i) => diagnostiquerTrous(preps[i], a)));
+    const [code, texte] = messageRefusTrous(somme, diag, minE, maxE);
+    refus = { code, texte };
+  }
+  return { loops, filled, tooSmall, tooBig, unfillable, flat, faces, boundaryEdges, refus };
 }
 
 const MESH_TOOL_SCHEMAS = {
@@ -12700,13 +12635,13 @@ const MESH_TOOL_SCHEMAS = {
   },
   fill_holes: {
     title: 'Fill holes',
-    subtitle: 'Holes whose boundary loop is between Min and Max edges show in GREEN (will be filled); grey = too small, red = too big. Apply fills them with texture from the surrounding mesh.',
+    subtitle: 'Open holes whose outline has between Min and Max edges show in GREEN (they will be filled); grey = too small, red = too big. Apply only ADDS faces: nothing existing is removed or moved, and each patch takes its texture from the neighbouring faces. Missing or thin areas that are not open holes cannot be fixed here.',
     needsImage: false,
     overlayPreview: true,   // green fill + coloured outlines, not a geom swap
     heavyPreview: true,
     params: [
-      { id: 'min_hole_size', label: 'Min hole size (edges)', type: 'range', min: 3, max: 20000, step: 1,  default: 3 },
-      { id: 'max_hole_size', label: 'Max hole size (edges)', type: 'range', min: 3, max: 20000, step: 10, default: 2000 },
+      { id: 'min_hole_size', label: 'Min hole size (edges)', type: 'range', min: 3, max: 5000, step: 1,  default: 3 },
+      { id: 'max_hole_size', label: 'Max hole size (edges)', type: 'range', min: 3, max: 5000, step: 10, default: 2000 },
     ],
     build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size)],
   },
@@ -12931,15 +12866,15 @@ function _mtRunPreview() {
     } else if (mtState.schema.overlayPreview) {
       const st = _mtBuildFillOverlays(vals);
       if (status) {
-        if (st.loops) {
-          status.textContent = _i18nTf('Holes: {x} to fill (green)', st.filled) + ` · ` + _i18nTf('{x} too small (grey)', st.tooSmall) + ` · ` + _i18nTf('{x} too large (red)', st.tooBig);
-        } else if ((st.boundaryEdges || 0) < 3) {
-          // No open boundary edges at all → the black speckles are NOT holes
-          // but reversed-normal / double-sided faces. Fill Holes can't help;
-          // Fix normals (or Watertight remesh) is the tool.
-          status.textContent = _i18nT('No open boundary: the black speckles are reversed-normal faces, not holes. Use "Fix normals" or "Watertight" instead.');
+        if (st.faces) {
+          status.textContent = _i18nTf('Holes: {x} to fill (green)', st.filled) + ` · ` + _i18nTf('{x} too small (grey)', st.tooSmall) + ` · ` + _i18nTf('{x} too large (red)', st.tooBig)
+            + ` · ` + _i18nTf('+{x} faces will be added; nothing is removed', st.faces)
+            + (st.unfillable ? ` · ` + _i18nTf('{x} cannot be filled (red)', st.unfillable) : '')
+            + (st.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', st.flat) : '');
+        } else if (st.refus) {
+          status.textContent = (window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte;
         } else {
-          status.textContent = _i18nTf('Open edges detected ({x}) but no traceable closed loop — non-manifold geometry. Try "Watertight".', st.boundaryEdges);
+          status.textContent = _i18nT('Computing…');
         }
       }
     } else if (status) {

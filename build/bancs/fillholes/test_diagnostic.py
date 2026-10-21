@@ -310,14 +310,14 @@ class TestDiagnostic(unittest.TestCase):
             self.assertEqual(out['resultat'], 'ok')
             self.assertEqual(out['faces_ajoutees'], 1)          # le trou d'un triangle est bouche
             self.assertTrue(os.path.exists(sor))
-            # un maillage ferme : le produit refuse (garde 1), c'est le message qu'on rapporte
+            # un maillage ferme : le produit refuse (refus explique du noyau bouchage_trous, 21/10), c'est le message qu'on rapporte
             ferme = os.path.join(d, 'ferme.glb')
             ecrire_glb(ferme, V, F)
             r2 = subprocess.run([sys.executable, '-I', '-X', 'utf8', '-W', 'ignore', os.path.join(ICI, 'produit_fill_holes.py'), ferme],
                                 capture_output=True, text=True, timeout=300)
             out2 = json.loads(r2.stdout.strip().splitlines()[-1])
             self.assertEqual(out2['resultat'], 'refus')
-            self.assertIn('aucun trou', out2['message'])
+            self.assertIn('Nothing to fill', out2['message'])
 
     def test_trou_traversant_a_levre_fermee_est_une_fenetre_sans_bord(self):
         from rappel import evaluer
