@@ -459,6 +459,51 @@ class TestInvariants(OutilsTest):
         self.assertNotIn('triangle', texte.lower().replace('triangulat', ''))
 
 
+def sphere_ailette_et_trou():
+    """Sphere dont la face 0 est RETIREE et dont la voisine f1 (a travers l'arete (a, b)) est DOUBLEE par une copie de sens inverse : double peau, comme
+    en font les maillages TRELLIS (94 000 aretes a plus de deux faces sur l'orc). L'arete (a, b) garde deux faces (f1 et sa copie) : le trou n'est donc plus
+    qu'une CHAINE a -> c -> b dont les bouts sont relies par une arete toujours presente. Rend (V, F, (a, b, c))."""
+    V, F = sphere(2)
+    a, b, c = (int(x) for x in F[0])
+    f1 = [k for k in range(1, len(F)) if a in F[k] and b in F[k]][0]
+    copie = F[f1][::-1]
+    F2 = np.vstack([retirer(F, [0]), [copie]])
+    return V, F2, (a, b, c)
+
+
+class TestChaines(OutilsTest):
+    def test_trou_contre_une_arete_a_trois_faces_est_ferme_par_cette_arete(self):
+        V, F2, (a, b, c) = sphere_ailette_et_trou()
+        a_ = B.analyser(V, F2)
+        self.assertEqual(a_['chaines_fermees'], 1)
+        self.assertEqual(a_['chaines_ouvertes'], 0)
+        self.assertEqual([(x['n'], x['categorie'], x['chaine']) for x in a_['boucles']], [(3, 'a_boucher', True)])
+        self.assertEqual(a_['aretes_de_bord'], 2)
+        ajout = B.faces_ajoutees(a_)
+        self.assertEqual(len(ajout), 1)
+        # la rustine RETROUVE la face retiree : memes sommets, meme sens de parcours (a, b, c)
+        t = list(ajout[0])
+        k = t.index(a)
+        self.assertEqual(t[k:] + t[:k], [a, b, c])
+
+    def test_ailette_seule_n_est_pas_un_trou(self):
+        """Un triangle accroche a une arete : sa chaine se referme sur une face qui existe deja ; la « boucher » ne ferait que la doubler."""
+        V, F = sphere(2)
+        a_, b_ = F[0][0], F[0][1]
+        V2 = np.vstack([V, V[a_] * 1.3 + V[b_] * 0.4])
+        F2 = np.vstack([F, [[a_, b_, len(V)]]])
+        r = B.analyser(V2, F2)
+        self.assertEqual((r['faces_ajoutees'], r['degenerees'], r['chaines_fermees']), (0, 1, 1))
+
+    def test_chaine_sans_arete_pour_la_fermer_reste_ouverte(self):
+        V, F = sphere(2)
+        F2 = retirer(F, [0, 1])                                   # un trou normal...
+        F3 = F2[:-1]                                              # ...puis une face retiree ailleurs et un bout isole : desequilibre sans corde
+        # on coupe la rive : retirer une face voisine du trou ne ferme pas la chaine par une arete existante
+        r = B.analyser(V, F3)
+        self.assertGreaterEqual(r['a_boucher'], 1)
+
+
 class TestDiagnostic(OutilsTest):
     def test_faces_retournees(self):
         V, F = sphere(3)
@@ -703,6 +748,8 @@ def cas_de_parite():
     tetra_f = np.array([[0, 2, 1], [0, 1, 3], [1, 2, 3], [0, 3, 2]]) + len(Vm)
     ajouter('sphere_miettes', np.vstack([Vm, tetra_v]), np.vstack([Fm, tetra_f]))
     ajouter('sphere_budget_epuise', V3, retirer(F3, trois_trous(V3, F3)), 3, 2000, B.cout_travail(12) + 10)
+    Va, Fa, _ = sphere_ailette_et_trou()
+    ajouter('sphere_ailette_et_trou', Va, Fa)
     ajouter('sphere_hors_plage', V3, retirer(F3, region(F3, face_pres(V3, F3, V3[0]), 6)), 40, 60)
     return cas
 

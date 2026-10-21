@@ -78,7 +78,7 @@ def souder_par_position(V, tol):
     paires = cKDTree(V).query_pairs(tol, output_type='ndarray')
     if len(paires) == 0:
         return np.arange(n, dtype=np.int64)
-    graphe = coo_matrix((np.ones(len(paires), dtype=np.int8), (paires[:, 0], paires[:, 1])), shape=(n, n))
+    graphe = coo_matrix((np.ones(len(paires), dtype=np.int32), (paires[:, 0], paires[:, 1])), shape=(n, n))
     _, etiquettes = connected_components(graphe, directed=False)
     _, premier = np.unique(etiquettes, return_index=True)
     ordre = np.argsort(premier, kind='stable')
@@ -107,38 +107,55 @@ def preparer(V, F, tol=None):
     uniques, inv, cnt = np.unique(cle, return_inverse=True, return_counts=True)
     inv = inv.reshape(-1)
     return {'V': V, 'F': F, 'tol': tol, 'arete_moyenne': arete, 'groupe': groupe, 'nG': nG, 'idxF': idxF, 'Fw': Fw,
-            'ea': ea, 'eb': eb, 'inv': inv, 'cnt': cnt}
+            'ea': ea, 'eb': eb, 'inv': inv, 'cnt': cnt, 'uniques': uniques}
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------
 # Pourtours (boucles d'aretes de bord)
 # --------------------------------------------------------------------------------------------------------------------------------------------
 def _pourtours(prep):
-    """Cycles d'aretes de bord. Rend (cycles, chaines_ouvertes, nombre d'aretes de bord) ; un cycle est une liste d'aretes (numeros dans ea / eb, face-majeur).
-    Un pourtour qui repasse par un sommet (pincement) est coupe en sous-cycles."""
+    """Cycles d'aretes de bord. Rend (cycles, chaines_ouvertes, chaines_fermees, nombre d'aretes de bord) ; un cycle est une liste d'aretes (numeros dans
+    ea / eb, face-majeur) ; -1 marque l'arete VIRTUELLE qui ferme une chaine (voir plus bas). Un pourtour qui repasse par un sommet (pincement) est coupe
+    en sous-cycles.
+
+    CHAINES : sur un vrai maillage (TRELLIS : 94 000 aretes partagees par plus de deux faces sur l'orc), un trou touche souvent une arete a trois faces :
+    le pourtour n'est alors qu'une CHAINE dont les deux bouts sont des sommets desequilibres (une arete de plus ou de moins). Les marches partent
+    d'abord de ces sommets ; une chaine dont les deux bouts sont relies par une arete EXISTANTE du maillage est fermee par cette arete (arete
+    virtuelle) : la rustine la retrouve exactement comme avant la perte de la face. Sinon elle reste ouverte et compte comme telle."""
     ea, eb, inv, cnt = prep['ea'], prep['eb'], prep['inv'], prep['cnt']
     bord = np.nonzero(cnt[inv] == 1)[0]
     nb = len(bord)
     if nb == 0:
-        return [], 0, 0
+        return [], 0, 0, 0
     A = ea[bord].tolist()
     B = eb[bord].tolist()
     sortants = {}
+    sortie = {}
+    entree = {}
     for k in range(nb):
         sortants.setdefault(A[k], []).append(k)
+        sortie[A[k]] = sortie.get(A[k], 0) + 1
+        entree[B[k]] = entree.get(B[k], 0) + 1
     utilise = [False] * nb
     suivant_libre = {}
     cycles = []
-    ouvertes = 0
-    for k0 in range(nb):
-        if utilise[k0]:
-            continue
+    bilan = {'ouvertes': 0, 'fermees': 0}
+    uniques, nG = prep['uniques'], max(prep['nG'], 1)
+
+    def corde(u, w):
+        cle = min(u, w) * nG + max(u, w)
+        i = int(np.searchsorted(uniques, cle))
+        return i < len(uniques) and int(uniques[i]) == cle and int(cnt[i]) >= 2
+
+    def marcher(k0):
         aretes = []
         sommets = [A[k0]]
         position = {A[k0]: 0}
         k = k0
         while True:
             utilise[k] = True
+            sortie[A[k]] -= 1
+            entree[B[k]] -= 1
             aretes.append(k)
             v = B[k]
             if v in position:
@@ -159,10 +176,21 @@ def _pourtours(prep):
             suivant_libre[courant] = i
             if i >= len(liste):
                 if aretes:
-                    ouvertes += 1
-                break
+                    if corde(B[aretes[-1]], A[aretes[0]]):
+                        cycles.append(aretes + [-1])
+                        bilan['fermees'] += 1
+                    else:
+                        bilan['ouvertes'] += 1
+                return
             k = liste[i]
-    return [[int(bord[k]) for k in c] for c in cycles], ouvertes, nb
+
+    for k0 in range(nb):                       # 1. depuis les sommets qui ont plus d'aretes sortantes qu'entrantes : les chaines
+        if not utilise[k0] and sortie[A[k0]] > entree.get(A[k0], 0):
+            marcher(k0)
+    for k0 in range(nb):                       # 2. le reste : des cycles
+        if not utilise[k0]:
+            marcher(k0)
+    return [[int(bord[k]) if k >= 0 else -1 for k in c] for c in cycles], bilan['ouvertes'], bilan['fermees'], nb
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------
@@ -397,6 +425,15 @@ def _sommets_rustine(n, rive_debut, rive_fin, triangle):
     return sortie
 
 
+def _est_une_face(prep, sommets):
+    """Vrai si ces trois sommets (indices d'origine) forment, une fois soudes, une face DEJA presente : fermer le pourtour d'une ailette
+    (un triangle accroche a une arete partagee par d'autres faces) ne ferait que la doubler."""
+    if '_triples' not in prep:
+        prep['_triples'] = set(map(tuple, np.sort(prep['Fw'], axis=1).tolist()))
+    g = prep['groupe']
+    return tuple(sorted(int(g[v]) for v in sommets)) in prep['_triples']
+
+
 def cout_travail(n):
     """Travail prevu pour trianguler un pourtour de n aretes (unites de 0,1 microseconde, voir BUDGET_TRAVAIL)."""
     return (n - 2) * (n - 1) * n if n <= TAILLE_OPTIMALE_MAX else 7 * n * n
@@ -412,7 +449,7 @@ def analyser(V, F, min_aretes=3, max_aretes=2000, tol=None, prep=None, budget=No
     min_aretes = max(3, int(min_aretes))
     max_aretes = max(min_aretes, int(max_aretes))
     plafond = min(max_aretes, TAILLE_MAX)
-    cycles, ouvertes, nb_bord = _pourtours(prep)
+    cycles, ouvertes, fermees, nb_bord = _pourtours(prep)
     ea, idxF = prep['ea'], prep['idxF']
     tol = prep['tol']
     maxabs = float(np.abs(V).max()) if len(V) else 0.0
@@ -423,10 +460,14 @@ def analyser(V, F, min_aretes=3, max_aretes=2000, tol=None, prep=None, budget=No
     modes = {'triangle': 0, 'quad': 0, 'optimal': 0, 'oreilles': 0}
     for cycle in cycles:
         n = len(cycle)
-        faces = [int(idxF[e // 3]) for e in cycle]
-        coins = [e % 3 for e in cycle]
+        reels = [e for e in cycle if e >= 0]
+        faces = [int(idxF[e // 3]) for e in reels]
+        coins = [e % 3 for e in reels]
         debut = [int(F[f, c]) for f, c in zip(faces, coins)]
         fin = [int(F[f, (c + 1) % 3]) for f, c in zip(faces, coins)]
+        if len(reels) < n:                       # chaine fermee par une arete existante : l'arete virtuelle va du bout de la chaine a son debut
+            debut.append(fin[-1])
+            fin.append(debut[0])
         pts = [(float(V[v, 0]), float(V[v, 1]), float(V[v, 2])) for v in debut]
         # aire de l'eventail depuis le barycentre, perimetre
         cx = cy = cz = 0.0
@@ -448,9 +489,10 @@ def analyser(V, F, min_aretes=3, max_aretes=2000, tol=None, prep=None, budget=No
             aire += 0.5 * math.sqrt(qx * qx + qy * qy + qz * qz)
             dx, dy, dz = b[0] - a[0], b[1] - a[1], b[2] - a[2]
             perimetre += math.sqrt(dx * dx + dy * dy + dz * dz)
-        item = {'n': n, 'debut': debut, 'aire': aire, 'perimetre': perimetre, 'categorie': None, 'mode': None, 'triangles': []}
-        if not perimetre > 0 or (2.0 * aire) / perimetre < seuil_plat:
-            item['categorie'] = 'degeneree'
+        item = {'n': n, 'debut': debut, 'aire': aire, 'perimetre': perimetre, 'categorie': None, 'mode': None, 'triangles': [],
+                'chaine': len(reels) < n}
+        if not perimetre > 0 or (2.0 * aire) / perimetre < seuil_plat or (item['chaine'] and n == 3 and _est_une_face(prep, debut)):
+            item['categorie'] = 'degeneree'     # (dernier cas : l'ailette d'un triangle, dont le « trou » est le pourtour d'une face qui existe deja)
         elif n < min_aretes:
             item['categorie'] = 'trop_petite'
         elif n > plafond:
@@ -486,7 +528,7 @@ def analyser(V, F, min_aretes=3, max_aretes=2000, tol=None, prep=None, budget=No
         'aretes_de_bord': int(nb_bord),
         'aretes_non_manifold': int((prep['cnt'] > 2).sum()),
         'boucles': boucles,
-        'chaines_ouvertes': int(ouvertes),
+        'chaines_ouvertes': int(ouvertes), 'chaines_fermees': int(fermees),
         'a_boucher': compte['a_boucher'], 'trop_petites': compte['trop_petite'], 'trop_grandes': compte['trop_grande'],
         'degenerees': compte['degeneree'], 'non_triangulables': compte['non_triangulable'],
         'plus_petite': min(vraies) if vraies else 0, 'plus_grande': max(vraies) if vraies else 0,
@@ -537,10 +579,10 @@ def diagnostiquer(prep, analyse=None):
         oa, ob = occ[0::2], occ[1::2]
         fa, fb = oa // 3, ob // 3
         coherent = (sgn[oa] + sgn[ob]) == 0
-        un = np.ones(len(fa), dtype=np.int8)
+        un = np.ones(len(fa), dtype=np.int32)
         n_reg, region = connected_components(coo_matrix((un, (fa, fb)), shape=(m, m)), directed=False)
         n_feu, feuille = connected_components(
-            coo_matrix((np.ones(int(coherent.sum()), dtype=np.int8), (fa[coherent], fb[coherent])), shape=(m, m)), directed=False)
+            coo_matrix((np.ones(int(coherent.sum()), dtype=np.int32), (fa[coherent], fb[coherent])), shape=(m, m)), directed=False)
     else:
         n_reg, region = m, np.arange(m)
         n_feu, feuille = m, np.arange(m)
@@ -552,7 +594,7 @@ def diagnostiquer(prep, analyse=None):
     sortie['faces_retournees'] = int((taille_region - plus_grande).sum())
     # morceaux flottants : composantes par sommets partages
     nG = prep['nG']
-    graphe = coo_matrix((np.ones(len(ea), dtype=np.int8), (ea, eb)), shape=(nG, nG))
+    graphe = coo_matrix((np.ones(len(ea), dtype=np.int32), (ea, eb)), shape=(nG, nG))
     n_comp, comp = connected_components(graphe, directed=False)
     faces_par_comp = np.bincount(comp[Fw[:, 0]], minlength=n_comp)
     faces_par_comp = faces_par_comp[faces_par_comp > 0]

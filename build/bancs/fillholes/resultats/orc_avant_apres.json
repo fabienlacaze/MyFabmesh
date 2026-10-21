@@ -1,0 +1,49 @@
+{
+ "maillage": "37_orc_W1",
+ "faces_orig": 496242,
+ "faces_avec_trous": 496103,
+ "trous_ajoutes": {
+  "faces_retirees": [
+   6,
+   30,
+   103
+  ]
+ },
+ "boucles_avant_ajout": {
+  "non_degenerees": 0,
+  "degenerees": 0,
+  "aretes_de_bord": 0,
+  "tailles": []
+ },
+ "boucles_apres_ajout": {
+  "non_degenerees": 2,
+  "degenerees": 0,
+  "aretes_de_bord": 82,
+  "tailles": [
+   8,
+   30
+  ]
+ },
+ "sortie_glb_non_versionne": "C:/tmp/fillholes_mesure/avec_trous/37_orc_W1_avec_trous.glb",
+ "apres": {
+  "resultat": "ok",
+  "duree_s": 7.9,
+  "verdict": "OPEN_HOLES",
+  "faces_ajoutees_declarees": 34,
+  "faces_entree": 496103,
+  "faces_sortie": 496137,
+  "sommets_entree": 901488,
+  "sommets_sortie": 901488,
+  "faces_supprimees_pct": 0.0,
+  "faces_ajoutees_nettes": 34,
+  "boucles_apres": {
+   "non_degenerees": 0,
+   "degenerees": 0,
+   "aretes_de_bord": 44,
+   "tailles": []
+  },
+  "couples_position_uv_reecrits_pct": 0.0,
+  "sommets_identiques": true,
+  "faces_d_entree_intactes": true
+ }
+}

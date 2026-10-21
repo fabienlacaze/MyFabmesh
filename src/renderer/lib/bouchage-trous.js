@@ -130,7 +130,7 @@ export function preparer(positions, indices, tol) {
     cnt[id]++;
     inv[e] = id;
   }
-  return { positions, indices, n, m, tol, arete_moyenne: arete, groupe, nG, idxF: Int32Array.from(idx), Fw, ea, eb, inv, cnt };
+  return { positions, indices, n, m, tol, arete_moyenne: arete, groupe, nG, idxF: Int32Array.from(idx), Fw, ea, eb, inv, cnt, ids };
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
@@ -141,22 +141,33 @@ function _pourtours(prep) {
   const bord = [];
   for (let e = 0; e < ea.length; e++) if (cnt[inv[e]] === 1) bord.push(e);
   const nb = bord.length;
-  if (nb === 0) return { cycles: [], ouvertes: 0, nb };
+  if (nb === 0) return { cycles: [], ouvertes: 0, fermees: 0, nb };
   const A = bord.map((e) => ea[e]), B = bord.map((e) => eb[e]);
-  const sortants = new Map();
-  for (let k = 0; k < nb; k++) { const l = sortants.get(A[k]); if (l) l.push(k); else sortants.set(A[k], [k]); }
+  const sortants = new Map(), sortie = new Map(), entree = new Map();
+  for (let k = 0; k < nb; k++) {
+    const l = sortants.get(A[k]); if (l) l.push(k); else sortants.set(A[k], [k]);
+    sortie.set(A[k], (sortie.get(A[k]) || 0) + 1);
+    entree.set(B[k], (entree.get(B[k]) || 0) + 1);
+  }
   const utilise = new Array(nb).fill(false);
   const suivantLibre = new Map();
   const cycles = [];
-  let ouvertes = 0;
-  for (let k0 = 0; k0 < nb; k0++) {
-    if (utilise[k0]) continue;
+  let ouvertes = 0, fermees = 0;
+  const grandG = Math.max(prep.nG, 1);
+  // une chaine dont les deux bouts sont relies par une arete EXISTANTE (au moins deux faces) est fermee par elle (arete virtuelle, -1)
+  const corde = (u, w) => {
+    const id = prep.ids.get((u < w ? u : w) * grandG + (u < w ? w : u));
+    return id !== undefined && prep.cnt[id] >= 2;
+  };
+  const marcher = (k0) => {
     let aretes = [];
     let sommets = [A[k0]];
     const position = new Map([[A[k0], 0]]);
     let k = k0;
     for (;;) {
       utilise[k] = true;
+      sortie.set(A[k], sortie.get(A[k]) - 1);
+      entree.set(B[k], entree.get(B[k]) - 1);
       aretes.push(k);
       const v = B[k];
       if (position.has(v)) {
@@ -174,11 +185,19 @@ function _pourtours(prep) {
       let i = suivantLibre.get(courant) || 0;
       while (i < liste.length && utilise[liste[i]]) i++;
       suivantLibre.set(courant, i);
-      if (i >= liste.length) { if (aretes.length) ouvertes++; break; }
+      if (i >= liste.length) {
+        if (aretes.length) {
+          if (corde(B[aretes[aretes.length - 1]], A[aretes[0]])) { cycles.push(aretes.concat([-1])); fermees++; }
+          else ouvertes++;
+        }
+        return;
+      }
       k = liste[i];
     }
-  }
-  return { cycles: cycles.map((c) => c.map((k) => bord[k])), ouvertes, nb };
+  };
+  for (let k0 = 0; k0 < nb; k0++) if (!utilise[k0] && sortie.get(A[k0]) > (entree.get(A[k0]) || 0)) marcher(k0);   // 1. les chaines
+  for (let k0 = 0; k0 < nb; k0++) if (!utilise[k0]) marcher(k0);                                                  // 2. le reste : des cycles
+  return { cycles: cycles.map((c) => c.map((k) => (k >= 0 ? bord[k] : -1))), ouvertes, fermees, nb };
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------------------
@@ -392,6 +411,16 @@ function _sommetsRustine(n, riveDebut, riveFin, triangle) {
   return sortie;
 }
 
+/** Vrai si ces trois sommets (indices d'origine) forment, une fois soudes, une face DEJA presente (voir le Python). */
+function _estUneFace(prep, sommets) {
+  if (!prep._triples) {
+    prep._triples = new Set();
+    const { Fw } = prep;
+    for (let f = 0; f < Fw.length; f += 3) prep._triples.add([Fw[f], Fw[f + 1], Fw[f + 2]].sort((a, b) => a - b).join(','));
+  }
+  return prep._triples.has(sommets.map((v) => prep.groupe[v]).sort((a, b) => a - b).join(','));
+}
+
 /** Travail prevu pour trianguler un pourtour de n aretes (unites de 0,1 microseconde, voir BUDGET_TRAVAIL). */
 export function cout_travail(n) {
   return n <= TAILLE_OPTIMALE_MAX ? (n - 2) * (n - 1) * n : 7 * n * n;
@@ -405,7 +434,7 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
   min_aretes = Math.max(3, Math.trunc(min_aretes));
   max_aretes = Math.max(min_aretes, Math.trunc(max_aretes));
   const plafond = Math.min(max_aretes, TAILLE_MAX);
-  const { cycles, ouvertes, nb } = _pourtours(prep);
+  const { cycles, ouvertes, fermees, nb } = _pourtours(prep);
   const idxF = prep.idxF;
   tol = prep.tol;
   let maxabs = 0.0;
@@ -416,10 +445,12 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
   const modes = { triangle: 0, quad: 0, optimal: 0, oreilles: 0 };
   for (const cycle of cycles) {
     const n = cycle.length;
-    const faces = cycle.map((e) => idxF[Math.floor(e / 3)]);
-    const coins = cycle.map((e) => e % 3);
+    const reels = cycle.filter((e) => e >= 0);
+    const faces = reels.map((e) => idxF[Math.floor(e / 3)]);
+    const coins = reels.map((e) => e % 3);
     const debut = faces.map((f, k) => F[f * 3 + coins[k]]);
     const fin = faces.map((f, k) => F[f * 3 + (coins[k] + 1) % 3]);
+    if (reels.length < n) { debut.push(fin[fin.length - 1]); fin.push(debut[0]); }   // chaine fermee par une arete existante : arete virtuelle
     const pts = debut.map((v) => [V[v * 3], V[v * 3 + 1], V[v * 3 + 2]]);
     let cx = 0.0, cy = 0.0, cz = 0.0;
     for (const p of pts) { cx += p[0]; cy += p[1]; cz += p[2]; }
@@ -436,8 +467,8 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
       const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
       perimetre += Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
-    const item = { n, debut, aire, perimetre, categorie: null, mode: null, triangles: [] };
-    if (!(perimetre > 0) || (2.0 * aire) / perimetre < seuilPlat) item.categorie = 'degeneree';
+    const item = { n, debut, aire, perimetre, categorie: null, mode: null, triangles: [], chaine: reels.length < n };
+    if (!(perimetre > 0) || (2.0 * aire) / perimetre < seuilPlat || (item.chaine && n === 3 && _estUneFace(prep, debut))) item.categorie = 'degeneree';   // (dernier cas : l'ailette d'un triangle)
     else if (n < min_aretes) item.categorie = 'trop_petite';
     else if (n > plafond) item.categorie = 'trop_grande';
     else if (cout_travail(n) > reste) item.categorie = 'non_triangulable';   // budget de travail epuise : ce pourtour reste ouvert
@@ -479,7 +510,7 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
     aretes_de_bord: nb,
     aretes_non_manifold: aretesNM,
     boucles,
-    chaines_ouvertes: ouvertes,
+    chaines_ouvertes: ouvertes, chaines_fermees: fermees,
     a_boucher: compte.a_boucher, trop_petites: compte.trop_petite, trop_grandes: compte.trop_grande,
     degenerees: compte.degeneree, non_triangulables: compte.non_triangulable,
     plus_petite: plusPetite, plus_grande: plusGrande,
