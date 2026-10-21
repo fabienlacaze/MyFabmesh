@@ -6874,7 +6874,12 @@ ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute
     if (isCloudMode()) {
       const r = await cloudFallback.imageOp({
         endpoint: '/api/auto-inpaint', srcPath: imagePath, outPath: newImagePath,
-        extraBody: { targetText, prompt: prompt || '', dilate: dilate || 15 },
+        // la consigne complete part AUSSI au serveur (2026-10-21) : il la verifie avec l'etat de CE compte (controle parental, alertes),
+        // comme /api/modify-image verifie le prompt que 'img2img' lui envoie ; le filtre local seul (mode sans restriction du poste) ne suffit
+        // pas. Le serveur ne la transmet jamais au moteur.
+        extraBody: { targetText, prompt: prompt || '', dilate: dilate || 15,
+          ...(typeof consigneBrute === 'string' && consigneBrute.trim() ? { consigne: consigneBrute.trim() } : {}),
+          ...(typeof consigneOriginaleBrute === 'string' && consigneOriginaleBrute.trim() ? { consigneOriginale: consigneOriginaleBrute.trim() } : {}) },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
       return r.success ? { success: true, newPath: r.newPath } : r;

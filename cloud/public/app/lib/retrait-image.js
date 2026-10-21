@@ -34,7 +34,7 @@
 //
 // Les regex restent simples (pas de retour arriere explosif) ; toutes les listes sont des constantes en tete de fichier.
 
-export const VERSION = 2;
+export const VERSION = 3;   // 3 (2026-10-21) : un vetement du corps n'est jamais route (VETEMENTS)
 
 export const MAX_CAR_TEXTE = 200;            // une consigne de Modify est courte ; au-dela ce n'est pas une consigne de retrait
 export const MAX_MOTS_CIBLE = 5;             // « the little pink wings on its back » -> 3 mots utiles ; une phrase entiere n'est pas une cible
@@ -48,7 +48,7 @@ export const MAX_CAR_REMPLACEMENT = 80;
 /** Codes de `raison` d'un mode 'aucun' ou 'mixte' (pour les tests, les journaux et l'infobulle). */
 export const RAISONS = ['vide', 'trop_long', 'syntaxe', 'injection', 'negation', 'garder', 'pas_un_retrait', 'cible_vide', 'cible_trop_longue',
   'trop_de_cibles', 'cible_invalide', 'cible_non_objet', 'cible_phrase', 'sans_ambigu', 'remplacement_vague', 'remplacement_invalide',
-  'remplacement_trop_long', 'mixte'];
+  'remplacement_trop_long', 'mixte', 'vetement'];
 
 // ── listes ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Verbes de retrait, formes de base ET gerondifs. Les plus longs d'abord (get rid of avant get).
@@ -196,6 +196,33 @@ const NON_OBJET = new Set(['noise', 'grain', 'blur', 'blurriness', 'blurry', 'ar
   // effets de lumiere : ils n'ont pas de contour a detecter
   'shine', 'glow', 'glare', 'flare', 'reflection', 'reflections', 'highlight', 'highlights', 'sparkle', 'sparkles', 'glitter', 'gloss', 'shimmer',
   'halo', 'aura', 'bokeh', 'haze', 'softness', 'smoothness']);
+// VETEMENTS DU CORPS (2026-10-21, relecture securite) : retirer ou remplacer un vetement qui couvre le corps (« remove her dress », « take off
+// his shirt », « replace the skirt with a bikini ») n'est PAS confie au moteur de retrait. Le filtre de texte laisse passer ces consignes (comme
+// pour Modify) ; avec Modify, img2img ne retirait rien, alors que le moteur de retrait detecte le vetement et repeint la zone : ce serait un
+// outil de deshabillage plus efficace, sans classificateur d'image en sortie. La consigne suit donc le chemin d'origine (Modify, a l'octet).
+// Decision reversible du proprietaire : vider cette liste rend le comportement precedent. Les vetements de dessus et accessoires (veste,
+// manteau, armure, chapeau, casque, gants, chaussures, echarpe, lunettes) restent des cibles : leur retrait ne decouvre pas le corps.
+const VETEMENTS = new Set(['clothes', 'clothing', 'clothings', 'outfit', 'garment', 'apparel', 'attire', 'dress', 'gown', 'nightgown', 'nightdress',
+  'shirt', 't-shirt', 'tshirt', 'tee', 'blouse', 'top', 'singlet', 'undershirt', 'camisole', 'bra', 'brassiere', 'bikini', 'swimsuit', 'swimwear',
+  'bathing suit', 'lingerie', 'underwear', 'undergarment', 'panties', 'knickers', 'briefs', 'boxers', 'thong', 'pants', 'trousers', 'jeans',
+  'shorts', 'skirt', 'leggings', 'tights', 'stockings', 'pantyhose', 'corset', 'robe', 'bathrobe', 'towel', 'sweater', 'jumper', 'pullover',
+  'hoodie', 'sweatshirt', 'tunic', 'uniform', 'costume', 'suit', 'jumpsuit', 'bodysuit', 'leotard', 'overalls', 'apron', 'loincloth', 'toga',
+  'kimono', 'sari', 'saree', 'sarong', 'pajamas', 'pyjamas', 'nightie', 'vest', 'onesie', 'romper', 'trunks']);
+// un REMPLACEMENT par un vetement qui decouvre le corps (« replace the coat with lingerie ») n'est pas route non plus ; « replace the wings with a
+// dress » l'est (une robe ne decouvre rien)
+const VETEMENTS_REVELATEURS = new Set(['bikini', 'lingerie', 'underwear', 'undergarment', 'bra', 'brassiere', 'panties', 'knickers', 'thong',
+  'briefs', 'boxers', 'swimsuit', 'swimwear', 'g-string', 'nipple', 'nipples', 'topless', 'bottomless', 'skin', 'nude', 'naked']);
+const remplacementRevelateur = (r) => mots(r).some((w) => VETEMENTS_REVELATEURS.has(w) || VETEMENTS_REVELATEURS.has(w.replace(/s$/, '')));
+/** Vrai si la cible (« red dress », « girl's shirts », « tank top », « t-shirt ») nomme un vetement du corps. « top » seul est un mot de
+ *  position (« the top of the wings ») : il ne compte que DERNIER mot de la cible (« tank top », « crop top »), jamais devant un nom (« top hat »). */
+function estVetement(cible) {
+  const a = mots(cible);
+  return a.some((w, i) => {
+    if (w === 'top' || w === 'tops') return i === a.length - 1 && a.length > 1;
+    const formes = [w, w.replace(/es$/, ''), w.replace(/s$/, ''), ...w.split('-')];
+    return formes.some((f) => f !== 'top' && VETEMENTS.has(f)) || (i > 0 && VETEMENTS.has(a[i - 1] + ' ' + w.replace(/s$/, '')));
+  });
+}
 // remplacement qui veut dire « rien » : c'est un retrait
 const RE_REMPL_RIEN = /^(?:the |a |an )?(?:nothing(?: at all)?|empty(?: space)?|blank(?: space)?|void|emptiness|background|plain background|white background|plain white background|plain wall|wall)$/;
 const REMPL_VAGUE = /\b(?:one|ones|it|them|something|anything|else|same|other|another|different|new|better|similar|like it|instead)\b/;
@@ -514,6 +541,8 @@ export function analyserRetrait(texteAnglais) {
   if (e.erreur || !e.cibles.length) return aucun(e.erreur || 'cible_vide');
   const uniques = e.cibles.filter((x, i) => e.cibles.indexOf(x) === i);
   const cible = uniques.join(' and ');
+  // un vetement du corps n'est jamais route (voir VETEMENTS) ; aucun conseil « mixte » non plus : le retrait seul ne serait pas route davantage
+  if (uniques.some(estVetement)) return aucun('vetement');
   if (e.restants.length) return resultat('mixte', 'mixte', cible, '', e.restants.join(' ; '));
   if (uniques.length > MAX_CIBLES) return aucun('trop_de_cibles');
   if (mots(cible).length > MAX_MOTS_TOTAL || cible.length > MAX_CAR_TOTAL) return aucun('cible_trop_longue');
@@ -521,6 +550,7 @@ export function analyserRetrait(texteAnglais) {
     const rr = extraireRemplacement(e.remplacement);       // revalide la chaine complete (apres les « and glasses »)
     if (rr.erreur) return aucun(rr.erreur);
     if (rr.reste) return resultat('mixte', 'mixte', cible, '', rr.reste);
+    if (remplacementRevelateur(rr.remplacement)) return aucun('vetement');
     return resultat('remplacement', 'remplacement', cible, rr.remplacement);
   }
   return resultat('retrait', e.formeSans ? 'sans' : 'retrait', cible, '');
