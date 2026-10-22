@@ -279,3 +279,14 @@ test('jeu 4e : le filtre reste rapide sur un texte long (nouveaux lexiques compr
     assert.ok(Date.now() - t < 3000, `trop lent sur ${p.length} caracteres`);
   }
 });
+
+test('jeu 6 : lettres epelees de part et d\'autre d\'une expression que la production retirait entiere (vue exacte, mots courts)', () => {
+  // la production rapprochait « n » et « u s » en retirant « baby shower » ; le lot ne les rapprochait pas dans la vue exacte (« nus »)
+  for (const e of ['baby shower', 'bridal shower', 'bath toys', 'suicide squad', 'nu metal']) {
+    for (const t of [`${MIN_ENFANT} n ${e} u ${F('s')}`, `${MIN_ENFANT} n ${e} u e s`]) {
+      assert.equal(checkHardFloor(t).safe, false, t);
+    }
+  }
+  // temoins legitimes : l'expression seule, ou des lettres sans rapport
+  for (const t of ['a baby shower with balloons', 'a child at a baby shower', 'a child n a u s']) assert.equal(checkHardFloor(t).safe, true, t);
+});
