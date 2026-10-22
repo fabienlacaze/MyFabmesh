@@ -23,6 +23,7 @@
 //
 // Usage : node build/bancs/moderation/banc_non_recul.mjs [--balayage] [--exhaustif] [--balayages] [--epeles|--ages|--adjacents|--idiomes|--exceptions|--unicode]
 //         [--complet] [--fuzz N [--mode m] [--graine s]] [--mutations N] [--legitimes] [--fils N] [--prod <rev>] [--avant <rev>] [--sans-python] [--detail]
+//         [--part i/K] (balayage des points de code par parties) [--sans-balayages] (--exhaustif sans les balayages deterministes)
 // Code de sortie : 1 si un recul, un attendu non tenu ou un ecart de parite. Aucun reseau ; git et python (3.11) sur le poste.
 import { readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -297,7 +298,11 @@ async function principal() {
   let reculsBalayage = 0;
   if (process.argv.includes('--balayage')) {
     const fils = Number(arg('--fils', 8));
-    const tous = pointsDeCode();
+    // --part i/K (22/10, poste du proprietaire : tranches de quelques minutes sous lourd.sh) : seulement les points de code de rang i modulo K
+    const [partI, partK] = String(arg('--part', '0/1')).split('/').map(Number);
+    if (!(partK >= 1 && partI >= 0 && partI < partK)) { console.error('--part i/K : 0 <= i < K'); process.exit(2); }
+    const tous = pointsDeCode().filter((_, k) => k % partK === partI);
+    if (partK > 1) console.log(`\nBalayage par parties : partie ${partI} sur ${partK}`);
     const t0 = Date.now();
     const res = await Promise.all(Array.from({ length: fils }, (_, i) => new Promise((ok, ko) => {
       const w = new Worker(fileURLToPath(import.meta.url), { workerData: { cps: tous.filter((_, k) => k % fils === i), prod: PROD, avant: AVANT } });
@@ -317,7 +322,8 @@ async function principal() {
   // ── Balayages deterministes, fuzz differentiel, mutations, corpus legitime (cinquieme relecture) ──
   let inexpliques = 0;
   const NOMS_BALAYAGES = ['epeles', 'ages', 'adjacents', 'idiomes', 'exceptions', 'unicode'];
-  const tous = process.argv.includes('--balayages') || process.argv.includes('--exhaustif');
+  // --sans-balayages (22/10) : --exhaustif sans les balayages deterministes, lances a part par tranches (tranches.mjs)
+  const tous = process.argv.includes('--balayages') || (process.argv.includes('--exhaustif') && !process.argv.includes('--sans-balayages'));
   const choisis = NOMS_BALAYAGES.filter((n) => tous || process.argv.includes('--' + n));
   const nFuzz = Number(arg('--fuzz', 0)), nMutations = Number(arg('--mutations', 0));
   if (choisis.length || nFuzz || nMutations) {
