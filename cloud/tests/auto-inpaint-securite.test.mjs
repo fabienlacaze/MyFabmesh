@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chargerFonctions } from './_charge-worker.mjs';
-import { monter, F, NU, rien } from './_auto-inpaint.mjs';
+import { monter, F, NU, rien, AVEC_REFUS_MINEUR, NOMS_REFUS_MINEUR } from './_auto-inpaint.mjs';
 
 test('securite : un terme refuse dans le texte CHERCHE est refuse, sans debit, sans appel Modal, sans budget (avant : passait)', async () => {
   const m = monter();
@@ -91,7 +91,7 @@ test('credits insuffisants : 402 et budget rendu, pas d\'appel Modal', async () 
   const m = monter({ credits: 2 });
   // spendCredits renvoie 2 - 6 < 0 : la doublure ne refuse pas ; on verifie donc le chemin par une doublure qui refuse
   const refus = monter();
-  const w = chargerFonctions(['handleAutoInpaint'], {
+  const w = chargerFonctions(['handleAutoInpaint', ...(AVEC_REFUS_MINEUR ? NOMS_REFUS_MINEUR : [])], {
     getSessionUser: async () => ({ id: 'u1' }), err: (s, mm) => new Response(JSON.stringify({ error: mm }), { status: s }),
     json: (o, init) => new Response(JSON.stringify(o), { status: (init && init.status) || 200 }), getParentalState: async () => ({}),
     _checkPromptSafetyAlerte: async () => ({ safe: true }), getPrice: async () => 6, isTrustedAssetHost: () => true,

@@ -8249,6 +8249,15 @@ const modPromptEl = document.getElementById('mod-prompt');
 const modRetraitAide = document.getElementById('mod-retrait-hint');
 let _modRetrait = { texte: null, anglais: null, analyse: null };   // derniere analyse : texte tape -> anglais -> decision
 let _modRetraitSeq = 0;                                            // une frappe plus recente invalide une analyse en cours
+// CLIC EN ATTENTE (2026-10-22, relecture) : « Apply » attend l'analyse (traduction : jusqu'a 8 s, ou demarrage a froid du traducteur) avec
+// la fenetre ouverte. Un Cancel, une reouverture ou un autre clic pendant ce temps invalident le clic en attente : sans ce compteur, la
+// fenetre se fermait mais le travail partait quand meme a la fin de la traduction, avec le texte lu AVANT (img2img facture sans
+// confirmation, ou retrait sans confirmation en mode Local).
+let _modClic = 0;
+/** Le clic numero `clic` est-il toujours celui de l'utilisateur : aucun Cancel ni nouveau clic depuis, fenetre ouverte, texte inchange ? */
+function _modClicValide(clic, texte) {
+  return clic === _modClic && !modifyModal.classList.contains('hidden') && !!modPromptEl && modPromptEl.value.trim() === texte;
+}
 let _modRetraitMinuterie = null;
 const _modCacheTrad = new Map();
 function _modLangueAnglais() {
@@ -8374,6 +8383,7 @@ document.getElementById('ws-modify-btn').addEventListener('click', () => {
   if (srcImg) srcImg.src = 'file:///' + target.replace(/\\/g, '/') + '?t=' + Date.now();
   modifyModal.dataset.targetPath = target;
   _updateModStrengthHint();
+  _modClic++;   // reouverture : un clic d'avant, encore en analyse, ne lancera rien
   modifyModal.classList.remove('hidden');
   _modPlanifierRetrait();   // le texte garde d'une ouverture a l'autre : aide, curseur et prix redeviennent justes
   setTimeout(() => document.getElementById('mod-prompt').focus(), 50);
@@ -8382,6 +8392,7 @@ document.getElementById('ws-modify-btn').addEventListener('click', () => {
   try { translateUserPrompt('warm'); } catch (_) {}
 });
 document.getElementById('mod-cancel').addEventListener('click', () => {
+  _modClic++;   // un clic encore en analyse ne lancera rien (voir _modClicValide)
   modifyModal.classList.add('hidden');
 });
 async function _modAppliquer() {
@@ -8395,10 +8406,13 @@ async function _modAppliquer() {
   // RETRAIT / REMPLACEMENT : confie a Auto Inpaint (voir plus haut). Le bouton est inactif le temps de l'analyse (instantanee en anglais).
   const bouton = document.getElementById('mod-apply');
   let decision;
+  const clic = ++_modClic;
   if (bouton) bouton.disabled = true;
   try { decision = await _modDecision(rawPrompt); } finally { if (bouton) bouton.disabled = false; }
+  if (!_modClicValide(clic, rawPrompt)) return;   // Cancel (ou texte change) pendant l'analyse : rien ne part, rien n'est facture
   if (estRoute(decision.etat.analyse)) {
     if (!(await _modConfirmerPrix(decision.etat.analyse, decision.dejaAffiche))) return;
+    if (!_modClicValide(clic, rawPrompt)) return;
     modifyModal.classList.add('hidden');
     _modLancerRetrait(p, target, rawPrompt, decision.etat);
     return;

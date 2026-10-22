@@ -32,6 +32,14 @@ let sourceGestionnaire = null;
 })(ast);
 if (!sourceGestionnaire) throw new Error("gestionnaire 'auto-inpaint' introuvable");
 
+// ── le refus « personne mineure nommee » (2026-10-22), tel que main.js le definit (absent d'un main.js plus ancien : MAIN_JS) ─────────
+const dRefus = main.indexOf('// >>> REFUS RETRAIT MINEUR');
+const fRefus = main.indexOf('// <<< REFUS RETRAIT MINEUR');
+/** La VRAIE fonction refusRetraitMineur de main.js, ou null si ce main.js n'en a pas. */
+export const refusRetraitMineur = dRefus > 0 && fRefus > dRefus
+  ? new Function(main.slice(dRefus, fRefus) + '\n;return refusRetraitMineur;')()
+  : null;
+
 export function monter({ cloud = false, aiSafe = true } = {}) {
   const j = { cloud: [], serveur: [], processus: [], ia: [], multivue: [] };
   const doublures = {
@@ -47,6 +55,7 @@ export function monter({ cloud = false, aiSafe = true } = {}) {
     checkPromptSafety: (t) => filtre.checkPromptSafety(t),
     checkPromptSafetyAI: async (t) => { j.ia.push(t); return aiSafe ? { safe: true } : { safe: false, reason: 'ia' }; },
     sdxlReady: true,
+    refusRetraitMineur: refusRetraitMineur || (() => null),
   };
   const noms = Object.keys(doublures);
   const gestionnaire = new Function(...noms, 'return (' + sourceGestionnaire + ');')(...noms.map((n) => doublures[n]));

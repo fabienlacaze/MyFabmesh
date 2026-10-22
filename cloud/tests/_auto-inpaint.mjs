@@ -4,7 +4,7 @@
 // Pour viser un autre exemplaire du worker (preuve qu'un test echoue sur l'ancien code) : WORKER_SRC=<chemin>.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { chargerFonctions } from './_charge-worker.mjs';
+import { chargerFonctions, lireSource } from './_charge-worker.mjs';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 // le VRAI filtre du worker
@@ -16,6 +16,10 @@ new Function('exports', 'require', jsFiltre)(filtre, require);
 export const F = (...m) => m.join('');
 export const NU = F('na', 'ked');
 export const GRILLE = { modify: 3, auto_inpaint: 6 };
+/** Declarations du refus « personne mineure nommee » de handleAutoInpaint (2026-10-22). */
+export const NOMS_REFUS_MINEUR = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE',
+  '_RM_PERSONNE_SEULE'];
+export const AVEC_REFUS_MINEUR = lireSource().includes('\nfunction refusRetraitMineur(');
 
 export function monter({ grille = GRILLE, resultat = { url: 'https://r2.example/front/out.png' }, echec = false, credits = 100 } = {}) {
   const j = { depenses: [], remboursements: [], modal: [], journal: [], prixLus: [], verifies: [], budget: [], appels: [], alertes: [] };
@@ -41,7 +45,8 @@ export function monter({ grille = GRILLE, resultat = { url: 'https://r2.example/
     },
     logOperation: async (_e, _u, type, cout, _d, _f, statut, extra) => { j.journal.push({ type, cout, statut, extra }); },
   };
-  const w = chargerFonctions(['handleAutoInpaint', 'handleModifyImage'], dbl);
+  // refus « personne mineure nommee » (2026-10-22) : charge s'il existe (un worker plus ancien, WORKER_SRC, n'en a pas)
+  const w = chargerFonctions(['handleAutoInpaint', 'handleModifyImage', ...(AVEC_REFUS_MINEUR ? NOMS_REFUS_MINEUR : [])], dbl);
   const env = { MODAL_IMAGE_OP_URL: 'https://modal.example' };
   const post = (fonction, corps) => fonction(new Request('https://x.example/api/x', { method: 'POST', body: JSON.stringify(corps) }), env);
   return {

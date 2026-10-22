@@ -16,7 +16,9 @@ import { creerPage } from '../bureau-interface/_page-modify.mjs';
 import { F, PHRASES_TETE, PHRASES_ROUTEES, corpus, nommeVetement } from '../bureau-interface/_corpus-securite.mjs';
 
 const SANS_VETEMENT = F('no clo', 'thing');
-const PHRASE = PHRASES_TETE[0];          // « replace the dress on the girl with no clothing »
+// PHRASES_TETE[1] (« woman ») : depuis le 2026-10-22 une consigne qui nomme un enfant (PHRASES_TETE[0], « girl ») est refusee AVANT le filtre
+// de texte (refusRetraitMineur, tests/main/retrait-mineur-serveur.test.mjs) ; ici on exerce le filtre sur la consigne complete.
+const PHRASE = PHRASES_TETE[1];          // « replace the clothes on the woman with no clothing »
 
 test('reference : Modify refuse la consigne complete, mais ni la cible « dress » ni le remplacement « no clothing » ne sont refuses seuls ou joints', () => {
   assert.equal(filtre.checkPromptSafety(PHRASE).safe, false, 'la consigne complete est refusee');
@@ -104,6 +106,7 @@ test('chaine complete (bureau) : toute consigne que Modify refuse et que la fene
   for (const phrase of corpus()) {
     const refuseParModify = !filtre.checkPromptSafety(phrase).safe;
     page.journal.autoInpaint.length = 0; page.journal.img2img.length = 0;
+    page.code.modifyModal.classList.remove('hidden');   // la fenetre se ferme a chaque lancement : on la rouvre (clic dans une fenetre fermee = rien)
     await page.taper(phrase);
     await page.cliquer();
     const appel = page.journal.autoInpaint[0];
@@ -121,8 +124,9 @@ test('chaine complete (bureau) : toute consigne que Modify refuse et que la fene
     }
   }
   assert.deepEqual(contournees, [], 'consignes refusees par Modify mais executees via la fenetre : ' + JSON.stringify(contournees.slice(0, 3)));
-  // 60 : depuis le 21/10 les vetements du corps et les remplacements revelateurs ne sont plus routes (73 routees puis refusees)
-  assert.ok(routeesRefusees >= 60, 'le test doit exercer le chemin (routees puis refusees : ' + routeesRefusees + ')');
+  // 20 : depuis le 21/10 les vetements du corps et les remplacements revelateurs ne sont plus routes (73 routees puis refusees), et depuis le
+  // 22/10 une consigne qui nomme un enfant (girl, child, teenager, schoolgirl) non plus : 25 routees puis refusees (woman, man)
+  assert.ok(routeesRefusees >= 20, 'le test doit exercer le chemin (routees puis refusees : ' + routeesRefusees + ')');
   assert.ok(nonRoutees + routeesAcceptees + routeesRefusees === corpus().length);
 });
 
