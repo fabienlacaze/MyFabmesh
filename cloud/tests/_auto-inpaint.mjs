@@ -18,7 +18,9 @@ export const NU = F('na', 'ked');
 export const GRILLE = { modify: 3, auto_inpaint: 6 };
 /** Declarations du refus « personne mineure nommee » de handleAutoInpaint (2026-10-22). */
 export const NOMS_REFUS_MINEUR = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE',
-  '_RM_PERSONNE_SEULE'];
+  '_RM_PERSONNE_SEULE',
+  // alerte exploitant d'un retrait refuse (deuxieme relecture du 2026-10-22) : absente d'un worker plus ancien (WORKER_SRC)
+  ...(lireSource().includes('\nasync function _alerterTextesRetrait(') ? ['_alerterTextesRetrait'] : [])];
 export const AVEC_REFUS_MINEUR = lireSource().includes('\nfunction refusRetraitMineur(');
 
 export function monter({ grille = GRILLE, resultat = { url: 'https://r2.example/front/out.png' }, echec = false, credits = 100 } = {}) {

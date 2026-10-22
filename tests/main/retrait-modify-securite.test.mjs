@@ -90,11 +90,11 @@ test('une consigne demesuree ou non textuelle : refus net (trop longue) ou ignor
   assert.equal(r2.success, true);
 });
 
-test("sans consigne (l'outil Auto Inpaint lui-meme) : comportement inchange, le classificateur ne voit que le texte joint", async () => {
+test("sans consigne (l'outil Auto Inpaint lui-meme) : le classificateur voit le texte joint puis chaque champ seul (2026-10-22)", async () => {
   const m = monter();
   const r = await m.appeler({ targetText: 'wings', prompt: 'a hat' });
   assert.equal(r.success, true);
-  assert.deepEqual(m.j.ia, ['wings. a hat']);
+  assert.deepEqual(m.j.ia, ['wings. a hat', 'wings', 'a hat']);
 });
 
 /* ═════ la chaine COMPLETE : fenetre Modify (vrai bloc de index2.js) -> arguments de l'appel -> vrai gestionnaire ═════ */

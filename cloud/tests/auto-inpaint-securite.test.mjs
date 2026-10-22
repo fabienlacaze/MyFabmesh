@@ -48,7 +48,7 @@ test('securite : Modify refusait deja ce texte ; Auto Inpaint le refuse maintena
 test('la chaine VERIFIEE est la chaine ENVOYEE a Modal : texte rogne une seule fois, cible et remplacement', async () => {
   const m = monter();
   await m.inpaint({ targetText: '  wings  ', prompt: '  a hat \n' });
-  assert.deepEqual(m.j.verifies, ['wings. a hat']);
+  assert.deepEqual(m.j.verifies, ['wings. a hat', 'wings', 'a hat']);   // le texte joint, PUIS chaque champ seul (2026-10-22)
   assert.equal(m.j.modal[0].targetText, 'wings');
   assert.equal(m.j.modal[0].prompt, 'a hat');
   const retrait = monter();

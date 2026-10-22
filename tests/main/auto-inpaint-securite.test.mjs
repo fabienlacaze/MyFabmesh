@@ -78,8 +78,8 @@ test('la chaine VERIFIEE est la chaine ENVOYEE : texte rogne une seule fois, par
   await cloud.appeler({ targetText: '  wings  ', prompt: '  a hat \n' });
   assert.equal(cloud.j.cloud[0].extraBody.targetText, 'wings');
   assert.equal(cloud.j.cloud[0].extraBody.prompt, 'a hat');
-  // la classification IA est interrogee sur le texte joint verifie, pas sur autre chose
-  assert.deepEqual(local.j.ia, ['wings. a hat']);
+  // la classification IA est interrogee sur le texte joint verifie, puis sur chaque champ seul (2026-10-22), pas sur autre chose
+  assert.deepEqual(local.j.ia, ['wings. a hat', 'wings', 'a hat']);
 });
 
 test("« Replace with » vide reste vide (retrait) ; champs absents ou non texte ne plantent pas", async () => {
