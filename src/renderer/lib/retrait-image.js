@@ -34,11 +34,15 @@
 //
 // Les regex restent simples (pas de retour arriere explosif) ; toutes les listes sont des constantes en tete de fichier.
 
-export const VERSION = 4;   // 3 (2026-10-21) : un vetement du corps n'est jamais route (VETEMENTS)
+export const VERSION = 5;   // 3 (2026-10-21) : un vetement du corps n'est jamais route (VETEMENTS)
 // 4 (2026-10-22, relecture) : negation postposee et retractation (« wings not removed », « remove the wings or not ») = negation ; un mot de
 // style seul (« remove the wings, realistic ») = une autre demande ; un ajout deguise (« remove the wings, then a hat », « with a hat ») n'est
 // plus une cible ; une relative (« a pig whose wings were removed ») n'est pas une cible ; une consigne qui nomme un enfant (ou une personne
 // qui peut etre mineure) n'est jamais routee ; vetements elargis, « crop-top » reconnu ; texte hors ASCII jamais route (homoglyphes).
+// 5 (2026-10-22, deuxieme relecture) : une conservation qui designe la CIBLE (« remove the wings, keep them », « remove the hat but keep the hat »)
+// annule le retrait (raison 'garder_cible') ; une forme en -ing nue (« remove the wings, smiling ») est une autre demande, jamais collee a la
+// cible ; un style en complement sans article (« remove the wings in watercolor », « in pixel art », « in 4k ») est une autre demande ;
+// « lol », « asap », « btw » sont des politesses de fin, « maybe », « tho » des hesitations (autre demande).
 
 export const MAX_CAR_TEXTE = 200;            // une consigne de Modify est courte ; au-dela ce n'est pas une consigne de retrait
 export const MAX_MOTS_CIBLE = 5;             // « the little pink wings on its back » -> 3 mots utiles ; une phrase entiere n'est pas une cible
@@ -52,7 +56,7 @@ export const MAX_CAR_REMPLACEMENT = 80;
 /** Codes de `raison` d'un mode 'aucun' ou 'mixte' (pour les tests, les journaux et l'infobulle). */
 export const RAISONS = ['vide', 'trop_long', 'syntaxe', 'injection', 'negation', 'garder', 'pas_un_retrait', 'cible_vide', 'cible_trop_longue',
   'trop_de_cibles', 'cible_invalide', 'cible_non_objet', 'cible_phrase', 'sans_ambigu', 'remplacement_vague', 'remplacement_invalide',
-  'remplacement_trop_long', 'mixte', 'vetement', 'mineur'];
+  'remplacement_trop_long', 'mixte', 'vetement', 'mineur', 'garder_cible'];
 
 // ── listes ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Verbes de retrait, formes de base ET gerondifs. Les plus longs d'abord (get rid of avant get).
@@ -115,6 +119,23 @@ const STYLES = new Set([...STYLES_STRICTS, 'cartoon', 'toon', 'anime', 'manga', 
 const RE_ADJECTIF = /^[a-z-]{4,}(?:istic|esque|ish|ical|ized|ised|ous|ful|less|like|ic|ed)$/;   // « cartoonish », « dreamlike », « iconic »,
 // « weathered »... un adjectif nu n'est pas une cible (-like, -ic, -ed ajoutes le 2026-10-22 : « remove the wings, dreamlike » donnait la cible
 // « wings and dreamlike »)
+// FORME EN -ING NUE (2026-10-22, deuxieme relecture) : « remove the wings, smiling » donnait la cible « wings and smiling » (la pose demandee
+// perdue, le detecteur cherchant « smiling »). Un mot en -ing est un participe (une autre demande), sauf les noms courants en -ing ci-dessous.
+const NOMS_EN_ING = new Set(['ring', 'earring', 'string', 'wing', 'king', 'thing', 'sling', 'swing', 'sting', 'spring', 'building', 'painting',
+  'drawing', 'ceiling', 'clothing', 'railing', 'awning', 'lightning', 'frosting', 'icing', 'stuffing', 'piercing', 'filling', 'bedding', 'wedding',
+  'pudding', 'dumpling', 'duckling', 'sibling', 'seedling', 'sapling', 'morning', 'evening', 'coating', 'lining', 'siding', 'flooring', 'tubing',
+  'piping', 'plating', 'carving', 'etching', 'engraving', 'stocking', 'legging', 'stitching', 'trimming', 'bunting', 'ending', 'opening',
+  'covering', 'marking', 'setting', 'landing', 'clearing', 'crossing', 'housing', 'casing', 'fitting', 'mooring', 'shilling', 'herring',
+  'whiting', 'gelding', 'darling', 'viking', 'offering', 'fencing', 'paneling', 'panelling', 'framing', 'roofing', 'scaffolding', 'shading',
+  'lettering', 'writing', 'heading', 'padding', 'webbing', 'netting', 'binding', 'bling', 'keyring', 'nosering', 'wiring', 'cladding', 'decking',
+  'sing']);
+const estParticipe = (w) => /^[a-z]{3,}ing$/.test(w) && !NOMS_EN_ING.has(w);
+// STYLE EN COMPLEMENT SANS ARTICLE (2026-10-22, deuxieme relecture) : « remove the wings in watercolor », « in pixel art », « in 4k » : le style
+// etait jete et la consigne partait en retrait. « in X » sans article ni pronom est une MANIERE (un rendu demande), pas un lieu ; seuls les
+// lieux usuels sans article (« in front of », « in between », « in the background » s'ecrit avec article) restent des lieux.
+const LIEUX_SANS_ARTICLE = new Set(['front', 'back', 'between', 'here', 'there', 'background', 'foreground', 'middle', 'center', 'centre',
+  'frame', 'view', 'sight', 'it', 'them', 'him', 'her', 'itself', 'themselves', 'place', 'its', 'his', 'their', 'my', 'your', 'our']);
+const RE_RESOLUTION = /^\d+(?:k|p)$/;           // « 4k », « 1080p » : une resolution demandee
 // AJOUT DEGUISE (2026-10-22, relecture) : « remove the wings, then a hat », « remove the wings plus a hat », « remove the wings with a hat » :
 // le chapeau est VOULU. Un morceau suivant introduit par un article indefini, ou par un connecteur d'ajout sans article defini, n'est pas une cible.
 const RE_SEP_AJOUT = /^(?:and then|and also|then|also|plus|as well as|along with|together with|in addition to)$/;
@@ -136,7 +157,8 @@ const AMORCES = ['ok(?:ay)?', 'so', 'hey', 'hi', 'hello', 'yes', 'yeah', 'alrigh
   'along with', 'together with', 'in addition to', 'as well as',
   'completely', 'totally', 'entirely', 'fully', 'definitely', 'immediately', 'quickly', 'carefully', 'gently', 'cleanly', 'really'];
 const RE_AMORCE = new RegExp('^(?:(?:' + AMORCES.slice().sort((a, b) => b.length - a.length).join('|') + ')\\b[ ,:;-]*)+');
-const RE_FIN_POLIE = /[ ,]*\b(?:please|pls|plz|thanks|thank you(?: very much)?|now|for me|right now|ok|okay|if you can|if possible|thx|and|or|but|then|plus|with|while)$/;
+// « lol », « asap », « btw », « pronto » (2026-10-22) : des politesses de fin, jamais une partie de la cible (« remove the wings lol » -> « wings lol »)
+const RE_FIN_POLIE = /[ ,]*\b(?:please|pls|plz|thanks|thank you(?: very much)?|now|for me|right now|ok|okay|if you can|if possible|thx|ty|lol|lmao|haha|asap|pronto|btw|bro|and|or|but|then|plus|with|while)$/;
 
 // separation en clauses : virgule, point-virgule, esperluette, « and », « then », « but », « along with »...
 const RE_CLAUSES = /\s*[,;&]\s*|\s+(?:and then|and also|as well as|along with|together with|in addition to|and|or|then|also|but|plus|while|whilst)\s+/;
@@ -184,7 +206,9 @@ const AUXILIAIRES = new Set(['is', 'are', 'was', 'were', 'am', 'be', 'been', 'be
 const PRONOMS_OBJET = new Set(['me', 'us', 'him', 'them', 'itself', 'themselves', 'myself', 'yourself']);
 const NEGATIONS = new Set(['not', 'no', 'never', 'nothing', 'none', 'neither', 'nor', 'nope', 'nah', 'cannot', 'dont']);
 const INTERJECTIONS = new Set(['hmm', 'hm', 'um', 'uh', 'oops', 'wait', 'sorry', 'actually', 'stop', 'cancel', 'undo', 'nevermind', 'nvm', 'yes', 'yeah',
-  'yep', 'ok', 'okay', 'thanks', 'thank', 'wrong', 'mistake', 'anyway', 'whatever', 'hello', 'hi', 'hey', 'break']);   // « break » : jeton de prompt
+  'yep', 'ok', 'okay', 'thanks', 'thank', 'wrong', 'mistake', 'anyway', 'whatever', 'hello', 'hi', 'hey', 'break',   // « break » : jeton de prompt
+  // hesitations (2026-10-22) : « remove the wings maybe » donnait la cible « wings maybe »
+  'maybe', 'perhaps', 'tho', 'idk', 'dunno', 'hopefully', 'possibly']);
 const CONNECTEURS = new Set(['along', 'together', 'afterwards', 'afterward', 'next', 'later', 'instead', 'otherwise', 'meanwhile', 'furthermore',
   'additionally', 'moreover', 'however', 'then', 'than', 'as', 'like', 'per', 'via', 'except', 'regarding', 'concerning', 'using', 'within',
   'upon', 'toward', 'towards', 'till', 'versus', 'vs', 'and', 'or', 'but', 'plus', 'while', 'whilst', 'also', 'too']);
@@ -264,7 +288,10 @@ const VETEMENTS = new Set(['clothes', 'clothing', 'clothings', 'outfit', 'garmen
   'two piece', 'tankini', 'monokini', 'speedo', 'speedos', 'jockstrap', 'diaper', 'nappy', 'kilt', 'cloth', 'cloths', 'clothe', 'covering',
   'coverings', 'garter', 'girdle', 'babydoll', 'sweatpants', 'joggers', 'tracksuit', 'sportswear', 'activewear', 'gymwear', 'culottes',
   'capris', 'dungarees', 'jersey', 'tee-shirt', 'wear', 'wrap', 'dhoti', 'cheongsam', 'qipao', 'dirndl', 'kaftan', 'caftan',
-  'blanket', 'sheet', 'sheets', 'bedsheet', 'duvet', 'quilt', 'fabric', 'drape', 'drapes', 'veil', 'shawl', 'stole']);
+  'blanket', 'sheet', 'sheets', 'bedsheet', 'duvet', 'quilt', 'fabric', 'drape', 'drapes', 'veil', 'shawl', 'stole',
+  // deuxieme relecture du 2026-10-22 : mots qui passaient encore (« remove the catsuit / bralette / undies / cardigan / textile »)
+  'catsuit', 'wetsuit', 'bralette', 'undies', 'underpants', 'bloomers', 'playsuit', 'unitard', 'garb', 'hanbok', 'yukata', 'abaya', 'burqa',
+  'burka', 'niqab', 'chador', 'cardigan', 'bathers', 'cossie', 'textile', 'textiles', 'catsuits', 'swimsuits', 'boardshorts', 'singlets']);
 // un REMPLACEMENT par un vetement qui decouvre le corps (« replace the coat with lingerie ») n'est pas route non plus ; « replace the wings with a
 // dress » l'est (une robe ne decouvre rien)
 const VETEMENTS_REVELATEURS = new Set(['bikini', 'lingerie', 'underwear', 'undergarment', 'bra', 'brassiere', 'panties', 'knickers', 'thong',
@@ -272,11 +299,18 @@ const VETEMENTS_REVELATEURS = new Set(['bikini', 'lingerie', 'underwear', 'under
   'monokini', 'tankini', 'negligee', 'babydoll', 'jockstrap', 'speedo', 'speedos', 'chemise', 'slip', 'nightie', 'thong',
   // relecture du 2026-10-22 : remplacements qui decouvrent le corps sans nommer de sous-vetement (« replace the jacket with bare chest »)
   'bare', 'breast', 'breasts', 'chest', 'body', 'bodies', 'torso', 'see-through', 'sheer', 'transparent', 'fishnet', 'skin-tight', 'skintight',
-  'nudity', 'undressed', 'unclothed', 'nud3', 'nsfw']);
+  'nudity', 'undressed', 'unclothed', 'nud3', 'nsfw',
+  // deuxieme relecture du 2026-10-22 : « replace the coat with nothing underneath / a swim suit / a string / tan lines »
+  'underneath', 'swim', 'string', 'strings', 'tanlines', 'bralette', 'undies', 'underpants', 'catsuit']);
+const RE_REMPL_REVELATEUR = /\b(?:two[- ]?piece|tan[- ]?lines?|swim[- ]?suit|bathing[- ]?suit)\b/;
 // une CIBLE qui nomme la nudite (« remove the wings, nude » donnait la cible « wings and nude ») n'est pas routee
 const NUDITE_CIBLE = new Set(['nude', 'naked', 'nudity', 'topless', 'bottomless', 'nsfw', 'nipple', 'nipples', 'breast', 'breasts', 'undressed',
   'unclothed', 'nud3', 'bare']);
-const remplacementRevelateur = (r) => mots(r).some((w) => VETEMENTS_REVELATEURS.has(w) || VETEMENTS_REVELATEURS.has(w.replace(/s$/, '')));
+const remplacementRevelateur = (r) => RE_REMPL_REVELATEUR.test(r)
+  || mots(r).some((w) => VETEMENTS_REVELATEURS.has(w) || VETEMENTS_REVELATEURS.has(w.replace(/s$/, '')));
+// une consigne qui nomme une partie intime du corps (« remove the cover on her chest ») n'est jamais routee, quelle que soit la cible (2026-10-22)
+// « chest » seulement avec un possessif (« a treasure chest » reste une cible) ; « bust » (une statue) n'y est pas
+const RE_CORPS_INTIME = /\b(?:(?:her|his|their|its|your|my|bare|naked|nude)\s+chest|breasts?|boobs?|cleavage|nipples?|crotch|groin|genitals?|buttocks?|butt|bum|torso|hips|thighs?|belly|navel|private parts)\b/;
 /** Vrai si la cible (« red dress », « girl's shirts », « tank top », « t-shirt ») nomme un vetement du corps. « top » seul est un mot de
  *  position (« the top of the wings ») : il ne compte que DERNIER mot de la cible (« tank top », « crop top »), jamais devant un nom (« top hat »). */
 function estVetement(cible) {
@@ -379,6 +413,9 @@ function indexEtranger(m) {
     // « wings hide », « wings cover », « wings shade » : un verbe qui peut aussi etre un nom (dress, face, label, cover...) reste une cible dans
     // « face paint » ou « the dress », mais APRES un nom au pluriel (« wings ») un nom ne vient pas : c'est un verbe, donc une autre demande
     if (i > 0 && VERBES_AUTRES.has(w) && RE_PLURIEL.test(m[i - 1])) return i;
+    // « wings smiling », « hat flying » : un participe en -ing qui FERME le groupe (ou suit un pluriel) est une autre demande (2026-10-22) ;
+    // « the flying saucer » reste une cible (le participe est devant le nom)
+    if (i > 0 && estParticipe(w) && (i === m.length - 1 || RE_PLURIEL.test(m[i - 1]))) return i;
   }
   return -1;
 }
@@ -387,7 +424,12 @@ function queueSuspecte(queue, lieu) {
   if (RE_LIEU_PRONOM.test(queue)) return false;                       // « remove the glasses from him » : le complement est le sujet de l'image
   const refus = (lieu || RE_LIEU.test(queue)) ? QUEUE_LIEU_REFUSEE : QUEUE_PROPOSITION_REFUSEE;
   const a = mots(queue);
-  return a.some((w, i) => refus.has(w) || RE_NEGATION_ELIDEE.test(w) || verbeAmbigu(a, i) || COMPLEMENT_DE_STYLE.has(w));   // « in the style of picasso » demande un style, pas un lieu
+  return a.some((w, i) => refus.has(w) || RE_NEGATION_ELIDEE.test(w) || verbeAmbigu(a, i) || COMPLEMENT_DE_STYLE.has(w)   // « in the style of picasso » demande un style, pas un lieu
+    // « in watercolor », « in pixel art », « in 4k », « in sepia » (2026-10-22) : une maniere, pas un lieu ; « from the cartoon » reste un lieu
+    || STYLES_STRICTS.has(w) || RE_RESOLUTION.test(w)
+    || (estParticipe(w) && i === a.length - 1 && !DETERMINANTS.has(a[i - 1]))   // « on the pig smiling » ; « from the sleeping dog » reste un lieu
+    || (STYLES.has(w) && !(i > 0 && DETERMINANTS.has(a[i - 1])))
+    || (w === 'in' && i + 1 < a.length && !DETERMINANTS.has(a[i + 1]) && !LIEUX_SANS_ARTICLE.has(a[i + 1])));
 }
 
 /**
@@ -456,7 +498,23 @@ function extraireRemplacement(brut) {
  */
 function gardeOuAutre(c, neg) {
   const a = mots(c);
-  return a.some((w, i) => (VERBES_ACTION.has(w) && !(neg && NEG_QUI_GARDE.has(w))) || verbeAmbigu(a, i)) ? { type: 'autre' } : { type: 'garder' };
+  return a.some((w, i) => (VERBES_ACTION.has(w) && !(neg && NEG_QUI_GARDE.has(w))) || verbeAmbigu(a, i)) ? { type: 'autre' } : { type: 'garder', garde: c };
+}
+
+// CONSERVATION DE LA CIBLE (2026-10-22, deuxieme relecture) : une clause « keep ... » etait toujours neutre, meme quand elle designe la cible
+// (« remove the wings, keep them », « remove the wings but keep the wings », « remove the hat, keep it ») : le moteur effacait ce que
+// l'utilisateur demandait de garder. Une conservation qui renvoie a la cible par un pronom, ou qui nomme le meme nom (au pluriel pres),
+// annule le routage : la consigne part dans Modify, a l'octet. « keep the rest as it is », « keep the pig », « without changing anything else »
+// restent neutres.
+const RE_TOURNURE_INCHANGE = /\b(?:as (?:it|they|this|that) (?:is|are|was|were|stands?)|as is|the way (?:it|they) (?:is|are|was|were)|like (?:it|they) (?:is|are|was|were)|as before|the same(?: as before)?)\b/g;
+const RAPPELS = new Set(['it', 'them', 'they', 'this', 'that', 'these', 'those', 'one', 'ones', 'both', 'thereof']);
+const radical = (w) => w.replace(/(?:ies)$/, 'y').replace(/(?:ches|shes|xes|ses|zes)$/, (x) => x.slice(0, -2)).replace(/s$/, '');
+/** La clause de conservation `garde` designe-t-elle une des cibles ? */
+function gardeLaCible(garde, cibles) {
+  const a = mots(String(garde).replace(RE_TOURNURE_INCHANGE, ' '));
+  if (a.some((w) => RAPPELS.has(w))) return true;
+  const tetes = new Set(cibles.map((c) => radical(mots(c).slice(-1)[0] || '')).filter(Boolean));
+  return a.some((w) => !MOTS_VIDES.has(w) && !CONSERVATION.has(w) && tetes.has(radical(w.replace(/'s$/, ''))));
 }
 
 /** Classe UNE clause (deja sans amorce) : suppression, remplacement, remplace_pronom, sans, garder, negation, objet ou autre. */
@@ -496,7 +554,7 @@ function classer(c) {
   // « break nsfw ») pourraient etre un verbe inconnu suivi de son objet : ce n'est pas une cible, c'est une autre demande.
   const n = mots(c).length;
   // « remove the wings, realistic » : un style ou un adjectif nu est une autre demande, pas une cible (2026-10-22, relecture)
-  if (mots(c).some((x) => STYLES.has(x)) || (n === 1 && RE_ADJECTIF.test(c))) return { type: 'autre' };
+  if (mots(c).some((x) => STYLES.has(x)) || (n === 1 && (RE_ADJECTIF.test(c) || estParticipe(c)))) return { type: 'autre' };   // « , smiling »
   if (n === 1 || (n <= 3 && (COULEURS.has(w) || POSITIONS.has(w)))) return { type: 'objet', objet: c };
   return { type: 'autre' };
 }
@@ -515,6 +573,7 @@ export function analyserRetrait(texteAnglais) {
   if (INJECTION.test(brut)) return aucun('injection');
   if (RE_NEG_PARTICIPE.test(brut)) return aucun('negation');     // « wings not removed », « the hat should not be taken off »
   if (nommeMineur(brut)) return aucun('mineur');                 // voir MINEURS : jamais route, quelle que soit la cible
+  if (RE_CORPS_INTIME.test(brut)) return aucun('vetement');      // « remove the cover on her chest » : voir RE_CORPS_INTIME
 
   const phrases = brut.split(/[.!?]+/).map((p) => p.trim()).filter(Boolean);
   if (!phrases.length) return aucun('vide');
@@ -527,12 +586,14 @@ export function analyserRetrait(texteAnglais) {
     aSuppression: false, aNegation: false, aGarder: false, formeSans: false,
     lieu: false,             // une cible a eu un complement ecarte (« wings from the pig ») : un « and the cow » ne peut plus etre pris pour une cible
     restants: [],            // clauses qui demandent autre chose
+    gardes: [],              // textes des clauses de conservation (« keep them ») : une qui designe la cible annule le routage
   };
+  const garder = (texte) => { e.aGarder = true; e.gardes.push(String(texte || '')); };
 
   /** Classe un texte laisse de cote : une conservation (« without changing the rest ») est neutre, tout le reste est une autre demande. */
   const poserReste = (texte) => {
     const t = classer(texte);
-    if (t.type === 'garder') e.aGarder = true; else if (t.type === 'negation') e.aNegation = true; else e.restants.push(texte);
+    if (t.type === 'garder') garder(t.garde); else if (t.type === 'negation') e.aNegation = true; else e.restants.push(texte);
   };
   const poserCible = (objet, strict) => {
     const r = extraireCible(objet, strict);
@@ -556,7 +617,7 @@ export function analyserRetrait(texteAnglais) {
       // « with no wings and a hat », « the wings, then a hat » : le chapeau est VOULU ; « wings from the pig and the cow » : de quoi « the cow »
       // est-il le complement ?
       if (t.type === 'objet' && !e.lieu && !estAjout(d, x)) poserCible(x, strict);
-      else if (t.type === 'garder') e.aGarder = true;
+      else if (t.type === 'garder') garder(t.garde);
       else if (t.type === 'negation') e.aNegation = true;
       else e.restants.push(x);
     });
@@ -580,7 +641,7 @@ export function analyserRetrait(texteAnglais) {
         const t = classer(reste);
         // « replace the wings with a hat and the tail with a bow » : deux remplacements, pas un seul
         if (t.type === 'objet' && !/\b(?:with|by|for)\b/.test(reste)) par += ' and ' + reste;
-        else if (t.type === 'garder') e.aGarder = true;
+        else if (t.type === 'garder') garder(t.garde);
         else if (t.type === 'negation') e.aNegation = true;
         else e.restants.push(reste);
       }
@@ -625,12 +686,12 @@ export function analyserRetrait(texteAnglais) {
           if (e.cibles.length || e.remplacement !== null) { e.restants.push(c); break; }
           poserCible(t.cible); poserRemplacement(t.par); e.dernier = 'remplacement';
           break;
-        case 'garder': e.aGarder = true; e.dernier = 'garder'; break;
+        case 'garder': garder(t.garde); e.dernier = 'garder'; break;
         case 'objet':
           if (e.dernier === 'cibles' && !e.lieu && !estAjout(morceau, c)) poserCible(t.objet);
           else if (e.dernier === 'remplacement' && e.remplacement !== null && !/\b(?:with|by|for)\b/.test(t.objet)) e.remplacement += ' and ' + t.objet;
           // « remove the wings, keep the tail, then a hat » : apres une conservation, un ajout (« then a hat ») n'est pas une chose a garder
-          else if (e.dernier === 'garder' && !estAjout(morceau, c)) { /* « keep the body and the tail » : encore une chose a garder */ }
+          else if (e.dernier === 'garder' && !estAjout(morceau, c)) garder(c);   // « keep the body and the tail » : encore une chose a garder
           else e.restants.push(c);
           break;
         default: e.restants.push(c);     // 'sans' hors consigne seule, 'autre'
@@ -647,6 +708,8 @@ export function analyserRetrait(texteAnglais) {
   if (e.erreur || !e.cibles.length) return aucun(e.erreur || 'cible_vide');
   const uniques = e.cibles.filter((x, i) => e.cibles.indexOf(x) === i);
   const cible = uniques.join(' and ');
+  // « remove the wings, keep them » : l'utilisateur garde ce qu'il demandait de retirer, rien n'est route (voir gardeLaCible)
+  if (e.gardes.some((g) => gardeLaCible(g, uniques))) return aucun('garder_cible');
   // un vetement du corps n'est jamais route (voir VETEMENTS) ; aucun conseil « mixte » non plus : le retrait seul ne serait pas route davantage
   if (uniques.some(estVetement) || uniques.some((x) => mots(x).some((w) => NUDITE_CIBLE.has(w)))) return aucun('vetement');   // « remove the wings, nude »
   if (e.restants.length) return resultat('mixte', 'mixte', cible, '', e.restants.join(' ; '));

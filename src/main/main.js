@@ -6920,7 +6920,11 @@ ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute
     // UNE PERSONNE MINEURE NOMMEE (2026-10-22) : voir refusRetraitMineur ; avant tout filtre, tout appel au moteur et tout debit
     const refusMineur = refusRetraitMineur(targetText, prompt, consignes);
     if (refusMineur) return { success: false, error: refusMineur };
-    for (const texte of [texteVerifie, ...consignes.filter((x) => x !== texteVerifie)]) {
+    // CHAQUE CHAMP SEUL AUSSI (2026-10-22, deuxieme relecture securite) : le filtre recolle les lettres isolees PAR-DESSUS la jointure (cible
+    // « dress a » + remplacement « n u d e » -> « dress anude ») ; le texte joint seul laissait passer ce que le remplacement seul refuse.
+    // Meme liste que le worker (handleAutoInpaint) : texte joint, cible, remplacement, consignes, sans doublon.
+    const aVerifier = [texteVerifie, targetText, prompt, ...consignes].filter((x, i, tous) => x && tous.indexOf(x) === i);
+    for (const texte of aVerifier) {
       const safety = checkPromptSafety(texte);
       if (!safety.safe) return { success: false, error: safety.reason };
       const aiSafety = await checkPromptSafetyAI(texte);

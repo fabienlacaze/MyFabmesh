@@ -13292,6 +13292,18 @@ function refusRetraitMineur(cible: unknown, remplacement: unknown, consignes: un
   const personneSeule = !autres.length && !_rmPlier(remplacement) && motsCible.length > 0 && motsCible.every((w) => _RM_RE_MINEUR.test(w));
   return personneSeule ? null : 'This edit is not available when the instruction mentions a child or a young person.';
 }
+/** Fait passer les textes d'un retrait REFUSE (personne mineure nommee) par le filtre qui alerte l'exploitant (plancher illicite -> e-mail,
+ *  categorie « minor ») : le refus ne doit pas faire disparaitre l'alerte. Verdict ignore : le refus a lieu quoi qu'il dise. */
+async function _alerterTextesRetrait(env: Env, userId: string, cible: string, remplacement: string, consignes: string[]): Promise<void> {
+  const joint = [cible, remplacement].filter(Boolean).join('. ');
+  const textes = [joint, cible, remplacement, ...consignes].filter((x, i, tous) => x && tous.indexOf(x) === i);
+  let unrestricted = env.FABMESH_UNRESTRICTED === '1';
+  try { unrestricted = unrestricted || !!(await getParentalState(env, userId)).unrestricted; } catch (_) { /* etat illisible : filtre strict */ }
+  for (const texte of textes) {
+    // tous les textes : le premier refuse peut ne pas etre le plus grave (l'alerte est deja limitee en frequence par _alerterContenuGrave)
+    try { await _checkPromptSafetyAlerte(env, userId, texte, unrestricted); } catch (_) { /* l'alerte ne bloque jamais le refus */ }
+  }
+}
 // <<< REFUS RETRAIT MINEUR
 
 /** Auto-inpaint HTTP handler — desktop "Auto Inpaint" tool. NSFW
@@ -13330,7 +13342,13 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   // UNE PERSONNE MINEURE NOMMEE (2026-10-22) : voir refusRetraitMineur ; avant le filtre, tout debit et tout appel a Modal
   {
     const refusMineur = refusRetraitMineur(cible, rawPrompt, consignes);
-    if (refusMineur) return json({ ok: false, success: false, error: refusMineur, blocked: true }, { status: 400 });
+    if (refusMineur) {
+      // ALERTE EXPLOITANT CONSERVEE (2026-10-22, deuxieme relecture securite) : ce refus court-circuitait _checkPromptSafetyAlerte, de sorte
+      // qu'un texte du plancher illicite (« nude child » en remplacement) etait refuse SANS l'alerte a l'exploitant (_alerterContenuGrave,
+      // categorie « minor »). Les memes textes passent donc par le filtre qui alerte avant le refus (le refus reste, quel que soit le verdict).
+      await _alerterTextesRetrait(env, user.id, cible, rawPrompt, consignes);
+      return json({ ok: false, success: false, error: refusMineur, blocked: true }, { status: 400 });
+    }
   }
   // FILTRE DE SECURITE (2026-10-20) : il ne portait que sur `prompt`. Le texte de recherche (`targetText`) partait sans controle vers le
   // moteur, alors que /api/modify-image refuse le meme texte ; or « Modify image » confie desormais ses retraits a cette route. On verifie
@@ -13340,12 +13358,16 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   // contexte (« girl », « woman », « on the girl ») en sont RETIRES, de sorte que le filtre ne voyait plus que « dress. no clothing » et laissait
   // passer ce que /api/modify-image refuse. La consigne entiere (texte traduit ET texte tape) passe donc par le meme filtre, en plus des deux
   // champs, avant tout debit ; elle n'est jamais envoyee a Modal.
+  // CHAQUE CHAMP SEUL AUSSI (2026-10-22, deuxieme relecture securite) : seul le texte JOINT « cible. remplacement » etait verifie ; or le filtre
+  // recolle les lettres isolees PAR-DESSUS la jointure (cible « dress a » + remplacement « n u d e » -> « dress anude » : le mot n'est plus
+  // trouve) : 12 remplacements refuses seuls partaient vers Modal, factures. Ordre : texte joint, cible, remplacement, consignes, sans doublon.
   {
     const texteVerifie = [cible, rawPrompt].filter(Boolean).join('. ');
     const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
     const userState = await getParentalState(env, user.id);
     const unrestricted = envUnrestricted || userState.unrestricted;
-    for (const texte of [texteVerifie, ...consignes.filter((x) => x !== texteVerifie)]) {
+    const aVerifier = [texteVerifie, cible, rawPrompt, ...consignes].filter((x, i, tous) => x && tous.indexOf(x) === i);
+    for (const texte of aVerifier) {
       const safety = await _checkPromptSafetyAlerte(env, user.id, texte, unrestricted);
       if (!safety.safe) {
         return json({ ok: false, success: false,
