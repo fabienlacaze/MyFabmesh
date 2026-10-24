@@ -388,7 +388,7 @@ def main():
             neg_echecs.append((c['id'], c['texte'], r))
         elif c.get('attendu') and (r['positif'] != c['attendu']['positif'] or r['negatifs'] != c['attendu']['negatifs']):
             neg_echecs.append((c['id'], c['texte'], {'obtenu': r, 'attendu': c['attendu']}))
-        neg_grav.append({'id': c['id'], 'texte': c['texte'], 'positif': r['positif'], 'negatifs': r['negatifs']})
+        neg_grav.append(dict({'id': c['id'], 'texte': c['texte'], 'positif': r['positif'], 'negatifs': r['negatifs']}, **({'perdus': r['perdus']} if r.get('perdus') else {})))
     print('[intention] negations : %d cas generes, %d qui doivent rester inchanges, %d echec(s)'
           % (len(neg_cas), sum(1 for c in neg_cas if c['inchange']), len(neg_echecs)))
     for e in neg_echecs:

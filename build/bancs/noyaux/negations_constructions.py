@@ -74,7 +74,7 @@ def gabarits(s, n, n2, m, p, v, pp, a, a2, am):
         ('T11', '%s with no %s or %s' % (s, n, n2), s, [tn, tn2]),
         ('T37', '%s, no %s and not wearing %s%s' % (s, n, a2, n2), s, [tn, tn2]),
         ('T38', '%s without %s%s, without %s%s' % (s, a, n, a2, n2), s, [tn, tn2]),
-        ('T48', '%s, ' % s + ', '.join('no %s' % x for x in tous12), ', '.join([s] + ['no %s' % x for x in tous12[8:]]), [terme(x) for x in tous12[:8]]),
+        ('T48', '%s, ' % s + ', '.join('no %s' % x for x in tous12), s, [terme(x) for x in tous12[:8]]),
         # --- une negation au milieu d'une phrase
         ('T03', '%s with no %s' % (s, n), s, [tn]),
         ('T04', '%s with no %s, %s' % (s, n, p), '%s, %s' % (s, p), [tn]),

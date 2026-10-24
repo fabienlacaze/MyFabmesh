@@ -30,6 +30,14 @@ class Avertissements(unittest.TestCase):
         self.assertEqual(C.detecter_avertissements('a man in profile view', 'a man in profile view'), ['vue-demandee-gabarit-de-face'])
         self.assertEqual(C.detecter_avertissements('a bust of a king', 'a bust of a king'), ['buste-gabarit-corps-entier'])
 
+    def test_neuvieme_negation_annoncee(self):
+        """B2 de la relecture du 24/10 : la 9e negation quitte le positif et l'utilisateur en est prevenu AVANT la depense."""
+        t = 'a knight, no helmet, no shield, no cape, no sword, no bow, no axe, no spear, no mace, no dagger'
+        self.assertEqual(C.detecter_avertissements(t, t, 'prop'), ['negations-en-trop'])
+        self.assertEqual(C.negations_perdues(t), ['dagger'])
+        self.assertNotIn('dagger', C.negations_et_positif(t)['positif'])
+        self.assertEqual(C.detecter_avertissements(t.replace(', no dagger', ''), t.replace(', no dagger', ''), 'prop'), [])
+
     def test_rien_pour_les_demandes_ordinaires(self):
         for t in ('a knight', 'an orc holding a massive spiked club', 'a samurai holding two swords', 'a two-headed ogre', 'a knight, not sitting'):
             self.assertEqual(C.detecter_avertissements(t, t), [], t)

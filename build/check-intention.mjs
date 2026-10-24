@@ -80,8 +80,9 @@ for (const a of attendus) {
 // negations de l'utilisateur : balayage genere (build/check_intention.py, balayage_negations), nettoyeur du champ `negativeExtra`, constantes
 for (const g of grave.negations || []) {
   const r = J.extraireNegations(g.texte);
-  if (!egal(r, { positif: g.positif, negatifs: g.negatifs })) {
-    dit(`negations ${g.id} « ${g.texte.slice(0, 60)} » : sortie differente\n      JS     : ${JSON.stringify(r)}\n      Python : ${JSON.stringify({ positif: g.positif, negatifs: g.negatifs })}`);
+  const attendu = { positif: g.positif, negatifs: g.negatifs, ...(g.perdus ? { perdus: g.perdus } : {}) };
+  if (!egal(r, attendu)) {
+    dit(`negations ${g.id} « ${g.texte.slice(0, 60)} » : sortie differente\n      JS     : ${JSON.stringify(r)}\n      Python : ${JSON.stringify(attendu)}`);
   }
 }
 if (!grave.negations || !grave.negations.length) dit('intention_attendus.json ne porte aucun cas de negations (python build/check_intention.py --ecrire)');

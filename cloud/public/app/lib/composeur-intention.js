@@ -296,6 +296,7 @@ export function detecterAvertissements(texteSaisi, texteAnglais, typeActif, opti
     if (it.vue) codes.push('vue-demandee-gabarit-de-face');
     if (it.buste) codes.push('buste-gabarit-corps-entier');
   }
+  if (actif() && negationsPerdues(Array.from(anglais).length > PROMPT_MAX_CARS ? '' : anglais).length) codes.push('negations-en-trop');
   return codes;
 }
 
@@ -906,11 +907,13 @@ function negTraiterSegment(jetons, etat, casseLibre) {
         termes = res[0];
         reprise = negReprise(jetons, res[1], res[2], debut, sujet);
       }
-      // PLAFOND (24/10) : si la locution n'a plus de place parmi les 8 termes, elle RESTE telle quelle dans le texte (on ne retire jamais une negation sans l'envoyer au negatif ; une liste dans UNE locution garde ses 8 premiers termes)
-      if (reprise >= 0 && etat.length >= MAX_TERMES_NEGATIFS && termes.some((u) => !etat.includes(u))) reprise = -1;
+      // PLAFOND (24/10, B2 de la relecture) : au-dela de 8 termes la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague : pire que l'oubli) ;
+      // le terme sans place est consigne dans etat.perdus et detecterAvertissements le dit AVANT la depense (code 'negations-en-trop').
       if (reprise >= 0) {
         for (const t of termes) {
-          if (!etat.includes(t) && etat.length < MAX_TERMES_NEGATIFS) etat.push(t);
+          if (etat.includes(t)) continue;
+          if (etat.length < MAX_TERMES_NEGATIFS) etat.push(t);
+          else if (!etat.perdus.includes(t)) etat.perdus.push(t);
         }
         modifie = true;
         if (debut) {
@@ -1021,6 +1024,7 @@ export function extraireNegations(texte, regles) {
   t = normaliserNegations(t);
   const libre = negCasseLibre(t);
   const etat = [];
+  etat.perdus = [];
   const morceaux = [];
   for (const [seg, sep] of negSegments(t)) {
     const jetons = negMots(seg);
@@ -1049,7 +1053,7 @@ export function extraireNegations(texte, regles) {
   if (gardes.length && morceaux[morceaux.length - 1][0] === null) {
     gardes[gardes.length - 1][1] = morceaux[morceaux.length - 1][1].startsWith('.') ? '.' : '';
   }
-  return { positif: negStrip(gardes.map((m) => m[0] + m[1]).join('')), negatifs: etat.slice() };
+  return { positif: negStrip(gardes.map((m) => m[0] + m[1]).join('')), negatifs: etat.slice(), ...(etat.perdus.length ? { perdus: etat.perdus.slice() } : {}) };
 }
 
 // ── pour la fabrication du prompt (index2.js) : memes resultats que extraireNegations, avec deux garde-fous ─────────────────────────────────────────
@@ -1065,13 +1069,18 @@ export function negationsEtPositif(texte, regles) {
   if (negTropLong(t)) return { positif: t, negatifs: [] };
   const r = extraireNegations(t, regles);
   if (!r.negatifs.length) return { positif: t, negatifs: [] };
-  if (!negStrip(r.positif)) return { positif: t, negatifs: r.negatifs };
+  if (!negStrip(r.positif)) return { positif: t, negatifs: r.negatifs, ...(r.perdus ? { perdus: r.perdus } : {}) };
   return r;
 }
 
 /** Le texte sans ses locutions negatives (« an orc, no helmet, holding a club » -> « an orc, holding a club »), ou le texte lui-meme. */
 export function positifSansNegations(texte, regles) {
   return negationsEtPositif(texte, regles).positif;
+}
+
+/** Les termes de negation qui n'ont PAS eu de place parmi les 8 du negatif (retires du positif, jamais envoyes) : la 9e negation d'un texte. */
+export function negationsPerdues(texte, regles) {
+  return negationsEtPositif(texte, regles).perdus || [];
 }
 
 /** Les termes de negatif du texte (tableau de chaines, 8 au plus). */
