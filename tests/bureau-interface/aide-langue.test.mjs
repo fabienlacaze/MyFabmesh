@@ -30,15 +30,13 @@ const LANGUES = ['fr', 'es', 'zh', 'hi', 'ar'];
 
 /** Champs de prompt (texte que l'IA lit) : chacun a son aide. */
 const CHAMPS_PROMPT = ['ws-prompt', 'np-prompt', 'ai-target', 'ai-replace', 'rc-prompt', 'rc-all-prompt', 'age-guide', 'pe-mask-prompt',
-  'rfn-prompt', 'mod-prompt', 'var-tex-prompt', 'mask-prompt'];
+  'rfn-prompt', 'mod-prompt', 'var-tex-prompt', 'mask-prompt', 'rrx-part', 'rrx-prompt'];
 /** Champs de texte qui ne sont PAS un prompt (et pourquoi). */
 const EXCEPTIONS = {
   'project-search': 'recherche', 'np-name': 'nom du projet', 'rp-details': 'signalement au support', 'll-filter': 'filtre de journal',
   'exp-path': 'chemin d export', 'expimg-path': 'chemin d export', 'pub-title': 'titre de publication', 'pub-description': 'description de publication',
   'set-apikey-name': 'reglage', 'set-apikey-value': 'reglage', 'set-api-token': 'reglage', 'contact-name': 'contact', 'contact-subject': 'contact',
   'contact-body': 'contact',
-  // Reshape (rrx-part / rrx-prompt) : chantier a part (reshape-3d-2010), en pause ; son aide s'ajoute apres sa fusion.
-  'rrx-part': 'chantier Reshape', 'rrx-prompt': 'chantier Reshape',
 };
 
 /** Champs de texte libre d'une page : [{ id, placeholder }]. */
@@ -161,7 +159,8 @@ for (const nom of ['bureau', 'web']) {
       assert.ok(t.startsWith('✍️ '), 'repere visuel conserve');
       assert.ok(!/unirig|trellis|puppeteer|realvis|clipseg|flux|lucida|pixal3d|m2m100|argos|sdxl/i.test(t), 'aucun nom de moteur : ' + t);
     }
-    assert.match(monter(nom, { langue: 'en' })._texteAideLangue('ws-prompt'), /Write in any language/, 'interface anglaise : n importe quelle langue');
+    assert.match(monter(nom, { langue: 'en' })._texteAideLangue('ws-prompt'), /Best written in English/, 'interface anglaise : ne promet pas n importe quelle langue (textes courts non traduits)');
+    assert.doesNotMatch(monter(nom, { langue: 'en' })._texteAideLangue('ws-prompt'), /any language/);
   });
 
   test(`${nom} : un champ NON traduit dit « ecris en anglais » (jamais de promesse fausse), dans les 5 langues`, () => {
