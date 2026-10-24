@@ -1052,6 +1052,9 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
     i = 0
     modifie = False
     coupe_fin = False           # la derniere locution retiree allait jusqu'au bout du segment
+    ferme_der = False
+    debut_der = True            # la derniere locution retiree ouvrait son segment (« no helmet, sword » en etiquettes : la suite n'est PAS une liste nie)
+    etat.ouverte = False
     while i < n:
         jeton = jetons[i]
         w, _ = _neg_coeur(jeton)
@@ -1093,6 +1096,8 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
             # PLAFOND (24/10, B2 de la relecture) : au-dela de 8 termes la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague) ;
             # le terme sans place est consigne dans etat.perdus et detecter_avertissements le dit AVANT la depense (code 'negations-en-trop').
             if reprise >= 0:
+                ferme_der = ferme
+                debut_der = debut
                 for t in termes:
                     if t in etat:
                         continue
@@ -1128,6 +1133,7 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
         sortie.append(jeton)
         i += 1
         coupe_fin = False
+    etat.ouverte = bool(modifie and coupe_fin and not ferme_der and not debut_der)
     if coupe_fin:
         # la locution etait a la FIN : le mot de liaison ou l'auxiliaire qui la precedait ne lie plus rien (« an orc that has no helmet » -> « an orc »)
         while sortie and _neg_coeur(sortie[-1])[0] in _NEG_PENDANTS:
@@ -1139,6 +1145,62 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
     if not sortie:
         return 'retirer', []
     return 'modifier', sortie
+
+
+_NEG_CONJ_LISTE = frozenset('and or nor'.split())
+
+
+def _neg_item_liste(jetons):
+    """Un segment entre virgules peut-il etre un ELEMENT de liste nie (« sword », « a sword or a shield ») ? -> (nombre de mots pleins, contient une conjonction) ou None.
+    Refuse : plus de 5 jetons, un non-mot (chiffre, accent, guillemet, parenthese), une ponctuation de fin, un declencheur, une preposition ou une conjonction de subordination
+    (_NEG_FIN_GN), un verbe, une exception, une conjonction en tete ou en fin, deux conjonctions."""
+    if not jetons or len(jetons) > 5:
+        return None
+    contenu, conj = 0, False
+    for k, jt in enumerate(jetons):
+        w, f = _neg_coeur(jt)
+        if w is None or f or jt[0] in '([{"\u201c':
+            return None
+        if w in _NEG_CONJ_LISTE:
+            if k == 0 or k == len(jetons) - 1 or conj:
+                return None
+            conj = True
+            continue
+        if w in _NEG_ARTICLES:
+            continue
+        if w in _NEG_FIN_GN or w in _NEG_EXCEPT or w in _NEG_FINIS or w in _NEG_COPULES or _neg_verbal(jt):
+            return None
+        contenu += 1
+    return (contenu, conj) if contenu else None
+
+
+def _neg_run_liste(segs, k):
+    """Liste nommee qui CONTINUE apres une virgule (24/10, tour 2, bloquant C) : « a knight with no helmet, sword or shield », « without a helmet, a sword or a shield »,
+    « without helmet, sword, shield ». Le segment k suit un segment dont la locution negative allait jusqu'au bout. -> ensemble des indices de segments a lire comme
+    ELEMENTS de la liste nie (vide : rien ne change). Une suite de segments-elements separes par des virgules est lue ainsi quand elle se FERME par une conjonction
+    (« sword or shield » : les elements s'arretent la) ou compte au moins deux elements d'UN seul mot (« helmet, sword, shield »). Un segment qui n'est pas un element
+    (verbe, preposition, plus de 5 mots : « holding a sword », « in a dark forest ») arrete la liste et reste dans le positif."""
+    items = []
+    ferme_conj = False
+    simples = True
+    m = k
+    while m < len(segs):
+        info = _neg_item_liste(_neg_mots(segs[m][0]))
+        if info is None:
+            break
+        items.append(m)
+        contenu, conj = info
+        if conj:
+            ferme_conj = True
+            break
+        if contenu != 1:
+            simples = False
+        if not segs[m][1].startswith(','):
+            break
+        m += 1
+    if items and (ferme_conj or (len(items) >= 2 and simples)):
+        return set(items)
+    return set()
 
 
 def _neg_sans_liaison_debut(seg):
@@ -1209,6 +1271,7 @@ class _EtatNegations(list):
     def __init__(self):
         super().__init__()
         self.perdus = []
+        self.ouverte = False        # la derniere locution retiree allait jusqu'au bout de son segment (la liste peut continuer apres la virgule)
 
 
 def extraire_negations(texte, regles=None):
@@ -1232,12 +1295,21 @@ def extraire_negations(texte, regles=None):
     libre = _neg_casse_libre(t)
     etat = _EtatNegations()
     morceaux = []
-    for seg, sep in _neg_segments(t):
+    segs = _neg_segments(t)
+    forces = set()              # segments lus comme elements d'une liste nie qui continue apres une virgule (voir _neg_run_liste)
+    ouverte, sep_prec = False, ''
+    for k, (seg, sep) in enumerate(segs):
         jetons = _neg_mots(seg)
         if not jetons:
             morceaux.append((seg, sep))
+            ouverte, sep_prec = False, sep
             continue
-        action, nouveaux = _neg_traiter_segment(jetons, etat, libre)
+        if ouverte and k not in forces and sep_prec.startswith(','):
+            forces |= _neg_run_liste(segs, k)
+        force = k in forces
+        action, nouveaux = _neg_traiter_segment(['without'] + jetons if force else jetons, etat, libre)
+        ouverte = False if force else etat.ouverte
+        sep_prec = sep
         if action == 'garder':
             morceaux.append((seg, sep))
         elif action == 'modifier':

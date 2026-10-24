@@ -431,8 +431,9 @@ test('filet (maillage) : traduction impossible -> 422 AVANT tout debit ; « tel 
   assert.equal(panne.j.modal.length + panne.j.jobs.length, 0, 'rien envoye a Modal, aucun travail cree');
   r = await panne.w.handleMeshTexVar(corpsRequete('/api/mesh-texvar', { meshUrl: 'https://r2.example/m.glb', style: 'rouillé et doré',
     langueVerifiee: true }), panne.env);
-  assert.equal(r.status, 200);
-  assert.equal(panne.j.modal.at(-1).corps.style, 'rouillé et doré');
+  // 24/10 tour 2 (bloquant 1, principe 7) : le drapeau ne coupe plus la moderation multilingue ; traducteur en panne, « tel quel » est REFUSE (422)
+  assert.equal(r.status, 422);
+  assert.deepEqual(panne.j.depenses, [], 'rien debite');
   const ok = monterOutils3d();
   await ok.w.handleMeshRegionRetex(corpsRequete('/api/mesh-region-retex', { meshUrl: 'https://r2.example/m.glb', mask: 'data:image/png;base64,AAAA',
     prompt: 'worn leather with stains' }), ok.env);
@@ -1225,9 +1226,9 @@ function monterRoutesFiltreReel() {
       return reponse({ ok: true, glb_base64: btoa('glTF'), job_id: 'j' });
     },
   });
-  const appeler = async (nom, corps, traduction) => {
+  const appeler = async (nom, corps, traduction, meshes = creerR2()) => {
     Object.assign(etat, { envoye: [], verifies: [], depenses: [], traduction, appels: 0 });
-    const env = { AI: ai, MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example', MODAL_SHARED_SECRET: 's',
+    const env = { AI: ai, MESHES: meshes, R2_PUBLIC_URL: 'https://r2.example', MODAL_SHARED_SECRET: 's',
       MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MODAL_BACKVIEW_URL: 'https://bv.example',
       MODAL_IMAGE_OP_URL: 'https://op.example/image_op', MODAL_RECTIFY_URL: 'https://rect.example',
       MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status',
@@ -1340,7 +1341,8 @@ test('quatrieme relecture : une CONTENTION sur le compteur du compte (requetes s
 // ------------------------------------------------------------------------------------------------------- 24/10 : M1, le drapeau ne coupe PLUS la moderation
 // Audit des prompts (M1) : `langueVerifiee: true` (« Envoyer tel quel », ou un client qui triche) faisait sauter le filet de langue ET la
 // moderation multilingue : le serveur ne voyait jamais ce que le texte etranger veut dire. Mandat du proprietaire : la securite ne s'affaiblit
-// jamais. Desormais : texte ENVOYE intact (choix respecte), copie jetable traduite et filtree, refus 400 si elle n'est pas sure.
+// jamais. Desormais : texte ENVOYE intact (choix respecte), copie jetable traduite et filtree, refus 400 si elle n'est pas sure ;
+// tour 2 : tout echec de traduction refuse (422) comme sans le drapeau.
 // Ancien code : WORKER_SRC=<worker de prompts-2410> node --test --test-name-pattern="M1" tests/traduction-serveur.test.mjs
 const TEXTE_ETRANGER = 'un dragon rouge avec des ailes immenses et une longue queue';
 const TRADUCTION_NON_SURE = 'a naked woman';   // chaine minimale, refusee par le filtre general
@@ -1377,15 +1379,37 @@ test('M1 : avec langueVerifiee:true, une traduction sure laisse partir le texte 
   assert.deepEqual(pb, []);
 });
 
-test('M1 : avec langueVerifiee:true et traducteur en panne, la requete part comme avant (jamais de 422), le filtre general reste applique', async () => {
+test('M1 tour 2 : avec langueVerifiee:true, traducteur en panne = MEME refus 422 que sans le drapeau (rien envoye, rien debite)', async () => {
   const { appeler } = monterRoutesFiltreReel();
   const pb = [];
   for (const [nom, corps] of ROUTES_FILET) {
     if (nom === 'handleAutoAnim') continue;   // cette route ne lit PAS le drapeau client (test m19)
-    const r = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, null);
-    if (r.status !== 200) pb.push(`${nom} : statut ${r.status}`);
-    const sansDrapeau = await appeler(nom, corps(TEXTE_ETRANGER), null);
-    if (sansDrapeau.status !== 422) pb.push(`${nom} : temoin sans drapeau, statut ${sansDrapeau.status} (attendu 422)`);
+    const avec = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, null);
+    const sans = await appeler(nom, corps(TEXTE_ETRANGER), null);
+    if (sans.status !== 422) pb.push(`${nom} : temoin sans drapeau, statut ${sans.status} (attendu 422)`);
+    if (avec.status !== 422) pb.push(`${nom} : AVEC drapeau, statut ${avec.status} (attendu 422)`);
+    if (avec.envoye.length) pb.push(`${nom} : AVEC drapeau, ${avec.envoye.length} appel(s) Modal`);
+    if (avec.depenses.length) pb.push(`${nom} : AVEC drapeau, credits debites`);
+  }
+  assert.deepEqual(pb, []);
+});
+
+test('M1 tour 2 : avec langueVerifiee:true, plafond horaire de traduction atteint = 422 (langues que le filtre general ne connait pas : th, he, el, uk)', async () => {
+  const { appeler } = monterRoutesFiltreReel();
+  const textes = ['ผู้หญิงเปลือย มังกรสีแดงมีปีกขนาดใหญ่', 'דרקון אדום עם כנפיים גדולות וזנב ארוך', 'ένας κόκκινος δράκος με τεράστια φτερά', 'червоний дракон з величезними крилами'];
+  const pb = [];
+  for (const t of textes) {
+    for (const [nom, corps] of ROUTES_FILET) {
+      if (nom === 'handleAutoAnim') continue;
+      for (const drapeau of [false, true]) {
+        const meshes = creerR2();
+        meshes.ecrire(`_meta/traduction/u1-${new Date().toISOString().slice(0, 13).replace(/[-T]/g, '')}.txt`, '300');
+        const r = await appeler(nom, { ...corps(t), ...(drapeau ? { langueVerifiee: true } : {}) }, 'a red dragon', meshes);
+        if (r.status !== 422) pb.push(`${nom} drapeau=${drapeau} : statut ${r.status} (attendu 422)`);
+        if (r.envoye.length || r.depenses.length) pb.push(`${nom} drapeau=${drapeau} : envoye ou debite`);
+        if (r.appels) pb.push(`${nom} drapeau=${drapeau} : ${r.appels} appel(s) du modele malgre le plafond`);
+      }
+    }
   }
   assert.deepEqual(pb, []);
 });

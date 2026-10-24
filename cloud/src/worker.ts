@@ -24467,12 +24467,15 @@ async function _filetLangue(env: Env, userId: string, texte: string | string[],
    * (le filtre general ne connait que quelques langues). Un client malveillant n'avait qu'a poser le drapeau. Desormais, avec le drapeau, le
    * texte ENVOYE reste intact (le choix de l'utilisateur est respecte, aucun refus de langue, aucun 422) mais le serveur en traduit une COPIE
    * JETABLE et la fait passer par le filtre de contenu ; une copie non sure refuse la requete (400, comme tout refus du filtre). Traducteur
-   * indisponible, quota atteint, langue non prise en charge, texte trop long : le serveur retombe sur le seul filtre general (jamais moins
-   * qu'avant, et le filtre du lot securite couvre zh, hi, ar, ru, ja, tr). */
+   * indisponible, quota atteint, langue non prise en charge, texte trop long : la requete est REFUSEE (422) comme sans le drapeau
+   * (tour 2 : le filtre general ne connait pas toutes les langues). */
   const soloModeration = opts.verifie === true;
   const rendre = (r: { textes?: string[]; refus?: Response; traduit?: boolean; langues?: string[] } = {}) => {
-    const sorties = soloModeration && !(r.refus && r.refus.status === 400) ? textes : (r.textes ?? textes);
-    const refus = soloModeration && r.refus && r.refus.status !== 400 ? undefined : r.refus;
+    /* Tour 2 (24/10, bloquant 1) : TOUT refus est conserve, y compris 422 (plafond de traduction, modele en panne, langue non prise en
+     * charge, texte trop long, melange). Avant, le drapeau client les jetait : le texte partait au moteur filtre par le seul filtre
+     * general, qui ne connait pas th, fa, he, el, uk... Le drapeau ne coupe plus jamais la moderation multilingue. */
+    const sorties = soloModeration && !r.refus ? textes : (r.textes ?? textes);
+    const refus = r.refus;
     return { texte: sorties[0] ?? '', textes: sorties, traduit: soloModeration ? false : !!r.traduit, langues: r.langues ?? [], ...(refus ? { refus } : {}) };
   };
   if (!textes.some((x) => x.trim())) return rendre();

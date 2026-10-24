@@ -861,6 +861,9 @@ function negTraiterSegment(jetons, etat, casseLibre) {
   let i = 0;
   let modifie = false;
   let coupeFin = false;
+  let fermeDer = false;
+  let debutDer = true;           // la derniere locution retiree ouvrait son segment (« no helmet, sword » en etiquettes : la suite n'est PAS une liste nie)
+  etat.ouverte = false;
   while (i < n) {
     const jeton = jetons[i];
     const w = negCoeur(jeton)[0];
@@ -910,6 +913,8 @@ function negTraiterSegment(jetons, etat, casseLibre) {
       // PLAFOND (24/10, B2 de la relecture) : au-dela de 8 termes la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague : pire que l'oubli) ;
       // le terme sans place est consigne dans etat.perdus et detecterAvertissements le dit AVANT la depense (code 'negations-en-trop').
       if (reprise >= 0) {
+        fermeDer = res[2];
+        debutDer = debut;
         for (const t of termes) {
           if (etat.includes(t)) continue;
           if (etat.length < MAX_TERMES_NEGATIFS) etat.push(t);
@@ -943,6 +948,7 @@ function negTraiterSegment(jetons, etat, casseLibre) {
     i++;
     coupeFin = false;
   }
+  etat.ouverte = !!(modifie && coupeFin && !fermeDer && !debutDer);
   if (coupeFin) {
     // la locution etait a la FIN : le mot de liaison ou l'auxiliaire qui la precedait ne lie plus rien
     while (sortie.length && NEG_PENDANTS.has(negCoeur(sortie[sortie.length - 1])[0])) sortie.pop();
@@ -951,6 +957,49 @@ function negTraiterSegment(jetons, etat, casseLibre) {
   if (!modifie) return ['garder', jetons];
   if (!sortie.length) return ['retirer', []];
   return ['modifier', sortie];
+}
+
+const NEG_CONJ_LISTE = _mots('and or nor');
+
+/** Un segment entre virgules peut-il etre un ELEMENT de liste nie (« sword », « a sword or a shield ») ? -> [nombre de mots pleins, contient une conjonction] ou null.
+ *  Refuse : plus de 5 jetons, un non-mot (chiffre, accent, guillemet, parenthese), une ponctuation de fin, un declencheur, une preposition ou une conjonction de subordination
+ *  (NEG_FIN_GN), un verbe, une exception, une conjonction en tete ou en fin, deux conjonctions. Jumeau : _neg_item_liste (Python). */
+function negItemListe(jetons) {
+  if (!jetons.length || jetons.length > 5) return null;
+  let contenu = 0;
+  let conj = false;
+  for (let k = 0; k < jetons.length; k++) {
+    const jt = jetons[k];
+    const [w, f] = negCoeur(jt);
+    if (w === null || f || '([{"\u201c'.includes(jt[0])) return null;
+    if (NEG_CONJ_LISTE.has(w)) {
+      if (k === 0 || k === jetons.length - 1 || conj) return null;
+      conj = true;
+      continue;
+    }
+    if (NEG_ARTICLES.has(w)) continue;
+    if (NEG_FIN_GN.has(w) || NEG_EXCEPT.has(w) || NEG_FINIS.has(w) || NEG_COPULES.has(w) || negVerbal(jt)) return null;
+    contenu++;
+  }
+  return contenu ? [contenu, conj] : null;
+}
+
+/** Liste nommee qui CONTINUE apres une virgule (24/10, tour 2) : « a knight with no helmet, sword or shield », « without helmet, sword, shield ». Voir _neg_run_liste (Python).
+ *  -> Set des indices de segments a lire comme ELEMENTS de la liste nie (vide : rien ne change). */
+function negRunListe(segs, k) {
+  const items = [];
+  let fermeConj = false;
+  let simples = true;
+  for (let m = k; m < segs.length; m++) {
+    const info = negItemListe(negMots(segs[m][0]));
+    if (info === null) break;
+    items.push(m);
+    if (info[1]) { fermeConj = true; break; }
+    if (info[0] !== 1) simples = false;
+    if (!segs[m][1].startsWith(',')) break;
+  }
+  if (items.length && (fermeConj || (items.length >= 2 && simples))) return new Set(items);
+  return new Set();
 }
 
 /** Retire le mot de liaison qui ouvre le segment (« but a crown » -> « a crown ») ; le segment tel quel sinon. */
@@ -1026,10 +1075,19 @@ export function extraireNegations(texte, regles) {
   const etat = [];
   etat.perdus = [];
   const morceaux = [];
-  for (const [seg, sep] of negSegments(t)) {
+  const segs = negSegments(t);
+  const forces = new Set();          // segments lus comme elements d'une liste nie qui continue apres une virgule (voir negRunListe)
+  let ouverte = false;
+  let sepPrec = '';
+  for (let k = 0; k < segs.length; k++) {
+    const [seg, sep] = segs[k];
     const jetons = negMots(seg);
-    if (!jetons.length) { morceaux.push([seg, sep]); continue; }
-    const [action, nouveaux] = negTraiterSegment(jetons, etat, libre);
+    if (!jetons.length) { morceaux.push([seg, sep]); ouverte = false; sepPrec = sep; continue; }
+    if (ouverte && !forces.has(k) && sepPrec.startsWith(',')) for (const m of negRunListe(segs, k)) forces.add(m);
+    const force = forces.has(k);
+    const [action, nouveaux] = negTraiterSegment(force ? ['without', ...jetons] : jetons, etat, libre);
+    ouverte = force ? false : !!etat.ouverte;
+    sepPrec = sep;
     if (action === 'garder') morceaux.push([seg, sep]);
     else if (action === 'modifier') {
       const [avant, apres] = negBords(seg);   // les blancs de bord du segment sont gardes (« a cat - no tail - sitting »)

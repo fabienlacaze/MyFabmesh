@@ -975,6 +975,10 @@ try { window.fabmeshTraduirePourGeneration = (t) => _traduirePourGeneration(t); 
 // Les textes sont les cles prompt.aide.* des dictionnaires (lang/_additions6.js) ; la version anglaise ci-dessous est celle de l'interface en anglais.
 const AIDE_PROMPT_EN = {
   trad: "Write in any language: we translate it to English for the AI (English is kept as is).",
+  // Interface en anglais (24/10, tour 2, bloquant B-b) : la langue du texte n'est alors PAS connue d'avance, et un texte etranger de 1 a 3
+  // mots sans article (« gato negro ») n'est pas reconnu avec assez de certitude pour etre traduit sans risquer un prompt anglais.
+  // L'aide ne promet donc pas « n'importe quelle langue » : elle dit ce qui est vrai.
+  tradEn: "Best written in English. Other languages are translated for the AI when the text is long enough to be recognised; a word or two may go through as typed.",
   angl: "Write in English for the best results: this field is not translated.",
 };
 /** Champs de prompt dont le texte n'est PAS traduit avant d'atteindre l'IA sur cette plateforme (l'aide le dit au lieu de promettre). */
@@ -992,6 +996,7 @@ function _texteAideLangue(idChamp) {
   if (!_traductionActivePour(idChamp)) return '\u270D\uFE0F ' + dico('prompt.aide.angl', AIDE_PROMPT_EN.angl);
   if (_etatTraduction === 'indisponible') return M.aideAucun;
   if (_etatTraduction === 'echec') return M.aide;
+  if (_langueInterface() === 'en') return '\u270D\uFE0F ' + AIDE_PROMPT_EN.tradEn;
   return '\u270D\uFE0F ' + dico('prompt.aide.trad', AIDE_PROMPT_EN.trad);
 }
 function _updatePromptLangHint() {
