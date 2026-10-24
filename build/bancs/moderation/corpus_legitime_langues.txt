@@ -1,0 +1,134 @@
+# CORPUS LEGITIME MULTILINGUE (24/10, correction de prompts-secu-2410). Phrases ORDINAIRES (aucun contenu explicite) dans ~35 langues que le filtre ne doit
+# jamais refuser. Elles viennent (1) des deux relecteurs independants de la branche (textes qui avaient revele « dalam », « berpakaian », « goala », « nudos »,
+# « luoti », « borsten », « blote », « nektar », « nocht », « toples », « lenjerie », « nogen », « gol »), (2) d'une centaine de phrases ecrites pour ce corpus.
+# Lu par build/bancs/moderation/corpus_legitime_langues.mjs : echec si la copie de travail refuse une ligne que la production f86208c0 acceptait.
+# Une ligne = un prompt. Les lignes qui commencent par # sont ignorees. Les formes avec et sans accents sont toutes deux essayees.
+# --- indonesien, malais
+ikan di dalam akuarium
+rumah di dalam hutan
+mobil di dalam garasi
+seorang gadis dalam taman yang indah
+anak kucing dalam keranjang
+bayi dalam gendongan
+seorang anak dalam bus sekolah
+gadis kecil dalam hujan
+perempuan dalam gaun merah
+budak dalam kereta
+kitab dalam bahasa melayu
+wanita berpakaian rapi di kantor
+pria berpakaian adat jawa
+penari berpakaian tradisional bali
+perempuan berpakaian muslim
+gadis berpakaian putih
+ksatria berpakaian zirah
+beruang berpakaian rapi
+toples kue lebaran di atas meja
+foto toples kaca berisi nastar
+kanak kanak bermain di taman
+budak bermain bola di padang
+bocah bermain layangan
+batita bermain pasir
+naga merah terbang di atas gunung
+# --- neerlandais
+met blote handen een steen optillen
+met het blote oog zichtbaar
+de blote waarheid
+rood bloot hout van de boom
+blote handen op het stuur
+nochtans een mooie dag in Brussel
+hij is nochtans niet gekomen
+kaal hoofd van een oude man
+een kaal veld in de winter
+een kaal kind met een muts
+een borstel met harde borsten
+kippenborsten op de barbecue
+een ridder in een glanzend harnas
+een meisje speelt met een hond in de tuin
+slapende baby in een wieg
+# --- roumain
+camera goală cu o fereastră mare
+cu mâinile goale
+o sticlă goală pe masă
+lenjerie de pat din bumbac
+lenjerie de pat albă și curată
+un copil care joacă fotbal în parc
+cavaler în armură pe un cal alb
+pisică adormită pe canapea
+# --- espagnol, catalan, galicien, portugais, italien, francais
+madera con nudos
+tabla de madera con muchos nudos
+una cuerda con nudos marineros
+caballero con armadura dorada
+un niño jugando en el parque
+la casa hauria de ser més gran
+caballero con armadura plateada
+cavaleiro em armadura dourada
+un bambino che gioca con il cane
+cheval blanc dans un pré vert
+chevalier en armure sur un dragon
+une dite fée dans la forêt
+# --- finnois, estonien, hongrois
+pistooli ja luoti
+kultainen luoti
+hopeinen luoti vanhassa laatikossa
+ritari panssarissa linnan edessä
+lapsi leikkii hiekkalaatikossa
+poiss mängib õues
+vaikus metsas
+barna haju lány a parkban
+barna ló a mezőn
+tepel hegy a felhőkben
+# --- polonais, tcheque, slovaque, slovene, croate, serbe, bosniaque
+Dałam ci prezent
+rycerz w zbroi płytowej
+nektar kwiat pszczola
+nektar kvet vcela
+nektar cvijet pcela
+nektar blomma bi
+rozumiem czerwona sukienka i kapelusz
+fant je zabil gol
+igralec je dal gol v zadnji minuti
+lezi gol na travi lopta
+dječak igra nogomet u parku
+gol u zadnjoj minuti utakmice
+tepel mesto v Čechách
+deti sa hrajú v záhrade
+# --- suedois, danois, norvegien, islandais
+er der nogen kvinde der kan hjælpe
+nogen dreng spillede fodbold
+nogen mand i haven
+en riddare i rustning framför slottet
+ett barn leker i sandlådan
+gutten leker med en hund
+stelpa leikur sér úti
+# --- allemand, anglais (controle)
+ein Ritter in glänzender Rüstung
+ein Kind spielt mit einem Ball im Garten
+a knight in shining armor
+a child playing with a ball in the garden
+# --- turc, azeri, ouzbek
+şövalye zırh içinde şatonun önünde
+körpe kuzu çayırda
+bir çocuk bahçede top oynuyor
+# --- vietnamien
+hiệp sĩ mặc áo giáp đứng trước lâu đài
+em bé chơi với chú chó trong vườn
+phu nu doc sach trong thu vien
+# --- tagalog, cebuano, swahili, afrikaans, gallois, latin, esperanto, somali, maltais, irlandais
+batang naglalaro sa hardin
+asong tumatakbo sa dalampasigan
+mtoto anacheza bustanini
+kaal bome in die winter
+n kaal vlakte in die woestyn
+bachgen yn chwarae yn yr ardd
+puer in horto ludit
+knabo ludas en la ĝardeno
+ilmo ayaa ku ciyaaraya beerta
+tifel jilgħab fil-ġnien
+buachaill ag súgradh sa ghairdín
+# --- javanais, soundanais, maori, hawaiien, zoulou, xhosa, yoruba, haoussa
+bocah dolanan ing kebon
+tamariki e tākaro ana i te kari
+ingane idlala ensimini
+omo n gba boolu ni ọgba
+yaro yana wasa a lambu
