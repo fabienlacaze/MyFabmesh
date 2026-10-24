@@ -31,6 +31,13 @@
  *     (le dernier fichier charge gagne en silence) — le nombre ne peut que baisser.
  *  6. SELECTEUR DE LANGUE TRADUIT : les noms de langue doivent rester ecrits dans leur
  *     propre langue (attribut translate="no" sur #lang-select).
+ *  8. TEXTES LIES AU PROMPT QUE LA COUVERTURE NE VOIT PAS (2026-10-24, correction des prompts) : le sous-titre d'un outil
+ *     (`subtitle:` d'un schema a `params`), son titre, sa confirmation, les libelles / exemples de ses parametres, les cles
+ *     prompt.aide.* de l'aide de langue (litteraux 'prompt.<chantier>.<nom>' du code), et les gabarits `...${x}...` poses directement
+ *     dans textContent / title / placeholder (aucune traduction ne les atteint : la cle du dictionnaire n'est jamais cherchee).
+ *     Le garde annoncait 100 % alors que le sous-titre de « Texture variations » et le refus du controle parental de New project
+ *     restaient en anglais dans les cinq langues. Un schema qui TRADUIT un champ libre (`texteLibre`) est exige a 100 % ; les
+ *     autres schemas et les gabarits directs ont un cliquet (le compte ne peut que baisser).
  *  7. COQUE NEXT : un texte <T> / tr() / texte() de cloud/src sans ses six langues, une
  *     version qui perd une valeur {x}/{y}, un lien ou du gras, ou un meme texte anglais
  *     ecrit avec deux francais differents.
@@ -267,6 +274,85 @@ export function mesurerCoque(racine) {
   return { libelles: textes.size, langues, manquants, cassees, francaisDivergents };
 }
 
+/* ── 8. textes lies au prompt et aux outils (extraction) ──────────────────── */
+const CLES_AIDE = /['"](prompt\.[a-z0-9_]+\.[a-z0-9_.]+)['"]/g;
+const motsDe = (t) => (String(t).match(/[A-Za-z]{2,}/g) || []).length;
+const texteLitteral = (n) => (n && n.type === 'Literal' && typeof n.value === 'string') ? n.value
+  : (n && n.type === 'TemplateLiteral' && !n.expressions.length ? n.quasis.map((q) => q.value.cooked).join('') : null);
+const proprieteDe = (o, nom) => o.properties.find((p) => p.type === 'Property' && !p.computed && ((p.key.name || p.key.value) === nom));
+function parcourirAst(racine, visite) {
+  const pile = [racine];
+  while (pile.length) {
+    const n = pile.pop();
+    if (!n || typeof n.type !== 'string') continue;
+    visite(n);
+    for (const k in n) {
+      if (k === 'type' || k === 'start' || k === 'end' || k === 'loc') continue;
+      const v = n[k];
+      if (Array.isArray(v)) for (const x of v) pile.push(x); else if (v && typeof v.type === 'string') pile.push(v);
+    }
+  }
+}
+function analyserJs(src) {
+  if (!acorn) return null;
+  for (const sourceType of ['module', 'script']) { try { return acorn.parse(src, { ecmaVersion: 'latest', sourceType, locations: true }); } catch (_) { /* suivant */ } }
+  return null;
+}
+/** Textes des schemas d'outils (objets JS a une liste `params`) : Map(texte anglais -> { outil, role, libre }).
+ *  `libre` = le schema traduit un champ de texte libre (`texteLibre`) : ses textes sont lies au prompt, exiges a 100 %. */
+export function textesSchemasOutils(src) {
+  const ast = analyserJs(src);
+  const sortie = new Map();
+  if (!ast) return sortie;
+  parcourirAst(ast, (n) => {
+    if (n.type !== 'ObjectExpression') return;
+    const params = proprieteDe(n, 'params');
+    if (!params || params.value.type !== 'ArrayExpression') return;
+    const titre = proprieteDe(n, 'title');
+    const outil = (titre && texteLitteral(titre.value)) || '?';
+    const libre = !!proprieteDe(n, 'texteLibre');
+    const verser = (obj, roles) => { for (const r of roles) { const p = proprieteDe(obj, r); const v = p && texteLitteral(p.value); if (v && /[A-Za-z]/.test(v)) sortie.set(v.trim(), { outil, role: r, libre }); } };
+    verser(n, ['title', 'subtitle', 'confirm']);
+    for (const e of params.value.elements) if (e && e.type === 'ObjectExpression') verser(e, ['label', 'placeholder', 'hint']);
+  });
+  return sortie;
+}
+/** Gabarits `...${x}...` poses DIRECTEMENT dans textContent / innerText / title / placeholder (au moins 4 mots anglais) : le traducteur du DOM
+ *  cherche le texte AVEC la valeur inseree (« Blocked: "nude" is not ... »), jamais le gabarit a {x} : aucune traduction ne les atteint,
+ *  meme quand le dictionnaire a l'entree. Il faut passer par _i18nTf('... {x} ...', valeur). Map(cle a {x} -> ligne). */
+export function gabaritsDirects(src) {
+  const ast = analyserJs(src);
+  const sortie = new Map();
+  if (!ast) return sortie;
+  parcourirAst(ast, (n) => {
+    if (n.type !== 'AssignmentExpression' || n.left.type !== 'MemberExpression' || n.left.computed) return;
+    if (!['textContent', 'innerText', 'title', 'placeholder'].includes(n.left.property.name)) return;
+    const t = n.right;
+    if (t.type !== 'TemplateLiteral' || !t.expressions.length) return;
+    const cle = t.quasis.map((q) => q.value.cooked).join('{x}');
+    if (motsDe(cle.replace(/\{x\}/g, ' ')) >= 4) sortie.set(cle.trim(), t.loc.start.line);
+  });
+  return sortie;
+}
+/** Cles prompt.<chantier>.<nom> ecrites en litteral dans un texte source (appelees par _i18nT / dico). */
+export function clesPrompt(src) { return [...new Set([...String(src).matchAll(CLES_AIDE)].map((m) => m[1]))]; }
+/** Mesure du point 8 pour une cible : { schemas: Map, gabarits: Map, cles: [] }. */
+export function mesurerTextesPrompt(cb) {
+  const schemas = new Map();
+  const gabarits = new Map();
+  const cles = new Set();
+  for (const p of cb.f.js) {
+    if (!fs.existsSync(p)) continue;
+    const base = path.basename(p);
+    const src = lire(p);
+    for (const k of clesPrompt(src)) cles.add(k);
+    if (base !== 'index2.js' && base !== 'index2-edit-tools.js') continue;
+    for (const [k, v] of textesSchemasOutils(src)) schemas.set(k, v);
+    for (const [k, l] of gabaritsDirects(src)) gabarits.set(k, base + ':' + l);
+  }
+  return { schemas, gabarits, cles: [...cles] };
+}
+
 /* ── mesure complete ───────────────────────────────────────────────────────── */
 export function mesurer(racine) {
   const cibles = {};
@@ -288,6 +374,7 @@ export function mesurer(racine) {
     const fichiersDico = [f.i18n].concat(fs.existsSync(f.dossierLang)
       ? fs.readdirSync(f.dossierLang).filter((x) => x.endsWith('.js')).sort().map((x) => path.join(f.dossierLang, x)) : []);
     cibles[c.nom] = { c, f, libelles, dicts, couverture, traduits, manquants, doublons: doublonsContradictoires(fichiersDico), fichiersDico };
+    cibles[c.nom].prompt = mesurerTextesPrompt(cibles[c.nom]);
   }
   return { cibles, coque: mesurerCoque(racine) };
 }
@@ -406,6 +493,31 @@ export function verifier(racine, { seuils = null } = {}) {
     if (m.coque.francaisDivergents.length) erreurs.push(`coque Next : ${m.coque.francaisDivergents.length} texte(s) anglais ecrits avec deux francais differents\n      ` + m.coque.francaisDivergents.slice(0, 8).join('\n      '));
   }
 
+  // 8. textes lies au prompt que la couverture ne voit pas
+  for (const [nom, cb] of Object.entries(m.cibles)) {
+    const { schemas, gabarits, cles } = cb.prompt;
+    const traduitPartout = (k) => LANGUES.filter((l) => !valeurDe(cb.dicts[l], k));
+    for (const k of cles) {
+      const manque = traduitPartout(k);
+      if (manque.length) erreurs.push(`aide de langue (${nom}) : la cle ${JSON.stringify(k)} (appelee par le code) n'est pas traduite en ${manque.join(', ')} (lang/_additions6.js)`);
+    }
+    let horsLibre = 0;
+    for (const [k, v] of schemas) {
+      const manque = traduitPartout(k);
+      if (!manque.length) continue;
+      if (v.libre) erreurs.push(`texte d'un outil qui traduit un champ libre (${nom}) : ${v.role} de « ${v.outil} » non traduit en ${manque.join(', ')} : ${JSON.stringify(k.slice(0, 90))}`);
+      else horsLibre++;
+    }
+    cb.prompt.schemasNonTraduits = horsLibre;
+    const sg = seuils && seuils.schemas_non_traduits && seuils.schemas_non_traduits[nom];
+    if (typeof sg === 'number' && horsLibre > sg) erreurs.push(`textes d'outils non traduits (${nom}) : ${horsLibre} > ${sg} (titre / sous-titre / libelle d'un schema d'outil sans entree de dictionnaire)`);
+    const sd = seuils && seuils.gabarits_directs && seuils.gabarits_directs[nom];
+    if (typeof sd === 'number' && gabarits.size > sd) {
+      erreurs.push(`gabarits poses dans textContent (${nom}) : ${gabarits.size} > ${sd} : un gabarit \`...\${x}...\` n'est jamais traduit ; utiliser _i18nTf('... {x} ...', x)\n      ` + [...gabarits].slice(0, 8).map(([k, l]) => l + ' ' + JSON.stringify(k.slice(0, 80))).join('\n      '));
+    }
+    infos.push(nom.padEnd(7) + ' textes d\'outils non traduits (hors champs libres) : ' + horsLibre + ', gabarits directs : ' + gabarits.size);
+  }
+
   return { m, erreurs, infos };
 }
 
@@ -417,6 +529,12 @@ export function seuilsAtteints(m) {
     s[nom] = {};
     s.doublons[nom] = {};
     for (const l of LANGUES) { s[nom][l] = seuilAtteint(cb.traduits[l], cb.libelles.size); s.doublons[nom][l] = (cb.doublons[l] || []).length; }
+  }
+  s.schemas_non_traduits = {};
+  s.gabarits_directs = {};
+  for (const [nom, cb] of Object.entries(m.cibles)) {
+    s.schemas_non_traduits[nom] = cb.prompt.schemasNonTraduits || 0;
+    s.gabarits_directs[nom] = cb.prompt.gabarits.size;
   }
   if (!m.coque.erreur) { s.coque = {}; for (const l of LANGUES) s.coque[l] = seuilAtteint(m.coque.langues[l].traduits, m.coque.langues[l].connus); }
   return s;
@@ -442,6 +560,12 @@ function principal() {
       for (const nom of Object.keys(nouveaux.doublons)) for (const l of LANGUES) {
         const a = seuils.doublons && seuils.doublons[nom] && seuils.doublons[nom][l];
         if (typeof a === 'number' && nouveaux.doublons[nom][l] > a) baisses.push(`doublons ${nom}/${l} ${a} -> ${nouveaux.doublons[nom][l]}`);
+      }
+    }
+    for (const nom of ['schemas_non_traduits', 'gabarits_directs']) {
+      for (const c of Object.keys(nouveaux[nom])) {
+        const a = seuils && seuils[nom] && seuils[nom][c];
+        if (typeof a === 'number' && nouveaux[nom][c] > a) baisses.push(`${nom} ${c} ${a} -> ${nouveaux[nom][c]}`);
       }
     }
     if (baisses.length && !args.includes('--baisser')) {

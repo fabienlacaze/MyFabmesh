@@ -29,6 +29,14 @@
     "hi": 100,
     "ar": 100
   },
+  "schemas_non_traduits": {
+    "bureau": 8,
+    "web": 9
+  },
+  "gabarits_directs": {
+    "bureau": 1,
+    "web": 6
+  },
   "coque": {
     "fr": 100,
     "es": 100,
