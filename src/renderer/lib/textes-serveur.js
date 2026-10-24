@@ -43,6 +43,9 @@
     [/^unauthori[sz]ed$/i, 'unauthorized', null],
     [/^forbidden$/i, 'forbidden', null],
     [/^not found$/i, 'not_found', null],
+    // 24/10 (audit des prompts, m12) : memes familles que REFUS_CONNUS du worker
+    [/^Prompt too long \((\d+) \/ (\d+)\)/i, 'prompt_too_long', (m) => ({ n: Number(m[1]), max: Number(m[2]) })],
+    [/^Content filter:|^prompt blocked by content filter/i, 'content_filter', null],
   ];
 
   const I = () => (typeof window !== 'undefined' ? window.FabI18n : null);
@@ -80,6 +83,9 @@
     unauthorized: () => t('Your session has expired. Please sign in again.'),
     forbidden: () => t('You are not allowed to do this.'),
     not_found: () => t('Not found.'),
+    // 24/10 (m12) : le mot declencheur n'est jamais cite ; la phrase dit quoi faire (reformuler)
+    content_filter: () => t('This description is not allowed by the content filter. Please rephrase it and try again.'),
+    prompt_too_long: (p) => tf('Your description is too long ({x} of {y} characters). Please shorten it.', p.n, p.max),
   };
 
   // Codes envoyes par le serveur, par texte (meshyAPI-cloud.js les retient a la reception).

@@ -4083,6 +4083,9 @@ function startMcpBridge() {
 // For now they delegate to the IPC handlers by simulating the event object.
 
 async function handleGenerateImages(params) {
+  // 24/10 (audit des prompts, M8) : ce pont (MCP / API de controle) envoyait le prompt au moteur d'image sans aucun filtre de texte
+  const refusTexteMcp = refusTexteOutil(params && params.userPrompt, params && params.prompt);
+  if (refusTexteMcp) return { success: false, error: refusTexteMcp };
   // Reuse the IPC handler by invoking it directly
   const fakeEvent = { sender: mainWindow?.webContents };
   return new Promise((resolve) => {
@@ -5503,6 +5506,12 @@ ipcMain.handle('check-images-nsfw-tags', (_event, { images }) => {
   return results;
 });
 
+/* 24/10 (audit des prompts, N3) : filtre COMPLET du bureau (le meme que les outils : multilingue, plancher compris) pour la fenetre « New project »,
+ * dont le controle parental ne lisait que la liste de mots anglais. Rend { safe } sans citer le mot (le renderer affiche une phrase traduite). */
+ipcMain.handle('check-prompt-text', (_event, { texts } = {}) => {
+  const liste = (Array.isArray(texts) ? texts : []).slice(0, 6).map((x) => String(x == null ? '' : x).slice(0, 2000));
+  return refusTexteOutil(...liste) ? { safe: false } : { safe: true };
+});
 ipcMain.handle('get-nsfw-keywords', () => {
   return NSFW_KEYWORDS;
 });
@@ -7188,6 +7197,8 @@ ipcMain.handle('animate-ai', async (event, { rigPath, animType, prompt, engine, 
   const safeAnim = (animType || 'idle').replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || 'idle';
   console.log(`[animate-ai] START rig=${rigPath} engine=${engine || 'anytop'} animType=${safeAnim} @${new Date(_t0).toISOString()}`);
   try {
+    const refusTexteAnim = refusTexteOutil(prompt);   // 24/10 (audit M8) : texte libre du mouvement, meme filtre que les autres outils
+    if (refusTexteAnim) return { success: false, error: refusTexteAnim };
     if (!rigPath || !fs.existsSync(rigPath)) {
       return { success: false, error: 'Rig file not found' };
     }
@@ -7880,7 +7891,7 @@ ipcMain.handle('duplicate-image-version', (event, { imagePath, suffix }) => {
 });
 
 // Manual mask inpaint: user paints the mask in-app, we send it to SDXL
-ipcMain.handle('mask-inpaint', async (event, { imagePath, maskDataUrl, prompt }) => {
+ipcMain.handle('mask-inpaint', async (event, { imagePath, maskDataUrl, prompt, langueVerifiee }) => {
   try {
     if (!imagePath || !maskDataUrl) {
       return { success: false, error: 'imagePath and maskDataUrl required' };
@@ -7895,7 +7906,8 @@ ipcMain.handle('mask-inpaint', async (event, { imagePath, maskDataUrl, prompt })
       const outC = path.join(dirC, `${safeBase(path.basename(imagePath, extC))}_inpaint_${Date.now()}${extC}`);
       const r = await cloudFallback.imageOp({
         endpoint: '/api/mask-inpaint', srcPath: imagePath, outPath: outC,
-        extraBody: { maskDataUrl, prompt: prompt || '' },
+        // « Envoyer tel quel » (langueVerifiee) transmis : sinon le filet du serveur refuse en boucle (24/10, B1)
+        extraBody: { maskDataUrl, prompt: prompt || '', ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
       return r.success ? { success: true, newPath: r.newPath } : r;
@@ -8079,6 +8091,8 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
     return sortie;
   };
   try {
+    const refusTexteDetail = refusTexteOutil(prompt);   // 24/10 (audit M8) : texte libre de Detail++, meme filtre que les autres outils
+    if (refusTexteDetail) return { success: false, error: refusTexteDetail };
     if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
     progres({ pct: 1, etape: 'modeles' });
     const manquants = MODELES_DETAIL.filter((m) => !_modeleEnCache(m.repo, m.fichiers));
@@ -8152,7 +8166,7 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
   }
 });
 
-ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed, cnScale, negPrompt, gris, motifs }) => {
+ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed, cnScale, negPrompt, gris, motifs, langueVerifiee }) => {
   try {
     const refusTexte = refusTexteOutil(prompt);   // 2026-10-13 (MODERATION-04)
     if (refusTexte) return { success: false, error: refusTexte };
@@ -8177,6 +8191,7 @@ ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed,
           ...(negPrompt ? { negPrompt } : {}),
           gris: Math.max(0, Math.min(1, Number(gris) || 0)),
           motifs: Math.max(0, Math.min(1, Number(motifs) || 0)),
+          ...(langueVerifiee === true ? { langueVerifiee: true } : {}),
         },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
@@ -8205,7 +8220,7 @@ ipcMain.handle('tex-variant', async (event, { imagePath, prompt, strength, seed,
 });
 
 // Recolor: auto-detect a part (CLIPSeg) and recolor ONLY it, shape preserved.
-ipcMain.handle('recolor', async (event, { imagePath, prompt, strength, dilate, rel, recolorAll }) => {
+ipcMain.handle('recolor', async (event, { imagePath, prompt, strength, dilate, rel, recolorAll, langueVerifiee }) => {
   try {
     const refusTexte = refusTexteOutil(prompt);   // 2026-10-13 (MODERATION-04)
     if (refusTexte) return { success: false, error: refusTexte };
@@ -8226,6 +8241,7 @@ ipcMain.handle('recolor', async (event, { imagePath, prompt, strength, dilate, r
           strength: (strength != null ? strength : 1.0),
           dilate: (dilate != null ? dilate : 15),
           recolorAll: !!recolorAll,
+          ...(langueVerifiee === true ? { langueVerifiee: true } : {}),
         },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
@@ -8290,7 +8306,7 @@ ipcMain.handle('outfit-cutout', async (event, opts = {}) => {
   }
 });
 
-ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, dilate, rel }) => {
+ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, dilate, rel, langueVerifiee }) => {
   try {
     const refusTexte = refusTexteOutil(targetText, prompt);   // 2026-10-13 (MODERATION-04)
     if (refusTexte) return { success: false, error: refusTexte };
@@ -8305,7 +8321,7 @@ ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, di
     if (isCloudMode()) {
       const r = await cloudFallback.imageOp({
         endpoint: '/api/auto-inpaint', srcPath: imagePath, outPath: newImagePath,
-        extraBody: { targetText, prompt: prompt || '', dilate: dilate || 15 },
+        extraBody: { targetText, prompt: prompt || '', dilate: dilate || 15, ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
       return r.success ? { success: true, newPath: r.newPath } : r;
@@ -8354,7 +8370,7 @@ ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, di
 });
 
 // Img2img: local SDXL by default, or cloud Pollinations if explicitly chosen
-ipcMain.handle('img2img', async (event, { imagePath, prompt, strength, engine, seed }) => {
+ipcMain.handle('img2img', async (event, { imagePath, prompt, strength, engine, seed, langueVerifiee }) => {
   try {
     const safety = checkPromptSafety(prompt);
     if (!safety.safe) return { success: false, error: safety.reason };
@@ -8369,7 +8385,7 @@ ipcMain.handle('img2img', async (event, { imagePath, prompt, strength, engine, s
       const outC = path.join(dirC, `${safeBase(path.basename(imagePath, extC))}_edit_${Date.now()}_${uniqC}${extC}`);
       const r = await cloudFallback.imageOp({
         endpoint: '/api/modify-image', srcPath: imagePath, outPath: outC,
-        extraBody: { prompt, strength: (typeof strength === 'number' ? strength : 0.55) },
+        extraBody: { prompt, strength: (typeof strength === 'number' ? strength : 0.55), ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
       return r.success ? { success: true, newPath: r.newPath } : r;
@@ -12320,7 +12336,7 @@ ipcMain.handle('mesh:render-front', async (_e, { meshPath } = {}) => {
       });
   });
 });
-ipcMain.handle('mesh:region-retex', async (_e, { meshPath, maskDataUrl, prompt, strength, uvMask } = {}) => {
+ipcMain.handle('mesh:region-retex', async (_e, { meshPath, maskDataUrl, prompt, strength, uvMask, langueVerifiee } = {}) => {
   const refusTexte = refusTexteOutil(prompt);   // 2026-10-13 (MODERATION-04)
   if (refusTexte) return { ok: false, error: refusTexte };
   // Mode Cloud (2026-09-30) : meme route que le site, /api/mesh-region-retex.
@@ -12337,7 +12353,7 @@ ipcMain.handle('mesh:region-retex', async (_e, { meshPath, maskDataUrl, prompt, 
       const r = await cloudFallback.atlasOp({
         meshPath, endpoint: '/api/mesh-region-retex', outPath: out,
         projectName: base.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 90),
-        champs: { mask: String(maskDataUrl || ''), prompt: String(prompt || 'detailed texture'), strength: force },
+        champs: { mask: String(maskDataUrl || ''), prompt: String(prompt || 'detailed texture'), strength: force, ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
       });
       if (!r.success) {
         return { ok: false, error: r.error || 'cloud region re-texture failed',
@@ -12479,10 +12495,15 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
   }
 });
 
-ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedParams }) => {
+ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedParams, langueVerifiee }) => {
   // 2026-10-03 (constat D-05) : meme controle que mesh-segment et les autres outils de maillage ; l'operation
   // ecrit un nouveau fichier a cote du maillage, il doit donc etre dans un dossier gere par l'appli.
   if (!meshPath || !isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+  // 24/10 (audit M8) : le « Style » de Texture variants (3e parametre) est un texte libre envoye au moteur d'image
+  if (operation === 'texture_var') {
+    const refusStyle = refusTexteOutil(String((params || [])[2] || ''));
+    if (refusStyle) return { success: false, error: refusStyle };
+  }
   const script = path.join(SCRIPTS_DIR, 'mesh_tools.py');
   const timestamp = Date.now();
   const ext = path.extname(meshPath);
@@ -12520,7 +12541,7 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
           r = await cloudFallback.atlasOp({
             meshPath, endpoint: '/api/mesh-texvar', outPath, projectName: base,
             champs: { strength: Number.isFinite(force) ? force : 0.4,
-                      ...(Number.isFinite(graine) ? { seed: graine } : {}), style: p[2] || '' },
+                      ...(Number.isFinite(graine) ? { seed: graine } : {}), style: p[2] || '', ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
           });
         } else {
           // schema bureau : [image de reference, preset, graine]
@@ -12966,6 +12987,8 @@ ipcMain.handle('caption-image', async (_event, { imagePath }) => {
 // same subject, conditioned on the front photo.
 // ============================================================
 ipcMain.handle('generate-back-view', async (_event, { frontImage, promptHint, numImages, mode, assetType, sheetViews }) => {
+  const refusTexteDos = refusTexteOutil(promptHint);   // 24/10 (audit M8) : l'indice texte de la vue de dos n'etait filtre nulle part en local
+  if (refusTexteDos) return { success: false, error: refusTexteDos };
   if (!frontImage || !fs.existsSync(frontImage)) {
     return { success: false, error: `front image not found: ${frontImage}` };
   }

@@ -1329,6 +1329,8 @@
     // Renderer does `keywords.find(...)` directly on the return value,
     // so we MUST return a plain array (not { keywords: [] }).
     getNsfwKeywords: async () => [],
+    // Site : le serveur filtre a la generation (aucun controle d'ouverture cote navigateur) ; meme methode que le bureau (24/10, N3)
+    checkPromptText: async () => ({ safe: true }),
     checkImageNsfw: async () => ({ ok: true, safe: true }),
     batchCheckNsfw: async () => ({ ok: true, results: [] }),
 

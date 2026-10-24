@@ -1713,7 +1713,7 @@ async function renderProjectsGrid() {
       <button class="card-delete-btn" title="Delete project">&#10005;</button>
       <div class="project-card-thumb">
         ${p.thumb
-          ? `<img src="${_toFileUrl(p.thumb)}" alt="${p.name}">`
+          ? `<img src="${_toFileUrl(p.thumb)}" alt="${escapeHtml(p.displayName || p.name)}">`
           : `<span class="project-card-thumb-empty">No image</span>`}
       </div>
       <div class="project-card-body">
@@ -2197,11 +2197,27 @@ document.getElementById('np-create').addEventListener('click', async () => {
       const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return new RegExp('\\b' + escaped + '\\b').test(text);
     });
-    if (blocked) {
+    // 24/10 (audit des prompts, N3) : la liste de mots est ANGLAISE et le texte etait lu brut — un texte dans une autre langue passait. Le texte est
+    // aussi lu TRADUIT, et passe par le filtre complet du bureau (multilingue, memes regles que les outils), avec le nom du projet. Le serveur reste
+    // l'autorite a la generation ; ceci n'est qu'un controle d'ouverture. Echec de traduction : le texte brut est controle seul.
+    let refusFiltre = false;
+    if (!blocked && (name || prompt)) {
+      let traduit = '';
+      try { const tr = await traduireTexteUtilisateur(prompt); if (!tr.echec && tr.traduit) traduit = tr.texte; } catch (_) {}
+      try {
+        if (API.checkPromptText) {
+          const rf = await API.checkPromptText({ texts: [name, prompt, traduit].filter(Boolean) });
+          refusFiltre = !!(rf && rf.safe === false);
+        }
+      } catch (_) {}
+    }
+    if (blocked || refusFiltre) {
       // Show the block INSIDE the popup (not a toast) + an Unlock shortcut.
       const _msg = document.getElementById('np-block-msg');
       if (_msg) {
-        _msg.textContent = `Blocked: "${blocked}" is not allowed with parental control active. Unlock to disable the content filter.`;
+        _msg.textContent = blocked
+          ? _i18nTf('Blocked: "{x}" is not allowed with parental control active. Unlock to disable the content filter.', blocked)
+          : _i18nT('This description is not allowed with parental control active. Unlock to disable the content filter.');
         _msg.classList.remove('hidden');
       }
       const _ub = document.getElementById('np-unlock');
@@ -6179,8 +6195,11 @@ function _epurerDemande(texte) {
 /** Faux amis connus apres traduction : « short » (le vetement) traduit par l'adjectif. */
 function _corrigerFauxAmis(source, traduit, lang) {
   let t = String(traduit || "");
-  if (lang === "fr" && /\bshorts?\b/i.test(String(source || ""))) {
-    t = t.replace(/\bshort\b(?!\s+(?:hair|tail|legs?|neck|snout|nose|fur|beard|ears?|arms?|sleeves?|horns?|beak|wings?|body|mane|time))/gi, "shorts");
+  if (lang === "fr" && /\bshorts?\b/i.test(String(source || "")) && !/\bshorts\b/i.test(t)) {
+    // « short » (le vetement) rendu au singulier : remplace SEULEMENT quand il est seul (fin de groupe, ou suivi d'une conjonction / preposition) ;
+    // jamais « short sword », « short hair », « short story » (24/10, audit m16a : « une epee courte et un short » donnait « a shorts sword »)
+    t = t.replace(/(\bthe\s+)?(?:\b(?:a|an|one)\s+)?\bshort\b(?=\s*(?:$|[,.;:!?)]|\b(?:and|with|in|on|that|which|made|of|for|to|at|from|under|over|but)\b))/gi,
+      (m, le) => (le || "") + "shorts");
   }
   return t;
 }
@@ -10623,8 +10642,13 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
   const p = state.currentProject;
   const m = getCurrentMeshObj();
   if (!p || !m) return;
-  const modification = document.getElementById('rfn-prompt').value.trim();
-  if (!modification) { showToast('Type a modification first.', 'error'); return; }
+  const rawModification = document.getElementById('rfn-prompt').value.trim();
+  if (!rawModification) { showToast('Type a modification first.', 'error'); return; }
+  // user's language → EN ; echec : l'utilisateur choisit (Reessayer / Envoyer tel quel), annule = rien n'est lance (24/10, audit M6 :
+  // ce champ n'etait traduit nulle part sur le site)
+  const _trModif = await _traduirePourGeneration(rawModification);
+  if (!_trModif) return;
+  const modification = _trModif.texte;
   const format = document.getElementById('rfn-format').value;
   const model = document.getElementById('rfn-model').value;
   document.getElementById('modal-refine-mesh').classList.add('hidden');
@@ -10638,7 +10662,7 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
       'Source mesh': m.filename,
     });
     try {
-      const r = await API.refineMesh({ projectName: p.name, modification, format, model, jobId: job.id });
+      const r = await API.refineMesh({ projectName: p.name, modification, format, model, jobId: job.id, langueVerifiee: _trModif.telQuel || undefined });
       if (r?.success || r?.meshPath) {
         completeJob(job.id, true);
         await reloadCurrentProject();

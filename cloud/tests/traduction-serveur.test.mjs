@@ -265,7 +265,8 @@ test('filet : « Envoyer tel quel » choisi par l utilisateur (langueVerifiee) e
   const a = monterGeneration();
   const r = await a.appeler({ userPrompt: 'un dragon rouge avec des ailes', asset_type: 'creature', langueVerifiee: true });
   assert.equal(r.status, 200);
-  assert.equal(a.ai.appels.length, 0);
+  // 24/10 (M1) : le texte ENVOYE reste intact (choix respecte) mais le serveur en traduit une copie jetable pour la MODERATION (1 appel)
+  assert.equal(a.ai.appels.length, 1);
   assert.equal(a.j.t2i[0].prompt, 'un dragon rouge avec des ailes');
   const b = monterGeneration();
   await b.appeler({ userPrompt: 'An orc warrior covered in blood, holding a massive spiked club', asset_type: 'character' });
@@ -1185,19 +1186,25 @@ const ROUTES_FILET = [
   ['handleMeshReshape', (t) => ({ prompt: t, meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png', maskDataUrl: PNG_MINI }), 'prompt'],
   ['handleMeshTexVar', (t) => ({ style: t, meshUrl: 'https://r2.example/m.glb' }), 'style'],
   ['handleMeshRegionRetex', (t) => ({ prompt: t, meshUrl: 'https://r2.example/m.glb', mask: PNG_MINI }), 'prompt'],
+  // 24/10 (m19) : /api/animate
+  ['handleAutoAnim', (t) => ({ prompt: t, rig_url: 'https://r2.example/rig.glb', anim_type: 'run' }), 'prompt'],
 ];
 
 /** Toutes les routes du tableau, chargees UNE fois, avec le VRAI filtre (chaque chaine qu'il voit est notee) et un faux modele qui rend
  *  `traduction` au premier appel d'une requete. Tout ce qui part a Modal (callModal*, fetch) est capture. */
 function monterRoutesFiltreReel() {
   const etat = { envoye: [], verifies: [], depenses: [], traduction: '', appels: 0 };
-  const ai = { async run() { etat.appels++; return { translated_text: etat.appels === 1 ? etat.traduction : 'and' }; } };
+  const ai = { async run() {
+    etat.appels++;
+    if (etat.traduction === null) throw new Error('modele en panne');
+    return { translated_text: etat.appels === 1 ? etat.traduction : 'and' };
+  } };
   const capter = (nom) => async (_e, _u, i) => {
     etat.envoye.push([nom, i]);
     return nom === 'callModalImageOp' ? { url: 'https://r2.example/x.png' } : 'https://r2.example/x.png';
   };
   const noms = [...new Set([...ROUTES_FILET.map(([n]) => n), '_opAtlasGpu', '_checkPromptSafetyAlerte', 'categorieContenuGrave',
-    '_prixImageSelonPas', '_prixImageComplet', 'ESTIMATED_USD_RESHAPE', ...AUXILIAIRES])];
+    '_prixImageSelonPas', '_prixImageComplet', 'ESTIMATED_USD_RESHAPE', 'ESTIMATED_USD_ANIM', 'putAnimJobRecord', ...AUXILIAIRES])];
   const w = charger(noms, {
     getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits: 500 }), err, json, LangueTexte,
     getParentalState: async () => ({}),
@@ -1223,7 +1230,8 @@ function monterRoutesFiltreReel() {
     const env = { AI: ai, MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example', MODAL_SHARED_SECRET: 's',
       MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MODAL_BACKVIEW_URL: 'https://bv.example',
       MODAL_IMAGE_OP_URL: 'https://op.example/image_op', MODAL_RECTIFY_URL: 'https://rect.example',
-      MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status' };
+      MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status',
+      MODAL_ANYTOP_ANIM_URL: 'https://anim.example' };
     const r = await w[nom](corpsRequete('/api/route', corps), env);
     let c = null;
     try { c = await r.json(); } catch { /* corps non JSON */ }
@@ -1327,4 +1335,127 @@ test('quatrieme relecture : une CONTENTION sur le compteur du compte (requetes s
   assert.equal(m.ai.appels.length, 0, 'aucun appel du modele');
   assert.deepEqual(m.j.depenses, [], 'rien debite');
   assert.equal(r2.lire(`_meta/traduction/u-dispute-${heureCourante()}.txt`), undefined, 'rien n est compte');
+});
+
+// ------------------------------------------------------------------------------------------------------- 24/10 : M1, le drapeau ne coupe PLUS la moderation
+// Audit des prompts (M1) : `langueVerifiee: true` (« Envoyer tel quel », ou un client qui triche) faisait sauter le filet de langue ET la
+// moderation multilingue : le serveur ne voyait jamais ce que le texte etranger veut dire. Mandat du proprietaire : la securite ne s'affaiblit
+// jamais. Desormais : texte ENVOYE intact (choix respecte), copie jetable traduite et filtree, refus 400 si elle n'est pas sure.
+// Ancien code : WORKER_SRC=<worker de prompts-2410> node --test --test-name-pattern="M1" tests/traduction-serveur.test.mjs
+const TEXTE_ETRANGER = 'un dragon rouge avec des ailes immenses et une longue queue';
+const TRADUCTION_NON_SURE = 'a naked woman';   // chaine minimale, refusee par le filtre general
+const TRADUCTION_SURE = 'a red dragon with huge wings and a long tail';
+
+test('M1 : avec langueVerifiee:true, une traduction NON SURE refuse la requete sur TOUTES les routes au filet (400, rien envoye, rien debite)', async () => {
+  assert.equal(FILTRE.checkPromptSafety(TRADUCTION_NON_SURE).safe, false, 'chaine minimale bien refusee par le filtre');
+  assert.equal(FILTRE.checkPromptSafety(TEXTE_ETRANGER).safe, true, 'le texte etranger passe le filtre (seule sa traduction est non sure)');
+  const { appeler } = monterRoutesFiltreReel();
+  const fuites = [];
+  for (const [nom, corps] of ROUTES_FILET) {
+    const sans = await appeler(nom, corps(TEXTE_ETRANGER), TRADUCTION_NON_SURE);
+    const avec = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, TRADUCTION_NON_SURE);
+    if (sans.status !== 400) fuites.push(`${nom} : temoin sans drapeau, statut ${sans.status} (attendu 400)`);
+    if (avec.status !== 400) fuites.push(`${nom} : AVEC drapeau, statut ${avec.status} (attendu 400)`);
+    if (avec.envoye.length) fuites.push(`${nom} : AVEC drapeau, ${avec.envoye.length} appel(s) Modal`);
+    if (avec.depenses.length) fuites.push(`${nom} : AVEC drapeau, credits debites`);
+  }
+  assert.deepEqual(fuites, []);
+});
+
+test('M1 : avec langueVerifiee:true, une traduction sure laisse partir le texte ORIGINAL (choix respecte) apres UN appel du modele', async () => {
+  const { appeler } = monterRoutesFiltreReel();
+  const pb = [];
+  for (const [nom, corps] of ROUTES_FILET) {
+    if (nom === 'handleAutoAnim') continue;   // cette route ne lit PAS le drapeau client : le serveur verifie toujours (test m19)
+    const r = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, TRADUCTION_SURE);
+    if (r.status !== 200) { pb.push(`${nom} : statut ${r.status}`); continue; }
+    const envoye = JSON.stringify(r.envoye);
+    if (!envoye.includes(TEXTE_ETRANGER)) pb.push(`${nom} : le texte d origine n est pas parti tel quel`);
+    if (envoye.includes(TRADUCTION_SURE)) pb.push(`${nom} : la copie de moderation est partie a Modal`);
+    if (r.appels !== 1) pb.push(`${nom} : ${r.appels} appels du modele (attendu 1)`);
+  }
+  assert.deepEqual(pb, []);
+});
+
+test('M1 : avec langueVerifiee:true et traducteur en panne, la requete part comme avant (jamais de 422), le filtre general reste applique', async () => {
+  const { appeler } = monterRoutesFiltreReel();
+  const pb = [];
+  for (const [nom, corps] of ROUTES_FILET) {
+    if (nom === 'handleAutoAnim') continue;   // cette route ne lit PAS le drapeau client (test m19)
+    const r = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, null);
+    if (r.status !== 200) pb.push(`${nom} : statut ${r.status}`);
+    const sansDrapeau = await appeler(nom, corps(TEXTE_ETRANGER), null);
+    if (sansDrapeau.status !== 422) pb.push(`${nom} : temoin sans drapeau, statut ${sansDrapeau.status} (attendu 422)`);
+  }
+  assert.deepEqual(pb, []);
+});
+
+// ------------------------------------------------------------------------------------------------------- 24/10 : m19, /api/animate
+// Le texte libre de /api/animate partait a Modal sans filtre de contenu ni filet de langue. Ancien code : WORKER_SRC=<worker de prompts-2410>.
+function monterAnimation({ ai = fauxAI() } = {}) {
+  const j = { depenses: [], op: [], dos: [], modal: [] };
+  const w = charger(['handleAutoAnim', 'putAnimJobRecord', ...AUXILIAIRES], {
+    ...doublesOutils(j),
+    _checkPromptSafetyAlerte: async (_e, _u, t) => { const s = FILTRE.checkPromptSafety(t); return s.safe ? { safe: true } : { safe: false, reason: s.reason, blocked: s.blocked }; },
+    supabaseAdmin: () => ({ from: () => ({ insert: async () => ({ error: null }), select: () => ({ eq: () => ({ eq: () => ({ in: () => ({ order: () => ({ limit: async () => ({ data: [] }) }) }) }) }) }) }) }),
+    _provenance: () => 'web', _paysRequete: () => 'FR', ESTIMATED_USD_ANIM: 0.1,
+    fetch: async (url, init) => {
+      j.modal.push({ url: String(url), corps: JSON.parse(init.body) });
+      return new Response(JSON.stringify({ job_id: 'job-anim-1' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+  const env = { AI: ai, MODAL_ANYTOP_ANIM_URL: 'https://anim.example', MODAL_SHARED_SECRET: 's', MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example' };
+  const appeler = async (corps) => {
+    const r = await w.handleAutoAnim(corpsRequete('/api/animate', { rig_url: 'https://r2.example/rig.glb', anim_type: 'run', ...corps }), env);
+    return { status: r.status, corps: await r.json().catch(() => null) };
+  };
+  return { j, appeler, ai };
+}
+
+test('m19 : /api/animate traduit un prompt etranger AVANT Modal, filtre la chaine envoyee, refuse sans debit', async () => {
+  const sain = monterAnimation();
+  let r = await sain.appeler({ prompt: 'un guerrier qui court tres vite dans la foret' });
+  assert.equal(r.status, 200, JSON.stringify(r.corps));
+  assert.equal(sain.j.modal[0].corps.prompt, 'EN:un guerrier qui court tres vite dans la foret', 'Modal recoit le texte traduit');
+  const anglais = monterAnimation();
+  r = await anglais.appeler({ prompt: 'a warrior running fast through the forest' });
+  assert.equal(r.status, 200);
+  assert.equal(anglais.ai.appels.length, 0, 'un texte anglais ne coute aucun appel du modele');
+  assert.equal(anglais.j.modal[0].corps.prompt, 'a warrior running fast through the forest');
+  const sale = monterAnimation();
+  r = await sale.appeler({ prompt: 'a naked woman dancing' });
+  assert.equal(r.status, 400);
+  assert.deepEqual(sale.j.depenses, [], 'rien debite');
+  assert.equal(sale.j.modal.length, 0, 'rien envoye a Modal');
+  const panne = monterAnimation({ ai: fauxAI({ mode: 'panne' }) });
+  r = await panne.appeler({ prompt: 'un guerrier qui court tres vite dans la foret', langueVerifiee: true });
+  assert.equal(r.status, 422, 'le drapeau client n est pas lu : traduction impossible -> refus, rien debite');
+  assert.deepEqual(panne.j.depenses, []);
+  assert.equal(panne.j.modal.length, 0);
+});
+
+// ------------------------------------------------------------------------------------------------------- 24/10 : B2 x M1 sur toutes les routes
+// Les 11 chaines minimales de l'audit (zh, hi, ar, ru, ja, tr, fr, es, de, mineurs compris) sont refusees (400, rien envoye, rien debite) sur
+// CHAQUE route au filet de langue, AVEC et SANS le drapeau client, que le traducteur reponde ou soit en panne.
+const CHAINES_SECURITE = ['une femme nue', 'mujer desnuda', 'nackte Frau', '裸体女人', '裸体儿童', 'امرأة عارية', 'एक नग्न महिला',
+  'голая женщина', 'çıplak kadın', '裸の女性', 'naked child'];
+test('B2 : les 11 chaines de securite de l audit sont refusees sur toutes les routes, avec et sans langueVerifiee, traducteur en panne ou non', async () => {
+  const { appeler } = monterRoutesFiltreReel();
+  const fuites = [];
+  for (const [nom, corps] of ROUTES_FILET) {
+    for (const t of CHAINES_SECURITE) {
+      for (const drapeau of [false, true]) {
+        if (drapeau && nom === 'handleAutoAnim') continue;   // route qui ne lit pas le drapeau (test m19)
+        for (const traduction of [null, 'a red dragon']) {
+          const r = await appeler(nom, { ...corps(t), ...(drapeau ? { langueVerifiee: true } : {}) }, traduction);
+          // INVARIANT : toute chaine envoyee a Modal a ete verifiee. Soit la requete est refusee (rien envoye, rien debite), soit les chaines
+          // envoyees sont sures (traducteur qui a repondu : c'est la TRADUCTION qui part). Un texte non sur ne part JAMAIS.
+          const nonSures = r.envoye.flatMap(([, i]) => _chainesDe(i)).filter((s) => !FILTRE.checkPromptSafety(s).safe);
+          if (nonSures.length) fuites.push(`${nom} | ${JSON.stringify(t)} | drapeau=${drapeau} | traducteur=${traduction === null ? 'panne' : 'ok'} : ${nonSures.length} chaine(s) non sure(s) envoyee(s)`);
+          if (r.status >= 400 && (r.envoye.length || r.depenses.length)) fuites.push(`${nom} | ${JSON.stringify(t)} : refus mais ${r.envoye.length} envoi(s), ${r.depenses.length} debit(s)`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(fuites, []);
 });

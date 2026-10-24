@@ -211,7 +211,8 @@ test('precision : un mot qui existe aussi en anglais ne designe jamais une langu
   for (const t of ['van', 'den', 'die', 'beer', 'sombrero', 'rucksack', 'kobold', 'piccolo', 'el', 'las', 'con', 'sin', 'per', 'pour']) {
     assert.equal(LT.detecterLangue(t).langue, null, t);
   }
-  for (const t of ['drache', 'casque', 'chapeau', 'perro', 'que sera sera', 'Sturm und Drang poster', 'noir detective', 'crème brûlée',
+  // (24/10, m11 : un mot COURANT d'une langue seul — « drache », « casque », « chapeau », « perro » — est desormais sur, voir plus bas)
+  for (const t of ['que sera sera', 'Sturm und Drang poster', 'noir detective', 'crème brûlée',
     'piñata', 'jalapeño', 'São Paulo skyline', 'Mötley Crüe logo']) {
     assert.equal(LT.detecterLangue(t).sure, false, t);
     assert.equal(LT.langueSource(t, 'en'), null, 'interface anglaise : ' + t);
@@ -286,7 +287,9 @@ test('seconde revue : un mot SEUL a lettres accentuees propres reste « sur » (
     const d = LT.detecterLangue(t);
     assert.deepEqual([d.langue, d.sure], [lg, true], t);
   }
-  for (const t of ['casque', 'Drache', 'perro']) assert.equal(LT.detecterLangue(t).sure, false, t);
+  // 24/10 (m11, mandat du proprietaire) : un mot COURANT d'une langue (listes « courants ») seul est sur ; un mot sans liste ne l'est pas
+  for (const t of ['casque', 'Drache', 'perro']) assert.equal(LT.detecterLangue(t).sure, true, t);
+  for (const t of ['orc', 'robot', 'pizza', 'taxi', 'hotel']) assert.equal(LT.detecterLangue(t).sure, false, t);
 });
 test('troisieme relecture (mutant L4) : un MOT OUTIL etranger en tete (« Le », « El », « Les », « Un ») n ouvre pas un nom propre', () => {
   // avec un mot outil capitalise pris pour le debut d'un nom, « Le Vieux Chevalier » etait ecarte comme nom propre : le prompt francais
@@ -295,4 +298,62 @@ test('troisieme relecture (mutant L4) : un MOT OUTIL etranger en tete (« Le »,
     ['fr', 'Les Trois Mousquetaires en armure, highly detailed'], ['fr', 'Un Grand Dragon dort sur son or, highly detailed']];
   const fautes = cas.filter(([lg, t]) => LT.langueSource(t, 'en') !== lg).map(([lg, t]) => `${t} : ${LT.langueSource(t, 'en')} au lieu de ${lg}`);
   assert.deepEqual(fautes, []);
+});
+
+// ------------------------------------------------------------------------------------------------------- 24/10 : m11, mots courts et faux amis
+// Audit des prompts (m11) : sous une interface ANGLAISE, « un avocat », « chaise », « Drache », « barba gris » partaient bruts, sans erreur.
+// Mandat du proprietaire : tout texte, dans n'importe quelle langue, atteint l'IA en anglais. Regle du texte COURT (voir langue-texte.js).
+// Ancien code : LIB_LANGUE=<langue-texte.js de prompts-2410> node --test --test-name-pattern="m11" tests/langue-texte.test.mjs
+const MOTS_COURTS = [   // [texte, langues acceptees]
+  ['chaise', ['fr']], ['gato', ['es']], ['casa', ['es', 'pt', 'it']], ['Drache', ['de']], ['Haus', ['de']], ['tavola', ['it']],
+  ['mesa', ['es', 'pt']], ['voiture', ['fr']], ['bateau', ['fr']], ['avion', ['fr']], ['barba gris', ['es']], ['un avocat', ['fr']],
+  ['épée', ['fr']], ['ver de terre', ['fr']],
+];
+const FAUX_AMIS = [
+  ['un homme en short', 'fr'], ['une courte histoire en short', 'fr'], ['un chat', 'fr'], ['du pain', 'fr'], ['un coin de rue', 'fr'],
+  ['de la chair', 'fr'], ['ein Gift', 'de'], ['un burro', 'es'], ['una cuerda larga', 'es'],
+];
+test('m11 : mots courts etrangers sous une interface ANGLAISE : la langue du texte est trouvee et le texte part au traducteur', () => {
+  const rates = [];
+  for (const [t, langues] of MOTS_COURTS) {
+    const src = LT.langueSource(t, 'en');
+    if (!langues.includes(src)) rates.push(`${t} -> ${src} (attendu ${langues.join('|')})`);
+    assert.equal(LT.detecterLangue(t).sure, true, t);
+  }
+  assert.deepEqual(rates, []);
+});
+
+test('m11 : faux amis (« short », « chat », « pain », « Gift », « burro ») : langue du texte trouvee sous une interface anglaise', () => {
+  const rates = [];
+  for (const [t, lg] of FAUX_AMIS) if (LT.langueSource(t, 'en') !== lg) rates.push(`${t} -> ${LT.langueSource(t, 'en')} (attendu ${lg})`);
+  assert.deepEqual(rates, []);
+});
+
+test('m11 : mots AMBIGUS (orc, robot, pizza, taxi, hotel) et anglais court : restent anglais, jamais traduits', () => {
+  for (const t of ['orc', 'robot', 'pizza', 'taxi', 'hotel', 'red dragon', 'camper van', 'beer mug', 'Die Hard', 'Las Vegas sign', 'sombrero', 'Elmo plush',
+    'pan flute', 'Moulin Rouge windmill', 'Cirque du Soleil acrobat', 'mi casa su casa doormat', 'Das Boot submarine']) {
+    assert.equal(LT.langueSource(t, 'en'), null, t);
+  }
+});
+
+test('m11 : un mot etranger n est plus « traduit depuis la langue de l interface » : « gato » sous une interface francaise est de l espagnol', () => {
+  assert.equal(LT.langueSource('gato', 'fr'), 'es');
+  assert.equal(LT.langueSource('Drache', 'fr'), 'de');
+  assert.equal(LT.langueSource('un avocat', 'es'), 'fr');
+});
+
+test('m11 : kanji propres au japonais (« 弁護士 ») : japonais, pas chinois ; texte chinois et kanji ambigus : chinois', () => {
+  assert.equal(LT.detecterLangue('弁護士').langue, 'ja');
+  assert.equal(LT.langueSource('弁護士', 'en'), 'ja');
+  assert.equal(LT.detecterLangue('一个红色的龙').langue, 'zh');
+  assert.equal(LT.detecterLangue('赤いドラゴン').langue, 'ja');
+  assert.equal(LT.langueSource('山', 'en'), 'zh', 'kanji ambigu : le traducteur lit aussi les kanji, mieux vaut traduire que d envoyer l ideogramme');
+});
+
+test('m11 : le filet du serveur vise aussi un mot court etranger, jamais un mot anglais', () => {
+  const m = LT.morceauxEtrangers('un avocat');
+  assert.equal(m.length, 1);
+  assert.equal(m[0].langue, 'fr');
+  assert.deepEqual(LT.morceauxEtrangers('an orc warrior'), []);
+  assert.deepEqual(LT.morceauxEtrangers('camper van'), []);
 });
