@@ -874,27 +874,51 @@ try { window.fabmeshTraduirePourGeneration = (t) => _traduirePourGeneration(t); 
 // 2026-10-13 (lot 2 de l'audit de la langue) : la langue du TEXTE est detectee, donc l'interface anglaise accepte aussi une autre langue ;
 // l'aide dit enfin quand la traduction est indisponible (TRADUCTION-01/03, CHAMPS-16) au lieu de promettre « traduit auto » en toutes
 // circonstances.
-const PROMPT_LANG_HINT = {
-  fr: "✍️ écris dans ta langue (traduit auto en anglais)",
-  es: "✍️ escribe en tu idioma (traducido auto)",
-  zh: "✍️ 用你的语言（自动翻译成英文）",
-  hi: "✍️ अपनी भाषा में (स्वतः अनुवादित)",
-  ar: "✍️ بلغتك (تُترجم تلقائيًا)",
-  en: "✍️ any language (auto-translated to English)",
+// --- AIDE DE LANGUE : DEBUT ---
+// 2026-10-24 (correction des prompts, chantier B « aide de langue ») : UNE aide sous CHAQUE champ ou l'utilisateur ecrit un prompt
+// (<div class="prompt-lang-hint" data-pour="<id du champ>">), qui dit ce qui est VRAI pour CET outil sur CETTE plateforme. Avant : 2 champs
+// sur 14, une promesse figee « traduit auto » meme quand la traduction etait absente, une aide COUPEE par une ellipse (nowrap), et le meme
+// texte dans les cinq langues avec trois formulations (« vers l'anglais » absent en es, hi, ar).
+//  - traduction active pour ce champ  -> « ecris dans ta langue ; on traduit vers l'anglais pour l'IA (l'anglais passe tel quel) » ;
+//  - champ NON traduit sur cette plateforme (CHAMPS_PROMPT_SANS_TRADUCTION) -> « ecris en anglais pour de meilleurs resultats » ;
+//  - traducteur absent / dernier essai rate (etat reel de traduireTexteUtilisateur) -> le message d'etat, pour les champs traduits.
+// Les textes sont les cles prompt.aide.* des dictionnaires (lang/_additions6.js) ; la version anglaise ci-dessous est celle de l'interface en anglais.
+const AIDE_PROMPT_EN = {
+  trad: "Write in any language: we translate it to English for the AI (English is kept as is).",
+  angl: "Write in English for the best results: this field is not translated.",
 };
+/** Champs de prompt dont le texte n'est PAS traduit avant d'atteindre l'IA sur cette plateforme (l'aide le dit au lieu de promettre). */
+const CHAMPS_PROMPT_SANS_TRADUCTION = new Set(['rfn-prompt']);
+/** Vrai si le texte saisi dans ce champ passe par la traduction vers l'anglais (meme fonction que la traduction : traduireTexteUtilisateur). */
+function _traductionActivePour(idChamp) { return !(idChamp && CHAMPS_PROMPT_SANS_TRADUCTION.has(idChamp)); }
+/** Texte de l'aide d'un champ, dans la langue de l'interface. Sans id (anciens appelants), le champ est suppose traduit. */
+function _texteAideLangue(idChamp) {
+  const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
+  const dico = (cle, repli) => {
+    let v = '';
+    try { if (typeof _i18nT === 'function') v = _i18nT(cle); } catch (_) {}
+    return (v && v !== cle) ? v : repli;
+  };
+  if (!_traductionActivePour(idChamp)) return '\u270D\uFE0F ' + dico('prompt.aide.angl', AIDE_PROMPT_EN.angl);
+  if (_etatTraduction === 'indisponible') return M.aideAucun;
+  if (_etatTraduction === 'echec') return M.aide;
+  return '\u270D\uFE0F ' + dico('prompt.aide.trad', AIDE_PROMPT_EN.trad);
+}
+function _updatePromptLangHint() {
+  document.querySelectorAll('.prompt-lang-hint').forEach((el) => {
+    const txt = _texteAideLangue(el.dataset && el.dataset.pour);
+    el.textContent = txt;
+    el.style.display = txt ? '' : 'none';
+  });
+}
+// La langue de l'interface change : les aides se recalculent (l'evenement part APRES le changement de dictionnaire).
+try { window.addEventListener('fabmesh:langue', () => { try { _updatePromptLangHint(); } catch (_) {} }); } catch (_) {}
+// --- AIDE DE LANGUE : FIN ---
 const TRANSLATING_MSG = {
   fr: "Traduction de ta description…", es: "Traduciendo tu descripción…", zh: "正在翻译您的描述…",
   hi: "आपके विवरण का अनुवाद हो रहा है…", ar: "جارٍ ترجمة وصفك…", en: "Translating your description…",
 };
 function _langPrompt() { return _langueInterface(); }
-function _updatePromptLangHint() {
-  const lang = _langPrompt();
-  const M = MSG_TRADUCTION[lang] || MSG_TRADUCTION.en;
-  const txt = _etatTraduction === 'indisponible' ? M.aideAucun
-    : _etatTraduction === 'echec' ? M.aide
-    : (PROMPT_LANG_HINT[lang] || PROMPT_LANG_HINT.en || '');
-  document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = txt; el.style.display = txt ? '' : 'none'; });
-}
 function _setPromptBusy(msgMap) {
   const msg = (msgMap && (msgMap[_langPrompt()] || msgMap.en)) || '';
   document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = '⏳ ' + msg; el.style.display = ''; });
@@ -2201,7 +2225,7 @@ document.getElementById('np-create').addEventListener('click', async () => {
       // Show the block INSIDE the popup (not a toast) + an Unlock shortcut.
       const _msg = document.getElementById('np-block-msg');
       if (_msg) {
-        _msg.textContent = `Blocked: "${blocked}" is not allowed with parental control active. Unlock to disable the content filter.`;
+        _msg.textContent = _i18nTf('Blocked: "{x}" is not allowed with parental control active. Unlock to disable the content filter.', blocked);
         _msg.classList.remove('hidden');
       }
       const _ub = document.getElementById('np-unlock');
@@ -12399,6 +12423,17 @@ function openMeshToolModal(toolName) {
       }
       input.addEventListener('change', () => _mtSchedulePreview());
       if (!input.__dejaPlace) wrap.appendChild(input);
+      // Champ de texte libre TRADUIT avant l'envoi (schema.texteLibre) : son aide de langue, comme sous les champs de la page.
+      if (spec.type === 'text' && schema.texteLibre === spec.id) {
+        const aide = document.createElement('div');
+        aide.className = 'prompt-lang-hint';
+        aide.dataset.pour = 'mt-' + spec.id;
+        aide.setAttribute('translate', 'no');
+        aide.setAttribute('data-i18n-skip', '');
+        aide.setAttribute('dir', 'auto');
+        aide.textContent = _texteAideLangue(aide.dataset.pour);
+        wrap.appendChild(aide);
+      }
       // « ↺ Current » : revenir au nombre de triangles du maillage (parite bureau, 2026-09-29)
       if (spec.resetToCurrent) {
         const rb = document.createElement('button');

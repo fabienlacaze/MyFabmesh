@@ -43,6 +43,7 @@ const NOMS = ['_cacheTraductions', '_etatTraduction', '_langueInterface', '_majE
   '_choixTraductionEchouee', '_indiceDosAnglais', '_texteUtilisateurPourGeneration', '_corrigerFauxAmis', 'stripKnownPromptSuffixes',
   'ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', 'PROMPT_LANG_HINT',
   '_updatePromptLangHint', '_sonderTraducteur',
+  'AIDE_PROMPT_EN', 'CHAMPS_PROMPT_SANS_TRADUCTION', '_traductionActivePour', '_texteAideLangue',   // aide de langue par champ (24/10)
   '_sansNegations'];   // negations de l'utilisateur (fusionnees le 20/10) : _indiceDosAnglais retire les locutions negatives apres la traduction
 
 function extraire(chemin) {
@@ -266,6 +267,10 @@ test('bureau : sans moteur IA local ni session MyFabmesh, l aide le DIT (avant :
   const b = monter(FICHIERS.bureau, { langue: 'fr', traduire: traducteurOk, statut: { local: false, cloud: true } });
   await b.M._sonderTraducteur();
   assert.equal(b.M.etat(), 'ok', 'session MyFabmesh : la traduction passe par le site');
+  // 24/10 : session presente + moteur local absent = aide NORMALE (on traduit vers l'anglais), jamais le message « aucun traducteur »
+  b.M._updatePromptLangHint();
+  assert.match(b.aides.at(-1), /to English|vers l'anglais/);   // sans dictionnaire dans ce monde simule : repli anglais
+  assert.doesNotMatch(b.aides.at(-1), /aucun traducteur/i);
 });
 for (const [nom, chemin] of Object.entries(FICHIERS)) {
   test(nom + ' : troisieme relecture, plafond du JOUR : le message ne dit plus « cette heure-ci » (portee transmise par le serveur)', async () => {
