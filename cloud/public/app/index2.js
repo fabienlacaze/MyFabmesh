@@ -930,7 +930,11 @@ function _confirmerAvertissements(codes, textes) {
 async function _verifierAvantDepense(p, texteSaisi, texteAnglais, assetType) {
   try {
     if (!composeurActif()) return true;
-    const avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
+    let avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
+    // Moteurs « Rapide » (Z-Image Turbo) et « Meilleur » (Qwen) : encodeur de TEXTE complet, pas de lecture par blocs de 75 jetons : l'avertissement
+    // « description trop longue » (specifique a SDXL) n'a pas lieu d'etre. Le refus serveur des textes de plus de 2 000 caracteres reste signale.
+    const _moteurMenu = document.getElementById('ws-engine')?.value;
+    if (_moteurMenu === 'local-lightning' || _moteurMenu === 'qwen-best') avert = avert.filter((c) => c !== 'texte-long');
     if (!avert.length) return true;
     const choix = await _confirmerAvertissements(avert, [texteSaisi, texteAnglais]);
     if (choix === 'annuler') return false;
