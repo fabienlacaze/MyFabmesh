@@ -117,6 +117,13 @@ RE_TENU = re.compile(r"\b" + _VERBE + r"\s+(?:(" + _DET + r")\s+)?((?:" + _MOTS 
                      r"(?=\s*(?:,|\.|;| and | in | on | with | at | over | while | that | which | across |$))", re.I)
 RE_AVEC_DANS_MAIN = re.compile(r"\bwith\s+(?:an?|the|his|her)\s+((?:" + _MOTS + r"\s+){0,3}?" + _MOTS + r")\s+in\s+"
                                r"(?:his|her|its|their|each|both|the)\s*(right|left)?\s*hands?\b", re.I)
+# « an orc with a massive spiked club », « an elf with a bow » (24/10) : une arme (ou un outil de la liste) introduite par « with » est TENUE, comme avec « holding ».
+RE_AVEC_ARME = re.compile(r"\bwith\s+(an?|the|his|her|its|their|two|three)\s+((?:" + _MOTS + r"\s+){0,3}?" + _MOTS + r")"
+                          r"(?=\s*(?:,|\.|;| and | at | in the | while |$))", re.I)
+# « a warrior, sword in hand », « a knight, shield in his left hand »
+RE_ARME_EN_MAIN = re.compile(r"\b((?:" + _MOTS + r"\s+){0,2}?" + _MOTS + r")\s+in\s+(?:(?:his|her|its|their)\s+)?(?:(right|left)\s+)?hands?\b", re.I)
+OBJETS_AVEC = set('pitchfork umbrella shovel pickaxe broom torch lantern guitar lute harp flag banner staff'.split())
+PREFIXES_EN_MAIN = set('a an the with his her its their and'.split())
 RE_SANS_ARME = re.compile(r"\b(unarmed|empty[- ]handed|without (?:a |any )?(?:weapon|sword|shield)s?|no weapons?|"
                           r"not holding|holding nothing|bare[- ]handed)\b", re.I)
 RE_CHAQUE_MAIN = re.compile(r"\b(?:in each hand|in both hands|one in each hand|dual[- ]wield\w*|two[- ]handed)\b", re.I)
@@ -202,8 +209,33 @@ def extraire_objets_tenus(texte):
             continue
         if not any(o['item'].endswith(mots[-1]) for o in trouves):
             trouves.append({'item': ' '.join(mots), 'cls': cl, 'count': 1, 'hand': m.group(2), 'arme': cl is not None})
-    # « a sword and a shield » apres « holding a sword » : on cherche aussi « and (a|the) <arme> »
-    for m in re.finditer(r"\band\s+(?:an?|the)\s+((?:" + _MOTS + r"\s+){0,2}?" + _MOTS + r")\b", t, re.I):
+    for m in RE_AVEC_ARME.finditer(t):
+        mots = m.group(2).split()
+        tete = mots[-1].lower()
+        cl = _classe(tete)
+        if cl is None and tete not in OBJETS_AVEC:
+            continue
+        if not any(o['item'].endswith(mots[-1]) for o in trouves):
+            trouves.append({'item': ' '.join(mots), 'cls': cl, 'count': _nombre_det(m.group(1), ' '.join(mots)),
+                            'hand': None, 'arme': cl is not None})
+    for m in RE_ARME_EN_MAIN.finditer(t):
+        mots = m.group(1).split()
+        k = -1
+        for q, w in enumerate(mots):
+            if w.lower() in PREFIXES_EN_MAIN:
+                k = q
+        mots = mots[k + 1:]
+        if not mots:
+            continue
+        tete = mots[-1].lower()
+        cl = _classe(tete)
+        if cl is None and tete not in OBJETS_TENUS:
+            continue
+        if not any(o['item'].endswith(mots[-1]) for o in trouves):
+            trouves.append({'item': ' '.join(mots), 'cls': cl, 'count': 1,
+                            'hand': (m.group(2).lower() if m.group(2) else None), 'arme': cl is not None})
+    # « a sword and a shield » apres « holding a sword » : on cherche aussi « and (a|the) <arme> » (article facultatif : « a sword and shield »)
+    for m in re.finditer(r"\band\s+(?:(?:an?|the)\s+)?((?:" + _MOTS + r"\s+){0,2}?" + _MOTS + r")\b", t, re.I):
         mots = m.group(1).split()
         cl = _classe(mots[-1])
         if cl and trouves and not any(o['item'].endswith(mots[-1]) for o in trouves):
@@ -1008,6 +1040,9 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
             if res is not None:
                 termes, fin, ferme = res
                 reprise = _neg_reprise(jetons, fin, ferme, debut, sujet)
+            # PLAFOND (24/10) : si la locution n'a plus de place parmi les 8 termes, elle RESTE telle quelle dans le texte (on ne retire jamais une negation sans l'envoyer au negatif ; une liste dans UNE locution garde ses 8 premiers termes)
+            if reprise >= 0 and len(etat) >= MAX_TERMES_NEGATIFS and any(u not in etat for u in termes):
+                reprise = -1
             if reprise >= 0:
                 for t in termes:
                     if t not in etat and len(etat) < MAX_TERMES_NEGATIFS:
@@ -1091,6 +1126,31 @@ def _neg_segments(t):
     return segs
 
 
+# ── formes negatives que la grammaire du balayage ne connait pas (24/10) ────────────────────────────────────────────
+# Reecrites en « without X » / « no X » AVANT le balayage (jamais de terme invente : seule la FORME change). « an orc that does not wear a helmet » -> « an orc that without a
+# helmet » (le « that » orphelin tombe avec la locution) ; « I don't want a helmet » -> « without a helmet » ; « a wingless dragon » -> « a dragon without wing » ;
+# « w/o helmet », « lacking windows », « minus the cape », « zero windows », « avoid helmets » (imperatif, en tete de segment seulement). Un texte sans ces formes est rendu
+# OCTET POUR OCTET. Jumeau : normaliserNegations (JS), memes motifs.
+_NEG_RACINES_SANS = 'wing|tail|horn|arm|leg|eye|hair|hat|helmet|sleeve|beard|mane|fur|scale|shell|leaf|hand|window|door|wheel|roof|ear|tooth|fin|head|cape|shield|armor|armour|weapon|sail|mast|engine|cloud'
+_NEG_MASSE = {'hair', 'fur', 'armor', 'armour'}   # noms de matiere : pas de pluriel
+_NEG_NORMALISATIONS = [
+    (re.compile(r"\bw/o\b", re.I), lambda m: 'without'),
+    (re.compile(r"\b(?:i|we)\s+(?:do\s+not|don['’]?t|did\s+not|didn['’]?t)\s+(?:want|like|need)(?:\s+to\s+see)?(?:\s+any)?\b", re.I), lambda m: 'without'),
+    (re.compile(r"\b(?:does|do|did)(?:\s+not|n['’]?t)\s+(?:wear|have|carry|hold|use|wield|show|include)\b", re.I), lambda m: 'without'),
+    (re.compile(r"\b(?:lacking|minus|devoid\s+of)\b", re.I), lambda m: 'without'),
+    (re.compile(r"(^|[,;]\s*|\band\s+)avoid(?:ing)?\b", re.I), lambda m: m.group(1) + 'without'),
+    (re.compile(r"\bzero\s+([a-z]+s)(?=\s*(?:[,;.]|$|\s+(?:and|or)\b))", re.I), lambda m: 'no ' + m.group(1)),
+    (re.compile(r"\b(" + _NEG_RACINES_SANS + r")(?:less|-free)\s+([a-z]+)\b", re.I), lambda m: m.group(2) + ' without ' + m.group(1).lower() + ('' if m.group(1).lower() in _NEG_MASSE else 's')),
+]
+
+
+def normaliser_negations(texte):
+    t = '' if texte is None else str(texte)
+    for motif, f in _NEG_NORMALISATIONS:
+        t = motif.sub(f, t)
+    return t
+
+
 def extraire_negations(texte, regles=None):
     """Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif).
     -> {'positif': str, 'negatifs': [str, ...]}.
@@ -1107,6 +1167,8 @@ def extraire_negations(texte, regles=None):
     t = t[:MAX_TEXTE_NEGATIONS]
     if 'negations' not in _regles(regles):
         return {'positif': t, 'negatifs': []}
+    t0 = t
+    t = normaliser_negations(t)
     libre = _neg_casse_libre(t)
     etat = []
     morceaux = []
@@ -1125,7 +1187,7 @@ def extraire_negations(texte, regles=None):
         else:
             morceaux.append((None, sep))
     if not etat:
-        return {'positif': t, 'negatifs': []}
+        return {'positif': t0, 'negatifs': []}
     while len(morceaux) > 1 and morceaux[-1][0] == '' and morceaux[-1][1] == '':
         morceaux.pop()      # le decoupage laisse un segment vide quand le texte finit par un separateur : il ne compte pas
     if morceaux[0][0] is None:

@@ -5378,7 +5378,7 @@ true,
 "cape",
 "mask"
 ],
-"positif": ""
+"positif": "no ring"
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -5653,17 +5653,25 @@ true,
 "type": "character"
 },
 {
-"clause_defaut": null,
-"clause_toutes": null,
+"clause_defaut": "holding exactly one sword but no shield in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one sword but no shield in the right hand, left hand open and empty",
 "id": "n23",
 "intent": {
-"arme_nommee": false,
-"asymetrique": false,
+"arme_nommee": true,
+"asymetrique": true,
 "buste": false,
 "couleurs": [],
 "mot_multiple": false,
 "non_humain": false,
-"objets": [],
+"objets": [
+{
+"arme": true,
+"cls": "shield",
+"count": 1,
+"hand": null,
+"item": "sword but no shield"
+}
+],
 "parties": {},
 "pose_libre": false,
 "quantite": null,
@@ -5674,17 +5682,29 @@ true,
 "vue": null
 },
 "negatif_armes": [
-"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
-[],
-[]
+"(sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (bow:1.4), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"shield"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
 ],
 "negatifs_extra": [
 [
 "pedestal",
 "base",
-"rocks"
+"rocks",
+"duplicate objects"
 ],
-[]
+[
+"holding objects",
+"asymmetric"
+]
 ],
 "negations": {
 "negatifs": [
@@ -5692,16 +5712,25 @@ true,
 ],
 "positif": "A knight with a sword"
 },
-"notes_defaut": [],
-"notes_libre": [
-"pose libre : T-pose non imposee (case decochee)"
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
 ],
-"notes_toutes": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
 "style": "realistic",
 "texte": "A knight with a sword but no shield",
-"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
-"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
-"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
 "type": "character"
 },
 {
@@ -5879,17 +5908,25 @@ true,
 "type": "character"
 },
 {
-"clause_defaut": null,
-"clause_toutes": null,
+"clause_defaut": "holding exactly one flag in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one flag in the right hand, left hand open and empty",
 "id": "n27",
 "intent": {
 "arme_nommee": false,
-"asymetrique": false,
+"asymetrique": true,
 "buste": false,
 "couleurs": [],
 "mot_multiple": false,
 "non_humain": false,
-"objets": [],
+"objets": [
+{
+"arme": false,
+"cls": null,
+"count": 1,
+"hand": null,
+"item": "flag"
+}
+],
 "parties": {},
 "pose_libre": false,
 "quantite": null,
@@ -5908,9 +5945,13 @@ true,
 [
 "pedestal",
 "base",
-"rocks"
+"rocks",
+"duplicate objects"
 ],
-[]
+[
+"holding objects",
+"asymmetric"
+]
 ],
 "negations": {
 "negatifs": [
@@ -5919,16 +5960,25 @@ true,
 ],
 "positif": "A tower, with a flag"
 },
-"notes_defaut": [],
-"notes_libre": [
-"pose libre : T-pose non imposee (case decochee)"
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
 ],
-"notes_toutes": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
 "style": "realistic",
 "texte": "A tower, no windows and no doors, with a flag",
-"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
-"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
-"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
 "type": "character"
 },
 {
@@ -6964,7 +7014,7 @@ true,
 "cape",
 "mask"
 ],
-"positif": ""
+"positif": "no ring, no sock, no vest, no cloak"
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -13073,7 +13123,7 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight"
+"positif": "A knight, no ring, no sock"
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -15696,17 +15746,25 @@ true,
 "type": "character"
 },
 {
-"clause_defaut": null,
-"clause_toutes": null,
+"clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n123",
 "intent": {
-"arme_nommee": false,
-"asymetrique": false,
+"arme_nommee": true,
+"asymetrique": true,
 "buste": false,
 "couleurs": [],
 "mot_multiple": false,
 "non_humain": false,
-"objets": [],
+"objets": [
+{
+"arme": true,
+"cls": "sword",
+"count": 1,
+"hand": null,
+"item": "sword"
+}
+],
 "parties": {},
 "pose_libre": false,
 "quantite": null,
@@ -15717,17 +15775,30 @@ true,
 "vue": null
 },
 "negatif_armes": [
-"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
-[],
-[]
+"(knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"sword",
+"blade"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
 ],
 "negatifs_extra": [
 [
 "pedestal",
 "base",
-"rocks"
+"rocks",
+"duplicate objects"
 ],
-[]
+[
+"holding objects",
+"asymmetric"
+]
 ],
 "negations": {
 "negatifs": [
@@ -15735,16 +15806,25 @@ true,
 ],
 "positif": "a knight with a sword and a lance"
 },
-"notes_defaut": [],
-"notes_libre": [
-"pose libre : T-pose non imposee (case decochee)"
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
 ],
-"notes_toutes": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
 "style": "realistic",
 "texte": "a knight with a sword and no shield but a lance",
-"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
-"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
-"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
 "type": "character"
 },
 {
@@ -16163,6 +16243,1567 @@ true,
 "notes_toutes": [],
 "style": "realistic",
 "texte": "an orc with no helmet and he is smiling",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one massive spiked club in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one massive spiked club in the right hand, left hand open and empty",
+"id": "a01",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "club",
+"count": 1,
+"hand": null,
+"item": "massive spiked club"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"club"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "An orc with a massive spiked club"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "An orc with a massive spiked club",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": "holding sword in the right hand and shield in the left hand",
+"clause_toutes": "holding sword in the right hand and shield in the left hand",
+"id": "a02",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "sword",
+"count": 1,
+"hand": null,
+"item": "sword"
+},
+{
+"arme": true,
+"cls": "shield",
+"count": 1,
+"hand": null,
+"item": "shield"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (bow:1.4), (gun:1.4), (staff:1.3)",
+[
+"weapon",
+"holding weapon",
+"sword",
+"blade",
+"shield"
+],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight with a sword and shield"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "A knight with a sword and shield",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one bow in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one bow in the right hand, left hand open and empty",
+"id": "a03",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "bow",
+"count": 1,
+"hand": null,
+"item": "bow"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"bow"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "An elf with a bow"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "An elf with a bow",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one pitchfork in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one pitchfork in the right hand, left hand open and empty",
+"id": "a04",
+"intent": {
+"arme_nommee": false,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": false,
+"cls": null,
+"count": 1,
+"hand": null,
+"item": "pitchfork"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A farmer with a pitchfork"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "A farmer with a pitchfork",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one umbrella in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one umbrella in the right hand, left hand open and empty",
+"id": "a05",
+"intent": {
+"arme_nommee": false,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": false,
+"cls": null,
+"count": 1,
+"hand": null,
+"item": "umbrella"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A girl with an umbrella"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "A girl with an umbrella",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
+"id": "a06",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "sword",
+"count": 1,
+"hand": null,
+"item": "sword"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"sword",
+"blade"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A warrior, sword in hand"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "A warrior, sword in hand",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one shield in the left hand, right hand open and empty",
+"clause_toutes": "holding exactly one shield in the left hand, right hand open and empty",
+"id": "a07",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "shield",
+"count": 1,
+"hand": "left",
+"item": "shield"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (bow:1.4), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"shield"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight, shield in his left hand"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "A knight, shield in his left hand",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a08",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A girl with a parrot"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A girl with a parrot",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a09",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [
+"red"
+],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A man with a red hat"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A man with a red hat",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a10",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A dress with a bow in her hair"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A dress with a bow in her hair",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a11",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "An orc that does not wear a helmet",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": "holding exactly one club in the right hand, left hand open and empty",
+"clause_toutes": "holding exactly one club in the right hand, left hand open and empty",
+"id": "a12",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "club",
+"count": 1,
+"hand": null,
+"item": "club"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3), (second weapon:1.5), (dual wielding:1.5), (duplicate weapon:1.5)",
+[
+"weapon",
+"holding weapon",
+"club"
+],
+[
+"second weapon",
+"dual wielding",
+"duplicate weapon"
+]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc, holding a club"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "An orc that doesn't wear a helmet, holding a club",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a13",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "I don't want a helmet, an orc",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a14",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "an orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "I don't like the helmet, an orc",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a15",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"wings"
+],
+"positif": "A dragon"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A wingless dragon",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a16",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [
+"red"
+],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"wings"
+],
+"positif": "A dragon with red scales"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A wingless dragon with red scales",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a17",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet"
+],
+"positif": "A knight"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A knight w/o helmet",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a18",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"windows"
+],
+"positif": "A tower"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A tower lacking windows",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a19",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"cape"
+],
+"positif": "A knight"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A knight minus the cape",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a20",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [
+"red"
+],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"windows"
+],
+"positif": "A house, red roof"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A house, zero windows, red roof",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a21",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmets"
+],
+"positif": "an orc"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "Avoid helmets, an orc",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a22",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A bird avoiding a cat"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A bird avoiding a cat",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a23",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "Zero emissions vehicle"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "Zero emissions vehicle",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a24",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"hair"
+],
+"positif": "A cat"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A hairless cat",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a25",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A fearless knight"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A fearless knight",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "a26",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [
+"helmet",
+"shield",
+"cape",
+"sword",
+"bow",
+"axe",
+"spear",
+"mace"
+],
+"positif": "A knight, no dagger"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A knight, no helmet, no shield, no cape, no sword, no bow, no axe, no spear, no mace, no dagger",
 "tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
 "tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
 "tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
@@ -57252,7 +58893,7 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight",
+"positif": "A knight, no ring",
 "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring"
 },
 {
@@ -57282,7 +58923,7 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight",
+"positif": "A knight, no ring, no sock",
 "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring, no sock"
 },
 {
@@ -57312,7 +58953,7 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight",
+"positif": "A knight, no ring, no sock, no vest, no cloak",
 "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring, no sock, no vest, no cloak"
 },
 {
@@ -57684,7 +59325,7 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "a sword",
+"positif": "a sword, no windows, no wheels",
 "texte": "a sword, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -58129,7 +59770,7 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "An Orc Warrior",
+"positif": "An Orc Warrior, no windows, no wheels",
 "texte": "An Orc Warrior, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -58574,7 +60215,7 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "a cat",
+"positif": "a cat, no windows, no wheels",
 "texte": "a cat, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -59449,7 +61090,7 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "a knight",
+"positif": "a knight, no windows, no wheels",
 "texte": "a knight, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -59894,7 +61535,7 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "two soldiers",
+"positif": "two soldiers, no windows, no wheels",
 "texte": "two soldiers, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {

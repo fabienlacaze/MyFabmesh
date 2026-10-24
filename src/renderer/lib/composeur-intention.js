@@ -73,7 +73,14 @@ const SRC_TENU = '\\b' + _VERBE + '\\s+(?:(' + _DET + ')\\s+)?((?:' + _MOTS + '\
   + '(?=\\s*(?:,|\\.|;| and | in | on | with | at | over | while | that | which | across |$))';
 const SRC_AVEC_DANS_MAIN = '\\bwith\\s+(?:an?|the|his|her)\\s+((?:' + _MOTS + '\\s+){0,3}?' + _MOTS + ')\\s+in\\s+'
   + '(?:his|her|its|their|each|both|the)\\s*(right|left)?\\s*hands?\\b';
-const SRC_ET_ARME = '\\band\\s+(?:an?|the)\\s+((?:' + _MOTS + '\\s+){0,2}?' + _MOTS + ')\\b';
+// « an orc with a massive spiked club », « an elf with a bow » (24/10) : une arme (ou un outil de la liste) introduite par « with » est TENUE, comme avec « holding ».
+// Le motif exige un determinant et s'arrete a une ponctuation, « and », « at », « in the » ou « while » : « with a red hat », « with a parrot » ne sont pas des armes.
+const SRC_AVEC_ARME = '\\bwith\\s+(an?|the|his|her|its|their|two|three)\\s+((?:' + _MOTS + '\\s+){0,3}?' + _MOTS + ')(?=\\s*(?:,|\\.|;| and | at | in the | while |$))';
+// « a warrior, sword in hand », « a knight, shield in his left hand »
+const SRC_ARME_EN_MAIN = '\\b((?:' + _MOTS + '\\s+){0,2}?' + _MOTS + ')\\s+in\\s+(?:(?:his|her|its|their)\\s+)?(?:(right|left)\\s+)?hands?\\b';
+const OBJETS_AVEC = new Set('pitchfork umbrella shovel pickaxe broom torch lantern guitar lute harp flag banner staff'.split(' '));
+const PREFIXES_EN_MAIN = new Set('a an the with his her its their and'.split(' '));
+const SRC_ET_ARME = '\\band\\s+(?:(?:an?|the)\\s+)?((?:' + _MOTS + '\\s+){0,2}?' + _MOTS + ')\\b';
 const RE_SANS_ARME = /\b(unarmed|empty[- ]handed|without (?:a |any )?(?:weapon|sword|shield)s?|no weapons?|not holding|holding nothing|bare[- ]handed)\b/i;
 const RE_CHAQUE_MAIN = /\b(?:in each hand|in both hands|one in each hand|dual[- ]wield\w*|two[- ]handed)\b/i;
 const RE_DEUX_MAINS = /\b(?:with|in) both hands\b|\btwo[- ]handed\b/i;
@@ -154,7 +161,29 @@ export function extraireObjetsTenus(texte) {
       trouves.push({ item: mots.join(' '), cls: cl, count: 1, hand: m[2] === undefined ? null : m[2], arme: cl !== null });
     }
   }
-  // « a sword and a shield » apres « holding a sword » : on cherche aussi « and (a|the) <arme> »
+  for (const m of t.matchAll(new RegExp(SRC_AVEC_ARME, 'gi'))) {
+    const mots = m[2].split(/\s+/);
+    const tete = mots[mots.length - 1].toLowerCase();
+    const cl = _classe(tete);
+    if (cl === null && !OBJETS_AVEC.has(tete)) continue;
+    if (!trouves.some((o) => _finit(o.item, mots[mots.length - 1]))) {
+      trouves.push({ item: mots.join(' '), cls: cl, count: _nombreDet(m[1], mots.join(' ')), hand: null, arme: cl !== null });
+    }
+  }
+  for (const m of t.matchAll(new RegExp(SRC_ARME_EN_MAIN, 'gi'))) {
+    let mots = m[1].split(/\s+/);
+    let k = -1;
+    for (let q = 0; q < mots.length; q++) if (PREFIXES_EN_MAIN.has(mots[q].toLowerCase())) k = q;
+    mots = mots.slice(k + 1);
+    if (!mots.length) continue;
+    const tete = mots[mots.length - 1].toLowerCase();
+    const cl = _classe(tete);
+    if (cl === null && !OBJETS_TENUS.includes(tete)) continue;
+    if (!trouves.some((o) => _finit(o.item, mots[mots.length - 1]))) {
+      trouves.push({ item: mots.join(' '), cls: cl, count: 1, hand: m[2] === undefined ? null : m[2].toLowerCase(), arme: cl !== null });
+    }
+  }
+  // « a sword and a shield » apres « holding a sword » : on cherche aussi « and (a|the) <arme> » (article facultatif : « a sword and shield »)
   for (const m of t.matchAll(new RegExp(SRC_ET_ARME, 'gi'))) {
     const mots = m[1].split(/\s+/);
     const cl = _classe(mots[mots.length - 1]);
@@ -838,6 +867,8 @@ function negTraiterSegment(jetons, etat, casseLibre) {
         termes = res[0];
         reprise = negReprise(jetons, res[1], res[2], debut, sujet);
       }
+      // PLAFOND (24/10) : si la locution n'a plus de place parmi les 8 termes, elle RESTE telle quelle dans le texte (on ne retire jamais une negation sans l'envoyer au negatif ; une liste dans UNE locution garde ses 8 premiers termes)
+      if (reprise >= 0 && etat.length >= MAX_TERMES_NEGATIFS && termes.some((u) => !etat.includes(u))) reprise = -1;
       if (reprise >= 0) {
         for (const t of termes) {
           if (!etat.includes(t) && etat.length < MAX_TERMES_NEGATIFS) etat.push(t);
@@ -918,6 +949,28 @@ function negSegments(t) {
   return segs;
 }
 
+// ── formes negatives que la grammaire du balayage ne connait pas (24/10) ────────────────────────────────────────────
+// Reecrites en « without X » / « no X » AVANT le balayage (jamais de terme invente : seule la FORME change). « an orc that does not wear a helmet » -> « an orc that without a
+// helmet » (le « that » orphelin tombe avec la locution) ; « I don't want a helmet » -> « without a helmet » ; « a wingless dragon » -> « a dragon without wing » ;
+// « w/o helmet », « lacking windows », « minus the cape », « zero windows », « avoid helmets » (imperatif, en tete de segment seulement). Un texte sans ces formes est rendu
+// OCTET POUR OCTET. Jumeau : _normaliser_negations (Python), memes motifs.
+const NEG_RACINES_SANS = 'wing|tail|horn|arm|leg|eye|hair|hat|helmet|sleeve|beard|mane|fur|scale|shell|leaf|hand|window|door|wheel|roof|ear|tooth|fin|head|cape|shield|armor|armour|weapon|sail|mast|engine|cloud';
+const NEG_MASSE = new Set(['hair', 'fur', 'armor', 'armour']);   // noms de matiere : pas de pluriel
+const NEG_NORMALISATIONS = [
+  [/\bw\/o\b/gi, () => 'without'],
+  [/\b(?:i|we)\s+(?:do\s+not|don['’]?t|did\s+not|didn['’]?t)\s+(?:want|like|need)(?:\s+to\s+see)?(?:\s+any)?\b/gi, () => 'without'],
+  [/\b(?:does|do|did)(?:\s+not|n['’]?t)\s+(?:wear|have|carry|hold|use|wield|show|include)\b/gi, () => 'without'],
+  [/\b(?:lacking|minus|devoid\s+of)\b/gi, () => 'without'],
+  [/(^|[,;]\s*|\band\s+)avoid(?:ing)?\b/gi, (m, a) => a + 'without'],
+  [/\bzero\s+([a-z]+s)(?=\s*(?:[,;.]|$|\s+(?:and|or)\b))/gi, (m, a) => 'no ' + a],
+  [new RegExp('\\b(' + NEG_RACINES_SANS + ')(?:less|-free)\\s+([a-z]+)\\b', 'gi'), (m, a, b) => b + ' without ' + a.toLowerCase() + (NEG_MASSE.has(a.toLowerCase()) ? '' : 's')],
+];
+export function normaliserNegations(texte) {
+  let t = String(texte == null ? '' : texte);
+  for (const [re, f] of NEG_NORMALISATIONS) t = t.replace(re, f);
+  return t;
+}
+
 /** Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif). -> { positif, negatifs }.
  *  Memes regles que extraire_negations() du module Python (voir son docstring). Un texte sans negation est rendu OCTET POUR OCTET.
  *  `regles` sans 'negations' (interrupteur d'urgence : []) : rien n'est extrait. */
@@ -925,6 +978,8 @@ export function extraireNegations(texte, regles) {
   let t = typeof texte === 'string' ? texte : (texte == null ? '' : String(texte));
   if (t.length > MAX_TEXTE_NEGATIONS) t = Array.from(t).slice(0, MAX_TEXTE_NEGATIONS).join('');
   if (!_regles(regles).includes('negations')) return { positif: t, negatifs: [] };
+  const t0 = t;
+  t = normaliserNegations(t);
   const libre = negCasseLibre(t);
   const etat = [];
   const morceaux = [];
@@ -939,7 +994,7 @@ export function extraireNegations(texte, regles) {
     }
     else morceaux.push([null, sep]);
   }
-  if (!etat.length) return { positif: t, negatifs: [] };
+  if (!etat.length) return { positif: t0, negatifs: [] };
   while (morceaux.length > 1 && morceaux[morceaux.length - 1][0] === '' && morceaux[morceaux.length - 1][1] === '') morceaux.pop();
   if (morceaux[0][0] === null) {
     // le texte COMMENCE par une negation retiree : le mot de liaison qui ouvrait la suite (« no helmet, but a crown ») n'a plus rien a lier

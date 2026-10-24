@@ -1276,7 +1276,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "",
+    "positif": "no ring",
     "negatifs": [
      "hat",
      "coat",
@@ -1676,7 +1676,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "",
+    "positif": "no ring, no sock, no vest, no cloak",
     "negatifs": [
      "hat",
      "coat",
@@ -3144,7 +3144,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "A knight",
+    "positif": "A knight, no ring, no sock",
     "negatifs": [
      "hat",
      "coat",
@@ -3912,6 +3912,389 @@
     "positif": "an orc he is smiling",
     "negatifs": [
      "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a01",
+  "texte": "An orc with a massive spiked club",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "club",
+     1,
+     null
+    ]
+   ],
+   "clause_has": [
+    "holding exactly one massive spiked club in the right hand, left hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "a02",
+  "texte": "A knight with a sword and shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     1,
+     null
+    ],
+    [
+     "shield",
+     1,
+     null
+    ]
+   ],
+   "clause_has": [
+    "holding sword in the right hand and shield in the left hand"
+   ]
+  }
+ },
+ {
+  "id": "a03",
+  "texte": "An elf with a bow",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "bow",
+     1,
+     null
+    ]
+   ],
+   "clause_has": [
+    "holding exactly one bow in the right hand, left hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "a04",
+  "texte": "A farmer with a pitchfork",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ],
+   "clause_has": [
+    "holding exactly one pitchfork in the right hand, left hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "a05",
+  "texte": "A girl with an umbrella",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     null,
+     1,
+     null
+    ]
+   ],
+   "clause_has": [
+    "holding exactly one umbrella in the right hand, left hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "a06",
+  "texte": "A warrior, sword in hand",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "sword",
+     1,
+     null
+    ]
+   ],
+   "clause_has": [
+    "holding exactly one sword in the right hand, left hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "a07",
+  "texte": "A knight, shield in his left hand",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": [
+    [
+     "shield",
+     1,
+     "left"
+    ]
+   ],
+   "clause_has": [
+    "holding exactly one shield in the left hand, right hand open and empty"
+   ]
+  }
+ },
+ {
+  "id": "a08",
+  "texte": "A girl with a parrot",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": []
+  }
+ },
+ {
+  "id": "a09",
+  "texte": "A man with a red hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": []
+  }
+ },
+ {
+  "id": "a10",
+  "texte": "A dress with a bow in her hair",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "held": []
+  }
+ },
+ {
+  "id": "a11",
+  "texte": "An orc that does not wear a helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a12",
+  "texte": "An orc that doesn't wear a helmet, holding a club",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "An orc, holding a club",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a13",
+  "texte": "I don't want a helmet, an orc",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a14",
+  "texte": "I don't like the helmet, an orc",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a15",
+  "texte": "A wingless dragon",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A dragon",
+    "negatifs": [
+     "wings"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a16",
+  "texte": "A wingless dragon with red scales",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A dragon with red scales",
+    "negatifs": [
+     "wings"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a17",
+  "texte": "A knight w/o helmet",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a18",
+  "texte": "A tower lacking windows",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A tower",
+    "negatifs": [
+     "windows"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a19",
+  "texte": "A knight minus the cape",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight",
+    "negatifs": [
+     "cape"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a20",
+  "texte": "A house, zero windows, red roof",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A house, red roof",
+    "negatifs": [
+     "windows"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a21",
+  "texte": "Avoid helmets, an orc",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "helmets"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a22",
+  "texte": "A bird avoiding a cat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A bird avoiding a cat",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "a23",
+  "texte": "Zero emissions vehicle",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "Zero emissions vehicle",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "a24",
+  "texte": "A hairless cat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A cat",
+    "negatifs": [
+     "hair"
+    ]
+   }
+  }
+ },
+ {
+  "id": "a25",
+  "texte": "A fearless knight",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A fearless knight",
+    "negatifs": []
+   }
+  }
+ },
+ {
+  "id": "a26",
+  "texte": "A knight, no helmet, no shield, no cape, no sword, no bow, no axe, no spear, no mace, no dagger",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "A knight, no dagger",
+    "negatifs": [
+     "helmet",
+     "shield",
+     "cape",
+     "sword",
+     "bow",
+     "axe",
+     "spear",
+     "mace"
     ]
    }
   }
