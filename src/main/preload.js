@@ -334,6 +334,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   checkProjectNsfw: (opts) => ipcRenderer.invoke('check-project-nsfw', opts),
   checkImagesNsfwTags: (opts) => ipcRenderer.invoke('check-images-nsfw-tags', opts),
   getNsfwKeywords: () => ipcRenderer.invoke('get-nsfw-keywords'),
+  checkPromptText: (opts) => ipcRenderer.invoke('check-prompt-text', opts),
   checkImageNsfw: (opts) => ipcRenderer.invoke('check-image-nsfw', opts),
   batchCheckNsfw: (opts) => ipcRenderer.invoke('batch-check-nsfw', opts),
   img2img: (opts) => ipcRenderer.invoke('img2img', opts),

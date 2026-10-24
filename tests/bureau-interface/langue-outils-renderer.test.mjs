@@ -146,3 +146,39 @@ for (const cible of ['bureau', 'web']) {
     assert.equal(f('des shorts', 'a pair of shorts and a short sword', 'fr'), 'a pair of shorts and a short sword');
   });
 }
+
+// N3 (24/10) : le controle parental de « New project » lit aussi le texte TRADUIT, passe par le filtre complet et traduit son message.
+for (const cible of ['bureau', 'web']) {
+  test(`${cible} : « New project » controle le texte traduit avec le filtre complet, et son message est traduit`, () => {
+    const src = fs.readFileSync(INDEX2[cible], 'utf-8');
+    const i = src.indexOf("document.getElementById('np-create').addEventListener('click'");
+    assert.ok(i > 0);
+    const corps = src.slice(i, i + 5000);
+    assert.match(corps, /traduireTexteUtilisateur\(prompt\)/, 'le texte est lu traduit');
+    assert.match(corps, /API\.checkPromptText\(/, 'filtre complet');
+    assert.match(corps, /_i18nTf\('Blocked: "\{x\}" is not allowed with parental control active/, 'message du mot bloque traduit (avant : interpole en anglais)');
+    assert.doesNotMatch(corps, /textContent = `Blocked:/, 'plus de message anglais interpole');
+  });
+}
+
+// m18 (24/10) : chaque raison d'echec de traduction que le code peut produire (dont « modele de langue en cours de telechargement ») a son
+// libelle dans les 6 langues de l'interface, bureau ET site, et les messages de la fenetre « Reessayer / Envoyer tel quel » aussi.
+for (const cible of ['bureau', 'web']) {
+  test(`${cible} : MSG_TRADUCTION couvre toutes les raisons d'echec dans les 6 langues`, () => {
+    const src = fs.readFileSync(INDEX2[cible], 'utf-8');
+    const i = src.indexOf('const MSG_TRADUCTION = {');
+    assert.ok(i > 0);
+    const fin = src.indexOf('\n};', i);
+    // eslint-disable-next-line no-new-func
+    const M = new Function(src.slice(i, fin + 3) + '\nreturn MSG_TRADUCTION;')();
+    const RAISONS = ['timeout', 'failed', 'error', 'unavailable', 'model-downloading', 'rate-limited', 'rate-limited-jour', 'rate-limited-jour-compte',
+      'too-long', 'signed-out', 'no-engine', 'unsupported', 'unknown-language'];
+    const manque = [];
+    for (const lg of ['en', 'fr', 'es', 'zh', 'hi', 'ar']) {
+      assert.ok(M[lg], 'langue absente : ' + lg);
+      for (const k of ['titre', 'reessayer', 'telQuel', 'message', 'enhance', 'aide', 'aideAucun']) if (!M[lg][k]) manque.push(`${lg}.${k}`);
+      for (const r of RAISONS) if (!M[lg].raisons[r]) manque.push(`${lg}.raisons.${r}`);
+    }
+    assert.deepEqual(manque, []);
+  });
+}

@@ -1355,6 +1355,8 @@
     // ---- prompt.langue (24/10, audit des prompts) ----
     "This description is not allowed by the content filter. Please rephrase it and try again.": ["Cette description n'est pas autorisée par le filtre de contenu. Reformule-la et réessaie.", "Esta descripción no está permitida por el filtro de contenido. Reformúlala e inténtalo de nuevo.", "此描述未通过内容过滤器。请换一种说法后重试。", "यह विवरण कंटेंट फ़िल्टर द्वारा अनुमत नहीं है। कृपया इसे दूसरे शब्दों में लिखकर फिर से कोशिश करें।", "هذا الوصف غير مسموح به من مرشّح المحتوى. أعد صياغته وحاول مرة أخرى."],
     "Your description is too long ({x} of {y} characters). Please shorten it.": ["Ta description est trop longue ({x} caractères sur {y}). Raccourcis-la.", "Tu descripción es demasiado larga ({x} de {y} caracteres). Acórtala.", "您的描述太长了（{x} / {y} 个字符）。请缩短后重试。", "आपका विवरण बहुत लंबा है ({x}/{y} अक्षर)। कृपया इसे छोटा करें।", "وصفك طويل جدًا ({x} من {y} حرفًا). يرجى اختصاره."],
+    // ---- prompt.langue (24/10, audit des prompts) ----
+    "This description is not allowed with parental control active. Unlock to disable the content filter.": ["Cette description n'est pas autorisée avec le contrôle parental activé. Déverrouille pour désactiver le filtre de contenu.", "Esta descripción no está permitida con el control parental activado. Desbloquea para desactivar el filtro de contenido.", "启用家长控制时不允许此描述。解锁以关闭内容过滤器。", "पैरेंटल कंट्रोल सक्रिय होने पर यह विवरण अनुमत नहीं है। कंटेंट फ़िल्टर बंद करने के लिए अनलॉक करें।", "هذا الوصف غير مسموح به عند تفعيل الرقابة الأبوية. قم بإلغاء القفل لتعطيل مرشّح المحتوى."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

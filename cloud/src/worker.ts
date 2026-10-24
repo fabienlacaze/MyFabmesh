@@ -13407,14 +13407,19 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   let targetText = String(cibleRecue);
   const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
   // FILET DE LANGUE (lot 2 de l'audit de la langue) : CLIPSeg ne comprend que l'anglais ; le site envoyait la cible telle quelle.
+  const etatSegment = await getParentalState(env, user.id);
+  const unrestrictedSegment = env.FABMESH_UNRESTRICTED === '1' || !!etatSegment.unrestricted;
   if (LangueTexte.morceauxEtrangers(targetText).length) {
-    const userState = await getParentalState(env, user.id);
     const filet = await _filetLangue(env, user.id, targetText,
-      { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted, credits: user.credits, prix: cost,
+      { verifie: langueVerifiee, unrestricted: unrestrictedSegment, credits: user.credits, prix: cost,
         langueInterface: req.headers.get('x-fabmesh-langue') });
     if (filet.refus) return filet.refus;
     targetText = filet.texte;
   }
+  /* 24/10 (audit des prompts, B2) : la cible envoyee a CLIPSeg n'etait filtree que si le filet de langue l'avait traduite : un texte anglais, ou
+   * un texte etranger avec le drapeau client, partait sans filtre. La chaine ENVOYEE est desormais toujours la chaine verifiee. */
+  const refusCible = await _refusChaineEnvoyee(env, user.id, targetText, unrestrictedSegment);
+  if (refusCible) return refusCible;
 
   const estimatedTotal = 0.05;
   const remainingBudget = await checkAndIncrementModalSpend(env, estimatedTotal, user.id);

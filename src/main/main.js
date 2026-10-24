@@ -5503,6 +5503,12 @@ ipcMain.handle('check-images-nsfw-tags', (_event, { images }) => {
   return results;
 });
 
+/* 24/10 (audit des prompts, N3) : filtre COMPLET du bureau (le meme que les outils : multilingue, plancher compris) pour la fenetre « New project »,
+ * dont le controle parental ne lisait que la liste de mots anglais. Rend { safe } sans citer le mot (le renderer affiche une phrase traduite). */
+ipcMain.handle('check-prompt-text', (_event, { texts } = {}) => {
+  const liste = (Array.isArray(texts) ? texts : []).slice(0, 6).map((x) => String(x == null ? '' : x).slice(0, 2000));
+  return refusTexteOutil(...liste) ? { safe: false } : { safe: true };
+});
 ipcMain.handle('get-nsfw-keywords', () => {
   return NSFW_KEYWORDS;
 });

@@ -2197,11 +2197,27 @@ document.getElementById('np-create').addEventListener('click', async () => {
       const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return new RegExp('\\b' + escaped + '\\b').test(text);
     });
-    if (blocked) {
+    // 24/10 (audit des prompts, N3) : la liste de mots est ANGLAISE et le texte etait lu brut — un texte dans une autre langue passait. Le texte est
+    // aussi lu TRADUIT, et passe par le filtre complet du bureau (multilingue, memes regles que les outils), avec le nom du projet. Le serveur reste
+    // l'autorite a la generation ; ceci n'est qu'un controle d'ouverture. Echec de traduction : le texte brut est controle seul.
+    let refusFiltre = false;
+    if (!blocked && (name || prompt)) {
+      let traduit = '';
+      try { const tr = await traduireTexteUtilisateur(prompt); if (!tr.echec && tr.traduit) traduit = tr.texte; } catch (_) {}
+      try {
+        if (API.checkPromptText) {
+          const rf = await API.checkPromptText({ texts: [name, prompt, traduit].filter(Boolean) });
+          refusFiltre = !!(rf && rf.safe === false);
+        }
+      } catch (_) {}
+    }
+    if (blocked || refusFiltre) {
       // Show the block INSIDE the popup (not a toast) + an Unlock shortcut.
       const _msg = document.getElementById('np-block-msg');
       if (_msg) {
-        _msg.textContent = `Blocked: "${blocked}" is not allowed with parental control active. Unlock to disable the content filter.`;
+        _msg.textContent = blocked
+          ? _i18nTf('Blocked: "{x}" is not allowed with parental control active. Unlock to disable the content filter.', blocked)
+          : _i18nT('This description is not allowed with parental control active. Unlock to disable the content filter.');
         _msg.classList.remove('hidden');
       }
       const _ub = document.getElementById('np-unlock');

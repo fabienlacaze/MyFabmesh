@@ -1433,3 +1433,29 @@ test('m19 : /api/animate traduit un prompt etranger AVANT Modal, filtre la chain
   assert.deepEqual(panne.j.depenses, []);
   assert.equal(panne.j.modal.length, 0);
 });
+
+// ------------------------------------------------------------------------------------------------------- 24/10 : B2 x M1 sur toutes les routes
+// Les 11 chaines minimales de l'audit (zh, hi, ar, ru, ja, tr, fr, es, de, mineurs compris) sont refusees (400, rien envoye, rien debite) sur
+// CHAQUE route au filet de langue, AVEC et SANS le drapeau client, que le traducteur reponde ou soit en panne.
+const CHAINES_SECURITE = ['une femme nue', 'mujer desnuda', 'nackte Frau', '裸体女人', '裸体儿童', 'امرأة عارية', 'एक नग्न महिला',
+  'голая женщина', 'çıplak kadın', '裸の女性', 'naked child'];
+test('B2 : les 11 chaines de securite de l audit sont refusees sur toutes les routes, avec et sans langueVerifiee, traducteur en panne ou non', async () => {
+  const { appeler } = monterRoutesFiltreReel();
+  const fuites = [];
+  for (const [nom, corps] of ROUTES_FILET) {
+    for (const t of CHAINES_SECURITE) {
+      for (const drapeau of [false, true]) {
+        if (drapeau && nom === 'handleAutoAnim') continue;   // route qui ne lit pas le drapeau (test m19)
+        for (const traduction of [null, 'a red dragon']) {
+          const r = await appeler(nom, { ...corps(t), ...(drapeau ? { langueVerifiee: true } : {}) }, traduction);
+          // INVARIANT : toute chaine envoyee a Modal a ete verifiee. Soit la requete est refusee (rien envoye, rien debite), soit les chaines
+          // envoyees sont sures (traducteur qui a repondu : c'est la TRADUCTION qui part). Un texte non sur ne part JAMAIS.
+          const nonSures = r.envoye.flatMap(([, i]) => _chainesDe(i)).filter((s) => !FILTRE.checkPromptSafety(s).safe);
+          if (nonSures.length) fuites.push(`${nom} | ${JSON.stringify(t)} | drapeau=${drapeau} | traducteur=${traduction === null ? 'panne' : 'ok'} : ${nonSures.length} chaine(s) non sure(s) envoyee(s)`);
+          if (r.status >= 400 && (r.envoye.length || r.depenses.length)) fuites.push(`${nom} | ${JSON.stringify(t)} : refus mais ${r.envoye.length} envoi(s), ${r.depenses.length} debit(s)`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(fuites, []);
+});
