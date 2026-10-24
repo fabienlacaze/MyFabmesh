@@ -1,0 +1,23 @@
+LISTES DE FREQUENCE DE LA GARDE « MOTS COURANTS » (build/bancs/moderation/mots_courants.mjs)
+
+<langue>.txt.gz   les 20 000 premiers mots (par ordre de frequence decroissant, un mot par ligne) de 43 langues :
+                  bg br bs ca cs da de el en eo es et eu fi fr gl hr hu hy id is it ka kk lt lv mk ms nl no pl pt ro ru sk sl sq sr sv tl tr uk vi
+                  (br, eo, hy, kk, tl : listes plus courtes, ce que le projet source en contient : 7 131, 31 631, 1 972, 3 402 et 6 033 mots).
+repli_<langue>.txt   langues SANS liste de frequence publique exploitable : afrikaans (af), azeri (az),
+                  cebuano (ceb), gallois (cy), frison (fy), irlandais (ga), gaelique ecossais (gd), haoussa (ha), creole haitien (ht), igbo (ig),
+                  javanais (jv), latin (la), luxembourgeois (lb), maori (mi), maltais (mt), shona (sn), somali (so), swahili (sw), ouzbek (uz),
+                  xhosa (xh), yoruba (yo), zoulou (zu). Chaque liste (120 a 170 mots) est ECRITE A LA MAIN par l auteur de la correction (mots
+                  grammaticaux, noms courants, verbes courants, nombres, parties du corps) : c est un repli, bien moins complet qu une liste de
+                  frequence ; il ne prouve pas l absence de collision. Le remplacer par une vraie liste des qu une en existe.
+                  Non verifies du tout (ni liste ni repli) : papiamento, creoles hors haitien, wolof, lingala, kinyarwanda, malgache, quechua, guarani,
+                  tetum, samoan, tongan, fidjien, hawaien, groenlandais, basque ancien, occitan, corse, sarde, romanche, ladin, frioulan, breton
+                  (liste de 7 131 mots seulement), cornique, mannois, scots, feroien, same, sorabe, kachoube, aroumain, tatar, kirghiz, turkmene,
+                  ouighour (ecrits en lettres latines).
+
+SOURCE : projet FrequencyWords de hermitdave (https://github.com/hermitdave/FrequencyWords, fichiers content/2018/<langue>/<langue>_50k.txt ; content/2016
+pour br, eo, hy, kk, ka et tl), bases sur les sous-titres d OpenSubtitles. Licence : CC-BY-SA-4.0 (attribution : hermitdave / FrequencyWords ; les listes
+sont reduites aux mots seuls et aux 20 000 premiers). Telechargees le 24/10/2026 depuis raw.githubusercontent.com (jamais huggingface).
+
+REGENERER (mot seul, ordre de frequence conserve, gzip sans date) : telecharger <langue>_50k.txt, couper la premiere colonne, garder 20 000 lignes,
+compresser avec gzip -9 -n. Les listes ont un sens pour le filtre : tout mot courant d une langue que le filtre refuse (seul, ou avec « bath ») alors que
+la version de reference ne le refusait pas est une collision a corriger (retirer le terme, ou l ecrire en tournure non ambigue).

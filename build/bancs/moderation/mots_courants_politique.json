@@ -1,0 +1,890 @@
+{
+ "_commentaire": "LISTE BLANCHE DE POLITIQUE de mots_courants.mjs (24/10, correction de prompts-secu-2410). Chaque entree : une langue, une raison ecrite, les mots (formes reelles de la liste de frequence) que le filtre refuse volontairement. Un mot du QUOTIDIEN d une langue (sens autre que la nudite, le sexuel, le viol ou l enfant) n a rien a faire ici : on retire le terme du lexique ou on l ecrit en tournure. Le rang de frequence est dans la liste d origine.",
+ "entrees": [
+  {
+   "langue": "az",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "uşaq",
+    "uşaqlar"
+   ]
+  },
+  {
+   "langue": "br",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "barnet",
+    "bugale"
+   ]
+  },
+  {
+   "langue": "br",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "hubadeg",
+    "noazh"
+   ]
+  },
+  {
+   "langue": "bs",
+   "raison": "forme repliee du letton « bērni » (enfants) ; prenom ou bruit ailleurs : ne refuse qu avec un mot de nudite",
+   "termes": [
+    "berni"
+   ]
+  },
+  {
+   "langue": "bs",
+   "raison": "romanisation japonaise de « lolicon » ; en bosniaque / serbe / lituanien / albanais ce n est qu un prenom ou du bruit de sous-titres (rang > 11 000) : ne refuse qu avec un mot de nudite",
+   "termes": [
+    "rori"
+   ]
+  },
+  {
+   "langue": "bs",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "deca",
+    "decak",
+    "decaka",
+    "deteta",
+    "devojcica",
+    "devojcice",
+    "devojčica",
+    "devojčice",
+    "devojčicu",
+    "dečak",
+    "dečaka",
+    "dečake",
+    "dijete",
+    "djeca",
+    "djecak",
+    "djecaka",
+    "djece",
+    "djecu",
+    "djeteta",
+    "djetetu",
+    "djevojcica",
+    "djevojčica",
+    "djevojčice",
+    "djevojčicu",
+    "dječak",
+    "dječaka",
+    "dječake",
+    "dječaku"
+   ]
+  },
+  {
+   "langue": "bs",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bradavice",
+    "gaćice",
+    "seksualna",
+    "seksualne",
+    "seksualni",
+    "seksualnih",
+    "seksualno",
+    "seksualnog",
+    "seksualnom",
+    "silovana",
+    "silovanja",
+    "silovanje"
+   ]
+  },
+  {
+   "langue": "ca",
+   "raison": "forme catalane dont le repli est « dete » (enfant en serbe) : ne refuse qu avec un mot de nudite, accepte en connaissance de cause",
+   "termes": [
+    "deté"
+   ]
+  },
+  {
+   "langue": "ca",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "nens"
+   ]
+  },
+  {
+   "langue": "ca",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "despulla",
+    "despullada",
+    "despullades",
+    "despullar",
+    "despullat",
+    "despullats"
+   ]
+  },
+  {
+   "langue": "cs",
+   "raison": "enfants (instrumental) en tcheque : « detmi » ; ne refuse qu avec un mot de nudite",
+   "termes": [
+    "dětmi"
+   ]
+  },
+  {
+   "langue": "cs",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "chlapeček",
+    "dítěte",
+    "holčička",
+    "holčičku",
+    "holčičky",
+    "miminko",
+    "mimino"
+   ]
+  },
+  {
+   "langue": "cs",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bradavky",
+    "kalhotky",
+    "znásilněna",
+    "znásilnění"
+   ]
+  },
+  {
+   "langue": "cy",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "plentyn"
+   ]
+  },
+  {
+   "langue": "da",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "mindreårig",
+    "mindreårige",
+    "spædbarn"
+   ]
+  },
+  {
+   "langue": "da",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "brystvorte",
+    "brystvorter",
+    "erotisk",
+    "erotiske",
+    "nøgen",
+    "nøgne",
+    "seksualitet",
+    "trusser",
+    "underbukser",
+    "underbukserne",
+    "undertøj",
+    "voldtage",
+    "voldtager",
+    "voldtaget",
+    "voldtægt"
+   ]
+  },
+  {
+   "langue": "eo",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "infano",
+    "infanoj"
+   ]
+  },
+  {
+   "langue": "eo",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "nudaj"
+   ]
+  },
+  {
+   "langue": "et",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "lapsena",
+    "lapsi",
+    "teismeline"
+   ]
+  },
+  {
+   "langue": "et",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "alasti",
+    "raiskate"
+   ]
+  },
+  {
+   "langue": "et",
+   "raison": "« sexy » dans cette langue : meme politique que l anglais « sexy » (liste NU_FORT) ; question de politique du proprietaire (« sexy car » passe en anglais)",
+   "termes": [
+    "seksikas"
+   ]
+  },
+  {
+   "langue": "eu",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "haur",
+    "haurra",
+    "haurrak",
+    "haurrarekin",
+    "haurraren",
+    "haurrari",
+    "haurrei",
+    "haurrek",
+    "haurrekin",
+    "haurren",
+    "haurrentzako",
+    "haurrentzat",
+    "haurrik",
+    "haurtxo",
+    "haurtxoa",
+    "haurtxoak",
+    "haurtzaro",
+    "haurtzaroa",
+    "haurtzaroan",
+    "haurtzaroko",
+    "nerabe"
+   ]
+  },
+  {
+   "langue": "eu",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "biluzi",
+    "biluzik"
+   ]
+  },
+  {
+   "langue": "fi",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "lapselle",
+    "lapsen",
+    "lapset",
+    "lapsia",
+    "teini",
+    "teinit",
+    "vauva",
+    "vauvaa",
+    "vauvalle",
+    "vauvan",
+    "vauvani",
+    "vauvasi",
+    "vauvasta",
+    "vauvat"
+   ]
+  },
+  {
+   "langue": "fi",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "alastomana",
+    "alaston",
+    "alushousut",
+    "alusvaatteita",
+    "raiskata",
+    "raiskattiin",
+    "raiskaus",
+    "rinnat"
+   ]
+  },
+  {
+   "langue": "fi",
+   "raison": "« sexy » dans cette langue : meme politique que l anglais « sexy » (liste NU_FORT) ; question de politique du proprietaire (« sexy car » passe en anglais)",
+   "termes": [
+    "seksikäs",
+    "seksikästä"
+   ]
+  },
+  {
+   "langue": "gl",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "neno",
+    "nenos"
+   ]
+  },
+  {
+   "langue": "gl",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "espida",
+    "espidas",
+    "espido",
+    "espidos"
+   ]
+  },
+  {
+   "langue": "ha",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "yarinya"
+   ]
+  },
+  {
+   "langue": "hr",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "djevojčici",
+    "dječakom"
+   ]
+  },
+  {
+   "langue": "ht",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "timoun"
+   ]
+  },
+  {
+   "langue": "hu",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "csecsemő",
+    "gyerek",
+    "gyereke",
+    "gyereked",
+    "gyerekei",
+    "gyerekeid",
+    "gyerekeik",
+    "gyerekeim",
+    "gyerekeimet",
+    "gyerekeink",
+    "gyerekeit",
+    "gyerekek",
+    "gyerekeket",
+    "gyerekekkel",
+    "gyerekeknek",
+    "gyerekekre",
+    "gyerekekről",
+    "gyerekem",
+    "gyerekemet",
+    "gyerekes",
+    "gyereket",
+    "gyerekjáték",
+    "gyerekkel",
+    "gyerekkori",
+    "gyerekkorom",
+    "gyerekkoromban",
+    "gyerekként",
+    "gyereknek",
+    "gyerekre",
+    "gyerekről",
+    "gyerekét",
+    "gyerekük",
+    "gyerekünk",
+    "gyermek",
+    "gyermeke",
+    "gyermeked",
+    "gyermekei",
+    "gyermekeim",
+    "gyermekek",
+    "gyermekem",
+    "gyermeket",
+    "gyermekét",
+    "kamasz",
+    "kisfiú",
+    "kisfiút",
+    "kisgyerek",
+    "kiskorú",
+    "kislány",
+    "kislánya",
+    "kislánynak",
+    "kislányok",
+    "kislányom",
+    "kislányt"
+   ]
+  },
+  {
+   "langue": "hu",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bugyi",
+    "erotikus",
+    "meztelen",
+    "meztelenül",
+    "szexuális",
+    "szexuálisan"
+   ]
+  },
+  {
+   "langue": "hu",
+   "raison": "« sexy » dans cette langue : meme politique que l anglais « sexy » (liste NU_FORT) ; question de politique du proprietaire (« sexy car » passe en anglais)",
+   "termes": [
+    "szexi"
+   ]
+  },
+  {
+   "langue": "id",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "bocah",
+    "budak",
+    "budak-budak",
+    "kanak-kanak",
+    "siswi"
+   ]
+  },
+  {
+   "langue": "id",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bertelanjang",
+    "erotis",
+    "kemaluan",
+    "payudara",
+    "perkosa",
+    "perkosaan",
+    "seksual",
+    "seksualitas"
+   ]
+  },
+  {
+   "langue": "is",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "smábarn"
+   ]
+  },
+  {
+   "langue": "is",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "nakin",
+    "nakinn",
+    "naktir"
+   ]
+  },
+  {
+   "langue": "la",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "infans"
+   ]
+  },
+  {
+   "langue": "lb",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "meedchen"
+   ]
+  },
+  {
+   "langue": "lt",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "kūdikiai",
+    "kūdikio",
+    "kūdikis",
+    "kūdikiu",
+    "kūdikiui",
+    "kūdikius",
+    "kūdikių",
+    "kūdikį",
+    "paaugliai",
+    "paauglių",
+    "paauglys",
+    "vaikai",
+    "vaikas",
+    "vaiku",
+    "vaikų"
+   ]
+  },
+  {
+   "langue": "lt",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "nuoga",
+    "nuogas",
+    "nuogi",
+    "nuogos",
+    "nuogą",
+    "seksuali",
+    "seksualiai",
+    "seksualinis",
+    "seksualu",
+    "seksualus"
+   ]
+  },
+  {
+   "langue": "lv",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "berns",
+    "bernu",
+    "bēbis",
+    "bērnam",
+    "bērni",
+    "bērns",
+    "bērnu",
+    "pusaudžu"
+   ]
+  },
+  {
+   "langue": "lv",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "izģērbties",
+    "kails",
+    "seksuālas",
+    "seksuāli",
+    "seksuālā",
+    "seksuālās"
+   ]
+  },
+  {
+   "langue": "mi",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "tamaiti",
+    "tamariki"
+   ]
+  },
+  {
+   "langue": "ms",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "berbogel",
+    "bogel"
+   ]
+  },
+  {
+   "langue": "mt",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "tfal"
+   ]
+  },
+  {
+   "langue": "nl",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "kindje",
+    "kindjes",
+    "tiener",
+    "tieners"
+   ]
+  },
+  {
+   "langue": "nl",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "onderbroek",
+    "onderbroeken",
+    "seksualiteit",
+    "slipje",
+    "slipjes",
+    "tepels",
+    "verkracht",
+    "verkrachten",
+    "verkrachter",
+    "verkrachters",
+    "verkrachting",
+    "verkrachtte"
+   ]
+  },
+  {
+   "langue": "no",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "småbarn"
+   ]
+  },
+  {
+   "langue": "no",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "brystvortene",
+    "naken",
+    "nakne",
+    "truse",
+    "undertøy",
+    "voldta",
+    "voldtar",
+    "voldtatt",
+    "voldtekt",
+    "voldtektsmann"
+   ]
+  },
+  {
+   "langue": "pl",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "dziewczynce",
+    "nastolatek",
+    "nastolatka",
+    "nastolatki",
+    "nastolatków"
+   ]
+  },
+  {
+   "langue": "pl",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "cipka",
+    "gwałt",
+    "majtki",
+    "piersi",
+    "piersiach",
+    "seksualnego",
+    "seksualnej",
+    "seksualnie",
+    "seksualny",
+    "seksualnych",
+    "seksualnym",
+    "sutki"
+   ]
+  },
+  {
+   "langue": "pl",
+   "raison": "« sexy » dans cette langue : meme politique que l anglais « sexy » (liste NU_FORT) ; question de politique du proprietaire (« sexy car » passe en anglais)",
+   "termes": [
+    "seksowna",
+    "seksowne",
+    "seksownie",
+    "seksowny",
+    "seksowną"
+   ]
+  },
+  {
+   "langue": "pt",
+   "raison": "forme portugaise avec trait d union dont le premier morceau replie est « dete » (enfant en serbe) : ne refuse qu avec un mot de nudite",
+   "termes": [
+    "detê-lo",
+    "detê-los"
+   ]
+  },
+  {
+   "langue": "pt",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "despir"
+   ]
+  },
+  {
+   "langue": "ro",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "băieţel",
+    "băieţelul",
+    "copii",
+    "copil",
+    "copila",
+    "copilul",
+    "copilă",
+    "fetita",
+    "fetiţa",
+    "fetiţe",
+    "fetiţei",
+    "fetiţă"
+   ]
+  },
+  {
+   "langue": "ro",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "chiloţi",
+    "dezbrăcat",
+    "dezbrăcată",
+    "dezbrăcaţi",
+    "nud"
+   ]
+  },
+  {
+   "langue": "sk",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "deťmi",
+    "dievčatko"
+   ]
+  },
+  {
+   "langue": "sk",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bielizeň",
+    "znásilnenia",
+    "znásilnenie",
+    "znásilnená"
+   ]
+  },
+  {
+   "langue": "sl",
+   "raison": "enfant (genitif) en slovene ; esclave en slovaque : ne refuse qu avec un mot de nudite, accepte en connaissance de cause",
+   "termes": [
+    "otroka"
+   ]
+  },
+  {
+   "langue": "sl",
+   "raison": "enfant en slovene ; esclave en tcheque et en slovaque (rang 6 650 a 17 000) : ne refuse qu avec un mot de nudite. Accepte en connaissance de cause : retirer le perdrait le slovene",
+   "termes": [
+    "otrok"
+   ]
+  },
+  {
+   "langue": "sl",
+   "raison": "enfants en slovene ; esclaves en tcheque (rang 13 000) : ne refuse qu avec un mot de nudite, accepte en connaissance de cause",
+   "termes": [
+    "otroci"
+   ]
+  },
+  {
+   "langue": "sl",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "deklica",
+    "deklice",
+    "deklici",
+    "deklico",
+    "dojenček",
+    "fantek",
+    "najstnica"
+   ]
+  },
+  {
+   "langue": "sl",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bradavičke"
+   ]
+  },
+  {
+   "langue": "so",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "carruur",
+    "ilmo"
+   ]
+  },
+  {
+   "langue": "sq",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "bërns",
+    "femije",
+    "femijen",
+    "femijet",
+    "femijeve",
+    "femijë",
+    "fëmije",
+    "fëmijet",
+    "fëmijë",
+    "fëmijën",
+    "fëmijëri",
+    "fëmijëria",
+    "fëmijërinë",
+    "fëmijërisë",
+    "fëmijës",
+    "fëmijësh",
+    "fëmijët",
+    "fëmijëve"
+   ]
+  },
+  {
+   "langue": "sq",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "lakuriq",
+    "lakuriqe",
+    "seksuale",
+    "seksualisht",
+    "zhveshur",
+    "zhveshura"
+   ]
+  },
+  {
+   "langue": "sr",
+   "raison": "enfant en serbe et en slovene ; « deté » catalan (rang 14 216) et « detê-lo » portugais (forme avec trait d union) : ne refuse qu avec un mot de nudite, accepte en connaissance de cause",
+   "termes": [
+    "dete"
+   ]
+  },
+  {
+   "langue": "sr",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "devojčici",
+    "dečaku"
+   ]
+  },
+  {
+   "langue": "sv",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "barnen",
+    "bebis",
+    "bebisar",
+    "bebisen",
+    "minderårig",
+    "minderåriga",
+    "spädbarn",
+    "tonåring",
+    "tonåringar"
+   ]
+  },
+  {
+   "langue": "sv",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "bröstvårtor",
+    "kalsonger",
+    "könsorgan",
+    "nakna",
+    "porr",
+    "trosor",
+    "underkläder",
+    "underkläderna",
+    "våldtäkt",
+    "våldtäktsman"
+   ]
+  },
+  {
+   "langue": "sv",
+   "raison": "« sexy » dans cette langue : meme politique que l anglais « sexy » (liste NU_FORT) ; question de politique du proprietaire (« sexy car » passe en anglais)",
+   "termes": [
+    "sexig",
+    "sexiga",
+    "sexigare",
+    "sexigaste",
+    "sexigt"
+   ]
+  },
+  {
+   "langue": "sw",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "mtoto",
+    "watoto"
+   ]
+  },
+  {
+   "langue": "tl",
+   "raison": "terme de nudite, de sous-vetement, de viol, de mamelon ou de sexuel dans cette langue : meme politique que l anglais naked / underwear / rape / nipple / sexual de la production (voir le rapport)",
+   "termes": [
+    "hubad",
+    "maghubad",
+    "nakahubad"
+   ]
+  },
+  {
+   "langue": "xh",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "abantwana",
+    "umntwana"
+   ]
+  },
+  {
+   "langue": "zu",
+   "raison": "terme d enfant dans cette langue ; mot courant d aucune autre langue verifiee ; ne refuse qu avec un mot de nudite (jamais seul)",
+   "termes": [
+    "ingane"
+   ]
+  }
+ ]
+}
