@@ -104,7 +104,7 @@ function monter({ traduire = (t) => 'EN:' + t, credits = 100 } = {}) {
   };
   // lot de moderation de la langue (pas encore assemble a ce stade) : doublures neutres si le worker les appelle
   for (const n of ['neutraliserSyntaxePrompt']) if (existe(n)) doublures[n] = (t) => t;
-  if (existe('_refusLongueur')) doublures._refusLongueur = () => null;
+  if (existe('_refusLongueur')) Object.assign(doublures, { _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000 });
   const noms = ['handleGenerateImage', 'handleGenerateBackView', '_prixImageSelonPas', '_prixImageComplet', '_checkPromptSafetyAlerte', 'categorieContenuGrave', ...AUXILIAIRES, ...NEGATIONS]
     .filter((n) => existe(n) && !(n in doublures));
   const w = chargerFonctions(noms, doublures);

@@ -170,6 +170,8 @@ const FICHIERS = [
   { nom: 'traductions communes (lang/_additions6.js)', source: 'src/renderer/lang/_additions6.js', copie: 'cloud/public/app/lang/_additions6.js' },
   // langue du texte de l'utilisateur (2026-10-13, audit de la langue) : bureau, site ET worker (cloud/src/worker.ts importe la copie du site)
   { nom: 'langue du texte', source: 'src/renderer/lib/langue-texte.js', copie: 'cloud/public/app/lib/langue-texte.js' },
+  // encodeur SDXL des prompts longs (2026-10-13) : memes bornes de poids et memes jetons speciaux casses sur le bureau et sur Modal
+  { nom: 'encodeur SDXL des prompts (poids, jetons speciaux)', source: 'scripts/_sdxl_prompt_utils.py', copie: 'modal_app/_sdxl_prompt_utils.py' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

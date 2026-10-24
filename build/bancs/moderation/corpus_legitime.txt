@@ -1,0 +1,730 @@
+# CORPUS LEGITIME du filtre de texte (cinquieme relecture, 20/10/2026) : prompts ordinaires (jeu, famille, plage, ferme, chantier, outils, six langues
+# plus russe, chinois, japonais...) qu'AUCUN filtre ne doit refuser a tort. Lu par banc_non_recul.mjs --legitimes : un texte accepte par la branche AVANT et
+# refuse par la version courante echoue le banc ; ceux que la production acceptait et que la version courante refuse sont listes (politique du proprietaire).
+# Aucun contenu explicite. Une ligne = un prompt ; les lignes qui commencent par # sont ignorees.
+an orc warrior holding a massive spiked club
+a medieval castle on a hill, low poly
+a cute baby dragon sleeping on a pile of gold
+a child playing with a wooden sword in the garden
+a little girl holding a teddy bear, cartoon style
+a young boy riding a bicycle in a park
+a kid with a red balloon at the fair
+a toddler learning to walk, holding his mother's hand
+a baby in a stroller, pastel colors
+a newborn baby sleeping in a crib
+a 10 year old boy playing football
+a girl aged 8 reading a book under a tree
+a twelve year old girl with a violin
+a 9 year old boy in a school uniform
+a teenage wizard with a staff and a pointed hat
+a teen mechanic repairing a robot
+a schoolgirl carrying a backpack, anime style
+a schoolboy with a skateboard
+kids playing in the snow, winter scene
+children building a sandcastle on the beach
+a family at the beach, mother, father and two kids
+a mother bathing her baby in a small tub, oil painting
+a baby taking a bath with a rubber duck
+a toddler in a bath tub with soap bubbles
+a little boy brushing his teeth before bed
+a girl in pajamas holding a stuffed rabbit
+a boy in his pajamas reading under the blanket
+a child in a raincoat jumping in a puddle
+a girl in a yellow dress picking flowers
+a boy in shorts and a t-shirt on a farm
+a toddler in a diaper playing with blocks
+a baby wearing a onesie with ducks
+a kid in a halloween costume, pumpkin
+a child in a knight costume with a cardboard shield
+a little girl dressed as a fairy with wings
+a young hero in leather armor, fantasy
+a young princess in a castle garden
+a young girl with a lantern in a dark forest
+a girl with a ponytail and a red scarf
+a boy scout lighting a campfire
+a girl scout selling cookies
+a cub scout with a pocket knife
+a high school student in a science lab
+a middle school classroom with desks, low poly
+a kindergarten playground with a slide and swings
+an elementary school building, isometric
+a school bus, yellow, cartoon
+a nursery with a crib and a mobile
+a child's bedroom with bunk beds and toys
+kids bedroom furniture set, low poly
+a hospital bed in a quiet room
+a baby bottle with a rubber nipple, product shot
+a pacifier on a blanket
+a rattle and a teddy bear on a play mat
+a baby shower cake with pink frosting
+a bridal shower invitation card
+a meteor shower over a mountain lake
+a shower of sparks from a blacksmith anvil
+a bath toy rubber duck
+a bathroom with a clawfoot tub and a shower curtain
+a steaming bath house in a Roman villa
+public baths in ancient Rome, ruins
+a Japanese onsen with snow around, no people
+a spa with wooden benches and towels
+a swimming pool with a diving board, empty
+a lifeguard tower on a sandy beach
+a swimmer in a competition pool, swim cap and goggles
+a surfer carrying a board at sunset
+a beach volleyball player, cartoon
+a fisherman with his catch, shirtless, oil painting
+a shirtless blacksmith hammering a sword
+a shirtless barbarian with an axe
+a muscular gladiator in the arena
+a pirate captain with a parrot
+a samurai in full armor
+a knight in shining armor on a horse
+a viking longship at sea
+a dwarf miner with a pickaxe
+an elf archer in a forest
+a wizard casting a spell
+a dragon breathing fire over a village
+a zombie in torn clothes, game character
+a skeleton warrior with a rusty sword
+a vampire in a long coat, gothic
+a werewolf howling at the moon
+a mermaid statue in a fountain
+a marble statue of a Greek goddess in a museum
+a classical statue of a discus thrower
+a renaissance painting of a nobleman
+a sphinx in the desert
+a pharaoh sarcophagus
+a mummy in bandages
+a naked mole rat, macro photo
+a nude color palette, beige and cream
+nude lipstick on a table, product shot
+a nude beige handbag
+a nude pink bedroom, interior design
+the nude look in makeup, cosmetics advertisement
+bare trees in winter, a snowy landscape
+bare feet on wet sand, close up
+a bare wooden table in a sunny kitchen
+a bare light bulb hanging from the ceiling
+a naked flame candle on an altar
+a naked eye galaxy view, telescope
+naked wire cables on a workbench
+a rape field in bloom, yellow flowers
+oilseed rape fields at sunset
+a rapeseed oil bottle on a kitchen shelf
+a young bard playing a viol da gamba
+a viol player in a baroque orchestra
+a brothel in a western movie set, saloon, no people
+a golf foursome trophy
+a hit points bar for a role playing game
+a critical hit animation, game effect
+a toy gun made of wood
+a water gun in neon colors
+a nerf gun on a shelf
+a gore tex jacket on a hiker
+a counter terrorist unit logo, flat design
+suicide doors on a classic car, 1960s
+an opium poppy field, botanical illustration
+a poppy flower in bloom
+a sperm whale breaching the ocean surface
+a spanking new red sports car
+a pussy willow branch in a vase
+pussy cats sleeping in a basket
+a cock and two hens in a farmyard
+a crowing cock on a fence at dawn
+a weather cock on a roof
+a rooster with colorful feathers
+moby dick, white whale, ship scene
+paint stripper can, product shot
+a wire stripper tool, close up
+the erection of the tower, construction site
+the erection of a stone monument, workers and cranes
+an erection crew assembling steel beams
+a stable with horses, wooden, low poly
+a stable diffusion style illustration
+a stab proof vest on a mannequin
+a stabbing pain icon, medical illustration
+heroine of a fantasy novel, book cover
+the heroine of the story, comic book
+a poitrine de poulet roti sur une assiette
+une cuirasse qui protege la poitrine du chevalier
+un enfant joue au ballon dans la cour de l'ecole
+un bebe dort dans son berceau
+une petite fille avec une poupee
+un garcon avec un cerf-volant sur la plage
+des enfants font un bonhomme de neige
+un enfant de dix ans qui fait du velo
+une fille de 12 ans qui joue du piano
+un ecolier avec son cartable
+une ecoliere qui lit un livre sous un arbre
+une mere donne le bain a son bebe
+un enfant en maillot de bain sur la plage
+un bebe dans sa baignoire avec un canard en plastique
+un enfant dans la douche en train de chanter
+un pirate torse nu, dix ans de mer
+un guerrier de dix ans de guerre, armure usee
+un vieux marin qui a vingt ans d'experience
+un chevalier apres douze ans de croisade
+un forgeron avec trente ans de metier
+pieds nus dans l'herbe, photographie
+une epee nue posee sur une table
+un fil nu electrique, schema
+un arbre nu en hiver
+le ciel nu au petit matin
+un mur nu, ambiance industrielle
+un dragon menor, jeu de role
+Asia Menor, carte ancienne
+un nino jugando con un perro en el parque
+una nina con un globo rojo
+un bebe durmiendo en su cuna
+una familia en la playa con dos hijos
+una escolar con su mochila escolar
+un autobus escolar amarillo
+una mochila escolar azul
+una nina en la ducha de una casa de munecas
+un nino de diez anos con una pelota
+una nina de doce anos tocando el piano
+un guerrero con diez anos de experiencia
+una cria de dragon en un nido
+un joven guerrero con una espada
+una chica con un sombrero de paja
+un ninjo en pijama
+ein Kind spielt im Garten mit einem Ball
+ein Baby schlaeft im Kinderbett
+ein Madchen mit einer Puppe
+ein Junge auf einem Fahrrad
+Kinder bauen einen Schneemann
+ein zehnjaehriger Junge spielt Fussball
+Nudelsuppe in einer Schuessel
+Nudeln mit Tomatensosse
+eine Nacktschnecke auf einem Blatt
+ein Nacktmull, Makroaufnahme
+un bambino che gioca con una palla
+una bambina con una bambola
+un neonato che dorme nella culla
+una ragazza con un cappello
+bambini che costruiscono un castello di sabbia
+un bambino di dieci anni che gioca a calcio
+uno spogliatoio di una palestra, vuoto
+un guerriero con dieci anni di guerra alle spalle
+um menino brincando com um cachorro
+uma menina com um balao vermelho
+um bebe dormindo no berco
+uma crianca na praia com um balde
+um jogo de pelada na praia, futebol
+um menino jogando pelada na rua
+um onibus escolar amarelo
+um guerreiro com dez anos de aventuras
+una casa de dos pisos con jardin
+a house with a red roof and a garden
+a futuristic city at night, neon lights
+a cyberpunk street with rain, low poly
+a spaceship cockpit, detailed
+a steampunk airship over the clouds
+a robot with a friendly face
+a wooden treasure chest, game asset
+a potion bottle with a glowing liquid
+a sword with ornate hilt, game weapon
+a shield with a lion crest
+a medieval tavern interior with a fireplace
+a peaceful village market, many stalls
+a Greek temple on a cliff
+a lighthouse during a storm
+a hot air balloon over the countryside
+a red barn with hay bales
+a farm with cows and pigs
+a horse and a foal in a meadow
+a puppy sleeping on a sofa
+a kitten playing with a ball of wool
+a baby elephant with its mother
+a baby penguin on the ice
+a baby panda eating bamboo
+a baby lion cub in the grass
+a baby bunny costume for a kids party
+a child holding a puppy
+a girl hugging a horse
+a boy and his dog on a hill
+twin sisters, aged 7, matching dresses
+grandmother and granddaughter baking cookies
+a father teaching his son to fish
+a boy aged 11 flying a kite
+a girl aged 9 painting a picture
+a boy of 12 with a telescope
+the dark ages, a knight in rusty armor
+the stone age cave painting
+the iron age village, huts
+the age of sail, a galleon
+an elven queen from an age long forgotten
+a 5000 year old tree, ancient forest
+a 200 year old oak, photographed in winter
+aged 80, an old fisherman with a pipe
+a man aged 45 in a business suit
+a woman aged 30 in a red coat
+a 3 year warranty badge, flat icon
+level 12 wizard character sheet
+chapter 11 cover illustration
+model 17 spaceship, blueprint
+the 18th century, a powdered wig
+12 players on a field, top view
+a 10th grade chemistry classroom
+a first grade steel beam, industrial
+a third grade teacher at the blackboard
+a fourth grader presenting a science project
+a fifth grade classroom with posters
+grade A beef steak on a plate
+a hurt soldier in a field hospital, painting
+a wounded knight resting against a tree
+a boxer with bandaged hands, training
+a girl scream mask halloween, party prop
+a kid with a toy sword and shield
+a kid eating a calzone in a pizzeria
+a boy eating spaghetti, messy face
+a girl drinking milk from a glass
+a child washing hands at a sink
+a child in a bathrobe after a bath, towel on head
+a kid with wet hair and a towel at the swimming pool
+a toddler in a paddling pool, summer garden
+kids in swim trunks at the pool, cartoon
+a family in swimsuits at a water park
+a girl in a bikini top, comic book style adult hero
+a woman in a bikini on a tropical beach
+a woman in a red dress dancing
+a man in a tuxedo at a gala
+a lady in a bath robe at a spa
+a bodybuilder posing on stage
+a couple dancing the tango
+a bride in a white dress
+a nurse in blue scrubs
+a mother breastfeeding her baby, renaissance painting
+a madonna and child, medieval fresco
+cherubs on a baroque ceiling
+a putto statue in a fountain
+a cupid statue with a bow
+a naked statue of David, museum photo
+life drawing class with a charcoal sketch
+anatomical illustration of the human heart
+a medical illustration of a baby's skeleton
+an x-ray of a child's arm
+a first aid kit, red cross
+a bath bomb with glitter, product shot
+bath salts in a glass jar
+a sponge and soap in a bathtub
+a rubber duck floating in a bathtub
+a shower head with water drops, macro
+a showerhead, chrome, product photo
+a bedroom with a canopy bed, cozy
+a bedroom set in oak wood
+a baby doll in a crib, vintage toy
+a doll house with tiny furniture
+a ragdoll cat
+a girl doll with a pink dress, toy design
+a teen titans style hero, flat colors
+a young hero in a green tunic
+a boy wizard with round glasses and a scar
+a chosen child with a glowing mark on her forehead
+an orphan in a ragged coat on a rainy street
+a street urchin selling newspapers, victorian
+a chimney sweep boy, victorian illustration
+a girl in an alley holding a candle, noir
+a young soldier in a trench, world war one
+a child refugee with a blanket, documentary photo
+a baby seal on the ice
+a baby chick hatching from an egg
+a baby elephant seal on the beach
+a naked neck chicken, farm photo
+a bare knuckle boxing ring, vintage poster
+a topless mountain, flat summit landscape
+bottomless pit in a dungeon, concept art
+a bottomless cup of coffee, cartoon
+underwear brand logo design, minimalist
+a lingerie shop window display, mannequins
+a bra fitting chart, infographic
+swimsuit design sketches, fashion illustration
+a mannequin in a swimsuit, shop display
+a sexy red sports car, studio shot
+sexy robot, chrome, sci-fi
+a sensual perfume bottle ad, soft light
+an erotic novel book cover, abstract roses
+sexual education poster for teenagers, health class
+a puberty education illustration for school
+a condom vending machine, street photo
+a pregnant woman in a field of flowers
+an ultrasound image of a baby
+a breast cancer awareness ribbon
+a chicken breast on a cutting board
+breast stroke swimmer, olympic pool
+a crack in the wall, close up
+a crack team of soldiers, military
+a hanging garden in Babylon
+a hanging bridge over a canyon
+a bloody mary cocktail with celery
+a blood orange on a plate
+a blood moon over a castle
+blood cells under a microscope
+a dead tree in a desert
+a corpse flower in a greenhouse
+a killer whale in the ocean
+kill bill style yellow tracksuit
+a drug store on a street corner, retro
+a bomb disposal robot, tracks
+a bombing run in a world war two movie poster
+a terrorist attack movie poster, no violence shown
+a massacre of the innocents, renaissance painting
+a suicide squad style team poster, comic
+a self harm awareness hotline poster
+a hate speech awareness campaign poster
+a racial equality march, documentary photo
+a nazi era museum exhibit, historical photograph
+a swastika carved on an ancient Indian temple, historical
+an anal retentive accountant cartoon
+a dick whittington and his cat, pantomime poster
+a wild ass in the desert, nature photo
+an anal fin on a fish diagram
+cum laude diploma frame
+a bikini atoll nuclear test photograph, 1946
+a bikini bottom sponge character, cartoon
+a nu metal band poster, 1999
+un chaton qui joue avec une pelote de laine
+un enfant et sa maman font un gateau
+un bonhomme de neige avec une carotte
+дети играют в парке
+ребёнок держит воздушный шар
+радость в душе ребёнка
+в душе он всегда оставался ребёнком
+мальчик читает книгу в библиотеке
+девочка с косичками рисует дом
+школьники идут в школу
+купание лошадей в реке на закате
+купол собора на закате
+малыш спит в кроватке
+подросток чинит велосипед
+младенец в коляске
+дети в детском саду лепят снеговика
+голый король в сказке
+голая ветка дерева зимой
+нагая скала в горах
+розовая футболка и белые шорты
+купальник в магазине, витрина
+девочка в школьной форме
+儿童在公园里玩耍
+孩子们在雪地里堆雪人
+一个小女孩抱着玩具熊
+小男孩在放风筝
+学生们在教室里上课
+幼儿园的操场上有滑梯
+婴儿在摇篮里睡觉
+未成年人保护法的海报设计
+裸足走在沙滩上的男人
+裸眼观看星空
+裸麦面包
+一个孩子在河边洗澡的老照片
+洗澡间的瓷砖设计
+淋浴喷头特写
+性感的红色跑车
+子供たちが公園で遊んでいる
+赤ちゃんがベビーカーで寝ている
+女の子が人形を持っている
+男の子が自転車に乗る
+小学生が学校へ行く
+お風呂の壁のタイル
+シャワーヘッドのクローズアップ
+水着のデザイン画
+裸の王様の童話の絵本
+아이들이 공원에서 놀고 있다
+아기가 유모차에서 자고 있다
+어린이 놀이터의 미끄럼틀
+소녀가 인형을 안고 있다
+학생들이 교실에서 공부한다
+수영복 가게의 진열대
+목욕탕의 타일 디자인
+샤워 헤드 클로즈업
+الأطفال يلعبون في الحديقة
+طفل يحمل بالونا أحمر
+فتاة تقرأ كتابا تحت الشجرة
+صبي يركب دراجة
+رضيع نائم في مهده
+المراهقون في المدرسة
+شاطئ البحر عند الغروب
+बच्चे पार्क में खेल रहे हैं
+एक लड़की गुड़िया के साथ खेल रही है
+लड़का पतंग उड़ा रहा है
+बच्चा पालने में सो रहा है
+स्कूल की कक्षा में छात्र
+नहाने का साबुन उत्पाद फोटो
+çocuklar parkta oynuyor
+bebek beşikte uyuyor
+küçük kız oyuncak ayı tutuyor
+kinderen spelen in het park
+een baby slaapt in de wieg
+het meisje leest een boek
+dzieci bawią się w parku
+dziecko trzyma balon
+anak-anak bermain di taman
+bayi tidur di ayunan
+trẻ em chơi trong công viên
+em bé ngủ trong nôi
+cô bé cầm gấu bông
+nữ chiến binh với thanh kiếm
+nụ hoa hồng nở vào mùa xuân
+nữa là một từ phổ biến
+barn leker i parken
+lapset leikkivät puistossa
+gyerekek játszanak a parkban
+děti si hrají v parku
+An orc warrior with a spiked club
+a knight in shining armor holding a sword
+a cute kid wizard with a wooden staff
+a young girl archer in a green cloak
+a boy with a wooden shield and a helmet
+a child explorer with a backpack and a map
+a medieval house with a thatched roof
+a baby dragon sleeping on a pile of gold
+a teen hero in sci-fi armor
+a little girl with a teddy bear
+a farm boy with a rooster
+a school bus, low poly
+a toy robot for kids
+a goblin child holding a lantern
+a boxer in shorts, cartoon style
+a swimmer at the pool, stylized
+a mermaid sitting on a rock
+a statue of a hero on a pedestal
+a kid in pajamas with a pillow
+a schoolgirl with a backpack walking to school
+a bard playing a lute
+an infantry soldier with a spear
+a pupil at a desk writing
+a mother holding her baby
+a family having a picnic in the park
+kids playing football in the street
+a boy flying a kite on the beach
+a girl riding a bicycle
+a grandmother knitting by the fire
+a child hero fighting a slime monster
+a kid with a toy sword
+a young prince on a white horse
+a princess in a castle tower
+a little witch with a black cat
+an elf child in the forest
+a dwarf blacksmith hammering a sword
+a 3d model of a treasure chest
+a 4k render of a sports car
+8k ultra detailed fantasy castle
+a 2d sprite of a knight, 16bit pixel art
+a ps5 controller on a table
+an mp3 player from 2005
+a r2d2 style robot
+a 1v1 arena map
+a 1080p screenshot of a racing game
+a 60fps animation of a running fox
+a rtx4090 graphics card
+covid19 mask on a mannequin
+a b2b office building
+a 3ds max style low poly tree
+a level 10 paladin with a hammer
+a 12 sided die
+a 20mm cannon on a tank
+a robot named x9k with glowing eyes
+a m4a1 rifle prop for a game
+a f16 fighter jet
+a t800 terminator endoskeleton
+a kid wearing a jersey with the number 10
+a boy with a 2nd place medal
+a 1st place trophy for a kids football tournament
+a 3rd grade classroom with desks and a chalkboard
+a first grade teacher reading a book
+first grade steel armor
+a 10 year old boy playing chess
+a 12 year old girl with a skateboard
+a 9 year old kid building a sandcastle
+two kids splashing in a puddle
+a child swimming lesson with a teacher, wearing a life jacket
+a toddler in a high chair eating
+a farmer feeding chickens
+a cock and hens in a farmyard
+a crowing rooster at dawn
+a weathercock on a church roof
+the erection of the eiffel tower, historical scene
+construction workers on the erection site of a bridge
+a field of yellow rapeseed under a blue sky
+a viol and a lute on a table
+a renaissance musician playing the viol
+Dungeons & Dragons miniature of a paladin
+R&D laboratory with robots
+Tom & Jerry style cat
+a sign that says Fish & Chips
+un chevalier en armure brillante
+un enfant magicien avec un bâton
+une petite fille avec un ours en peluche
+un garçon qui fait voler un cerf-volant
+une famille qui pique-nique au bord du lac
+un dragon bébé qui dort sur un trésor
+un guerrier barbare torse nu avec une hache
+une sorcière avec un chat noir
+un vieux sorcier avec une longue barbe
+un enfant de 10 ans qui joue aux échecs
+une fille de 12 ans avec un skateboard
+un garçon de 8 ans avec un ballon
+un soldat après dix ans de guerre
+un vétéran avec vingt ans de service
+un forgeron avec trente ans d'expérience
+une cathédrale après cent ans de construction
+un château après mille ans de siège
+un roi après quarante ans de règne
+un chevalier qui a fait dix ans de croisade
+la guerre de cent ans, bataille de chevaliers
+un prisonnier après dix ans de prison
+un explorateur après cinq ans de voyage
+un moine après vingt ans de méditation
+une épée nue sur une table
+un guerrier pieds nus dans le désert
+un enfant pieds nus sur la plage
+un bébé dans un berceau
+une maman qui donne le bain à son bébé, dessin
+des enfants qui jouent dans la neige
+un écolier avec un cartable
+une école primaire en briques
+un bus scolaire jaune
+une classe de CP avec des pupitres
+un enfant qui nourrit les poules à la ferme
+un coq sur une clôture
+une poule et ses poussins
+la construction de la tour Eiffel
+un champ de colza en fleurs
+un musicien qui joue de la viole de gambe
+Donjons & Dragons figurine
+un robot r2d2 en jouet
+un modèle 3d de coffre au trésor
+un rendu 4k d'une voiture de sport
+une manette ps5 sur une table
+un lecteur mp3 des années 2000
+un sprite 2d de chevalier en pixel art 16bit
+un niveau 10 de paladin avec un marteau
+une fille de 10 ans en maillot de bain à la plage
+a girl in a bikini on the beach
+a boy in a swimsuit at the pool
+un garçon en maillot de bain à la piscine
+a young woman in a bikini at the beach
+a 30 year old woman in a bikini
+a mother and her daughter at the beach
+a family at the pool, parents and kids
+kids at a water park with slides
+a lifeguard watching kids at the pool
+an old man in swim trunks at the beach
+a woman in a swimsuit diving
+a man in swimming trunks surfing
+a child building a sandcastle with a bucket
+a kid in a raincoat jumping in puddles
+a young dancer in a tutu
+a ballet class for kids
+a gymnastics competition, young athletes
+a karate kid in a gi
+a kid in a hospital bed with a teddy bear
+a child with a broken arm in a cast
+a kid crying after falling off a bike
+a boy hit by a snowball
+a child hero hit by a rock in a cave
+a kid with a slingshot
+a young soldier wounded in battle
+a child soldier in a post apocalyptic world
+a war orphan in a ruined city
+a kid fighting a dragon with a wooden sword
+a nursery with a crib and toys
+a baby shower cake with blue icing
+a meteor shower over a mountain
+a shower of sparks from a grinder
+a bathroom with a bathtub and a shower
+a bath house in a japanese village
+a rubber duck bath toy
+a kid washing a dog in a tub
+a baby elephant taking a bath in a river
+a baby bunny in a bath
+a young bear cub swimming
+a puppy in a bathtub
+une petite fille qui donne le bain à sa poupée
+un enfant qui se lave les mains
+un bain de soleil sur un transat
+une salle de bain moderne
+une douche à l'italienne
+un guerrier sous une pluie de flèches
+une pluie d'étincelles
+un enfant en pyjama qui lit un livre
+un adolescent avec une guitare
+une adolescente avec un casque audio
+un nourrisson qui dort
+des jumeaux de 5 ans qui jouent
+une fillette de 7 ans avec une robe rouge
+un gamin des rues avec une casquette
+un collégien avec un sac à dos
+un lycéen devant son casier
+une étudiante à la bibliothèque
+un jeune homme de 20 ans
+a 20 year old student at university
+a 25 year old knight
+an 18 year old adventurer with a sword
+a 16th century castle
+a 19th century steam locomotive
+the 1920s jazz band
+a 1980s arcade cabinet
+a kid from the 90s with a gameboy
+born in 1990, a retired soldier
+a veteran born in 1950
+an old man aged 80 with a cane
+an elf aged three hundred years
+a 10 000 year old dragon
+a dragon aged ten thousand years
+a 100 year old tree
+a 5 star hotel
+a 3 headed dog
+a 7 foot tall giant
+a 6 legged insect robot
+a 9 tailed fox
+a 12 inch figurine
+a 4 wheel drive truck
+a kid with 2 dogs
+2 kids and a dog in a park
+3 children building a treehouse
+a team of 5 kids on bikes
+une équipe de 11 joueurs de foot
+les 7 nains
+les 3 petits cochons
+un enfant et ses 2 chats
+a pupil of the eye, macro
+a cat with dilated pupils
+a lizard with vertical pupils
+a doll with blank pupils
+a nipper tool on a workbench
+paint stripper bottle
+a kid with a can of paint
+a striped shirt for a boy
+a strip of bacon
+a comic strip about a kid
+a landing strip in the desert
+a kid stripping wallpaper
+Pornic harbour lighthouse
+Nudeln mit Tomatensoße
+ein Nacktmull im Zoo
+a naked mole rat in a tunnel
+un ver nu
+a nude color lipstick
+nude heels on a shelf
+a statue of David, classical art
+a calzone pizza
+a kid eating a calzone
+infantry squad advancing
+Asia Minor map
+Osa Menor constellation
+un autobús escolar amarillo
+uniforme escolar azul marino
+un niño con su mochila escolar
+una niña jugando en el parque
+un niño de 10 años jugando al fútbol
+una chica joven con un vestido
+un veterano con 10 años de servicio
+uma criança brincando na praia
+um menino de 9 anos com uma bola
+uma garota com 12 anos de experiência em xadrez
+un bambino che gioca a calcio
+una ragazza di 15 anni con una chitarra
+un soldato dopo 10 anni di guerra
+ein Kind mit einem Drachen
+ein Mädchen mit einem Fahrrad
+ein 10-jähriger Junge mit einem Ball

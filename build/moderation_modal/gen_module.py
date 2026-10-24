@@ -7,6 +7,11 @@ Usage : python build/moderation_modal/gen_module.py             regenere modal_a
                                                                  (garde de construction : le TypeScript est la source de verite ;
                                                                  le miroir du bureau, lui, vient de build/miroir-moderation.mjs)
         python build/moderation_modal/gen_module.py <chemin_ts> <sortie>
+
+2026-10-13 (audit langue / moderation) : nouvelles listes (lexiques non latins, mots colles, ages, idiomes) ; les
+echappements JavaScript a accolades (emoji hors du plan de base) sont decodes ; les fins de ligne du gabarit et du module
+installe (CRLF dans une copie Windows) ne font plus diverger la verification : la comparaison se fait en LF et le module
+est reecrit avec les fins de ligne qu'il avait.
 """
 import io
 import re
@@ -21,15 +26,32 @@ TS = ARGS[0] if len(ARGS) > 0 else os.path.join(RACINE, 'cloud', 'src', 'nsfw_fi
 SORTIE = ARGS[1] if len(ARGS) > 1 else os.path.join(RACINE, 'modal_app', '_moderation_texte.py')
 
 NOMS = [
-    'MINEURS_FORT', 'MINEURS_AMBIGUS', 'MINEURS_VIOLENCE', 'NU_FORT', 'NU_MOYEN', 'NU_FAIBLE_PLANCHER',
-    'NU_FAIBLE_GENERAL', 'VIOLENCE_ENFANT_PLANCHER', 'PLANCHER_MOTS', 'PLANCHER_COLLES', 'PLANCHER_UNICODE',
-    'SERIE_MINEURS', 'SERIE_NUDITE', '_NOMBRES_LETTRES', 'GENERAL_SEXUEL_DUR', 'GENERAL_CTX_SEXUEL',
+    'MINEURS_FORT', 'MINEURS_AMBIGUS', 'MINEURS_INDICES', 'MINEURS_VIOLENCE', 'NU_FORT', 'NU_EXACTS', 'NU_MOYEN',
+    'NU_FAIBLE_PLANCHER', 'NU_FAIBLE_GENERAL', 'SEXE_MINEUR_FORT', 'VIOLENCE_ENFANT_PLANCHER', 'PLANCHER_MOTS',
+    'PLANCHER_COLLES', 'PLANCHER_UNICODE', 'MINEURS_FORT_UNICODE', 'MINEURS_AMBIGUS_UNICODE', 'NU_FORT_UNICODE',
+    'NU_SUGGESTIF_UNICODE', 'NU_MOYEN_UNICODE', 'NU_FAIBLE_UNICODE', 'VIOLENCE_UNICODE', 'SERIE_MINEURS', 'SERIE_NUDITE',
+    'COLLE_MINEURS', 'COLLE_NUDITE', 'COLLE_NUDITE_BORD', '_NOMBRES_LETTRES', 'NOMBRES_AMBIGUS', 'GRANDS_NOMBRES',
+    'UNITES_AGE', 'UNITES_AGE_ROMANES', 'COMPLEMENTS_DE', 'PREFIXES_AGE', 'NOMBRES_COMPOSES_DE',
+    'PREFIXES_NAISSANCE', 'UNITES_AGE_UNICODE', 'PREFIXES_AGE_UNICODE', 'IDIOMES', 'EXPRESSIONS_SURES', 'IDIOMES_EXACTS',
+    'IDIOMES_UNICODE', 'VETEMENTS_ANIMAL', 'ANIMAUX_BEBE', 'ZEROS_CHIFFRES', 'GENERAL_SEXUEL_DUR', 'GENERAL_CTX_SEXUEL',
     'CONTEXTE_SEXUEL_FAIBLE', 'GENERAL_CTX_VIOLENCE', 'GENERAL_VIOLENCE_DUR', 'GENERAL_DROGUE_DUR',
     'GENERAL_EXTREMISME_DUR', 'GENERAL_AUTOBLESSURE_DUR', 'GENERAL_HAINE_DUR', 'GENERAL_ARMES_DUR',
     'PERSONNES', 'NUDITE_EXTREME', 'VIOLENCE_ENFANT_GENERAL',
+    # 2026-10-14 (revue du lot moderation : B2, B3, B4)
+    'NON_ASSIGNES_U14', 'IDIOMES_RACINES',
+    # 2026-10-14 (seconde relecture : age, double sens, eleves de classe, ftfy)
+    'DUREES_NON_AGE', 'ADJECTIFS_JEUNESSE', 'CLASSES_ORDINAUX', 'ELEVES_CLASSE', 'MOJIBAKE_EFFACES',
+    # 2026-10-14 (troisieme relecture : lecture « production », gardes des tournures, mineurs construits)
+    'TRANSLIT_HORS_PRODUCTION', 'GARDE_POSSESSIFS', 'GARDE_ARRETS', 'GARDE_CHANTIER', 'AVANT_ESCOLAR', 'NOMBRES_CLASSE',
+    # 2026-10-14 (quatrieme relecture : gardes du coq, personnes qui desactivent les expressions sures balisees)
+    'GARDE_DEBUTS_COQ', 'GARDE_COQ', 'PERSONNES_DESACTIVATION',
+    # 2026-10-15 (controle exhaustif de non-recul : prefixes d'age anglais, contexte sexuel des expressions balisees)
+    'PREFIXES_AGE_ANGLAIS', 'UNITES_APRES_AMBIGU', 'CONTEXTE_DESACTIVATION',
+    # 2026-10-18 (cinquieme relecture : expressions que la production retirait entieres)
+    'IDIOMES_PRODUCTION',
 ]
 
-src = io.open(TS, encoding='utf-8').read()
+src = io.open(TS, encoding='utf-8').read().replace('\r\n', '\n')
 chaine = re.compile(r"'((?:[^'\\]|\\.)*)'")
 
 
@@ -43,7 +65,8 @@ def extraire(nom):
 
 
 def decoder(s):
-    # les chaines TS n'utilisent que des echappements \uXXXX (PLANCHER_UNICODE) ; on les convertit proprement.
+    # les chaines TS n'utilisent que des echappements \u{X...} (emoji) et \uXXXX ; on les convertit proprement.
+    s = re.sub(r'\\u\{([0-9a-fA-F]+)\}', lambda m: chr(int(m.group(1), 16)), s)
     return re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), s)
 
 
@@ -63,7 +86,7 @@ for nom in NOMS:
     nom_py = nom.lstrip('_') if nom != '_NOMBRES_LETTRES' else 'NOMBRES_LETTRES'
     sorties.append('%s = (\n%s\n)\n' % (nom_py, '\n'.join(lignes)))
 
-tpl = io.open(os.path.join(ICI, '_moderation_texte.tpl.py'), encoding='utf-8', newline='').read()
+tpl = io.open(os.path.join(ICI, '_moderation_texte.tpl.py'), encoding='utf-8', newline='').read().replace('\r\n', '\n')
 assert tpl.count('#@@LISTES@@') == 1
 res = tpl.replace('#@@LISTES@@', '\n'.join(sorties))
 if VERIFIER:
@@ -83,5 +106,11 @@ if VERIFIER:
         raise SystemExit(1)
     print('[moderation-modal] OK : modal_app/_moderation_texte.py est identique a celui genere depuis nsfw_filter.ts')
 else:
-    io.open(SORTIE, 'w', encoding='utf-8', newline='\n').write(res)
+    fin_de_ligne = '\n'
+    try:
+        if b'\r\n' in io.open(SORTIE, 'rb').read():
+            fin_de_ligne = '\r\n'
+    except OSError:
+        pass
+    io.open(SORTIE, 'w', encoding='utf-8', newline=fin_de_ligne).write(res)
     print('ecrit', SORTIE, len(res), 'octets')

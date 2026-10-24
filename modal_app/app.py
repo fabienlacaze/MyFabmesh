@@ -168,18 +168,50 @@ def _check_auth(payload: dict) -> None:
         raise HTTPException(status_code=401, detail="auth")
 
 
+# 2026-10-13 (constats MODERATION-07 / SERVEUR-09 de l'audit du 11/10) : champs de TEXTE LIBRE qui partent a un generateur.
+# Mesures : 32 000 blancs = 12,6 s dans l'epuration de fin de demande, 32 000 « (a » = 19 s dans le lecteur de poids, le tout
+# sous le verrou GPU ; « <|endoftext|> » lu comme le vrai jeton de fin ; « (x:99999) » = poids infini. Le worker borne et
+# neutralise deja ; ceci est la meme regle au niveau du generateur (appel direct, ancien worker).
+_CHAMPS_TEXTE = ("prompt", "prompt_hint", "target_text", "neg_prompt", "style")
+
+
+def _texte_generateur(texte):
+    """Ce qui part au generateur : caracteres effaces retires, jetons speciaux du tokenizer casses, poids A1111 bornes
+    (modal_app/_moderation_texte.py, genere depuis cloud/src/nsfw_filter.ts). None si le texte est trop long, sinon le texte
+    neutralise. Module absent de l'image (ne devrait pas arriver) : texte tel quel."""
+    try:
+        from modal_app._moderation_texte import (PROMPT_MAX_ENRICHI, controler_longueur_prompt,
+                                                 neutraliser_syntaxe_prompt)
+    except ImportError:
+        return texte
+    if not controler_longueur_prompt(texte, PROMPT_MAX_ENRICHI)["safe"]:
+        return None
+    return neutraliser_syntaxe_prompt(texte)
+
+
 async def _read_json(request) -> dict:
     """FastAPI hands us a `Request`; legacy endpoints used `payload: dict`.
 
     We restore the legacy contract by reading + parsing the body once here.
     A malformed body → 400 (same status FastAPI would give for a bad
     `payload: dict` argument before).
+
+    2026-10-13 : les champs de texte libre (_CHAMPS_TEXTE) sont bornes (400 au-dela de PROMPT_MAX_ENRICHI, longueur ponderee)
+    et neutralises ici, une fois pour toutes les routes, AVANT le plancher et le calcul.
     """
     from fastapi import HTTPException
     try:
-        return await request.json()
+        payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json body")
+    if isinstance(payload, dict):
+        for cle in _CHAMPS_TEXTE:
+            if isinstance(payload.get(cle), str):
+                texte = _texte_generateur(payload[cle])
+                if texte is None:
+                    raise HTTPException(status_code=400, detail="%s too long" % cle)
+                payload[cle] = texte
+    return payload
 
 
 # CALCUL GPU HORS DE LA BOUCLE D'EVENEMENTS, RATTACHABLE PAR LE REJEU (2026-09-29).

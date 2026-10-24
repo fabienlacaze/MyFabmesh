@@ -32,7 +32,12 @@ const json = (o, init) => reponse(o, init);
 
 /** Les declarations demandees qui EXISTENT dans l'exemplaire charge (l'ancien worker n'a ni filet ni decoupe : on charge ce qu'il a, et
  *  ce sont les assertions de COMPORTEMENT qui echouent, pas le chargement). */
-const charger = (noms, doublures) => chargerFonctions(noms.filter((n) => existe(n)), doublures);
+// Integration 24/10 : le lot securite des mineurs ajoute au worker la borne de longueur et la neutralisation de la syntaxe du prompt. Ces tests
+// portent sur la TRADUCTION : les doublures sont neutres (la borne et la neutralisation ont leurs tests : moderation-worker.test.mjs et
+// chaine-verifiee-integration.test.mjs, avec le vrai filtre).
+const LOT_SECURITE_NEUTRE = () => (existe('_refusLongueur')
+  ? { _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000, neutraliserSyntaxePrompt: (t) => t, _negatifTexVariant: (n) => (typeof n === 'string' ? n : undefined) } : {});
+const charger = (noms, doublures = {}) => chargerFonctions(noms.filter((n) => existe(n)), { ...LOT_SECURITE_NEUTRE(), ...doublures });
 const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_derniereCoupe', '_plafondTraduction', 'TRADUCTION_MAX_CARACTERES',
   'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
   '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE', 'TRADUCTION_PLAFOND_JOUR_COMPTE',
@@ -846,7 +851,9 @@ const _jsFiltre = _tsFiltre.transpileModule(_srcFiltre,
 const FILTRE = new Function('exports', 'require', _jsFiltre + '\nreturn { checkPromptSafety: exports.checkPromptSafety, '
   + 'checkHardFloor: exports.checkHardFloor, LISTES: { PERSONNES, NUDITE_EXTREME, MINEURS_FORT, NU_FAIBLE_GENERAL, MINEURS_VIOLENCE, '
   + 'VIOLENCE_ENFANT_GENERAL, GENERAL_CTX_SEXUEL, CONTEXTE_SEXUEL_FAIBLE, GENERAL_CTX_VIOLENCE }, '
-  + 'IDIOMES: typeof _IDIOMES === \'undefined\' ? null : _IDIOMES };')({}, _exiger);
+  // Integration 24/10 : le filtre du lot securite ne retire plus que des mots seuls dans `_IDIOMES` ; les expressions que la production retirait
+  // ENTIERES (snuff box...) sont dans `_IDIOMES_PRODUCTION`, de meme forme : c'est elle que le banc de coupe lit quand elle existe.
+  + 'IDIOMES: typeof _IDIOMES_PRODUCTION === \'undefined\' ? (typeof _IDIOMES === \'undefined\' ? null : _IDIOMES) : _IDIOMES_PRODUCTION };')({}, _exiger);
 const NEUTRE_FR = 'un chevalier avec une lanterne dans la forêt sombre';
 const SUFFIXE = 'plain white background, centered';
 

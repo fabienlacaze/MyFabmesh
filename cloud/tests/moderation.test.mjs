@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import * as CAS from './_cas-moderation.mjs';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
@@ -205,4 +206,87 @@ test('les mots ambigus du jeu ne bloquent qu en contexte', () => {
   assert.equal(checkPromptSafety(`${MIN_ENFANT} covered in blood`).safe, false, 'enfant + violence reste bloque');
   assert.equal(checkPromptSafety('breast cancer awareness ribbon').safe, true);
   assert.equal(checkPromptSafety('bite marks, sexy vampire').safe, false);
+});
+
+// ── Jeu 4 : audit langue / moderation du 11/10/2026 (cas PARTAGES avec le bureau et Modal : tests/_cas-moderation.mjs) ──
+// Contre l'ancienne version (preuve d'echec) : git show HEAD:cloud/src/nsfw_filter.ts > /tmp/ancien.ts &&
+//   NSFW_FILTER_SRC=/tmp/ancien.ts node --test tests/moderation.test.mjs
+const affiche = ([c, t]) => `${c}: ${JSON.stringify(t)}`;
+
+test('jeu 4a (M1, M2, M3, MODERATION-01, 03, 09) : le plancher tient — actes explicites, mots colles, synonymes et ages, 12 langues, caracteres effaces, chiffres et marques — meme sous unrestricted', () => {
+  const cas = CAS.casPlancher();
+  assert.ok(cas.length > 500);
+  assert.deepEqual(cas.filter(([, t]) => checkHardFloor(t).safe || checkPromptSafety(t, true).safe).map(affiche), []);
+  // contrat de l'alerte d'exploitant (worker.ts, categorieContenuGrave) : raison « Blocked: », terme « minor-safety »
+  const r = checkHardFloor(`${CAS.F('chi', 'ld')} ${CAS.ACTES[0]}`);
+  assert.equal(r.blocked, 'minor-safety');
+  assert.match(r.reason, /^Blocked: /);
+  assert.equal(r.categorie, 'plancher');
+});
+
+test('jeu 4b (M1, MODERATION-01, 03, 09) : adultes explicites — filtre general pour un compte ordinaire, jamais le plancher, permis sous unrestricted', () => {
+  const ecarts = [];
+  for (const [c, t] of CAS.casGeneral()) {
+    if (!checkHardFloor(t).safe) ecarts.push('plancher a tort ' + affiche([c, t]));
+    else if (checkPromptSafety(t, false).safe) ecarts.push('filtre general rate ' + affiche([c, t]));
+    else if (!checkPromptSafety(t, true).safe) ecarts.push('bloque sous unrestricted ' + affiche([c, t]));
+  }
+  assert.deepEqual(ecarts, []);
+});
+
+test('jeu 4c (MODERATION-05) : faux positifs corriges — vocabulaire de jeu et mots courts d autres langues acceptes ; pas de refus « illegal » sur un age ancien', () => {
+  assert.deepEqual(CAS.LEGITIMES.filter((t) => !checkHardFloor(t).safe || !checkPromptSafety(t, false).safe), []);
+  assert.deepEqual(CAS.PLANCHER_SEULEMENT.filter((t) => !checkHardFloor(t).safe), [],
+    'ces textes ne doivent jamais declencher le plancher (refus « illegal » non levable et alerte « mineurs » a l exploitant)');
+});
+
+test('jeu 4d (MODERATION-07, SERVEUR-09) : texte envoye au generateur — longueur bornee, jetons speciaux casses, poids bornes', () => {
+  const { neutraliserSyntaxePrompt, controlerLongueurPrompt, longueurPonderee, PROMPT_MAX_CARACTERES, PROMPT_MAX_ENRICHI } = exportsMod;
+  assert.equal(typeof neutraliserSyntaxePrompt, 'function', 'neutraliserSyntaxePrompt absent');
+  for (const [entree, attendu] of CAS.SYNTAXE) assert.equal(neutraliserSyntaxePrompt(entree), attendu, JSON.stringify(entree));
+  assert.equal(PROMPT_MAX_CARACTERES, 2000);
+  assert.equal(PROMPT_MAX_ENRICHI, 4000);
+  assert.deepEqual(controlerLongueurPrompt('x'.repeat(2000)), { safe: true });
+  const trop = controlerLongueurPrompt('x'.repeat(2001));
+  assert.equal(trop.safe, false);
+  assert.equal(trop.blocked, 'length');
+  assert.equal(trop.categorie, 'longueur');
+  assert.match(trop.reason, /too long/);
+  assert.equal(controlerLongueurPrompt('x'.repeat(3999), PROMPT_MAX_ENRICHI).safe, true);
+  assert.equal(longueurPonderee('ab' + '孩'), 5, 'hors alphabet latin : 3 par caractere');
+  assert.equal(controlerLongueurPrompt('孩'.repeat(667)).safe, false);
+  assert.equal(controlerLongueurPrompt('孩'.repeat(666)).safe, true);
+  assert.equal(controlerLongueurPrompt('\u200b'.repeat(5000) + 'x').safe, true, 'les caracteres effaces ne comptent pas');
+  assert.equal(controlerLongueurPrompt('x'.repeat(1_000_000)).safe, false, 'un texte enorme est refuse sans etre parcouru');
+});
+
+// ── Liste plate de l'interface (troisieme relecture du 14/10) ─────────────
+// L'interface du bureau (get-nsfw-keywords : nom et description d'un projet, src/renderer/index2.js) cherche chaque terme de
+// NSFW_KEYWORDS en mot entier (« \b »), SANS les expressions sures ni le retrait des accents. Meme recherche ici.
+test('jeu 4f : NSFW_KEYWORDS ne signale ni le colza ni un violon dans l interface, et signale toujours la nudite', () => {
+  const { NSFW_KEYWORDS } = exportsMod;
+  const echapper = (s) => String(s).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const signale = (texte) => NSFW_KEYWORDS.find((kw) => new RegExp('\\b' + echapper(kw) + '\\b').test(texte.toLowerCase()));
+  for (const t of ['a rape field at sunset', 'the rape flowers in spring', 'a yellow rape field, low poly', 'un violín de madera',
+    'a field of oilseed rape']) assert.equal(signale(t), undefined, t);
+  for (const t of [`${NA} woman`, `a ${NU} statue`, 'gore scene', `the ${F('ra', 'pe')} of a woman`]) assert.notEqual(signale(t), undefined, t);
+});
+
+test('jeu 4e : le filtre reste rapide sur un texte long (nouveaux lexiques compris)', () => {
+  for (const p of ['a brave knight in shining armor '.repeat(3000), '子供と犬 '.repeat(8000), 'x '.repeat(30000)]) {
+    const t = Date.now();
+    checkPromptSafety(p, false);
+    assert.ok(Date.now() - t < 3000, `trop lent sur ${p.length} caracteres`);
+  }
+});
+
+test('jeu 6 : lettres epelees de part et d\'autre d\'une expression que la production retirait entiere (vue exacte, mots courts)', () => {
+  // la production rapprochait « n » et « u s » en retirant « baby shower » ; le lot ne les rapprochait pas dans la vue exacte (« nus »)
+  for (const e of ['baby shower', 'bridal shower', 'bath toys', 'suicide squad', 'nu metal']) {
+    for (const t of [`${MIN_ENFANT} n ${e} u ${F('s')}`, `${MIN_ENFANT} n ${e} u e s`]) {
+      assert.equal(checkHardFloor(t).safe, false, t);
+    }
+  }
+  // temoins legitimes : l'expression seule, ou des lettres sans rapport
+  for (const t of ['a baby shower with balloons', 'a child at a baby shower', 'a child n a u s']) assert.equal(checkHardFloor(t).safe, true, t);
 });

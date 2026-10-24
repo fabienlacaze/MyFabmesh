@@ -1,0 +1,14 @@
+import { versions } from './lib_bancs.mjs';
+import { lancer, rapporter } from './balayages.mjs';
+const nom = process.argv[2];
+const fils = Number(process.argv[3] || 8);
+const complet = process.argv.includes('--complet');
+const total = Number(process.argv[4] || 200000);
+const mode = process.argv[5] || 'tout';
+const graine = Number(process.argv[6] || 1);
+const V = versions({ listes: true, sansAvant: true });
+const t0 = Date.now();
+const res = await lancer(nom, (nom === 'fuzz' || nom === 'mutations') ? { total, mode, graine } : { complet }, fils);
+console.log(`(${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+const n = rapporter(nom, res, V, process.argv.includes("--tout") ? { maxAffiches: 1000, montrerPolitique: true } : undefined);
+process.exit(n ? 1 : 0);
