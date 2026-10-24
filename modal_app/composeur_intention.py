@@ -362,6 +362,8 @@ def detecter_avertissements(texte_saisi, texte_anglais, type_actif='character', 
             codes.append('vue-demandee-gabarit-de-face')
         if it['buste']:
             codes.append('buste-gabarit-corps-entier')
+    if len(anglais) <= PROMPT_MAX_CARS and negations_perdues(anglais):
+        codes.append('negations-en-trop')
     return codes
 
 
@@ -1088,13 +1090,16 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
             if res is not None:
                 termes, fin, ferme = res
                 reprise = _neg_reprise(jetons, fin, ferme, debut, sujet)
-            # PLAFOND (24/10) : si la locution n'a plus de place parmi les 8 termes, elle RESTE telle quelle dans le texte (on ne retire jamais une negation sans l'envoyer au negatif ; une liste dans UNE locution garde ses 8 premiers termes)
-            if reprise >= 0 and len(etat) >= MAX_TERMES_NEGATIFS and any(u not in etat for u in termes):
-                reprise = -1
+            # PLAFOND (24/10, B2 de la relecture) : au-dela de 8 termes la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague) ;
+            # le terme sans place est consigne dans etat.perdus et detecter_avertissements le dit AVANT la depense (code 'negations-en-trop').
             if reprise >= 0:
                 for t in termes:
-                    if t not in etat and len(etat) < MAX_TERMES_NEGATIFS:
+                    if t in etat:
+                        continue
+                    if len(etat) < MAX_TERMES_NEGATIFS:
                         etat.append(t)
+                    elif t not in etat.perdus:
+                        etat.perdus.append(t)
                 modifie = True
                 if debut:
                     sortie = []
@@ -1199,6 +1204,13 @@ def normaliser_negations(texte):
     return t
 
 
+class _EtatNegations(list):
+    """Termes de negatif retenus (8 au plus) ; `perdus` : ceux qui n'ont pas eu de place (jamais envoyes, retires du positif)."""
+    def __init__(self):
+        super().__init__()
+        self.perdus = []
+
+
 def extraire_negations(texte, regles=None):
     """Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif).
     -> {'positif': str, 'negatifs': [str, ...]}.
@@ -1218,7 +1230,7 @@ def extraire_negations(texte, regles=None):
     t0 = t
     t = normaliser_negations(t)
     libre = _neg_casse_libre(t)
-    etat = []
+    etat = _EtatNegations()
     morceaux = []
     for seg, sep in _neg_segments(t):
         jetons = _neg_mots(seg)
@@ -1251,7 +1263,10 @@ def extraire_negations(texte, regles=None):
         # le dernier segment est parti : sa virgule orpheline aussi, mais pas le point final d'une phrase
         gardes[-1][1] = '.' if morceaux[-1][1].startswith('.') else ''
     positif = _neg_strip(''.join(seg + sep for seg, sep in gardes))
-    return {'positif': positif, 'negatifs': list(etat)}
+    res = {'positif': positif, 'negatifs': list(etat)}
+    if etat.perdus:
+        res['perdus'] = list(etat.perdus)
+    return res
 
 
 def separer_negations_outil(texte):
@@ -1312,6 +1327,11 @@ def assainir_negatifs(liste):
     return sortie
 
 
+def negations_perdues(texte, regles=None):
+    """Termes de negation sans place parmi les 8 du negatif (la 9e negation d'un texte) : jumeau de negationsPerdues."""
+    return list(negations_et_positif(texte, regles).get('perdus') or [])
+
+
 def negations_et_positif(texte, regles=None):
     """{'positif', 'negatifs'} pour FABRIQUER un prompt (jumeau de negationsEtPositif du JavaScript), avec deux garde-fous de plus qu'extraire_negations :
     1. un texte de plus de 2 000 caracteres n'est PAS analyse (extraire_negations le tronquerait : on ne coupe jamais le texte de l'utilisateur) ;
@@ -1323,5 +1343,8 @@ def negations_et_positif(texte, regles=None):
     if not r['negatifs']:
         return {'positif': t, 'negatifs': []}
     if not _neg_strip(r['positif']):
-        return {'positif': t, 'negatifs': list(r['negatifs'])}
+        res = {'positif': t, 'negatifs': list(r['negatifs'])}
+        if r.get('perdus'):
+            res['perdus'] = list(r['perdus'])
+        return res
     return r

@@ -1276,7 +1276,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "no ring",
+    "positif": "",
     "negatifs": [
      "hat",
      "coat",
@@ -1676,7 +1676,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "no ring, no sock, no vest, no cloak",
+    "positif": "",
     "negatifs": [
      "hat",
      "coat",
@@ -3144,7 +3144,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "A knight, no ring, no sock",
+    "positif": "A knight",
     "negatifs": [
      "hat",
      "coat",
@@ -4285,7 +4285,7 @@
   "style": "realistic",
   "attendu": {
    "negations": {
-    "positif": "A knight, no dagger",
+    "positif": "A knight",
     "negatifs": [
      "helmet",
      "shield",

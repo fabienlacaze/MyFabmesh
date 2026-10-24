@@ -863,6 +863,7 @@ const _TEXTES_AVERTISSEMENT = {
   'quantite-deux-personnages-gabarit-un-seul': 'You describe several characters, but the template draws one single character.',
   'vue-demandee-gabarit-de-face': 'You ask for a particular view, but the template asks for a front view.',
   'buste-gabarit-corps-entier': 'You ask for a portrait or a bust, but the template asks for a full body.',
+  'negations-en-trop': "You list more than 8 things to avoid (no X, without X). Only the first 8 are applied as exclusions; the others are removed from your description and may still appear. Shorten the list.",
 };
 function _nbMotsAvertissement(...textes) {
   let n = 0;

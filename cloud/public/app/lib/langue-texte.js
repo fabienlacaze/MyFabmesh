@@ -660,6 +660,28 @@ export function ressembleAnglais(texte) {
   return detecterLangue(texte).langue === 'en';
 }
 
+// Interface ANGLAISE : une detection etrangere qui n'est que PROBABLE est traduite quand elle est ETAYEE (24/10, B1 de la relecture) : au moins deux mots distincts de
+// la langue ("un orco sin casco"), et soit aucun mot anglais, soit un seul avec un score >= 3 et moins de deux noms propres ("No me gusta el casco, un orco",
+// mais pas "Von Braun rocket"). Un indice FAIBLE (un mot, des accents d'emprunt : "pan flute", "die cast car") ne reecrit toujours pas le prompt d'un anglophone
+// (revue du 14/10, B2). Texte sans langue reconnue mais qui COMMENCE par un article etranger sans equivalent anglais (un, una, une, um, uma, el, los :
+// "un abogado", "um advogado") : langue DEVINEE, le traducteur la corrige en pratique.
+const ARTICLES_ETRANGERS = { un: 'es', una: 'es', une: 'fr', um: 'pt', uma: 'pt', el: 'es', los: 'es' };
+function etrangerEtaye(texte, d) {
+  if (!d || !d.langue || d.langue === 'en' || d.ecriture !== 'latin') return false;
+  const { s, mots } = scoresLatins(String(texte).trim());
+  const nm = mots[d.langue] ? mots[d.langue].size : 0;
+  if (nm < 2 || String(texte).split(/[^\p{L}]+/u).filter(Boolean).length < 4) return false;   // trop court pour trancher : "pour homme cologne" reste tel quel
+  if (s.en === 0) return true;
+  const majuscules = (String(texte).match(/(?:^|[\s,;.])\p{Lu}\p{L}*/gu) || []).length;
+  return s.en === 1 && (s[d.langue] || 0) >= 3 && majuscules < 2;
+}
+function articleEtranger(texte) {
+  const t = String(texte == null ? '' : texte).trim();
+  const m = /^([a-z]+)\s+\S/.exec(t);   // minuscules seulement
+  if (!m || t.split(/\s+/).length > 12 || !Object.prototype.hasOwnProperty.call(ARTICLES_ETRANGERS, m[1])) return null;
+  return scoresLatins(t).s.en === 0 ? ARTICLES_ETRANGERS[m[1]] : null;
+}
+
 /** Langue DEPUIS laquelle traduire `texte`, ou null s'il n'y a rien a traduire (deja anglais, vide).
  *  La langue du TEXTE l'emporte ; sans indice, la langue de l'interface (si ce n'est pas l'anglais).
  *  Interface ANGLAISE (2026-10-14, revue du lot 2, B2) : seul un texte SUREMENT etranger part au traducteur. Un indice faible (un mot,
@@ -670,7 +692,10 @@ export function langueSource(texte, langueInterface) {
   const d = detecterLangue(texte);
   if (d.langue === 'en') return null;
   const ui = normaliserCodeLangue(langueInterface);
-  if (ui === 'en') return d.langue && d.sure ? d.langue : null;
+  // Interface ANGLAISE (24/10, B1 de la relecture) : une langue etrangere meme PEU SURE (« un orco sin casco », « um papagaio em um poleiro »)
+  // est traduite : la detection ne la donne que si l'etranger domine l'anglais (score >= 1,5 x en). Seul un texte SANS langue (camper van,
+  // creme brulee, sombrero) reste intact : on ne reecrit pas un emprunt.
+  if (ui === 'en') return d.langue && (d.sure || etrangerEtaye(texte, d)) ? d.langue : (d.langue ? null : articleEtranger(texte));
   if (d.langue) return d.langue;
   return ui || null;
 }
