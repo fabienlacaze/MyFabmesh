@@ -977,7 +977,7 @@ const AIDE_PROMPT_EN = {
   angl: "Write in English for the best results: this field is not translated.",
 };
 /** Champs de prompt dont le texte n'est PAS traduit avant d'atteindre l'IA sur cette plateforme (l'aide le dit au lieu de promettre). */
-const CHAMPS_PROMPT_SANS_TRADUCTION = new Set(['rfn-prompt']);
+const CHAMPS_PROMPT_SANS_TRADUCTION = new Set([]);
 /** Vrai si le texte saisi dans ce champ passe par la traduction vers l'anglais (meme fonction que la traduction : traduireTexteUtilisateur). */
 function _traductionActivePour(idChamp) { return !(idChamp && CHAMPS_PROMPT_SANS_TRADUCTION.has(idChamp)); }
 /** Texte de l'aide d'un champ, dans la langue de l'interface. Sans id (anciens appelants), le champ est suppose traduit. */

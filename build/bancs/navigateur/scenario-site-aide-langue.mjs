@@ -88,9 +88,6 @@ async function corps(page, out, echecs) {
       if (a.ellipse === 'ellipsis' || a.espaces === 'nowrap') echecs.push(`${lang} #${a.pour} : ellipse / nowrap`);
     }
     if (lang === 'ar' && etat.dir !== 'rtl') echecs.push('ar : page non RTL');
-    const rfn = etat.aides.find((a) => a.pour === 'rfn-prompt');
-    const mod = etat.aides.find((a) => a.pour === 'mod-prompt');
-    if (rfn && mod && rfn.texte === mod.texte) echecs.push(`${lang} : le champ non traduit (rfn-prompt, outil bureau seul) dit la meme chose qu un champ traduit`);
     // captures : les modales ouvertes une a une
     for (const idm of MODALES) {
       await main(page, `
