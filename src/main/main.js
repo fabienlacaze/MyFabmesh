@@ -11405,7 +11405,7 @@ function _causeHiDream(stderr, brut) {
   const derniere = t.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(-1)[0] || 'unknown error';
   return { bloque: false, detail: 'HiDream a echoue : ' + derniere.slice(0, 300), message: 'HiDream failed: ' + derniere.slice(0, 200) };
 }
-// NEGATIONS DE L'UTILISATEUR (2026-10-03). Le renderer sort « no helmet » du prompt et l'envoie au NEGATIF : champ `negativeExtra` (termes de 1 a 3 mots, 8 au plus, 40 caracteres
+// NEGATIONS DE L'UTILISATEUR (2026-10-03). Le renderer sort « no helmet » du prompt et l'envoie au NEGATIF : champ `negativeExtra` (termes de 1 a 3 mots, 20 au plus = NEG_MAX_LONG, 40 caracteres
 // au plus, lettres / espaces / tirets ; meme regle que assainir_negatifs de scripts/composeur_intention.py). Tout ce qui arrive ici est re-verifie : un terme invalide est ecarte.
 // Garde-robe / nudite (2026-10-14) : jamais au negatif (ils pousseraient vers la nudite sans que le texte en garde la trace). MEME LISTE que _NEG_SENSIBLES de
 // scripts/composeur_intention.py : les entrees gravees de build/intention_attendus.json (cle `assainir`) la contiennent en entier, tests/main/negations_bureau.test.mjs les rejoue.
@@ -11422,7 +11422,7 @@ function _assainirNegativeExtra(brut) {
     if (!t || t.length > 40 || !/^[a-z]+(?:[ -][a-z]+)*$/.test(t) || sortie.includes(t)) continue;
     if (t.split(/[ -]/).some((p) => _NEG_SENSIBLES.has(p))) continue;
     sortie.push(t);
-    if (sortie.length >= 8) break;
+    if (sortie.length >= 20) break;
   }
   return sortie;
 }

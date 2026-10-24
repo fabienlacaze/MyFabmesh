@@ -35,7 +35,7 @@
     'fully finished and complete, every detail present, clean polished final version',
   ];
 
-  // Termes de negatif envoyes a /api/generate-image (champ `negativeExtra`, NEGATIONS de l'utilisateur : « no helmet » -> « helmet ») : 8 au plus, 40 caracteres,
+  // Termes de negatif envoyes a /api/generate-image (champ `negativeExtra`, NEGATIONS de l'utilisateur : « no helmet » -> « helmet ») : 20 au plus (NEG_MAX_LONG de lib/composeur-intention.js : generation d'image, encodeur long), 40 caracteres,
   // lettres / espaces / tirets, sans doublon (meme regle que le serveur et que index2.js). Un element invalide est ecarte.
   // Garde-robe / nudite (2026-10-14) : jamais au negatif. MEME LISTE que _NEG_SENSIBLES de scripts/composeur_intention.py (entrees gravees `assainir` de
   // build/intention_attendus.json, rejouees par tests/bureau-interface/negations-site.test.mjs).
@@ -52,7 +52,7 @@
       if (!t || t.length > 40 || !/^[a-z]+(?:[ -][a-z]+)*$/.test(t) || sortie.includes(t)) continue;
       if (t.split(/[ -]/).some((p) => _NEG_SENSIBLES.has(p))) continue;
       sortie.push(t);
-      if (sortie.length >= 8) break;
+      if (sortie.length >= 20) break;
     }
     return sortie;
   }

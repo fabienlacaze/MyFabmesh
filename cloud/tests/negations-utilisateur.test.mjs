@@ -2,7 +2,7 @@
 // (`negativeExtra`) ; le WORKER le nettoie de facon stricte et le transporte a Modal (`negative_extra`), qui l'ajoute au NEGATIF.
 // Charge les VRAIES fonctions de cloud/src/worker.ts (transpilees) avec des doublures : aucun reseau, aucun GPU.
 // Prouve :
-//   - _nettoyerNegativeExtra : 8 termes au plus, 40 caracteres, lettres / espaces / tirets, minuscules, sans doublon ; tout le reste est ECARTE sans erreur ;
+//   - _nettoyerNegativeExtra : 20 termes au plus (NEG_MAX_LONG ; 8 si on lui passe le plafond d'un outil direct), 40 caracteres, lettres / espaces / tirets, minuscules, sans doublon ; tout le reste est ECARTE sans erreur ;
 //     la garde-robe et la nudite sont refusees (meme liste que le tri du client) ; une negation que le filtre de moderation traite comme de la nudite
 //     est, par construction, dans cette liste ;
 //   - handleGenerateImage transporte le champ nettoye (route T-pose : `negativeExtra` ; route text2image : `negative_extra`) sans toucher au prix, au debit
@@ -28,7 +28,7 @@ const { checkPromptSafety } = _modFiltre;
 const lire = (rel) => readFileSync(new URL('../' + rel, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 /** Noms nouveaux du worker : absents de l'ANCIEN code (WORKER_SRC), les tests qui n'en ont pas besoin restent executables dessus. */
-const NOUVEAUX = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_TERMES', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
+const NOUVEAUX = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_DIRECT', 'NEG_MAX_LONG', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
 const charger = (noms, doublures) => chargerFonctions([...noms, ...NOUVEAUX.filter((n) => existe(n))], doublures);
 
 /* ═══════════════ 1. LE NETTOYAGE (fonction pure) ═══════════════ */
@@ -52,11 +52,18 @@ test('nettoyage : tout ce qui n\'est pas un terme propre est ECARTE (jamais corr
   assert.deepEqual(net(['(nude:0)', 'helmet', 7, 'cape']), ['helmet', 'cape']);
 });
 
-test('nettoyage : doublons ecartes, 8 termes au plus, jamais plus de 64 elements lus', () => {
+test('nettoyage : doublons ecartes, 20 termes au plus, jamais plus de 64 elements lus', () => {
   assert.deepEqual(net(['a', 'A', 'a ', ' a', 'b']), ['a', 'b']);
   const douze = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima'];
-  assert.deepEqual(net(douze), douze.slice(0, 8));
-  assert.deepEqual(net(Array(10).fill('(x)').concat(douze)), douze.slice(0, 8), 'les elements invalides ne prennent pas de place parmi les 8');
+  assert.deepEqual(net(douze), douze, '12 termes : tous gardes (route longue)');
+  assert.deepEqual(net(Array(10).fill('(x)').concat(douze)), douze, 'les elements invalides ne prennent pas de place');
+  const vingtCinq = Array.from({ length: 25 }, (_, i) => 'mot' + String.fromCharCode(97 + i));
+  assert.deepEqual(net(vingtCinq), vingtCinq.slice(0, 20), 'le 21e terme et les suivants sont ecartes sans erreur');
+  assert.deepEqual(net(vingtCinq.slice(0, 20)), vingtCinq.slice(0, 20), 'exactement 20 : tous gardes');
+  const w = charger([]);
+  assert.deepEqual(w._nettoyerNegativeExtra(vingtCinq, 8), vingtCinq.slice(0, 8), 'plafond d un outil direct : 8');
+  assert.deepEqual(w._nettoyerNegativeExtra(vingtCinq, 99), vingtCinq.slice(0, 8), 'plafond invalide : le plus prudent');
+  assert.deepEqual(w._nettoyerNegativeExtra(vingtCinq, undefined), vingtCinq.slice(0, 20), 'plafond absent : celui de la route longue');
   assert.deepEqual(net(Array(100).fill('(x)').concat(douze)), [], 'jamais plus de 64 elements lus : meme borne que Modal (termes_negatifs_valides)');
   // un tableau enorme ne coute pas plus qu'un petit
   const enorme = new Array(2_000_000).fill('zz');
@@ -75,6 +82,7 @@ test('nettoyage : la garde-robe et la nudite sont refusees, morceaux a tiret com
 // Vecteurs du nettoyage : LES MEMES que VECTEURS_NETTOYAGE de build/bancs/noyaux/test_composeur_modal.py (Modal, Python). Le worker (JS) et Modal nettoient a
 // l'IDENTIQUE ; verifie en plus le 2026-10-03 sur 6 007 entrees tirees au hasard (graine fixe) : 0 difference entre les deux implementations.
 const DOUZE_TERMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima'];
+const VINGT_CINQ_TERMES = Array.from({ length: 25 }, (_, i) => 'mot' + String.fromCharCode(97 + i));
 const VECTEURS_NETTOYAGE = [
   [['helmet', 'beard'], ['helmet', 'beard']],
   [['Golden  Crown', '\tCAPE\n'], ['golden crown', 'cape']],
@@ -94,8 +102,9 @@ const VECTEURS_NETTOYAGE = [
   ['helmet', []],
   [{ a: 1 }, []],
   [5, []],
-  [DOUZE_TERMES, DOUZE_TERMES.slice(0, 8)],
-  [Array(10).fill('(x)').concat(DOUZE_TERMES), DOUZE_TERMES.slice(0, 8)],
+  [DOUZE_TERMES, DOUZE_TERMES],
+  [Array(10).fill('(x)').concat(DOUZE_TERMES), DOUZE_TERMES],
+  [VINGT_CINQ_TERMES, VINGT_CINQ_TERMES.slice(0, 20)],
   [Array(100).fill('(x)').concat(DOUZE_TERMES), []],
 ];
 
@@ -103,7 +112,7 @@ test('nettoyage : vecteurs communs avec Modal (memes entrees, memes sorties)', (
   for (const [entree, attendu] of VECTEURS_NETTOYAGE) assert.deepEqual(net(entree), attendu, JSON.stringify(entree));
 });
 
-test('nettoyage : propriete sur 5 000 entrees tirees au hasard — jamais plus de 8 termes, tous propres, sans doublon, sans garde-robe', () => {
+test('nettoyage : propriete sur 5 000 entrees tirees au hasard — jamais plus de 20 termes, tous propres, sans doublon, sans garde-robe', () => {
   const w = charger([]);
   let etat = 20261003;                                       // generateur congruentiel : meme suite a chaque lancement
   const hasard = () => { etat = (Math.imul(etat, 1664525) + 1013904223) >>> 0; return etat / 4294967296; };
@@ -116,7 +125,7 @@ test('nettoyage : propriete sur 5 000 entrees tirees au hasard — jamais plus d
     const entree = Array.from({ length: k }, () => (hasard() < 0.1 ? choix([null, 3, {}, ['x'], true])
       : Array.from({ length: 1 + Math.floor(hasard() * 3) }, () => choix(morceaux)).join(choix([' ', '', '-', '\t']))));
     const sortie = w._nettoyerNegativeExtra(entree);
-    assert.ok(sortie.length <= 8, JSON.stringify(entree));
+    assert.ok(sortie.length <= 20, JSON.stringify(entree));
     assert.equal(new Set(sortie).size, sortie.length, 'doublon : ' + JSON.stringify(sortie));
     for (const t of sortie) {
       retenus++;
@@ -128,13 +137,15 @@ test('nettoyage : propriete sur 5 000 entrees tirees au hasard — jamais plus d
   assert.ok(retenus > 1000, 'le generateur doit produire de vrais termes : ' + retenus);
 });
 
-test('les constantes du nettoyage (8 termes, 40 caracteres) sont celles du tri du client', () => {
+test('les constantes du nettoyage (8 / 20 termes, 40 caracteres) sont celles du tri du client', () => {
   const w = charger([]);
-  assert.equal(w.NEG_MAX_TERMES, 8);
+  assert.equal(w.NEG_MAX_DIRECT, 8);
+  assert.equal(w.NEG_MAX_LONG, 20);
   assert.equal(w.NEG_MAX_CARS, 40);
   for (const chemin of ['../../scripts/composeur_intention.py', '../../modal_app/composeur_intention.py']) {
     const py = readFileSync(new URL(chemin, import.meta.url), 'utf8');
-    assert.match(py, /^MAX_TERMES_NEGATIFS = 8\b/m, chemin);
+    assert.match(py, /^NEG_MAX_DIRECT = 8\b/m, chemin);
+    assert.match(py, /^NEG_MAX_LONG = 20\b/m, chemin);
     assert.match(py, /^MAX_CARS_TERME = 40\b/m, chemin);
   }
 });
@@ -263,11 +274,11 @@ test('un champ inattendu n\'est JAMAIS une erreur : ecarte, la generation part, 
   }
 });
 
-test('une inondation de termes valides est bornee a 8 par le worker', async () => {
+test('une inondation de termes valides est bornee a 20 par le worker', async () => {
   const { j, appeler } = monter();
   const cent = Array.from({ length: 100 }, (_, i) => 'terme' + String.fromCharCode(97 + (i % 26)).repeat(1 + Math.floor(i / 26)));
   await appeler({ ...BASE, numImages: 1, negativeExtra: cent });
-  assert.equal(j.t2iAppels[0].negative_extra.length, 8);
+  assert.equal(j.t2iAppels[0].negative_extra.length, 20);
 });
 
 test('le prix, le debit, le remboursement et le journal ne changent pas avec les negations', async () => {

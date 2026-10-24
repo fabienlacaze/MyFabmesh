@@ -132,6 +132,7 @@ class Negations(unittest.TestCase):
         positif, negatifs = self.ext('A knight without ' + ' and '.join(noms))
         self.assertEqual((positif, negatifs), ('A knight', noms[:8]))
         self.assertEqual(self.C.MAX_TERMES_NEGATIFS, 8)
+        self.assertEqual((self.C.NEG_MAX_DIRECT, self.C.NEG_MAX_LONG), (8, 20))
 
     def test_quarante_caracteres_au_plus(self):
         long = 'a' * 30 + ' ' + 'b' * 9                      # 40 caracteres : accepte
@@ -224,7 +225,12 @@ class Negations(unittest.TestCase):
         self.assertEqual(a(['x' * 40, 'x' * 41]), ['x' * 40])
         self.assertEqual(a(['café', 'helmet2', "knight's", 'no, helmet', '']), [], 'lettres ASCII, espaces, tirets : le reste est ecarte, jamais corrige')
         self.assertEqual(a([1, None, True, ['helmet'], {'a': 1}, 'ok']), ['ok'])
-        self.assertEqual(len(a([chr(97 + i) for i in range(20)])), 8, '8 termes au plus')
+        self.assertEqual(len(a([chr(97 + i) for i in range(20)])), 8, '8 termes au plus (plafond absent : le plus prudent)')
+        self.assertEqual(len(a([chr(97 + i) for i in range(25)], self.C.NEG_MAX_LONG)), 20, '20 termes au plus sur une route longue')
+        self.assertEqual(len(a([chr(97 + i) for i in range(25)], self.C.NEG_MAX_DIRECT)), 8)
+        self.assertEqual(len(a([chr(97 + i) for i in range(25)], 99)), 8, 'plafond invalide : le plus prudent')
+        self.assertEqual(len(a([chr(97 + i) for i in range(25)], 0)), 8)
+        self.assertEqual(len(a([chr(97 + i) for i in range(25)], True)), 8)
         for pas_une_liste in ('helmet', None, 7, {'a': 'b'}):
             self.assertEqual(a(pas_une_liste), [])
         self.assertEqual(a(('helmet', 'beard')), ['helmet', 'beard'], 'un tuple est accepte')
@@ -386,6 +392,121 @@ class Negations(unittest.TestCase):
         self.assertEqual(len(js), len(textes))
         ecarts = [(t, list(self.ext(t)), j) for t, j in zip(textes, js) if list(self.ext(t)) != j]
         self.assertEqual(ecarts[:5], [], '%d ecart(s) Python / JavaScript sur %d textes' % (len(ecarts), len(textes)))
+
+MOTS20 = ['helmet', 'cape', 'sword', 'shield', 'crown', 'boots', 'belt', 'ring', 'staff', 'horns', 'wings', 'tail', 'beard', 'scarf', 'gloves', 'amulet', 'spear',
+          'quiver', 'hood', 'mask', 'banner', 'chain']
+
+
+class PlafondParRoute(unittest.TestCase):
+    """24/10, plafond de negations par route : 20 sur les routes a encodeur long (generation d'image), 8 sur les outils a appel direct (budget de 77 jetons).
+    Chaque assertion ECHOUE si le plafond est ignore, mal transmis ou mal borne (voir test_mutations_negations.py)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.C = charger()
+
+    def virgules(self, n):
+        if not n:
+            return 'An orc warrior, holding an axe'
+        return 'An orc warrior, ' + ', '.join('no ' + m for m in MOTS20[:n]) + ', holding an axe'
+
+    def test_constantes(self):
+        self.assertEqual((self.C.NEG_MAX_DIRECT, self.C.NEG_MAX_LONG), (8, 20))
+        self.assertEqual(self.C.MAX_TERMES_NEGATIFS, 8, 'ancien nom : le plafond prudent')
+
+    def test_douze_vingt_et_vingt_et_une_negations_sur_une_route_longue(self):
+        for n, gardes, perdus in ((12, 12, []), (20, 20, []), (21, 20, ['banner'])):
+            t = self.virgules(n)
+            r = self.C.negations_et_positif(t, None, self.C.NEG_MAX_LONG)
+            self.assertEqual(r['negatifs'], MOTS20[:gardes], n)
+            self.assertEqual(r.get('perdus', []), perdus, n)
+            self.assertEqual(r['positif'], 'An orc warrior, holding an axe', 'les %d locutions quittent le positif, la 21e aussi' % n)
+            self.assertEqual(self.C.negations_perdues(t, None, self.C.NEG_MAX_LONG), perdus)
+            codes = self.C.detecter_avertissements(t, t, 'prop', True, self.C.NEG_MAX_LONG)
+            self.assertEqual('negations-en-trop' in codes, bool(perdus), n)
+
+    def test_neuf_negations_sur_un_outil_direct_la_neuvieme_est_annoncee(self):
+        t = self.virgules(9)
+        for plafond in (None, self.C.NEG_MAX_DIRECT):
+            r = self.C.negations_et_positif(t, None, plafond)
+            self.assertEqual(r['negatifs'], MOTS20[:8])
+            self.assertEqual(r['perdus'], [MOTS20[8]])
+            self.assertEqual(r['positif'], 'An orc warrior, holding an axe')
+            self.assertIn('negations-en-trop', self.C.detecter_avertissements(t, t, 'prop', True, plafond))
+        # la meme phrase sur une route longue : rien a annoncer
+        self.assertNotIn('negations-en-trop', self.C.detecter_avertissements(t, t, 'prop', True, self.C.NEG_MAX_LONG))
+
+    def test_outil_direct_separer_negations_outil_reste_a_huit(self):
+        positif, termes = self.C.separer_negations_outil(self.virgules(12))
+        self.assertEqual(termes, MOTS20[:8])
+        self.assertEqual(positif, 'An orc warrior, holding an axe')
+
+    def test_les_trois_formes_de_liste(self):
+        for n, perdus in ((12, []), (20, []), (22, MOTS20[20:22])):
+            mots = MOTS20[:n]
+            formes = [
+                'An orc with no ' + ', '.join(mots[:-1]) + ' or ' + mots[-1] + ', holding an axe',
+                'An orc without ' + ' and '.join(mots) + ', holding an axe',
+                'An orc, ' + ', '.join('no ' + m for m in mots) + ', holding an axe',
+            ]
+            for f in formes:
+                r = self.C.negations_et_positif(f, None, self.C.NEG_MAX_LONG)
+                self.assertEqual(r['negatifs'], mots[:20], f[:50])
+                self.assertEqual(r.get('perdus', []), perdus, f[:50])
+                self.assertIn('holding an axe', r['positif'])
+                for m in mots:
+                    self.assertNotIn(m, r['positif'].split(), 'la locution ' + m + ' est restee dans le positif')
+
+    def test_zero_a_huit_negations_donnent_le_meme_resultat_a_l_octet_pour_tout_plafond(self):
+        for n in range(0, 9):
+            t = self.virgules(n) if n else 'An orc warrior, holding an axe'
+            avant = self.C.extraire_negations(t)
+            for plafond in (None, 8, 20):
+                self.assertEqual(self.C.extraire_negations(t, None, plafond), avant, (n, plafond))
+                self.assertEqual(self.C.negations_et_positif(t, None, plafond), self.C.negations_et_positif(t), (n, plafond))
+            if n == 0:
+                self.assertEqual(avant['positif'], t, 'sans negation : le texte a l\'octet')
+
+    def test_plafond_invalide_prend_le_plus_prudent(self):
+        t = self.virgules(12)
+        for p in (0, -1, 21, 99, True, False, 8.0, '20', [20]):
+            self.assertEqual(len(self.C.extraire_negations(t, None, p)['negatifs']), 8, repr(p))
+
+    def test_assainir_a_chaque_plafond(self):
+        liste = [m for m in MOTS20]
+        self.assertEqual(self.C.assainir_negatifs(liste), liste[:8])
+        self.assertEqual(self.C.assainir_negatifs(liste, 8), liste[:8])
+        self.assertEqual(self.C.assainir_negatifs(liste, 20), liste[:20])
+        self.assertEqual(self.C.assainir_negatifs(liste, 12), liste[:12])
+
+    def test_python_et_javascript_donnent_les_memes_negations_a_chaque_plafond(self):
+        textes = [self.virgules(n) for n in (0, 8, 9, 12, 20, 21)]
+        rep = tempfile.mkdtemp(prefix='plafond-js-')
+        try:
+            script = os.path.join(rep, 'sortie.mjs')
+            with io.open(script, 'w', encoding='utf-8') as f:
+                f.write("import fs from 'node:fs'; import path from 'node:path'; import os from 'node:os'; import { pathToFileURL } from 'node:url';\n"
+                        "const [, , lib, entrees, sorties] = process.argv;\n"
+                        "const copie = path.join(path.dirname(sorties), 'lib.mjs'); fs.writeFileSync(copie, fs.readFileSync(lib, 'utf8'));\n"
+                        "const m = await import(pathToFileURL(copie).href);\n"
+                        "const textes = JSON.parse(fs.readFileSync(entrees, 'utf8')); const out = [];\n"
+                        "for (const t of textes) for (const p of [undefined, 8, 20]) { const r = m.negationsEtPositif(t, undefined, p); out.push([r.positif, r.negatifs, r.perdus || []]); }\n"
+                        "fs.writeFileSync(sorties, JSON.stringify(out), 'utf8');\n")
+            entrees, sorties = os.path.join(rep, 'in.json'), os.path.join(rep, 'out.json')
+            with io.open(entrees, 'w', encoding='utf-8') as f:
+                json.dump(textes, f)
+            r = subprocess.run(['node', script, JS_LIB, entrees, sorties], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            self.assertEqual(r.returncode, 0, r.stderr[:500])
+            with io.open(sorties, 'r', encoding='utf-8') as f:
+                js = json.load(f)
+        finally:
+            shutil.rmtree(rep, ignore_errors=True)
+        attendu = []
+        for t in textes:
+            for p in (None, 8, 20):
+                r = self.C.negations_et_positif(t, None, p)
+                attendu.append([r['positif'], r['negatifs'], r.get('perdus', [])])
+        self.assertEqual(js, attendu)
 
 
 if __name__ == '__main__':

@@ -288,7 +288,7 @@ export function detecterAvertissements(texteSaisi, texteAnglais, typeActif, opti
   if (Math.max(Array.from(saisi).length, Array.from(anglais).length) > PROMPT_MAX_CARS) codes.push('texte-trop-long');
   else if (Math.max(compterMots(saisi), compterMots(anglais)) >= SEUIL_MOTS_LONG) codes.push('texte-long');
   if (TYPES_AVEC_AVERTISSEMENTS.includes(typeActif)) {
-    const t = Array.from(anglais).length > PROMPT_MAX_CARS ? anglais : positifSansNegations(anglais);   // « not sitting » n'est pas une demande d'assis
+    const t = Array.from(anglais).length > PROMPT_MAX_CARS ? anglais : positifSansNegations(anglais, undefined, options && options.plafond);   // « not sitting » n'est pas une demande d'assis
     const it = analyser(t, typeActif, '');
     const tpose = !(options && options.tpose === false);
     if (typeActif === 'character' && tpose && it.pose_libre) codes.push('pose-incompatible-avec-tpose');
@@ -296,7 +296,7 @@ export function detecterAvertissements(texteSaisi, texteAnglais, typeActif, opti
     if (it.vue) codes.push('vue-demandee-gabarit-de-face');
     if (it.buste) codes.push('buste-gabarit-corps-entier');
   }
-  if (actif() && negationsPerdues(Array.from(anglais).length > PROMPT_MAX_CARS ? '' : anglais).length) codes.push('negations-en-trop');
+  if (actif() && negationsPerdues(Array.from(anglais).length > PROMPT_MAX_CARS ? '' : anglais, undefined, options && options.plafond).length) codes.push('negations-en-trop');
   return codes;
 }
 
@@ -488,12 +488,19 @@ export function nettoyerVirgules(texte) {
 // suit le mot d'exception), un second groupe nominal sans liaison (« no beard a mustache »), un nom SUJET d'un verbe conjugue (« no soldier wears a helmet »), les
 // titres, une liste dont un element est illisible (« without a hat and shirt ») et la garde-robe (« without clothes » : le filtre de moderation doit la VOIR).
 // « of » prolonge un groupe (« no signs of rust »). Une negation en TETE de segment retire son complement mais GARDE la proposition verbale qui la suit
-// (« no helmet holding axe » -> « holding axe ») ; au MILIEU d'une phrase seule la locution part. Au-dela de 8 termes, les negations suivantes quittent aussi le positif.
+// (« no helmet holding axe » -> « holding axe ») ; au MILIEU d'une phrase seule la locution part. Au-dela du plafond de la route, les negations suivantes quittent aussi le positif.
 // Ce qui SUIT la locution, au milieu d'une phrase (2026-10-18) : un participe qui decrit le SUJET reste dans le positif (« an orc with no helmet standing » -> « an orc standing ») ;
 // une conjonction (« but », « and ») qui introduit un complement positif reprend le mot qui liait la locution (« a man with no beard but a mustache » -> « a man with a mustache »).
 // Un segment qui COMMENCE par la negation (« a street, no birds flying ») garde son participe dans le terme.
 export const MAX_TEXTE_NEGATIONS = 2000;
-export const MAX_TERMES_NEGATIFS = 8;
+// PLAFOND DE NEGATIONS PAR ROUTE (24/10) : voir le jumeau Python. NEG_MAX_LONG = routes a encodeur long (generation d'image : champ `negativeExtra`) ; NEG_MAX_DIRECT =
+// outils a appel direct (budget de 77 jetons). Sans plafond passe, les fonctions prennent le PLUS PETIT ; l'interface passe NEG_MAX_LONG pour la generation.
+export const NEG_MAX_DIRECT = 8;
+export const NEG_MAX_LONG = 20;
+export const MAX_TERMES_NEGATIFS = NEG_MAX_DIRECT;
+function plafondDe(plafond) {
+  return (Number.isInteger(plafond) && plafond >= 1 && plafond <= NEG_MAX_LONG) ? plafond : NEG_MAX_DIRECT;
+}
 export const MAX_CARS_TERME = 40;
 export const MAX_MOTS_TERME = 3;
 
@@ -855,7 +862,7 @@ function negTitrePuisNom(jetons, i) {
 }
 
 /** Un segment (entre deux virgules). -> [action, jetons], action : 'garder' | 'modifier' | 'retirer'. Les termes trouves sont ajoutes a `etat` (8 au plus). */
-function negTraiterSegment(jetons, etat, casseLibre) {
+function negTraiterSegment(jetons, etat, casseLibre) {   // etat.plafond : termes de la route
   const n = jetons.length;
   let sortie = [];
   let i = 0;
@@ -910,14 +917,14 @@ function negTraiterSegment(jetons, etat, casseLibre) {
         termes = res[0];
         reprise = negReprise(jetons, res[1], res[2], debut, sujet);
       }
-      // PLAFOND (24/10, B2 de la relecture) : au-dela de 8 termes la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague : pire que l'oubli) ;
+      // PLAFOND (24/10, B2 de la relecture) : au-dela du plafond de la route la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague : pire que l'oubli) ;
       // le terme sans place est consigne dans etat.perdus et detecterAvertissements le dit AVANT la depense (code 'negations-en-trop').
       if (reprise >= 0) {
         fermeDer = res[2];
         debutDer = debut;
         for (const t of termes) {
           if (etat.includes(t)) continue;
-          if (etat.length < MAX_TERMES_NEGATIFS) etat.push(t);
+          if (etat.length < etat.plafond) etat.push(t);
           else if (!etat.perdus.includes(t)) etat.perdus.push(t);
         }
         modifie = true;
@@ -1065,7 +1072,7 @@ export function normaliserNegations(texte) {
 /** Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif). -> { positif, negatifs }.
  *  Memes regles que extraire_negations() du module Python (voir son docstring). Un texte sans negation est rendu OCTET POUR OCTET.
  *  `regles` sans 'negations' (interrupteur d'urgence : []) : rien n'est extrait. */
-export function extraireNegations(texte, regles) {
+export function extraireNegations(texte, regles, plafond) {
   let t = typeof texte === 'string' ? texte : (texte == null ? '' : String(texte));
   if (t.length > MAX_TEXTE_NEGATIONS) t = Array.from(t).slice(0, MAX_TEXTE_NEGATIONS).join('');
   if (!_regles(regles).includes('negations')) return { positif: t, negatifs: [] };
@@ -1073,6 +1080,7 @@ export function extraireNegations(texte, regles) {
   t = normaliserNegations(t);
   const libre = negCasseLibre(t);
   const etat = [];
+  etat.plafond = plafondDe(plafond);
   etat.perdus = [];
   const morceaux = [];
   const segs = negSegments(t);
@@ -1122,35 +1130,36 @@ function negTropLong(t) {
 }
 
 /** { positif, negatifs } pour fabriquer un prompt : voir les deux garde-fous ci-dessus. */
-export function negationsEtPositif(texte, regles) {
+export function negationsEtPositif(texte, regles, plafond) {
   const t = String(texte == null ? '' : texte);
   if (negTropLong(t)) return { positif: t, negatifs: [] };
-  const r = extraireNegations(t, regles);
+  const r = extraireNegations(t, regles, plafond);
   if (!r.negatifs.length) return { positif: t, negatifs: [] };
   if (!negStrip(r.positif)) return { positif: t, negatifs: r.negatifs, ...(r.perdus ? { perdus: r.perdus } : {}) };
   return r;
 }
 
 /** Le texte sans ses locutions negatives (« an orc, no helmet, holding a club » -> « an orc, holding a club »), ou le texte lui-meme. */
-export function positifSansNegations(texte, regles) {
-  return negationsEtPositif(texte, regles).positif;
+export function positifSansNegations(texte, regles, plafond) {
+  return negationsEtPositif(texte, regles, plafond).positif;
 }
 
-/** Les termes de negation qui n'ont PAS eu de place parmi les 8 du negatif (retires du positif, jamais envoyes) : la 9e negation d'un texte. */
-export function negationsPerdues(texte, regles) {
-  return negationsEtPositif(texte, regles).perdus || [];
+/** Les termes de negation qui n'ont PAS eu de place parmi celles du negatif de la route (retires du positif, jamais envoyes) : la 9e negation d'un outil direct, la 21e d'une generation. */
+export function negationsPerdues(texte, regles, plafond) {
+  return negationsEtPositif(texte, regles, plafond).perdus || [];
 }
 
-/** Les termes de negatif du texte (tableau de chaines, 8 au plus). */
-export function negationsDe(texte, regles) {
-  return negationsEtPositif(texte, regles).negatifs;
+/** Les termes de negatif du texte (tableau de chaines, `plafond` au plus : 8 par defaut, 20 sur une route longue). */
+export function negationsDe(texte, regles, plafond) {
+  return negationsEtPositif(texte, regles, plafond).negatifs;
 }
 
-/** Tableau tel que le serveur l'accepte (champ `negativeExtra`) : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets, minuscules,
+/** Tableau tel que le serveur l'accepte (champ `negativeExtra`) : `plafond` termes au plus (8 par defaut, 20 sur une route longue), 40 caracteres au plus, lettres ASCII / espaces / tirets, minuscules,
  *  sans doublon. Un element invalide est ECARTE (jamais corrige). Toute entree : une valeur inattendue donne []. */
-export function assainirNegatifs(liste) {
+export function assainirNegatifs(liste, plafond) {
   if (!Array.isArray(liste)) return [];
   const sortie = [];
+  const maxi = plafondDe(plafond);
   for (const brut of liste) {
     if (typeof brut !== 'string') continue;
     let propre = true;
@@ -1165,7 +1174,7 @@ export function assainirNegatifs(liste) {
     const terme = mots.join(' ');
     if (terme.length > MAX_CARS_TERME || sortie.includes(terme)) continue;
     sortie.push(terme);
-    if (sortie.length >= MAX_TERMES_NEGATIFS) break;
+    if (sortie.length >= maxi) break;
   }
   return sortie;
 }

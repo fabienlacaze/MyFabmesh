@@ -214,7 +214,7 @@ function monter(plateforme, opts = {}) {
     langueSource: LT.langueSource, normaliserCodeLangue: LT.normaliserCodeLangue, ressembleAnglais: LT.ressembleAnglais,
     retirerClauseFinale: COMPO.retirerClauseFinale,
     composeurActif: COMPO.actif, nettoyerVirgules: COMPO.nettoyerVirgules, positifSansNegations: COMPO.positifSansNegations,
-    negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs,
+    negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs, NEG_MAX_LONG: COMPO.NEG_MAX_LONG,
     detecterAvertissements: COMPO.detecterAvertissements, _saveProjectMeta() {},
     showToast: (message, genre) => { journal.toasts.push({ genre, message: String(message) }); },
     gatedRun: (_genre, _nom, fn) => { const pr = Promise.resolve().then(fn); journal.travaux.push(pr); return pr; },

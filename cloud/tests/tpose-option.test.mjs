@@ -43,7 +43,7 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
   // filtre sur la chaine EXACTEMENT envoyee a Modal (quatrieme relecture du lot 2 de la langue) : la vraie aide, sur la doublure du filtre
   // negations de l'utilisateur (2026-10-14) : handleGenerateImage nettoie `negativeExtra` et le montre au filtre ; charges seulement s'ils existent
   // (WORKER_SRC=<ancien worker> reste executable)
-  const negations = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_TERMES', 'NEG_MAX_CARS', 'NEG_SENSIBLES'].filter((n) => existe(n));
+  const negations = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_DIRECT', 'NEG_MAX_LONG', 'NEG_MAX_CARS', 'NEG_SENSIBLES'].filter((n) => existe(n));
   const w = chargerFonctions(['handleGenerateImage', '_prixImageSelonPas', '_prixImageComplet',
     ...['_refusChaineEnvoyee'].filter((n) => existe(n)), ...negations], dbl);
   const env = { MODAL_TPOSE_URL: tposeUrl, MODAL_TEXT2IMAGE_URL: t2iUrl };
