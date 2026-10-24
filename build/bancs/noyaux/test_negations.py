@@ -121,13 +121,14 @@ class Negations(unittest.TestCase):
 
     # ------------------------------------------------------------------------------------------------------------ plafonds
     def test_huit_termes_au_plus_les_negations_suivantes_quittent_quand_meme_le_positif(self):
-        """Au-dela de 8 termes il n'y a plus de place dans le negatif : depuis le 24/10 les locutions en trop RESTENT dans le texte (jamais retirees sans etre envoyees au negatif)."""
+        """Au-dela de 8 termes il n'y a plus de place dans le negatif : les locutions en trop QUITTENT quand meme le positif (restees dedans, elles font dessiner l'objet) et sont consignees dans `perdus` pour l'avertissement."""
         noms = ['hat', 'coat', 'boots', 'gloves', 'scarf', 'belt', 'cape', 'mask', 'ring', 'sock', 'vest', 'cloak']
         positif, negatifs = self.ext(', '.join('no ' + n for n in noms))
         self.assertEqual(negatifs, noms[:8])
-        self.assertEqual(positif, 'no ring, no sock, no vest, no cloak', 'les phrases au-dela du plafond restent dans le texte')
+        self.assertEqual(positif, '', 'plus aucune locution negative dans le positif')
+        self.assertEqual(self.C.negations_perdues(', '.join('no ' + n for n in noms)), noms[8:])
         positif, negatifs = self.ext('A knight, ' + ', '.join('no ' + n for n in noms) + ', holding a sword')
-        self.assertEqual((positif, negatifs), ('A knight, no ring, no sock, no vest, no cloak, holding a sword', noms[:8]))
+        self.assertEqual((positif, negatifs), ('A knight, holding a sword', noms[:8]))
         positif, negatifs = self.ext('A knight without ' + ' and '.join(noms))
         self.assertEqual((positif, negatifs), ('A knight', noms[:8]))
         self.assertEqual(self.C.MAX_TERMES_NEGATIFS, 8)

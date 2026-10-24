@@ -5436,7 +5436,9 @@ true,
 "type": "character"
 },
 {
-"avertissements": [],
+"avertissements": [
+"negations-en-trop"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n17",
@@ -5481,7 +5483,10 @@ true,
 "cape",
 "mask"
 ],
-"positif": "no ring"
+"perdus": [
+"ring"
+],
+"positif": ""
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -7103,7 +7108,9 @@ true,
 "type": "character"
 },
 {
-"avertissements": [],
+"avertissements": [
+"negations-en-trop"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n44",
@@ -7148,7 +7155,13 @@ true,
 "cape",
 "mask"
 ],
-"positif": "no ring, no sock, no vest, no cloak"
+"perdus": [
+"ring",
+"sock",
+"vest",
+"cloak"
+],
+"positif": ""
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -13329,7 +13342,9 @@ true,
 "type": "character"
 },
 {
-"avertissements": [],
+"avertissements": [
+"negations-en-trop"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n79",
@@ -13374,7 +13389,11 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight, no ring, no sock"
+"perdus": [
+"ring",
+"sock"
+],
+"positif": "A knight"
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -18088,7 +18107,9 @@ true,
 "type": "character"
 },
 {
-"avertissements": [],
+"avertissements": [
+"negations-en-trop"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a26",
@@ -18133,7 +18154,10 @@ true,
 "spear",
 "mace"
 ],
-"positif": "A knight, no dagger"
+"perdus": [
+"dagger"
+],
+"positif": "A knight"
 },
 "notes_defaut": [],
 "notes_libre": [
@@ -60994,7 +61018,10 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight, no ring",
+"perdus": [
+"ring"
+],
+"positif": "A knight",
 "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring"
 },
 {
@@ -61008,6 +61035,9 @@ true,
 "belt",
 "cape",
 "mask"
+],
+"perdus": [
+"ring"
 ],
 "positif": "A knight",
 "texte": "A knight without hat and coat and boots and gloves and scarf and belt and cape and mask and ring"
@@ -61024,7 +61054,11 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight, no ring, no sock",
+"perdus": [
+"ring",
+"sock"
+],
+"positif": "A knight",
 "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring, no sock"
 },
 {
@@ -61038,6 +61072,10 @@ true,
 "belt",
 "cape",
 "mask"
+],
+"perdus": [
+"ring",
+"sock"
 ],
 "positif": "A knight",
 "texte": "A knight without hat and coat and boots and gloves and scarf and belt and cape and mask and ring and sock"
@@ -61054,7 +61092,13 @@ true,
 "cape",
 "mask"
 ],
-"positif": "A knight, no ring, no sock, no vest, no cloak",
+"perdus": [
+"ring",
+"sock",
+"vest",
+"cloak"
+],
+"positif": "A knight",
 "texte": "A knight, no hat, no coat, no boots, no gloves, no scarf, no belt, no cape, no mask, no ring, no sock, no vest, no cloak"
 },
 {
@@ -61068,6 +61112,12 @@ true,
 "belt",
 "cape",
 "mask"
+],
+"perdus": [
+"ring",
+"sock",
+"vest",
+"cloak"
 ],
 "positif": "A knight",
 "texte": "A knight without hat and coat and boots and gloves and scarf and belt and cape and mask and ring and sock and vest and cloak"
@@ -61426,7 +61476,11 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "a sword, no windows, no wheels",
+"perdus": [
+"windows",
+"wheels"
+],
+"positif": "a sword",
 "texte": "a sword, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -61871,7 +61925,11 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "An Orc Warrior, no windows, no wheels",
+"perdus": [
+"windows",
+"wheels"
+],
+"positif": "An Orc Warrior",
 "texte": "An Orc Warrior, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -62316,7 +62374,11 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "a cat, no windows, no wheels",
+"perdus": [
+"windows",
+"wheels"
+],
+"positif": "a cat",
 "texte": "a cat, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -63191,7 +63253,11 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "a knight, no windows, no wheels",
+"perdus": [
+"windows",
+"wheels"
+],
+"positif": "a knight",
 "texte": "a knight, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
@@ -63636,7 +63702,11 @@ true,
 "plate armor",
 "spiked club"
 ],
-"positif": "two soldiers, no windows, no wheels",
+"perdus": [
+"windows",
+"wheels"
+],
+"positif": "two soldiers",
 "texte": "two soldiers, no helmet, no beard, no armor, no wings, no tail, no red cape, no plate armor, no spiked club, no windows, no wheels"
 },
 {
