@@ -10623,8 +10623,13 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
   const p = state.currentProject;
   const m = getCurrentMeshObj();
   if (!p || !m) return;
-  const modification = document.getElementById('rfn-prompt').value.trim();
-  if (!modification) { showToast('Type a modification first.', 'error'); return; }
+  const rawModification = document.getElementById('rfn-prompt').value.trim();
+  if (!rawModification) { showToast('Type a modification first.', 'error'); return; }
+  // user's language → EN ; echec : l'utilisateur choisit (Reessayer / Envoyer tel quel), annule = rien n'est lance (24/10, audit M6 :
+  // ce champ n'etait traduit nulle part sur le site)
+  const _trModif = await _traduirePourGeneration(rawModification);
+  if (!_trModif) return;
+  const modification = _trModif.texte;
   const format = document.getElementById('rfn-format').value;
   const model = document.getElementById('rfn-model').value;
   document.getElementById('modal-refine-mesh').classList.add('hidden');
@@ -10638,7 +10643,7 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
       'Source mesh': m.filename,
     });
     try {
-      const r = await API.refineMesh({ projectName: p.name, modification, format, model, jobId: job.id });
+      const r = await API.refineMesh({ projectName: p.name, modification, format, model, jobId: job.id, langueVerifiee: _trModif.telQuel || undefined });
       if (r?.success || r?.meshPath) {
         completeJob(job.id, true);
         await reloadCurrentProject();

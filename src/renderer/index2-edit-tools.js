@@ -611,6 +611,7 @@
 
       // La fenetre du masque reste OUVERTE pendant la traduction du « Replace with » : si l'utilisateur annule apres un echec, il garde son
       // masque (revue du 2026-10-14 ; avant, _closeMask() precedait la traduction et annuler faisait tout perdre).
+      var langueVerifiee = false;   // « Envoyer tel quel » choisi apres un echec de traduction (24/10, B1)
       function runInpaint() {
         var job;
         try { job = addJob('Manual mask inpaint', 'inpaint', imgPath); }
@@ -630,7 +631,7 @@
         // helper global exposé par index2.js (modale de connexion + 1 retry).
         // Repli sur l'appel direct si index2.js n'a pas encore booté.
         var _mi = function (o) { return window.meshyAPI.maskInpaint(o); };
-        var _args = { imagePath: imgPath, maskDataUrl: maskDataUrl, prompt: promptText };
+        var _args = { imagePath: imgPath, maskDataUrl: maskDataUrl, prompt: promptText, langueVerifiee: langueVerifiee || undefined };
         var _call = (typeof window._withCloudLogin === 'function')
           ? window._withCloudLogin(_mi, _args)
           : _mi(_args);
@@ -672,11 +673,13 @@
           maskCtx.enTraduction = false;
           if (!tr) return;   // annule : rien n'est lance, la fenetre du masque reste ouverte
           promptText = tr.texte;
+          langueVerifiee = !!tr.telQuel;
           _closeMask();
           lancer();
         }, function () {
+          // la traduction ne rejette jamais en pratique ; si elle le fait, RIEN ne part (24/10 : le texte brut partait en silence)
           if (!toujoursOuverte()) return;
-          maskCtx.enTraduction = false; _closeMask(); lancer();
+          maskCtx.enTraduction = false;
         });
       } else {
         _closeMask();

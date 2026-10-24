@@ -668,8 +668,9 @@
           _closeMask();
           lancer();
         }, function () {
+          // la traduction ne rejette jamais en pratique ; si elle le fait, RIEN ne part (24/10 : le texte brut partait en silence)
           if (!toujoursOuverte()) return;
-          maskCtx.enTraduction = false; _closeMask(); lancer();
+          maskCtx.enTraduction = false;
         });
       } else {
         _closeMask();

@@ -3365,7 +3365,14 @@ bindStepCardCollapse();
     $('rrx-loading').textContent = 'Detecting the part…';
     $('rrx-loading').style.display = 'flex';
     try {
-      const det = await translateUserPrompt(part);  // user's language → EN for CLIPSeg
+      // user's language → EN for CLIPSeg ; echec : message clair et RIEN n'est lance (24/10, audit M3 : le texte brut partait en silence)
+      const _trDet = await traduireTexteUtilisateur(part);
+      if (_trDet.echec) {
+        $('rrx-loading').style.display = 'none';
+        showToast(_messageTraduction('message', _trDet), 'error', 6000);
+        return false;
+      }
+      const det = _trDet.texte;
       const r = await window.meshyAPI.segmentMask?.({ imagePath: _rrxFrontPath, targetText: det, binary: true, dilate: 8 });
       if (!(r && r.success && r.overlayPath)) {
         $('rrx-loading').style.display = 'none';
@@ -3453,7 +3460,7 @@ bindStepCardCollapse();
     const job = (typeof pushJob === 'function')
       ? pushJob('AI region re-texture', null, { 'Source mesh': meshPath.split(/[/\\]/).pop() }, 60000) : null;
     try {
-      const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength });
+      const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, langueVerifiee: _tr.telQuel || undefined });
       if (r && r.ok && r.path) {
         if (job) completeJob(job.id, true);
         showToast('Region re-textured.', 'success');
@@ -8636,7 +8643,7 @@ document.getElementById('mod-apply').addEventListener('click', async () => {
     }, modifyExpected, { sourceImageUrl: target, projectName: p.name });
     try {
       const prompt = _tr.texte;
-      const r = await API.img2img({ imagePath: target, prompt, strength, engine, jobId: job.id });
+      const r = await API.img2img({ imagePath: target, prompt, strength, engine, jobId: job.id, langueVerifiee: _tr.telQuel || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -12190,7 +12197,10 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
   if (!p || !m) return;
   const rawModification = document.getElementById('rfn-prompt').value.trim();
   if (!rawModification) { showToast('Type a modification first.', 'error'); return; }
-  const modification = await translateUserPrompt(rawModification);  // user's language → EN
+  // user's language → EN ; echec : l'utilisateur choisit (Reessayer / Envoyer tel quel), annule = rien n'est lance (24/10, audit M3 / M6)
+  const _trModif = await _traduirePourGeneration(rawModification);
+  if (!_trModif) return;
+  const modification = _trModif.texte;
   const format = document.getElementById('rfn-format').value;
   const model = document.getElementById('rfn-model').value;
   document.getElementById('modal-refine-mesh').classList.add('hidden');
@@ -12249,7 +12259,7 @@ function _meshJobThumb(meshPath) {
   return String(t).startsWith('file:') ? t : 'file:///' + String(t).replace(/\\/g, '/');
 }
 
-async function runMeshTool(operation, params = [], namedParams = null) {
+async function runMeshTool(operation, params = [], namedParams = null, options = null) {
   const p = state.currentProject;
   // Operate on the DISPLAYED mesh version (previewMeshPath) — not the rig-selected
   // / last-generated mesh (selectedMeshPath) which made the tool hit the wrong one.
@@ -12270,7 +12280,7 @@ async function runMeshTool(operation, params = [], namedParams = null) {
   try {
     // namedParams (id→valeur du modal) part dans le sidecar .meta.json de
     // lignée — les params positionnels seuls sont illisibles a posteriori.
-    const result = await API.meshTool({ operation, meshPath, params, namedParams });
+    const result = await API.meshTool({ operation, meshPath, params, namedParams, langueVerifiee: (options && options.langueVerifiee) || undefined });
     if (result && result.success) {
       let newPath = result.newPath || result.path;
       // Ultra 8K preset: chain Real-ESRGAN x2 on the 4096 re-texture -> 8192 (an 8K bake
@@ -13698,12 +13708,14 @@ function openMeshToolModal(toolName) {
   applyBtn.onclick = async () => {
     const vals = _mtCollectVals(body);
     if (schema.confirm && !await customConfirm(schema.confirm, schema.title, 'Continue')) return;
+    let langueVerifieeOutil;   // « Envoyer tel quel » choisi apres un echec de traduction : transmis au serveur (24/10, B1)
     // Texte libre de l'outil (ex. Style des variantes de texture) TRADUIT avant l'envoi (2026-10-13, lot 2) ; echec et annulation :
     // la fenetre reste ouverte, rien n'est lance.
     if (schema.texteLibre && String(vals[schema.texteLibre] || '').trim()) {
       const tr = await _traduirePourGeneration(String(vals[schema.texteLibre]).trim());
       if (!tr) return;
       vals[schema.texteLibre] = tr.texte;
+      langueVerifieeOutil = tr.telQuel || undefined;
     }
     const ctx = { imagePath: p.selectedImagePath, meshPath: (p.previewMeshPath || p.selectedMeshPath) };
     // A schema can pick the operation at apply time (e.g. Triangle count
@@ -13712,12 +13724,12 @@ function openMeshToolModal(toolName) {
       const r = schema.resolveOp(vals, ctx);
       if (!r || !r.operation) { showToast(_i18nT('Target is already the current count — nothing to do'), 'info', 1800); return; }
       close();
-      runMeshTool(r.operation, r.params || [], vals);
+      runMeshTool(r.operation, r.params || [], vals, langueVerifieeOutil ? { langueVerifiee: true } : undefined);
       return;
     }
     const params = schema.build(vals, ctx);
     close();
-    runMeshTool(toolName, params, vals);
+    runMeshTool(toolName, params, vals, langueVerifieeOutil ? { langueVerifiee: true } : undefined);
   };
   // PRIX DU LANCEMENT sur « Apply » (mode Cloud, 2026-09-30), suivi des
   // reglages : la resolution de Watertight change le tarif. Retire pour un
@@ -15366,7 +15378,7 @@ async function _peApplyMaskRetex() {
     ? pushJob('AI region re-texture', null, { 'Source mesh': String(meshPath).split(/[/\\]/).pop() }, 60000) : null;
   // API (et non window.meshyAPI) : en mode Cloud sans session, la fenetre de
   // connexion s'ouvre puis l'appel est rejoue (_CLOUD_LOGIN_METHODS).
-  const r = await API.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
+  const r = await API.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true, langueVerifiee: _tr.telQuel || undefined });
   if (r && r.ok && r.path) {
     if (job) completeJob(job.id, true);
     showToast(_i18nT('Region re-textured') + ' ✅', 'success');
@@ -22538,6 +22550,7 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const _trBase = _texteProjet ? await _traduirePourGeneration(_texteProjet) : { texte: 'high quality, detailed', telQuel: false };
   if (!_trBase) return;
   const prompt = _sansNegations(_trBase.texte) || 'high quality, detailed';   // le prompt du projet garde les negations de l'utilisateur : pas dans un prompt positif
+  const _langueVariante = (_trGuide.telQuel || _trBase.telQuel) || undefined;   // « Envoyer tel quel » : transmis au serveur (24/10, B1)
   showToast(count > 1 ? _i18nTf('Generating {x} variants…', count) : _i18nT('Generating 1 variant…'), 'info', 2000);
   for (let i = 0; i < count; i++) {
     const seed = Math.floor(Math.random() * 1000000);
@@ -22552,8 +22565,8 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
         const rv = _reglagesVarianteForme(strength, seed, guidePrompt,
           p.assetType || document.getElementById('ws-asset-type')?.value, prompt);
         const r = texMode
-          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs, lignee: { op: 'variant', params: { mode: 'colours and materials (shape locked)' } } })
-          : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed, lignee: { op: 'variant', params: { mode: 'everything (shape can change)' } } });
+          ? await API.texVariant({ imagePath: target, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs, langueVerifiee: _langueVariante, lignee: { op: 'variant', params: { mode: 'colours and materials (shape locked)' } } })
+          : await API.img2img({ imagePath: target, prompt: (guidePrompt || prompt), strength, engine: 'local-sdxl', seed, langueVerifiee: _langueVariante, lignee: { op: 'variant', params: { mode: 'everything (shape can change)' } } });
         if (r?.success) { completeJob(job.id, true); await reloadCurrentProject(); }
         else { completeJob(job.id, false, r?.error); showToast('Variant failed: ' + (r?.error || 'unknown'), 'error'); }
       } catch (e) {
@@ -22613,7 +22626,15 @@ async function _aiUpdateMaskPreview() {
   if (spinner) spinner.style.display = 'flex';   // loading circle on the image
   srcImg.style.opacity = '0.6';
   try {
-    const target = await translateUserPrompt(rawTarget);  // detect in EN even if typed in another language
+    // detect in EN even if typed in another language ; echec : le message le dit, aucun apercu sur le texte brut (24/10, audit M3)
+    const _trApercu = await traduireTexteUtilisateur(rawTarget);
+    if (_trApercu.echec) {
+      srcImg.style.opacity = '';
+      if (spinner) spinner.style.display = 'none';
+      if (label) label.textContent = _messageTraduction('message', _trApercu);
+      return;
+    }
+    const target = _trApercu.texte;
     const r = await API.segmentMask({ imagePath: _aiSrcPath, targetText: target, dilate, rel: _precisionRel('ai-precision') });
     // Ignore a stale response if the target changed while we were detecting —
     // the newer in-flight call owns the UI (and will hide the spinner).
@@ -22760,7 +22781,8 @@ document.getElementById('ai-go')?.addEventListener('click', async () => {
       Padding: dilate + 'px',
     }, 180000, { sourceImageUrl: imagePath, projectName: p.name });
     try {
-      const r = await API.autoInpaint({ imagePath, targetText: target, prompt: replace, dilate, rel: _precisionRel('ai-precision'), jobId: job.id });
+      const r = await API.autoInpaint({ imagePath, targetText: target, prompt: replace, dilate, rel: _precisionRel('ai-precision'), jobId: job.id,
+        langueVerifiee: (_trCible.telQuel || _trRempl.telQuel) || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -22827,7 +22849,14 @@ async function _rcUpdateMaskPreview() {
   srcImg.style.opacity = '0.6';
   try {
     // traduit PUIS retire les mots de couleur (en anglais) : la liste des couleurs ne connait que fr + en (2026-10-13, MANQUE-06)
-    const target = _stripColorWords(await translateUserPrompt(rawPrompt));
+    const _trApercuRc = await traduireTexteUtilisateur(rawPrompt);
+    if (_trApercuRc.echec) {   // le message le dit, aucun apercu sur le texte brut (24/10, audit M3)
+      srcImg.style.opacity = '';
+      if (spinner) spinner.style.display = 'none';
+      if (label) label.textContent = _messageTraduction('message', _trApercuRc);
+      return;
+    }
+    const target = _stripColorWords(_trApercuRc.texte);
     const r = await API.segmentMask({ imagePath: _rcSrcPath, targetText: target, dilate, rel: _rcRel() });
     if (((document.getElementById('rc-prompt').value || '').trim()) !== rawPrompt) return;
     _rcFirstDetectDone = true;
@@ -22978,7 +23007,8 @@ document.getElementById('rc-go')?.addEventListener('click', async () => {
       Padding: recolorAll ? '—' : dilate + 'px',
     }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
     try {
-      const r = await API.recolor({ imagePath, prompt, strength, dilate, rel: _rcRel(), recolorAll, jobId: job.id });
+      const r = await API.recolor({ imagePath, prompt, strength, dilate, rel: _rcRel(), recolorAll, jobId: job.id,
+        langueVerifiee: (_trRc.telQuel || _trZone.telQuel) || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -23101,7 +23131,7 @@ document.getElementById('age-go')?.addEventListener('click', async () => {
       Amount: Math.abs(v) + '%',
     }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
     try {
-      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt, lignee: { op: 'age' } });
+      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt, langueVerifiee: _trGuide.telQuel || undefined, lignee: { op: 'age' } });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
