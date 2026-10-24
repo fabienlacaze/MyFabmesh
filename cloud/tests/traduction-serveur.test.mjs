@@ -1186,6 +1186,8 @@ const ROUTES_FILET = [
   ['handleMeshReshape', (t) => ({ prompt: t, meshUrl: 'https://r2.example/m.glb', vueUrl: 'https://r2.example/v.png', maskDataUrl: PNG_MINI }), 'prompt'],
   ['handleMeshTexVar', (t) => ({ style: t, meshUrl: 'https://r2.example/m.glb' }), 'style'],
   ['handleMeshRegionRetex', (t) => ({ prompt: t, meshUrl: 'https://r2.example/m.glb', mask: PNG_MINI }), 'prompt'],
+  // 24/10 (m19) : /api/animate
+  ['handleAutoAnim', (t) => ({ prompt: t, rig_url: 'https://r2.example/rig.glb', anim_type: 'run' }), 'prompt'],
 ];
 
 /** Toutes les routes du tableau, chargees UNE fois, avec le VRAI filtre (chaque chaine qu'il voit est notee) et un faux modele qui rend
@@ -1202,7 +1204,7 @@ function monterRoutesFiltreReel() {
     return nom === 'callModalImageOp' ? { url: 'https://r2.example/x.png' } : 'https://r2.example/x.png';
   };
   const noms = [...new Set([...ROUTES_FILET.map(([n]) => n), '_opAtlasGpu', '_checkPromptSafetyAlerte', 'categorieContenuGrave',
-    '_prixImageSelonPas', '_prixImageComplet', 'ESTIMATED_USD_RESHAPE', ...AUXILIAIRES])];
+    '_prixImageSelonPas', '_prixImageComplet', 'ESTIMATED_USD_RESHAPE', 'ESTIMATED_USD_ANIM', 'putAnimJobRecord', ...AUXILIAIRES])];
   const w = charger(noms, {
     getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits: 500 }), err, json, LangueTexte,
     getParentalState: async () => ({}),
@@ -1228,7 +1230,8 @@ function monterRoutesFiltreReel() {
     const env = { AI: ai, MESHES: creerR2(), R2_PUBLIC_URL: 'https://r2.example', MODAL_SHARED_SECRET: 's',
       MODAL_TEXT2IMAGE_URL: 'https://t2i.example', MODAL_TPOSE_URL: 'https://tpose.example', MODAL_BACKVIEW_URL: 'https://bv.example',
       MODAL_IMAGE_OP_URL: 'https://op.example/image_op', MODAL_RECTIFY_URL: 'https://rect.example',
-      MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status' };
+      MODAL_MESH_START_URL: 'https://mesh.example/mesh_start', MODAL_MESH_STATUS_URL: 'https://mesh.example/mesh_status',
+      MODAL_ANYTOP_ANIM_URL: 'https://anim.example' };
     const r = await w[nom](corpsRequete('/api/route', corps), env);
     let c = null;
     try { c = await r.json(); } catch { /* corps non JSON */ }
@@ -1363,6 +1366,7 @@ test('M1 : avec langueVerifiee:true, une traduction sure laisse partir le texte 
   const { appeler } = monterRoutesFiltreReel();
   const pb = [];
   for (const [nom, corps] of ROUTES_FILET) {
+    if (nom === 'handleAutoAnim') continue;   // cette route ne lit PAS le drapeau client : le serveur verifie toujours (test m19)
     const r = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, TRADUCTION_SURE);
     if (r.status !== 200) { pb.push(`${nom} : statut ${r.status}`); continue; }
     const envoye = JSON.stringify(r.envoye);
@@ -1377,6 +1381,7 @@ test('M1 : avec langueVerifiee:true et traducteur en panne, la requete part comm
   const { appeler } = monterRoutesFiltreReel();
   const pb = [];
   for (const [nom, corps] of ROUTES_FILET) {
+    if (nom === 'handleAutoAnim') continue;   // cette route ne lit PAS le drapeau client (test m19)
     const r = await appeler(nom, { ...corps(TEXTE_ETRANGER), langueVerifiee: true }, null);
     if (r.status !== 200) pb.push(`${nom} : statut ${r.status}`);
     const sansDrapeau = await appeler(nom, corps(TEXTE_ETRANGER), null);

@@ -87,8 +87,13 @@ const LETTRE = /\p{L}/u;
 const LATIN = /\p{Script=Latin}/u;
 const LOURDES = new Set(['kana', 'hangul', 'han']);   // un ideogramme vaut un mot : poids 3
 
+// Kanji des reformes japonaises (shinjitai) qui ne s'ecrivent ni en chinois simplifie ni en chinois traditionnel : « 弁護士 » (avocat) est du
+// japonais, pas du chinois (24/10, audit m11). Texte en caracteres chinois SANS aucun de ces kanji : chinois (le traducteur lit aussi les kanji).
+const KANJI_JAPONAIS = /[弁広圧悪囲営駅桜応検権県験効済歯児辞釈渋縦浄摂斉専戦繊騒択沢団駐庁猟転塁拡挙帰気軽険圏剣謙剤雑歳仏払並変弐辺壊懐絵拠恵蔵続値窓鉄伝脳売抜訳様覧両緑労録]/;
+
 /** Precisions dans une ecriture partagee par plusieurs langues. */
 function affinerEcriture(ecriture, t, langue) {
+  if (ecriture === 'han' && KANJI_JAPONAIS.test(t)) return 'ja';
   if (ecriture === 'cyrillique') {
     if (/[іїєґ]/i.test(t)) return 'uk';
     if (/[ђћџљњј]/i.test(t)) return 'sr';
@@ -146,7 +151,11 @@ const LISTES = {
     + 'herbe feuille pomme gâteau chaise lampe porte fenêtre toit jardin ville désert océan mer rivière île planète espace fusée avion '
     + 'hélicoptère vélo roue futuriste médiéval détaillé rouillé cassé propre lumineux volant assis debout massue guerrière lapin '
     + 'cochon vache mouton oie grenouille tortue requin baleine pieuvre crabe abeille fourmi papillon renard hibou aigle cerf souris '
-    + 'géante gris vaisseau trésor'],
+    + 'géante gris vaisseau trésor '
+    // 24/10 (audit des prompts, m11) : mots courts sous interface anglaise (« un avocat », « ver de terre »)
+    + 'avocat terre ver tigre singe éléphant girafe zèbre sanglier tasse assiette fourchette cuillère fromage soupe poire fraise carotte '
+    + 'camion moto soleil lune étoile nuage pluie neige orage plage sable grotte escalier église ferme moulin phare tente bougie '
+    + 'chandelle corde triste joyeux longue belle femmes hommes enfants'],
   es: [
     'el los las y con sin por para que muy del al unos unas es está están su sus lleva tiene sobre hacia como pero estos estas ese esa '
     + 'todos todas cuando donde puede',
@@ -157,7 +166,12 @@ const LISTES = {
     + 'martillo daga cuchillo enano rey reina campesino trabajador hombre mujer niño niña pájaro pez araña insecto hoja manzana silla '
     + 'puerta ventana techo suelo jardín calle ciudad pueblo río isla cohete tren rueda detallado roto limpio sucio dragón alas zorro '
     + 'conejo cerdo oveja tortuga tiburón ballena pulpo cangrejo abeja hormiga mariposa búho águila plumas '
-    + 'lobo gris gigante futurista tesoro cofre espada'],
+    + 'lobo gris gigante futurista tesoro cofre espada '
+    // 24/10 (m11)
+    + 'gato casa mesa serpiente león tigre mono elefante jirafa ciervo jabalí murciélago ratón libro lápiz taza tenedor cuchara pan queso '
+    + 'vino cerveza sopa pera limón fresa cereza uva zanahoria barco moto bicicleta sol luna estrella nube lluvia nieve viento tormenta '
+    + 'playa lago cascada volcán cueva torre escalera iglesia mezquita carretera camino aldea granja molino faro tienda vela '
+    + 'antorcha cuerda larga largo barba burro hermoso rápido lento fuerte débil feliz'],
   de: [
     'der die das den dem ein eine einen einem einer und mit ohne auf im ist sind sein seine ihr ihre zu von vom zum zur für aus '
     + 'bei nach über unter hinter sehr nicht kein keine trägt hält auch oder wie er kann wird werden nur noch schon',
@@ -172,6 +186,9 @@ const LISTES = {
     + 'straße stadt dorf wüste ozean meer fluss insel weltraum rakete flugzeug hubschrauber zug fahrrad motorrad maschine futuristisch '
     + 'mittelalterlich detailliert glänzend rostig kaputt sauber schmutzig leuchtend fliegend sitzend stehend drache fuchs hase '
     + 'schwein kuh schaf frosch schildkröte krake krabbe biene ameise schmetterling eule adler hirsch '
+    + 'haus hund buch bleistift tasse teller gabel löffel brot käse wein suppe birne zitrone erdbeere kirsche traube karotte auto '
+    + 'lastwagen sonne mond stern wolke regen schnee wind sturm regenbogen strand sand wasserfall vulkan höhle treppe kirche moschee '
+    + 'weg bauernhof mühle leuchtturm zelt kerze fackel seil lang lange schön schnell langsam stark schwach traurig fröhlich fertig '
     + 'altes alten grauer graue graues grauen magische magischer magisches magischen riesige riesiger riesiges futuristische '
     + 'futuristischer futuristisches goldene goldener goldenes goldenen großen kleinen schwarzen weißen roten blauen grünen'],
   it: [
@@ -187,7 +204,12 @@ const LISTES = {
     + 'insetto fiore pianta erba foglia mela cibo sedia tavolo lampada letto finestra tetto pavimento giardino città villaggio '
     + 'fiume isola pianeta spazio razzo aereo elicottero treno ruota futuristico medievale dettagliato arrugginito rotto pulito '
     + 'sporco seduto drago volpe coniglio maiale mucca pecora anatra squalo balena polpo granchio farfalla gufo cervo '
-    + 'gigante tesoro futuristico'],
+    + 'gigante tesoro futuristico '
+    // 24/10 (m11)
+    + 'tavola casa cane libro matita tazza piatto forchetta cucchiaio pane formaggio vino birra zuppa pera limone fragola ciliegia uva '
+    + 'carota barca nave camion moto bicicletta sole luna stella nuvola pioggia neve vento tempesta arcobaleno spiaggia sabbia lago '
+    + 'cascata vulcano grotta torre scala chiesa moschea strada sentiero fattoria mulino faro tenda candela torcia corda lungo lunga '
+    + 'bello bella veloce lento forte debole felice'],
   pt: [
     'os um uma uns umas com sem para do da dos das na nas em ao aos seus suas isso é tem muito segurando',
     'o as e de por que ou no nos à este esta está seu sua mais',
@@ -198,7 +220,12 @@ const LISTES = {
     + 'espingarda canhão anão anjo rei rainha camponês trabalhador homem mulher menino menina criança bebê fera pássaro peixe aranha '
     + 'inseto grama folha maçã bolo cadeira lâmpada janela telhado chão jardim rua cidade aldeia ilha espaço foguete avião trem roda '
     + 'detalhado brilhante enferrujado sujo voando dragão raposa coelho porco ovelha tubarão baleia caranguejo abelha formiga '
-    + 'borboleta coruja águia veado noite beira robô futurista gigante tesouro'],
+    + 'borboleta coruja águia veado noite beira robô futurista gigante tesouro '
+    // 24/10 (m11)
+    + 'mesa casa cachorro gato livro lápis xícara prato garfo colher pão queijo vinho cerveja sopa pera limão morango cereja uva cenoura '
+    + 'barco moto bicicleta sol lua estrela nuvem chuva neve vento tempestade praia areia lago cachoeira vulcão caverna torre escada '
+    + 'igreja mesquita estrada caminho vila fazenda moinho farol barraca vela tocha corda longo longa bonito bonita rápido lento forte '
+    + 'fraco triste feliz'],
   nl: [
     'het een met zonder van op voor zijn haar niet geen ook draagt houdt naar bij uit aan onder achter tussen wordt deze dit dat',
     'en de in is die er',
@@ -359,6 +386,73 @@ const MOTS_AUSSI_ANGLAIS = new Set((
   + 'verde cal kamen mali gat ales acer tore giza coif'
 ).split(/\s+/).filter(Boolean));
 
+/* TEXTE COURT (24/10, audit des prompts m11, mandat du proprietaire : « tout texte, dans N'IMPORTE QUELLE langue, atteint l'IA en anglais »).
+ * Jusqu'ici un mot ou deux mots etrangers sans lettre accentuee propre (« chaise », « gato », « Drache », « un avocat », « barba gris »)
+ * n'etaient JAMAIS surs : sous une interface anglaise ils partaient bruts, sans erreur, et l'image ne correspondait pas.
+ * Regle (texte de 1 a 4 mots, sans aucun mot anglais sur, donc « red dragon » n'est pas vise) : le texte est SUREMENT etranger quand
+ *   (1) TOUS ses mots sont connus de la MEME langue (une des trois listes) et au moins un est un nom ou adjectif COURANT :
+ *       « chaise », « gato », « barba gris », « ver de terre ». Un seul mot inconnu (« plush » dans « Elmo plush », « poster » dans
+ *       « Moulin Rouge poster ») : on ne decide pas, c'est du texte anglais a nom etranger ;
+ *   (2) ou il commence par un determinant etranger en minuscule (ou devant des mots en minuscules) : sans equivoque (« une », « du », « des »,
+ *       « les », « una », « los », « ein », « der », « gli », « uma »...) il suffit, equivoque (« un », « le », « la », « el », « il », « lo »)
+ *       il faut en plus un mot courant de la langue (« un avocat », « un burro »).
+ * Les mots qui vivent aussi en anglais (van, den, die, beer, rot, helm, hose, sombrero...) restent ambigus : « camper van », « beer mug »,
+ * « Die Hard » ne sont pas vises. Un mot sans aucune liste (« orc », « robot », « pizza », « taxi ») reste anglais. */
+const AMBIGUS_COURT = new Set(('van den die el las con sin per pour beer rot rote helm hose fell stein bart rucksack kobold sombrero geist '
+  + 'berg burg mann bauer seine zorro piccolo mi ki ama may bot arc az fa led pro care din au cha sana ev dev cam kale '
+  + 'bolo naga baja mobil dom pies torn sten lille vita cal mali gat ales acer tore giza coif').split(' '));
+// determinants SANS equivoque (aucun sens anglais) et EQUIVOQUES (aussi mots d'une autre langue ou noms propres : « El Camino », « Le Mans »)
+const DETERMINANTS_SURS = {
+  fr: ['une', 'du', 'des', 'les'], es: ['una', 'unos', 'unas', 'los'],
+  de: ['ein', 'eine', 'einen', 'einem', 'einer', 'der', 'das', 'dem'], it: ['gli', 'uno'], pt: ['uma', 'uns', 'umas'],
+};
+const DETERMINANTS_EQUIVOQUES = { fr: ['un', 'le', 'la'], es: ['un', 'el'], it: ['il', 'lo', 'un'], pt: ['os'] };
+const ORDRE_COURT = ['fr', 'es', 'it', 'pt', 'de', 'nl', 'pl', 'tr', 'id', 'vi', 'sv', 'da', 'no', 'fi', 'cs', 'ro', 'hu', 'hr', 'ca', 'tl', 'sw'];
+// mot -> langues dont il est un nom ou adjectif COURANT (3e liste de LISTES), hors mots ambigus
+const INDEX_COURANTS = new Map();
+for (const [langue, [, , courants]] of Object.entries(LISTES)) {
+  for (const m of (courants || '').split(/\s+/)) {
+    if (!m || AMBIGUS_COURT.has(m)) continue;
+    const l = INDEX_COURANTS.get(m) || [];
+    if (!l.includes(langue)) { l.push(langue); INDEX_COURANTS.set(m, l); }
+  }
+}
+
+/** Langue d'un texte COURT (voir ci-dessus), ou null. `t` : texte NFC ; `anglais` : score anglais deja calcule (>= 1 : jamais vise). */
+function langueTexteCourt(t, anglais) {
+  if (anglais >= 1) return null;
+  const mots = [...t.matchAll(/[\p{L}\p{M}']+/gu)].map((m) => m[0]).filter((m) => /\p{L}/u.test(m.replace(/'/g, '')));
+  if (mots.length < 1 || mots.length > 4) return null;
+  const jetons = jetonsLatins(t).filter((x) => /\p{L}/u.test(x.bas.replace(/'/g, '')));
+  // un nom propre (suite de mots a majuscule dans un texte a mots en minuscules) n'est pas du texte etranger : on ne decide pas
+  if (jetons.some((x) => !x.etranger)) return null;
+  const connu = (bas, lg) => {
+    const morceaux = bas.split("'").filter((x) => x !== '');
+    return morceaux.every((m) => m.length === 1 || (!AMBIGUS_COURT.has(m) && (INDEX.get(m) || []).some(([l]) => l === lg)));
+  };
+  const tete = mots[0];
+  const teteMinuscule = tete === tete.toLowerCase() || mots.slice(1).every((m) => m === m.toLowerCase());
+  let meilleure = null, meilleurScore = 0;
+  for (const lg of ORDRE_COURT) {
+    const courants = jetons.filter((x) => (INDEX_COURANTS.get(x.bas) || []).includes(lg)).length;
+    const tous = jetons.every((x) => connu(x.bas, lg));
+    let sc = 0;
+    if (tous && courants >= 1) sc = 10 + courants;
+    if (lg === 'fr' && mots.length >= 2 && tete === 'de' && ['la', 'le', 'les', "l'"].includes(mots[1].toLowerCase().slice(0, 2) === "l'" ? "l'" : mots[1].toLowerCase())) sc = Math.max(sc, 5 + courants);   // « de la chair »
+    if (mots.length >= 2 && teteMinuscule) {
+      const t0 = tete.toLowerCase();
+      if ((DETERMINANTS_SURS[lg] || []).includes(t0)) sc = Math.max(sc, 5 + courants);
+      else if ((DETERMINANTS_EQUIVOQUES[lg] || []).includes(t0)) {
+        // determinant equivoque : il faut un mot courant de la langue, ou (3 mots au moins) un autre mot outil de cette langue (« un coin de rue »)
+        const outils = jetons.slice(1).filter((x) => !AMBIGUS_COURT.has(x.bas) && (INDEX.get(x.bas) || []).some(([l]) => l === lg)).length;
+        if (courants >= 1 || (mots.length >= 3 && outils >= 1)) sc = Math.max(sc, 5 + courants);
+      }
+    }
+    if (sc > meilleurScore) { meilleurScore = sc; meilleure = lg; }
+  }
+  return meilleure;
+}
+
 const ELISIONS_FR = new Set(['l', 'd', 'j', 'n', 'm', 't', 's', 'c', 'qu', 'jusqu', 'lorsqu', 'puisqu']);
 const LIMITE_ANALYSE = 2000;   // un prompt ne depasse guere quelques centaines de caracteres ; borne le cout sur un texte enorme
 
@@ -401,6 +495,8 @@ const EXPRESSIONS_EMPRUNTEES = [
   'al dente', 'a cappella', 'que sera sera', 'che sarà sarà', 'hasta la vista', 'mi casa es su casa', 'día de los muertos',
   'dia de los muertos', 'feliz navidad', 'cinco de mayo', 'sturm und drang', 'glück auf', 'ein prosit', 'auf wiedersehen', 'über alles',
   'vive la france', 'mardi gras', 'ménage à trois', 'pas de deux', 'sous vide', 'crêpe suzette',
+  // 24/10 (m11) : noms propres et titres que les nouveaux mots courants (moulin, soleil, casa...) feraient prendre pour de l'etranger
+  'moulin rouge', 'cirque du soleil', 'mi casa su casa', 'das boot', 'casa blanca', 'casa bonita', 'la casa de papel', 'el camino',
 ];
 // (pas de lookbehind : un Safari d'avant la 16.4 refuserait le module entier des son chargement)
 const RE_EXPRESSIONS = new RegExp('(^|[^\\p{L}\\p{M}])('
@@ -526,6 +622,7 @@ export function detecterLangue(texte) {
   if (!latines) return { langue: null, sure: false, ecriture: null };
   const { s, mots, propres, signes } = scoresLatins(t);
   const en = s.en;
+  const court = langueTexteCourt(t, en);   // texte de 1 a 4 mots, aucun mot anglais : voir TEXTE COURT
   let meilleure = null, score = 0;
   for (const lg of LANGUES_LATINES) {
     if (lg !== 'en' && s[lg] > score) { score = s[lg]; meilleure = lg; }
@@ -550,9 +647,11 @@ export function detecterLangue(texte) {
       // 14/10 : le commentaire disait le contraire). Voulu : ces lettres n'existent pas en anglais. Un nom propre au milieu d'un texte
       // anglais ne compte plus (jetonsLatins) ; reste vise un nom accentue SEUL en tete (« Gdańsk port crane »).
       const sure = (assez && ((solides >= 1 && nMots + accents >= 2) || nMots >= 3)) || (solides >= 2 && score >= 2);
+      if (court && !sure) return { langue: court, sure: true, ecriture: 'latin' };
       return { langue: meilleure, sure, ecriture: 'latin' };
     }
   }
+  if (court) return { langue: court, sure: true, ecriture: 'latin' };
   return { langue: null, sure: false, ecriture: 'latin' };
 }
 

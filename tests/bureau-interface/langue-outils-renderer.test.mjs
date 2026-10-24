@@ -110,3 +110,39 @@ test('bureau Paint-mask : « Envoyer tel quel » est transmis a maskInpaint', ()
   assert.match(src, /langueVerifiee = !!tr\.telQuel/);
   assert.match(src, /var _args = \{[^}]*langueVerifiee: langueVerifiee \|\| undefined/);
 });
+
+// m6a (24/10) : le nom d'un projet IMPORTE (guillemet, chevron) cassait l'attribut alt de la carte de projet (auto-XSS)
+for (const cible of ['bureau', 'web']) {
+  test(`${cible} : aucun attribut alt/title de gabarit n'interpole un nom de projet sans echappement`, () => {
+    const src = fs.readFileSync(INDEX2[cible], 'utf-8');
+    const mauvais = [...src.matchAll(/(?:alt|title)="\$\{(?!escapeHtml\(|_escapeHtml\()[^}]*\.(?:name|displayName)[^}]*\}"/g)].map((m) => m[0]);
+    assert.deepEqual(mauvais, []);
+    assert.match(src, /alt="\$\{escapeHtml\(p\.displayName \|\| p\.name\)\}"/, 'carte de projet : alt echappe');
+  });
+}
+
+// m16a (24/10) : « short » (le vetement) ne devient « shorts » que seul ; « short sword », « short hair » restent justes.
+// Ancien code : BUREAU_INDEX2=<copie> WEB_INDEX2=<copie> node --test ...
+for (const cible of ['bureau', 'web']) {
+  test(`${cible} : _corrigerFauxAmis ne transforme pas « short sword » en « shorts sword »`, () => {
+    const src = fs.readFileSync(INDEX2[cible], 'utf-8');
+    const i = src.indexOf('function _corrigerFauxAmis(');
+    assert.ok(i > 0);
+    const code = src.slice(i, i + src.slice(i).search(/\r?\n\}\r?\n/) + 3);
+    // eslint-disable-next-line no-new-func
+    const f = new Function(code + '\nreturn _corrigerFauxAmis;')();
+    assert.equal(f('une epee courte et un short', 'a warrior with a short sword and a short', 'fr'), 'a warrior with a short sword and shorts');
+    assert.equal(f('un short rouge', 'a red short', 'fr'), 'a red shorts');
+    assert.equal(f('un short', 'a short', 'fr'), 'shorts');
+    assert.equal(f('un guerrier en short et un casque', 'a warrior in short and a helmet', 'fr'), 'a warrior in shorts and a helmet');
+    assert.equal(f('un short a poches', 'the short with pockets', 'fr'), 'the shorts with pockets');
+    // jamais d'adjectif : « short hair », « short story », « short sword »
+    assert.equal(f('un nain avec un short', 'a dwarf with a short beard and short hair, wearing a short', 'fr'), 'a dwarf with a short beard and short hair, wearing shorts');
+    assert.equal(f('une histoire courte avec un short', 'a short story with a short', 'fr'), 'a short story with shorts');
+    // pas de source francaise avec « short » : rien ne bouge
+    assert.equal(f('une epee courte', 'a short sword', 'fr'), 'a short sword');
+    assert.equal(f('a short sword', 'a short sword', 'en'), 'a short sword');
+    // deja au pluriel : intact
+    assert.equal(f('des shorts', 'a pair of shorts and a short sword', 'fr'), 'a pair of shorts and a short sword');
+  });
+}

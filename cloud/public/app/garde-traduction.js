@@ -12,7 +12,9 @@
 (function (racine) {
   'use strict';
   const MOTS_VIDES = new Set('a an the of with and in on at to for from by his her its their this that these those is are be as into over under near next'.split(' '));
-  const SEPARATEURS = /[,;.\n、。，；،؛।]+/;
+  // Un point ou une virgule ENTRE DEUX CHIFFRES (« 2,5 m », « 3.14 ») n'est pas un separateur : avant (24/10, audit m16a), « un robot de 2,5 m »
+  // etait coupe en « 2 » et « 5 m » puis recolle en « 2, 5 m ».
+  const SEPARATEURS = /(?:(?<!\d)[,.]|[,.](?!\d))+|[;\n、。，；،؛।]+/;
 
   function propositions(texte) {
     return String(texte == null ? '' : texte).split(SEPARATEURS).map((s) => s.trim()).filter(Boolean);

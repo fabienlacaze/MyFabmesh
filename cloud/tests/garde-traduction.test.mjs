@@ -76,3 +76,15 @@ test('le site charge le script apres cloud-overrides.js et avant index2.js (modu
   assert.ok(i > 0 && j > i, 'garde-traduction.js absent ou charge avant cloud-overrides.js');
   assert.ok(k > j, 'index2.js doit etre charge apres la garde');
 });
+
+// 24/10 (audit des prompts, m16a) : un point ou une virgule entre deux chiffres n'est pas un separateur de propositions.
+// Ancien code : GARDE_SRC=<garde-traduction.js de prompts-2410> node --test tests/garde-traduction.test.mjs
+test('« 2,5 m » et « 3.14 » ne sont jamais coupes (avant : « a robot 2, 5 m tall »)', () => {
+  assert.equal(garder('un robot de 2,5 m de haut', 'a robot 2.5 m tall, a robot 2.5 m tall'), 'a robot 2.5 m tall');
+  assert.equal(garder('un robot de 2,5 m de haut', 'a robot 2.5 m tall'), 'a robot 2.5 m tall');
+  assert.equal(garder('un cercle de 3,14 cm', 'a circle of 3.14 cm, a circle of 3.14 cm'), 'a circle of 3.14 cm');
+  assert.equal(garder('une tour de 12,5 m, un pont de 3 m', 'a tower of 12.5 m, a bridge of 3 m'), 'a tower of 12.5 m, a bridge of 3 m');
+  // un point de fin de phrase et une virgule suivie d'un chiffre separent toujours
+  assert.equal(garder('un chien. un chat', 'a dog. a cat'), 'a dog. a cat');
+  assert.equal(garder('un chien', 'a dog, a dog, a dog'), 'a dog');
+});

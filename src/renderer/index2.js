@@ -1858,7 +1858,7 @@ async function renderProjectsGrid() {
       <button class="card-delete-btn" title="Delete project">&#10005;</button>
       <div class="project-card-thumb">
         ${p.thumb
-          ? `<img src="file:///${p.thumb.replace(/\\/g, '/')}" alt="${p.name}">`
+          ? `<img src="file:///${p.thumb.replace(/\\/g, '/')}" alt="${escapeHtml(p.displayName || p.name)}">`
           : `<span class="project-card-thumb-empty">No image</span>`}
       </div>
       <div class="project-card-body">
@@ -7828,8 +7828,11 @@ function _epurerDemande(texte) {
 /** Faux amis connus apres traduction : « short » (le vetement) traduit par l'adjectif. */
 function _corrigerFauxAmis(source, traduit, lang) {
   let t = String(traduit || "");
-  if (lang === "fr" && /\bshorts?\b/i.test(String(source || ""))) {
-    t = t.replace(/\bshort\b(?!\s+(?:hair|tail|legs?|neck|snout|nose|fur|beard|ears?|arms?|sleeves?|horns?|beak|wings?|body|mane|time))/gi, "shorts");
+  if (lang === "fr" && /\bshorts?\b/i.test(String(source || "")) && !/\bshorts\b/i.test(t)) {
+    // « short » (le vetement) rendu au singulier : remplace SEULEMENT quand il est seul (fin de groupe, ou suivi d'une conjonction / preposition) ;
+    // jamais « short sword », « short hair », « short story » (24/10, audit m16a : « une epee courte et un short » donnait « a shorts sword »)
+    t = t.replace(/(\bthe\s+)?(?:\b(?:a|an|one)\s+)?\bshort\b(?=\s*(?:$|[,.;:!?)]|\b(?:and|with|in|on|that|which|made|of|for|to|at|from|under|over|but)\b))/gi,
+      (m, le) => (le || "") + "shorts");
   }
   return t;
 }
