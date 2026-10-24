@@ -8299,7 +8299,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       // userPrompt = texte d'ORIGINE (prompt.txt, pour la reouverture) ; userPromptAnglais = sa traduction, que le composeur
       // d'intention du pont local analyse (lexique anglais : CHAMPS-09) ; langueVerifiee = « Envoyer tel quel » (filet du serveur).
       const _genArgs = { prompt, userPrompt, userPromptAnglais: englishUser, negativeExtra, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM,
-        assetStyle, langueVerifiee: _tr.telQuel || undefined };
+        assetStyle, langueVerifiee: _tr.telQuel || undefined,
+        // CASE « T-pose » DECOCHEE (24/10, M9) : pose libre. Le mode Cloud du bureau l'ignorait (le serveur remettait la T-pose dans son gabarit).
+        ...(_optionsPose(assetType).tpose === false ? { poseLibre: true } : {}) };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);

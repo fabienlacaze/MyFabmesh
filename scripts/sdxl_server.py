@@ -65,6 +65,7 @@ if os.environ.get('FABMESH_NO_WORKER_THROTTLE') != '1':
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cloisonnement_memoire as _cm
 import securite_locale as _sl     # 2026-10-03 (constat D-04) : Host / Origin / chemins des requetes
+from recolor_core import recolor_separer_negations   # tri des negations de l'utilisateur pour les outils (24/10, M7)
 from recolor_core import recolor_tile_route, recolor_tile_params   # route + reglages MATIERE/STYLE, communs avec Modal (2026-09-30)
 from recolor_core import (recolor_meilleur_masque, recolor_masque_a_taille, recolor_recoller,   # detection, recollage et
                           recolor_garder_fond)                                                  # fond protege : communs avec Modal
@@ -1095,10 +1096,33 @@ def do_refine_geo(input_path, control_path, ref_path, prompt, output_path,
             return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
+def _tri_negations(texte):
+    """(texte sans ses locutions negatives, termes de negatif) : 24/10, audit M7 (voir composeur_intention.separer_negations_outil)."""
+    try:
+        import composeur_intention as _ci
+        return _ci.separer_negations_outil(texte)
+    except Exception:
+        return ('' if texte is None else str(texte)), []
+
+
+def _neg_avec(negatif, termes):
+    try:
+        import composeur_intention as _ci
+        return _ci.negatif_avec_termes(negatif, termes)
+    except Exception:
+        return negatif
+
+
 def do_inpaint(input_path, target_text, prompt, output_path, dilate=15, rel=0.5):
     if not os.path.exists(input_path):
         return {"ok": False, "error": f"Input not found: {input_path}"}
     if not target_text or not target_text.strip():
+        return {"ok": False, "error": "target_text required"}
+    # Negations de l'utilisateur (24/10, M7) : ni la cible CLIPSeg ni le remplacement ne gardent « no helmet » ; les termes vont au negatif.
+    target_text, _negs_cible = _tri_negations(target_text)
+    prompt, _negs_prompt = _tri_negations(prompt)
+    _negs = list(_negs_cible) + [x for x in _negs_prompt if x not in _negs_cible]
+    if not target_text.strip():
         return {"ok": False, "error": "target_text required"}
 
     # Only one SDXL pipeline at a time — see do_img2img comment.
@@ -1162,6 +1186,7 @@ def do_inpaint(input_path, target_text, prompt, output_path, dilate=15, rel=0.5)
                 negative_prompt = f"{target_text}, door, opening, hole, gap, window, frame, jamb, panel, object, furniture, item, duplicate, deformed, blurry, distorted, artifact"
             else:
                 negative_prompt = f"blurry, distorted, duplicate, deformed, low quality, {target_text}"
+            negative_prompt = _neg_avec(negative_prompt, _negs)
             # Removal leans on the surrounding (now wall-coloured) pixels; full
             # 0.99 regen from noise tends to redraw the object.
             _inpaint_strength = 0.85 if is_removal else 0.99
@@ -1233,8 +1258,9 @@ def _strip_accents(s):
 
 def parse_recolor_prompt(prompt):
     """'cape rouge' -> ('cape', color_spec) ; color_spec is None when no known
-    colour word is present (-> ControlNet-Tile material fallback)."""
-    text = (prompt or '').strip()
+    colour word is present (-> ControlNet-Tile material fallback).
+    Les locutions negatives (« no hood ») ne font jamais partie de la cible (24/10, M7)."""
+    text = recolor_separer_negations(prompt)[0].strip()
     color_spec = None
     noun_words = []
     for raw in text.split():
@@ -1350,6 +1376,7 @@ def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5
         return {"ok": False, "error": f"Input not found: {input_path}"}
     if not prompt or not prompt.strip():
         return {"ok": False, "error": "prompt required (e.g. 'cape rouge')"}
+    prompt, _negs = recolor_separer_negations(prompt)    # 24/10 (M7) : les negations vont au negatif du re-rendu
     noun, color_spec = parse_recolor_prompt(prompt)
     # Route to the COHERENT ControlNet re-render when either:
     #  - there's no bare colour word at all (a material/style: 'rusty metal',
@@ -1360,7 +1387,7 @@ def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5
     # a tartiné tint that barely showed. A bare colour ('green') still uses HSV.
     if recolor_tile_route(color_spec, prompt, recolor_all):
         return do_recolor_tile(input_path, noun, prompt, output_path, dilate, rel,
-                               recolor_all=recolor_all, strength=strength)
+                               recolor_all=recolor_all, strength=strength, negatifs=_negs)
     load_clipseg()
     with state.inference_lock:
         try:
@@ -1398,7 +1425,7 @@ def do_recolor(input_path, prompt, output_path, strength=1.0, dilate=15, rel=0.5
             return {"ok": False, "error": _cm.texte_erreur(e)}
 
 
-def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0.5, recolor_all=False, strength=1.0):
+def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0.5, recolor_all=False, strength=1.0, negatifs=None):
     """ControlNet-Tile fallback for material/non-colour requests ('metal rouille',
     'cuir vieilli', or a whole-image style like 'sunset gradient'): low-denoise
     structure-preserving re-paint, composited through the CLIPSeg mask so only
@@ -1426,7 +1453,7 @@ def do_recolor_tile(input_path, noun, full_prompt, output_path, dilate=15, rel=0
                 if coverage < 0.2:
                     return {"ok": False, "error": f"'{noun}' not detected (coverage {coverage:.1f}%)"}
             # Reglages (denoise, ControlNet, pas, guidance, prompts) : noyau commun avec Modal, scripts/recolor_core.py
-            _p = recolor_tile_params(noun, full_prompt, recolor_all, strength)
+            _p = recolor_tile_params(noun, full_prompt, recolor_all, strength, negatifs=negatifs)
             with torch.inference_mode():
                 result = _executer(pipe, 
                     prompt=_p['prompt'],
@@ -1553,11 +1580,12 @@ def do_tex_variant(input_path, prompt, output_path, strength=0.45, seed=0, cn_sc
             if gris and float(gris) > 0:
                 img_work = Image.blend(img_work, img_work.convert("L").convert("RGB"), float(min(1.0, gris)))
             t0 = time.time()
+            prompt, _negs = _tri_negations(prompt)      # 24/10 (M7) : « no wrinkles » va au negatif, pas dans le positif
             p = (prompt or "").strip() or "high quality, detailed, sharp focus, intricate textures, game asset"
             with torch.inference_mode():
                 result = _executer(pipe, 
                     prompt=p,
-                    negative_prompt=neg_prompt or "deformed, distorted, changed shape, different pose, extra parts, missing parts, blurry, low quality",
+                    negative_prompt=_neg_avec(neg_prompt or "deformed, distorted, changed shape, different pose, extra parts, missing parts, blurry, low quality", _negs),
                     image=img_work,
                     control_image=img_work,
                     strength=float(max(0.35, min(0.9, strength))),
@@ -1725,6 +1753,13 @@ def _boost(obj: str) -> str:
 
 
 def _enrich_prompt(raw: str) -> tuple:
+    """Negations de l'utilisateur (24/10, M7) : « no helmet » va au NEGATIF, jamais dans le positif. Le reste : _enrich_prompt_base."""
+    texte, negs = _tri_negations(raw)
+    positif, negatif = _enrich_prompt_base(texte)
+    return positif, _neg_avec(negatif, negs)
+
+
+def _enrich_prompt_base(raw: str) -> tuple:
     """Light prompt cleanup: strip add/put/place verbs, expand concept
     boosters, build a sane negative prompt. Returns (positive, negative)."""
     p = (raw or '').strip()

@@ -155,9 +155,16 @@ _MOTS_AUTRES_ESPECES = set((
 ).split())
 
 
-def _compte_mode(mots, i, liste, autre_espece):
+# SUJET SEULEMENT (2026-10-24, audit des prompts M10) : jumeau de FIN_SUJET / APRES_NON_SUJET de lib/locomotion-procedurale.js (listes comparees par test_faux_amis_gabarit.py)
+_FIN_SUJET = set(('with without chasing chases chase eating eats eat holding holds hold carrying carries carry catching catches catch hunting hunts hunt wearing wears wear playing plays play watching watches watch near beside next by on in at from for and or while that which who under over behind using uses riding rides feeding feeds attacking attacks fighting fights stalking stalks biting bites pursuing pursues swallowing swallows devouring devours tossing throwing throws avec qui tient tenant mange mangeant chasse poursuit sur dans pres contre et ou con que sobre sostiene come caza mit und oder auf sopra com onde').split())
+_APRES_NON_SUJET = set(('bowl bowls tank tanks aquarium market stall tattoo tattoos pattern print prints shirt costume mask toy toys lamp sculpture statue stew soup dish curry fillet fillets bait hook hooks net nets cake sandwich skin leather shaped like themed food pond').split())
+
+
+def _compte_mode(mots, i, liste, autre_espece, fin):
     m = mots[i]
     if m not in liste:
+        return False
+    if i >= fin or (mots[i + 1] if i + 1 < len(mots) else '') in _APRES_NON_SUJET:
         return False
     if m not in _MOTS_AMBIGUS:
         return True
@@ -174,9 +181,10 @@ def mode_depuis_texte(texte: str):
     t = ''.join(c for c in t if _ud.category(c) != 'Mn')
     mots = [m for m in _re.split(r'[^a-z0-9]+', t) if m]
     autre_espece = any(m in _MOTS_AUTRES_ESPECES for m in mots)
-    if any(_compte_mode(mots, i, _MOTS_NAGE, autre_espece) for i in range(len(mots))):
+    fin = next((i for i, m in enumerate(mots) if m in _FIN_SUJET), len(mots))
+    if any(_compte_mode(mots, i, _MOTS_NAGE, autre_espece, fin) for i in range(len(mots))):
         return 'nage'
-    if any(_compte_mode(mots, i, _MOTS_REPTATION, autre_espece) for i in range(len(mots))):
+    if any(_compte_mode(mots, i, _MOTS_REPTATION, autre_espece, fin) for i in range(len(mots))):
         return 'reptation'
     return None
 

@@ -336,9 +336,16 @@ const AUTRES_ANIMAUX = new Set(('parrot parrots owl owls swan swans dove doves p
   + 'pavao falcao gaivota').split(' '));
 const DETERMINANTS = new Set(('le la les l un une des du au aux sa son ses ce cet cette ces mon ma mes ton ta tes notre nos votre vos '
   + 'leur leurs el los las lo una unos unas o os as um uma uns umas il gli the').split(' '));
-function _compteMode(mots, i, liste, autreEspece) {
+/* SUJET SEULEMENT (2026-10-24, audit des prompts M10) : le mot d'une liste ne compte que s'il DESIGNE le sujet, c'est-a-dire s'il vient AVANT le premier mot qui ouvre
+ * un complement (preposition, verbe : « chasing », « eating », « holding », « with »...) et n'est pas suivi d'un nom qui en fait un accessoire (« goldfish bowl », « snake
+ * tattoo », « fish tank »). « a cat chasing a fish », « a fisherman holding a fish », « a bird eating a worm », « a cat with a snake tattoo » ne donnent plus le gabarit
+ * poisson ou serpent a un chat, un pecheur ou un oiseau. Jumeau Python : modal_app/_prompts.py (listes identiques, comparees par build/bancs/noyaux/test_faux_amis_gabarit.py). */
+const FIN_SUJET = new Set(('with without chasing chases chase eating eats eat holding holds hold carrying carries carry catching catches catch hunting hunts hunt wearing wears wear playing plays play watching watches watch near beside next by on in at from for and or while that which who under over behind using uses riding rides feeding feeds attacking attacks fighting fights stalking stalks biting bites pursuing pursues swallowing swallows devouring devours tossing throwing throws avec qui tient tenant mange mangeant chasse poursuit sur dans pres contre et ou con que sobre sostiene come caza mit und oder auf sopra com onde').split(' '));
+const APRES_NON_SUJET = new Set(('bowl bowls tank tanks aquarium market stall tattoo tattoos pattern print prints shirt costume mask toy toys lamp sculpture statue stew soup dish curry fillet fillets bait hook hooks net nets cake sandwich skin leather shaped like themed food pond').split(' '));
+function _compteMode(mots, i, liste, autreEspece, fin) {
   const m = mots[i];
   if (!liste.has(m)) return false;
+  if (i >= fin || APRES_NON_SUJET.has(mots[i + 1] || '')) return false;
   if (!MOTS_AMBIGUS.has(m)) return true;
   if (autreEspece) return false;
   return !((m === 'ver' || m === 'vers') && DETERMINANTS.has(mots[i + 1] || ''));
@@ -347,8 +354,10 @@ function _compteMode(mots, i, liste, autreEspece) {
 export function modeDepuisTexte(texte) {
   const mots = String(texte || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const autreEspece = mots.some((m) => INDEX_ESPECES.has(m) || AUTRES_ANIMAUX.has(m));
-  if (mots.some((m, i) => _compteMode(mots, i, MOTS_NAGE, autreEspece))) return 'nage';
-  if (mots.some((m, i) => _compteMode(mots, i, MOTS_REPTATION, autreEspece))) return 'reptation';
+  let fin = mots.findIndex((m) => FIN_SUJET.has(m));
+  if (fin < 0) fin = mots.length;
+  if (mots.some((m, i) => _compteMode(mots, i, MOTS_NAGE, autreEspece, fin))) return 'nage';
+  if (mots.some((m, i) => _compteMode(mots, i, MOTS_REPTATION, autreEspece, fin))) return 'reptation';
   return null;
 }
 /** Mode d'apres le SQUELETTE : 'pattes' si des pattes sont detectees, sinon 'reptation'. */

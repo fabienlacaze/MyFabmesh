@@ -1206,6 +1206,32 @@ def extraire_negations(texte, regles=None):
     return {'positif': positif, 'negatifs': list(etat)}
 
 
+def separer_negations_outil(texte):
+    """OUTILS d'image (Recolorier, Draw mask, Auto inpaint, Variant, Age) - 24/10, audit M7. -> (texte sans ses locutions negatives, termes de negatif).
+    « make the sword blue, no helmet » : la cible du detecteur de zone (CLIPSeg) ne doit pas contenir « no helmet » (elle deplacait le masque vers la tete) et le terme
+    « helmet » va au NEGATIF de l'outil, jamais laisse dans le positif (le modele dessine ce qu'il lit). Meme tri que la generation d'image (negations_et_positif) ;
+    interrupteur FABMESH_COMPOSEUR=0 ou erreur : le texte tel quel et []. Le texte est trié APRES le filtre de moderation, sur la MEME chaine que celle qui a ete verifiee."""
+    t = '' if texte is None else str(texte)
+    try:
+        if not actif():
+            return t, []
+        r = negations_et_positif(t)
+        return r['positif'], list(r['negatifs'])
+    except Exception:       # le tri ne doit jamais empecher un outil de tourner
+        return t, []
+
+
+def negatif_avec_termes(negatif, termes):
+    """Ajoute les termes de negatif de l'utilisateur a la FIN du negatif d'un outil (derriere ses pieces de securite), sans doublon."""
+    if not termes:
+        return negatif
+    deja = {x.strip().lower() for x in str(negatif or '').split(',')}
+    neufs = [x for x in termes if x.lower() not in deja]
+    if not neufs:
+        return negatif
+    return (str(negatif).rstrip(', ') + ', ' if negatif else '') + ', '.join(neufs)
+
+
 def assainir_negatifs(liste):
     """Rend la liste telle que le serveur l'accepte (champ `negativeExtra`) : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets,
     minuscules, sans doublon. Un element invalide est ECARTE (jamais corrige). N'importe quelle entree : une liste inattendue donne []."""

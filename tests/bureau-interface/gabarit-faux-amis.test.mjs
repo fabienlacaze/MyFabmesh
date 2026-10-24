@@ -34,11 +34,14 @@ const FAUX_AMIS = [
   'un gato negro que quiere ver el mar', 'um gato preto que quer ver o mar',
   'a green parrot sitting on a wooden perch', 'a tabby cat with a bass guitar', "a medieval knight's horse carrying a pike",
   'a fluffy white rabbit with a pink feather boa', 'a cow wearing a python skin pattern', 'a fox in a ray of light', 'hai un gatto nero',
+  // 24/10 : le mot designe un OBJET ou un COMPLEMENT, pas le sujet
+  "a cat chasing a fish", "a fisherman holding a fish", "a bird eating a worm", "a cat with a snake tattoo", "a goldfish bowl", "a cat next to a fish tank", "a dog carrying a snake toy", "un chat qui mange un poisson", "un oiseau avec un ver dans le bec", "a man at a fish market", "a kid wearing a shark costume",
 ];
 const VRAIS = {
   'a pike': 'nage', 'a big bass fish': 'nage', 'a koi carp': 'nage', 'a great white shark': 'nage', 'a giant python': 'reptation',
   'a red boa': 'reptation', 'un ver de terre': 'reptation', 'des vers de terre': 'reptation', 'a cobra': 'reptation',
   'a python snake': 'reptation', 'un poisson rouge': 'nage', 'une baleine': 'nage', 'a pink earthworm': 'reptation', 'ein Fisch': 'nage',
+  "a giant snake chasing a mouse": "reptation", "a shark attacking a diver": "nage", "a worm eating an apple": "reptation", "a koi fish in a pond": "nage", "un serpent sur une branche": "reptation", "a tuna": "nage",
 };
 
 for (const [nom, M] of Object.entries(MODULES)) {
