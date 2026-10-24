@@ -18,7 +18,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
-  positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements } from './lib/composeur-intention.js';
+  positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
@@ -7622,7 +7622,7 @@ const _TEXTES_AVERTISSEMENT = {
   'quantite-deux-personnages-gabarit-un-seul': 'You describe several characters, but the template draws one single character.',
   'vue-demandee-gabarit-de-face': 'You ask for a particular view, but the template asks for a front view.',
   'buste-gabarit-corps-entier': 'You ask for a portrait or a bust, but the template asks for a full body.',
-  'negations-en-trop': "You list more than 8 things to avoid (no X, without X). Only the first 8 are applied as exclusions; the others are removed from your description and may still appear. Shorten the list.",
+  'negations-en-trop': "You list more than {x} things to avoid (no X, without X). Only the first {y} are applied as exclusions; the others are removed from your description and may still appear. Shorten the list.",
 };
 function _nbMotsAvertissement(...textes) {
   let n = 0;
@@ -7633,7 +7633,7 @@ function _nbMotsAvertissement(...textes) {
  *  Entree ne depense jamais de credits par megarde. */
 function _confirmerAvertissements(codes, textes) {
   const nbMots = _nbMotsAvertissement(...(textes || []));
-  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], nbMots) : _i18nT(_TEXTES_AVERTISSEMENT[c]))).filter(Boolean);
+  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], nbMots) : (c === 'negations-en-trop' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], NEG_MAX_LONG, NEG_MAX_LONG) : _i18nT(_TEXTES_AVERTISSEMENT[c])))).filter(Boolean);
   return new Promise((resolve) => {
     const fond = document.createElement('div');
     fond.className = 'modal-overlay';
@@ -7688,7 +7688,7 @@ function _confirmerAvertissements(codes, textes) {
 async function _verifierAvantDepense(p, texteSaisi, texteAnglais, assetType) {
   try {
     if (!composeurActif()) return true;
-    const avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, _optionsPose(assetType));
+    const avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
     if (!avert.length) return true;
     const choix = await _confirmerAvertissements(avert, [texteSaisi, texteAnglais]);
     if (choix === 'annuler') return false;
@@ -8001,10 +8001,10 @@ function _sansNegations(texte) {
   try { return composeurActif() ? positifSansNegations(texte) : texte; } catch (e) { return texte; }
 }
 
-/** Termes de negatif a envoyer au serveur (champ `negativeExtra` : 8 au plus, 40 caracteres, lettres / espaces / tirets) : les negations du texte, sans la locution.
+/** Termes de negatif a envoyer au serveur (champ `negativeExtra` : 20 au plus, 40 caracteres, lettres / espaces / tirets) : les negations du texte, sans la locution.
  *  [] si le composeur est coupe. Calcule sur le MEME texte que buildFullPrompt (apres _epurerDemande). */
 function _negativeExtraDe(texte) {
-  try { return composeurActif() ? assainirNegatifs(negationsDe(_epurerDemande(texte))) : []; } catch (e) { return []; }
+  try { return composeurActif() ? assainirNegatifs(negationsDe(_epurerDemande(texte), undefined, NEG_MAX_LONG), NEG_MAX_LONG) : []; } catch (e) { return []; }
 }
 
 function buildFullPrompt(userPrompt, assetType, assetStyle, options) {

@@ -253,6 +253,7 @@ INONDATION = ['alpha bravo charlie', 'delta echo foxtrot', 'golf hotel india', '
 # Vecteurs du nettoyage strict du champ `negative_extra` : (entree, sortie attendue). LES MEMES que VECTEURS_NETTOYAGE de cloud/tests/negations-utilisateur.test.mjs :
 # le worker (JS) et Modal (Python) nettoient a l'identique. Ecrits a la main, relus contre les deux implementations.
 DOUZE_TERMES = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima']
+VINGT_CINQ_TERMES = ['mot' + chr(97 + i) for i in range(25)]
 VECTEURS_NETTOYAGE = [
     (['helmet', 'beard'], ['helmet', 'beard']),
     (['Golden  Crown', '\tCAPE\n'], ['golden crown', 'cape']),
@@ -272,8 +273,9 @@ VECTEURS_NETTOYAGE = [
     ('helmet', []),
     ({'a': 1}, []),
     (5, []),
-    (DOUZE_TERMES, DOUZE_TERMES[:8]),
-    (['(x)'] * 10 + DOUZE_TERMES, DOUZE_TERMES[:8]),
+    (DOUZE_TERMES, DOUZE_TERMES),
+    (['(x)'] * 10 + DOUZE_TERMES, DOUZE_TERMES),
+    (VINGT_CINQ_TERMES, VINGT_CINQ_TERMES[:20]),
     (['(x)'] * 100 + DOUZE_TERMES, []),
 ]
 
@@ -340,12 +342,14 @@ class NegationsServeur(unittest.TestCase):
         # un element invalide n'empeche pas les bons de passer
         self.assertEqual(f(['(nude:0)', 'helmet', 7, 'cape']), ['helmet', 'cape'])
 
-    def test_nettoyage_doublons_et_plafond_de_huit(self):
+    def test_nettoyage_doublons_et_plafond_de_vingt(self):
         f = P.termes_negatifs_valides
         self.assertEqual(f(['a', 'A', 'a ', ' a', 'b']), ['a', 'b'])
         douze = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel', 'india', 'juliet', 'kilo', 'lima']
-        self.assertEqual(f(douze), douze[:8])
-        self.assertEqual(f(['(x)'] * 10 + douze), douze[:8], 'les elements invalides ne prennent pas de place parmi les 8')
+        self.assertEqual(f(douze), douze)
+        self.assertEqual(f(['(x)'] * 10 + douze), douze, 'les elements invalides ne prennent pas de place')
+        vingt_cinq = ['mot' + chr(97 + i) for i in range(25)]
+        self.assertEqual(f(vingt_cinq), vingt_cinq[:20], 'au-dela de 20 : ecartes sans erreur')
         self.assertEqual(f(['(x)'] * 100 + douze), [], 'jamais plus de 64 elements lus : meme borne que le worker')
 
     def test_nettoyage_refuse_garde_robe_et_nudite(self):
@@ -402,11 +406,12 @@ class NegationsServeur(unittest.TestCase):
         for c in cas:
             attendu = c['positif'] if c['positif'].strip() else c['texte']          # un texte entierement negatif garde son positif
             positif, termes = P.separer_negations(c['texte'])
-            if (positif, termes) != (attendu, c['negatifs']):
-                echecs.append(('separer', c['texte'], (positif, termes), (attendu, c['negatifs'])))
+            # le serveur lit la generation d'image : plafond 20 (negatifs_longs) ; les 8 d'avant ne valent que pour les outils a appel direct
+            if (positif, termes) != (attendu, c['negatifs_longs']):
+                echecs.append(('separer', c['texte'], (positif, termes), (attendu, c['negatifs_longs'])))
                 continue
-            if P.negatifs_utilisateur(c['texte']) != c['negatifs']:
-                echecs.append(('negatifs_utilisateur', c['texte'], P.negatifs_utilisateur(c['texte']), c['negatifs']))
+            if P.negatifs_utilisateur(c['texte']) != c['negatifs_longs']:
+                echecs.append(('negatifs_utilisateur', c['texte'], P.negatifs_utilisateur(c['texte']), c['negatifs_longs']))
                 continue
             enrichi = P.build_enriched_prompt(c['texte'], 'building', 'realistic')
             if (', ' + enrichi + ', ').find(', ' + attendu + ', ') < 0:
@@ -533,6 +538,18 @@ class NegationsServeur(unittest.TestCase):
                 self.assertIn('(%s:1.4)' % terme, neg, typ + ' ' + terme)
             self.assertNotIn("negation de l'utilisateur :", journal, typ + ' : aucune negation de l\'utilisateur ecartee')
 
+    def test_vingt_termes_de_l_utilisateur_tiennent_sur_tous_les_types_et_ne_poussent_jamais_la_securite(self):
+        # 24/10, plafond 20 (routes a encodeur long) : 20 termes de 3 mots, ponderes 1,4, tous gardes ; la securite et les ombres restent en TETE
+        vingt = ['alpha bravo charlie', 'delta echo foxtrot', 'golf hotel india', 'juliet kilo lima', 'mike november oscar', 'papa quebec romeo',
+                 'sierra tango uniform', 'victor whiskey xray', 'yankee zulu able', 'baker dog easy', 'fox george how', 'item jig king',
+                 'love mike nan', 'oboe peter queen', 'roger sugar tare', 'uncle victor william', 'xray yoke zebra', 'red cape one', 'blue cape two', 'green cape three']
+        self.assertEqual(len(vingt), 20)
+        for typ in sorted(P.ASSET_TYPE_PROMPTS):
+            neg = self._neg(typ, vingt)
+            self.assertTrue(neg.startswith(SECURITE + ', ' + OMBRES), typ)
+            for terme in vingt:
+                self.assertIn('(%s:1.4)' % terme, neg, typ + ' ' + terme)
+
     def test_le_budget_de_77_jetons_n_a_pas_bouge(self):
         with open(os.path.join(RACINE, 'modal_app', '_realvis.py'), 'r', encoding='utf-8') as f:
             src = f.read()
@@ -611,6 +628,20 @@ class NegationsServeur(unittest.TestCase):
         self.assertEqual(n, T.NEG + ', helmet')
         self.assertEqual([s.strip() for s in n.split(',')].count('cropped'), 1)
 
+    def test_tpose_vingt_termes_tous_ajoutes_le_vingt_et_unieme_ecarte(self):
+        termes = ['mot' + chr(97 + i) for i in range(21)]
+        _, n = self._tpose('An orc', termes)
+        self.assertEqual(n, T.NEG + ', ' + ', '.join(termes[:20]))
+        self.assertNotIn('motu', n.split(', '))
+
+    def test_negatifs_utilisateur_texte_et_champ_vingt_au_plus(self):
+        texte = 'An orc, ' + ', '.join('no ' + w for w in ('helmet', 'cape', 'sword', 'shield', 'crown', 'boots', 'belt', 'ring', 'staff', 'horns', 'wings', 'tail'))
+        extra = ['mot' + chr(97 + i) for i in range(12)]
+        t = P.negatifs_utilisateur(texte, extra)
+        self.assertEqual(len(t), 20)
+        self.assertEqual(t[:12], extra, 'le champ du client passe en premier')
+        self.assertEqual(len(P.negatifs_utilisateur('An orc, no helmet', None)), 1)
+
     def test_tpose_coupe_par_l_interrupteur(self):
         self.assertEqual(sans_composeur(lambda: self._tpose('An orc', ['helmet']))[1], T.NEG)
 
@@ -624,10 +655,12 @@ class NegationsServeur(unittest.TestCase):
     # ---------------------------------------------------------------- les constantes sont celles du tri du client
     def test_constantes_du_nettoyage_sont_celles_du_composeur(self):
         from modal_app import composeur_intention as ci
-        self.assertEqual((ci.MAX_TERMES_NEGATIFS, ci.MAX_CARS_TERME), (8, 40))
+        self.assertEqual((ci.NEG_MAX_DIRECT, ci.NEG_MAX_LONG, ci.MAX_CARS_TERME), (8, 20, 40))
+        self.assertEqual(ci.MAX_TERMES_NEGATIFS, ci.NEG_MAX_DIRECT)
         with open(os.path.join(RACINE, 'cloud', 'src', 'worker.ts'), 'r', encoding='utf-8') as f:
             ts = f.read()
-        self.assertEqual(re.findall(r'^const NEG_MAX_TERMES = (\d+);', ts, re.M), [str(ci.MAX_TERMES_NEGATIFS)])
+        self.assertEqual(re.findall(r'^const NEG_MAX_DIRECT = (\d+);', ts, re.M), [str(ci.NEG_MAX_DIRECT)])
+        self.assertEqual(re.findall(r'^const NEG_MAX_LONG = (\d+);', ts, re.M), [str(ci.NEG_MAX_LONG)])
         self.assertEqual(re.findall(r'^const NEG_MAX_CARS = (\d+);', ts, re.M), [str(ci.MAX_CARS_TERME)])
 
     # ---------------------------------------------------------------- le plancher dur de Modal voit les negations (seconde ligne de defense)

@@ -225,7 +225,7 @@ def separer_negations(texte):
         from modal_app import composeur_intention as _ci
         if not _ci.actif():
             return t, []
-        r = _ci.negations_et_positif(t)     # les deux garde-fous (texte trop long, texte entierement negatif) : meme fonction que le pont, jumelle du client
+        r = _ci.negations_et_positif(t, None, _ci.NEG_MAX_LONG)     # route a encodeur long : 20 termes ; les deux garde-fous (texte trop long, texte entierement negatif) : meme fonction que le pont, jumelle du client
     except Exception as _e:   # le tri des negations ne doit jamais empecher une generation
         print(f"[prompt] negations ignorees ({type(_e).__name__}: {_e})", flush=True)
         return t, []
@@ -233,7 +233,7 @@ def separer_negations(texte):
 
 
 def termes_negatifs_valides(liste):
-    """Nettoyage STRICT des termes de negatif d'une requete (champ `negative_extra`) : 8 au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets,
+    """Nettoyage STRICT des termes de negatif d'une requete (champ `negative_extra`) : 20 au plus (NEG_MAX_LONG : routes a encodeur long), 40 caracteres au plus, lettres ASCII / espaces / tirets,
     minuscules, sans doublon ; un element invalide est ECARTE, jamais corrige ; n'importe quelle entree (jamais d'exception). Les termes de garde-robe
     et de nudite (« clothes », « shirt »...) sont ecartes aussi, morceaux a tiret compris : meme liste que l'extraction (composeur_intention._NEG_SENSIBLES) ;
     en NEGATIF ils pousseraient le modele vers la nudite sans que le texte, donc le filtre de moderation, en garde la trace. [] si le composeur est coupe.
@@ -254,7 +254,7 @@ def termes_negatifs_valides(liste):
                 if t in sortie or any(m in sensibles for m in t.replace('-', ' ').split()):
                     continue
                 sortie.append(t)
-            if len(sortie) >= _ci.MAX_TERMES_NEGATIFS:
+            if len(sortie) >= _ci.NEG_MAX_LONG:
                 break
         return sortie
     except Exception as _e:   # un nettoyage qui plante vaut « aucun terme », jamais une generation perdue
@@ -263,7 +263,7 @@ def termes_negatifs_valides(liste):
 
 
 def negatifs_utilisateur(texte_brut, extra=None):
-    """Tous les termes de negatif d'UNE demande, nettoyes, sans doublon, 8 au plus : d'abord ceux du champ `negative_extra` (clients a jour), puis ceux que
+    """Tous les termes de negatif d'UNE demande, nettoyes, sans doublon, 20 au plus : d'abord ceux du champ `negative_extra` (clients a jour), puis ceux que
     l'extraction trouve dans le TEXTE brut (anciens clients ; apres _epurer_demande, comme le client). [] si le composeur est coupe."""
     brut = list(extra) if isinstance(extra, (list, tuple)) else []
     t = str(texte_brut if texte_brut is not None else '')

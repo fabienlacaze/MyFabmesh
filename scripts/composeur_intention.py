@@ -342,8 +342,9 @@ def _compter_mots(s):
     return len(t.split()) + (len(RE_CJK.findall(t)) + 1) // 2
 
 
-def detecter_avertissements(texte_saisi, texte_anglais, type_actif='character', tpose=True):
-    """-> liste de codes (ordre fixe), voir le bloc de commentaires ci-dessus. `tpose` : etat de la case « T-pose »."""
+def detecter_avertissements(texte_saisi, texte_anglais, type_actif='character', tpose=True, plafond=None):
+    """-> liste de codes (ordre fixe), voir le bloc de commentaires ci-dessus. `tpose` : etat de la case « T-pose ». `plafond` : termes de negatif de la route
+    (NEG_MAX_LONG pour la generation d'image, NEG_MAX_DIRECT par defaut) ; le code 'negations-en-trop' dit que le texte en depasse."""
     saisi = '' if texte_saisi is None else str(texte_saisi)
     anglais = '' if texte_anglais is None else str(texte_anglais)
     codes = []
@@ -352,7 +353,7 @@ def detecter_avertissements(texte_saisi, texte_anglais, type_actif='character', 
     elif max(_compter_mots(saisi), _compter_mots(anglais)) >= SEUIL_MOTS_LONG:
         codes.append('texte-long')
     if type_actif in TYPES_AVEC_AVERTISSEMENTS:
-        t = anglais if len(anglais) > PROMPT_MAX_CARS else negations_et_positif(anglais)['positif']   # « not sitting » n'est pas une demande d'assis
+        t = anglais if len(anglais) > PROMPT_MAX_CARS else negations_et_positif(anglais, None, plafond)['positif']   # « not sitting » n'est pas une demande d'assis
         it = analyser(t, type_actif, '')
         if type_actif == 'character' and tpose and it['pose_libre']:
             codes.append('pose-incompatible-avec-tpose')
@@ -362,7 +363,7 @@ def detecter_avertissements(texte_saisi, texte_anglais, type_actif='character', 
             codes.append('vue-demandee-gabarit-de-face')
         if it['buste']:
             codes.append('buste-gabarit-corps-entier')
-    if len(anglais) <= PROMPT_MAX_CARS and negations_perdues(anglais):
+    if len(anglais) <= PROMPT_MAX_CARS and negations_perdues(anglais, None, plafond):
         codes.append('negations-en-trop')
     return codes
 
@@ -596,13 +597,20 @@ def negatifs_pont(type_actif, intent, regles=None):
 # est illisible (« without a hat and shirt ») et la garde-robe / nudite (« without clothes » : le filtre de moderation doit continuer a la VOIR).
 # Un groupe nominal peut etre prolonge par « of » (« no signs of rust » -> « signs of rust »). Une negation en TETE de segment retire avec elle son complement
 # (« no hat with a feather »), mais GARDE la proposition verbale qui la suit (« no helmet holding axe » -> « holding axe ») ; au MILIEU d'une phrase seule la
-# locution part (« a knight without a helmet on his head » -> « a knight on his head »). Au-dela de 8 termes, les negations suivantes quittent aussi le positif
-# (elles n'ont pas de place dans le negatif, et laissees dans le positif elles feraient dessiner l'objet) : voir MAX_TERMES_NEGATIFS.
+# locution part (« a knight without a helmet on his head » -> « a knight on his head »). Au-dela du plafond de la route, les negations suivantes quittent aussi le positif
+# (elles n'ont pas de place dans le negatif, et laissees dans le positif elles feraient dessiner l'objet) : voir NEG_MAX_LONG / NEG_MAX_DIRECT.
 # Ce qui SUIT la locution, au milieu d'une phrase (2026-10-18) : un participe qui decrit le SUJET reste dans le positif (« an orc with no helmet standing » -> « an orc standing » ;
 # _NEG_PARTICIPES_SUJET) ; une conjonction (« but », « and ») qui introduit un complement positif reprend le mot qui liait la locution (« a man with no beard but a mustache » ->
 # « a man with a mustache » ; _neg_conj_apres). Un segment qui COMMENCE par la negation (« a street, no birds flying ») garde son participe dans le terme.
 MAX_TEXTE_NEGATIONS = 2000     # le texte analyse est tronque a 2 000 caracteres
-MAX_TERMES_NEGATIFS = 8        # termes de negatif envoyes au serveur (champ `negativeExtra`)
+# PLAFOND DE NEGATIONS PAR ROUTE (24/10, decision du proprietaire : 20). La limite de 77 jetons de CLIP n'existe pas pour les routes qui passent par
+# _sdxl_prompt_utils.encode_sdxl_long_prompt (blocs de 75 jetons mis bout a bout, positif ET negatif : text2image, T-pose, rectification, planche, vue de dos, pont local) :
+# NEG_MAX_LONG. Elle reste vraie pour les outils qui appellent pipe(prompt=...) directement (Modify, Variant, Recolor, Auto inpaint, Mask inpaint, face fix,
+# texture refine, habits...) : NEG_MAX_DIRECT. Une fonction qui ne recoit pas de plafond prend le PLUS PETIT (prudence) ; ce sont les appelants de la
+# generation d'image qui passent NEG_MAX_LONG. Le champ `negativeExtra` du serveur est une route longue : 20 termes, 40 caracteres au plus.
+NEG_MAX_DIRECT = 8             # termes de negatif des outils a appel direct (budget de 77 jetons)
+NEG_MAX_LONG = 20              # termes de negatif des routes a encodeur long (champ `negativeExtra`)
+MAX_TERMES_NEGATIFS = NEG_MAX_DIRECT   # ancien nom, conserve : le plafond PRUDENT
 MAX_CARS_TERME = 40
 MAX_MOTS_TERME = 3             # un terme = un groupe nominal de 1 a 3 mots (les 3 DERNIERS si la phrase en compte plus : la tete d'un groupe est a droite)
 
@@ -1044,6 +1052,13 @@ def _neg_titre_puis_nom(jetons, i):
     return False
 
 
+def _plafond(plafond):
+    """Plafond de termes d'une route : un entier de 1 a NEG_MAX_LONG, sinon (absent, invalide) le plus petit, NEG_MAX_DIRECT."""
+    if isinstance(plafond, int) and not isinstance(plafond, bool) and 1 <= plafond <= NEG_MAX_LONG:
+        return plafond
+    return NEG_MAX_DIRECT
+
+
 def _neg_traiter_segment(jetons, etat, casse_libre=False):
     """Un segment (entre deux virgules). -> (action, jetons) avec action 'garder' | 'modifier' | 'retirer'. Les termes trouves sont ajoutes a `etat`
     (8 au plus : une locution reconnue quitte le positif meme si son terme n'a plus de place)."""
@@ -1093,7 +1108,7 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
             if res is not None:
                 termes, fin, ferme = res
                 reprise = _neg_reprise(jetons, fin, ferme, debut, sujet)
-            # PLAFOND (24/10, B2 de la relecture) : au-dela de 8 termes la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague) ;
+            # PLAFOND (24/10, B2 de la relecture) : au-dela du plafond de la route la locution QUITTE QUAND MEME le positif (restee dedans, « no dagger » fait dessiner la dague) ;
             # le terme sans place est consigne dans etat.perdus et detecter_avertissements le dit AVANT la depense (code 'negations-en-trop').
             if reprise >= 0:
                 ferme_der = ferme
@@ -1101,7 +1116,7 @@ def _neg_traiter_segment(jetons, etat, casse_libre=False):
                 for t in termes:
                     if t in etat:
                         continue
-                    if len(etat) < MAX_TERMES_NEGATIFS:
+                    if len(etat) < etat.plafond:
                         etat.append(t)
                     elif t not in etat.perdus:
                         etat.perdus.append(t)
@@ -1267,19 +1282,20 @@ def normaliser_negations(texte):
 
 
 class _EtatNegations(list):
-    """Termes de negatif retenus (8 au plus) ; `perdus` : ceux qui n'ont pas eu de place (jamais envoyes, retires du positif)."""
-    def __init__(self):
+    """Termes de negatif retenus (`plafond` au plus) ; `perdus` : ceux qui n'ont pas eu de place (jamais envoyes, retires du positif)."""
+    def __init__(self, plafond=NEG_MAX_DIRECT):
         super().__init__()
+        self.plafond = plafond
         self.perdus = []
         self.ouverte = False        # la derniere locution retiree allait jusqu'au bout de son segment (la liste peut continuer apres la virgule)
 
 
-def extraire_negations(texte, regles=None):
+def extraire_negations(texte, regles=None, plafond=None):
     """Separe le texte de l'utilisateur en POSITIF (sans les locutions negatives) et NEGATIFS (termes a ajouter au negatif).
     -> {'positif': str, 'negatifs': [str, ...]}.
     Reconnu : segments « no X », « not X », « never X » (+ « not wearing X »), « without X », « with no X », « and no X », « wearing no X », et les listes
     « no X and no Y », « no X or Y », « without X and Y ». Un terme = 1 a 3 mots, minuscules, articles retires, lettres / espaces / tirets, 40 caracteres au plus ;
-    « knight's helmet » donne « helmet », « signs of rust » reste « signs of rust » ; 8 termes au plus (les negations suivantes quittent le positif sans terme) ;
+    « knight's helmet » donne « helmet », « signs of rust » reste « signs of rust » ; `plafond` termes au plus (8 par defaut ; 20 sur les routes a encodeur long : les negations suivantes quittent le positif sans terme) ;
     texte tronque a 2 000 caracteres.
     Refuse (le texte reste tel quel) : « no one », « nobody », « none », « nothing », « not only X but also Y », « no longer », « no more », « not too », « cannot »,
     « notably », les panneaux (« no smoking », « no entry »), les titres (« Without Remorse », « No Country for Old Men »), les chiffres, les exceptions (« no armor
@@ -1293,7 +1309,7 @@ def extraire_negations(texte, regles=None):
     t0 = t
     t = normaliser_negations(t)
     libre = _neg_casse_libre(t)
-    etat = _EtatNegations()
+    etat = _EtatNegations(_plafond(plafond))
     morceaux = []
     segs = _neg_segments(t)
     forces = set()              # segments lus comme elements d'une liste nie qui continue apres une virgule (voir _neg_run_liste)
@@ -1350,7 +1366,7 @@ def separer_negations_outil(texte):
     try:
         if not actif():
             return t, []
-        r = negations_et_positif(t)
+        r = negations_et_positif(t, None, NEG_MAX_DIRECT)      # outil a appel direct : budget de 77 jetons, 8 termes
         return r['positif'], list(r['negatifs'])
     except Exception:       # le tri ne doit jamais empecher un outil de tourner
         return t, []
@@ -1367,12 +1383,13 @@ def negatif_avec_termes(negatif, termes):
     return (str(negatif).rstrip(', ') + ', ' if negatif else '') + ', '.join(neufs)
 
 
-def assainir_negatifs(liste):
-    """Rend la liste telle que le serveur l'accepte (champ `negativeExtra`) : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets,
+def assainir_negatifs(liste, plafond=None):
+    """Rend la liste telle que le serveur l'accepte (champ `negativeExtra`) : `plafond` termes au plus (8 par defaut, 20 sur une route longue), 40 caracteres au plus, lettres ASCII / espaces / tirets,
     minuscules, sans doublon. Un element invalide est ECARTE (jamais corrige). N'importe quelle entree : une liste inattendue donne []."""
     if not isinstance(liste, (list, tuple)):
         return []
     sortie = []
+    maxi = _plafond(plafond)
     for brut in liste:
         if not isinstance(brut, str):
             continue
@@ -1394,24 +1411,24 @@ def assainir_negatifs(liste):
         if len(terme) > MAX_CARS_TERME or terme in sortie:
             continue
         sortie.append(terme)
-        if len(sortie) >= MAX_TERMES_NEGATIFS:
+        if len(sortie) >= maxi:
             break
     return sortie
 
 
-def negations_perdues(texte, regles=None):
-    """Termes de negation sans place parmi les 8 du negatif (la 9e negation d'un texte) : jumeau de negationsPerdues."""
-    return list(negations_et_positif(texte, regles).get('perdus') or [])
+def negations_perdues(texte, regles=None, plafond=None):
+    """Termes de negation sans place parmi les `plafond` du negatif (la 9e negation d'une route directe, la 21e d'une route longue) : jumeau de negationsPerdues."""
+    return list(negations_et_positif(texte, regles, plafond).get('perdus') or [])
 
 
-def negations_et_positif(texte, regles=None):
+def negations_et_positif(texte, regles=None, plafond=None):
     """{'positif', 'negatifs'} pour FABRIQUER un prompt (jumeau de negationsEtPositif du JavaScript), avec deux garde-fous de plus qu'extraire_negations :
     1. un texte de plus de 2 000 caracteres n'est PAS analyse (extraire_negations le tronquerait : on ne coupe jamais le texte de l'utilisateur) ;
     2. un texte ENTIEREMENT negatif (« no helmet ») garde son positif tel quel (un prompt vide ne vaut rien) ; ses termes partent quand meme au negatif."""
     t = texte if isinstance(texte, str) else ('' if texte is None else str(texte))
     if len(t) > MAX_TEXTE_NEGATIONS:
         return {'positif': t, 'negatifs': []}
-    r = extraire_negations(t, regles)
+    r = extraire_negations(t, regles, plafond)
     if not r['negatifs']:
         return {'positif': t, 'negatifs': []}
     if not _neg_strip(r['positif']):

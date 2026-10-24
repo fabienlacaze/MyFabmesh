@@ -135,5 +135,7 @@ def construire(graine, tirages):
             if texte in vus:
                 continue
             vus.add(texte)
-            sortie.append({'nom': nom, 'texte': texte, 'positif': positif, 'negatifs': negatifs})
+            # `negatifs` : au plafond PRUDENT (8, outils a appel direct) ; `negatifs_longs` : au plafond des routes a encodeur long (20, generation d'image)
+            longs = [terme(x) for x in (NOMS + NOMS2)[:10]] if nom == 'T48' else negatifs
+            sortie.append({'nom': nom, 'texte': texte, 'positif': positif, 'negatifs': negatifs, 'negatifs_longs': longs})
     return sortie

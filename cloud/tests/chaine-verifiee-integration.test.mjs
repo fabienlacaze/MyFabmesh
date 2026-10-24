@@ -80,7 +80,7 @@ const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_dernie
   'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
   '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE', 'TRADUCTION_PLAFOND_JOUR_COMPTE',
   'TRADUCTION_PLAFOND_JOUR_COMPTE_PAYANT', '_refusChaineEnvoyee'];
-const NEGATIONS = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_TERMES', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
+const NEGATIONS = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_DIRECT', 'NEG_MAX_LONG', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
 
 /** Chaines que le worker a envoyees a Modal et chaines que le filtre a examinees. `traduire(texte)` simule Workers AI. */
 function monter({ traduire = (t) => 'EN:' + t, credits = 100 } = {}) {

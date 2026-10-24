@@ -98,7 +98,7 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
     print(f"LOCAL_REALVIS: asset_type={_asset_type}", flush=True)
 
     # NEGATIONS DE L'UTILISATEUR (2026-10-03, scripts/composeur_intention.py extraire_negations). « an orc, no helmet » : le modele d'image ne comprend pas la negation, il voit « helmet »
-    # et le dessine ; elle va donc au NEGATIF, pour TOUS les types d'asset (pas seulement les unites). Deux sources, reunies sans doublon (8 termes au plus) : les termes que le renderer
+    # et le dessine ; elle va donc au NEGATIF, pour TOUS les types d'asset (pas seulement les unites). Deux sources, reunies sans doublon (20 termes au plus, NEG_MAX_LONG : la voie Compel lit le negatif par blocs de 75 jetons) : les termes que le renderer
     # a deja extraits du texte TRADUIT (FABMESH_NEGATIVE_EXTRA, JSON) et ceux que le pont extrait lui-meme du texte brut (FABMESH_USER_PROMPT : le texte tape, parfois dans la langue de
     # l'interface, d'ou la premiere source). Sans negation, le negatif ne change pas d'un octet. Interrupteur d'urgence : FABMESH_COMPOSEUR=0.
     _neg_utilisateur = []
@@ -109,13 +109,13 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
         import composeur_intention as _cn
         if _cn.actif():
             # enveloppe (jumelle de negationsEtPositif du renderer) : un texte de plus de 2 000 caracteres n'est pas coupe, un texte entierement negatif garde son positif
-            _extrait = _cn.negations_et_positif(_texte_utilisateur)
+            _extrait = _cn.negations_et_positif(_texte_utilisateur, None, _cn.NEG_MAX_LONG)
             _texte_composeur = _extrait['positif']
             try:
-                _du_renderer = _cn.assainir_negatifs(json.loads(os.environ.get('FABMESH_NEGATIVE_EXTRA') or '[]'))
+                _du_renderer = _cn.assainir_negatifs(json.loads(os.environ.get('FABMESH_NEGATIVE_EXTRA') or '[]'), _cn.NEG_MAX_LONG)
             except Exception:
                 _du_renderer = []
-            _neg_utilisateur = _cn.assainir_negatifs(_du_renderer + _extrait['negatifs'])
+            _neg_utilisateur = _cn.assainir_negatifs(_du_renderer + _extrait['negatifs'], _cn.NEG_MAX_LONG)
             if _neg_utilisateur:
                 print("LOCAL_REALVIS: negations de l'utilisateur -> negatif : %s" % _neg_utilisateur, flush=True)
     except Exception as _ce:
@@ -480,11 +480,11 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
 
     # NEGATIONS DE L'UTILISATEUR : ajoutees EN QUEUE du negatif (les jetons de securite du debut restent les premiers), quelle que soit la branche ci-dessus.
     # Voie SANS Compel (Compel absent ou en echec : diffusers coupe le negatif a 77 jetons, et celui-ci en compte davantage) : une queue serait JETEE en silence et
-    # « no helmet » ne servirait a rien ; les termes de l'utilisateur passent alors en TETE (8 termes de 3 mots au plus, soit une trentaine de jetons : les jetons de
+    # « no helmet » ne servirait a rien ; les termes de l'utilisateur passent alors en TETE, LIMITES AUX 8 PREMIERS (NEG_MAX_DIRECT : 8 termes de 3 mots au plus, soit une trentaine de jetons ; 20 termes pousseraient la securite hors de la fenetre de 77 : les jetons de
     # securite « nude, naked... », juste derriere, restent dans la fenetre). La voie Compel (encode_sdxl_long_prompt, blocs de 75 jetons) garde la queue.
     _negatif_sans_compel = negative_prompt
     if _neg_utilisateur and _cn is not None:
-        _negatif_sans_compel = _cn.ajouter_jetons(negative_prompt, _neg_utilisateur, en_tete=True)
+        _negatif_sans_compel = _cn.ajouter_jetons(negative_prompt, _neg_utilisateur[:_cn.NEG_MAX_DIRECT], en_tete=True)
         negative_prompt = _cn.ajouter_jetons(negative_prompt, _neg_utilisateur, en_tete=False)
 
     _throttle_cb = make_throttle_callback()  # None if disabled

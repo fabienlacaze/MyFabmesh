@@ -38,6 +38,17 @@ class Avertissements(unittest.TestCase):
         self.assertNotIn('dagger', C.negations_et_positif(t)['positif'])
         self.assertEqual(C.detecter_avertissements(t.replace(', no dagger', ''), t.replace(', no dagger', ''), 'prop'), [])
 
+    def test_vingt_et_unieme_negation_annoncee_sur_une_route_longue(self):
+        """Plafond 20 (24/10) : la generation d'image passe NEG_MAX_LONG ; 9 a 20 negations ne sont plus annoncees, la 21e l'est."""
+        mots = ['helmet', 'cape', 'sword', 'shield', 'crown', 'boots', 'belt', 'ring', 'staff', 'horns', 'wings', 'tail', 'beard', 'scarf', 'gloves', 'amulet', 'spear',
+                'quiver', 'hood', 'mask', 'banner']
+        t = 'a knight, ' + ', '.join('no ' + m for m in mots[:20])
+        self.assertEqual(C.detecter_avertissements(t, t, 'prop', True, C.NEG_MAX_LONG), [])
+        self.assertEqual(C.detecter_avertissements(t, t, 'prop'), ['negations-en-trop'], 'sans plafond passe : le plus prudent (8)')
+        t21 = t + ', no ' + mots[20]
+        self.assertEqual(C.detecter_avertissements(t21, t21, 'prop', True, C.NEG_MAX_LONG), ['negations-en-trop'])
+        self.assertEqual(C.negations_perdues(t21, None, C.NEG_MAX_LONG), ['banner'])
+
     def test_rien_pour_les_demandes_ordinaires(self):
         for t in ('a knight', 'an orc holding a massive spiked club', 'a samurai holding two swords', 'a two-headed ogre', 'a knight, not sitting'):
             self.assertEqual(C.detecter_avertissements(t, t), [], t)
