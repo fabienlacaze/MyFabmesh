@@ -309,7 +309,8 @@ class TestModuleImportable(unittest.TestCase):
             elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module:
                 modules.add(n.module.split('.')[0])
         self.assertTrue(modules <= set(sys.stdlib_module_names), modules)
-        self.assertTrue(modules <= {'re', 'unicodedata'}, modules)
+        # 2026-10-13 : `time` (annee en cours pour « born in 2018 ») s'ajoute ; toujours rien a installer dans l'image Modal.
+        self.assertTrue(modules <= {'re', 'time', 'unicodedata'}, modules)
 
     def test_prompts_longs_restent_rapides(self):
         import time
@@ -419,21 +420,29 @@ def _corpus_parite():
         for b in (F('lo', 'li'), F('sho', 'ta'), F('pedo', 'phile'), F('child ', 'porn')):
             cas.append('a character, ' + deg(b))
     # tirage : mots des listes du module (ambigus, mineurs, nudite, violence, ages) + mots neutres
+    # (2026-10-13 : etoiles retirees des deux cotes ; lexiques non latins, mots colles, idiomes et age ecrit en tirage aussi)
     pools = {
-        'min': [x.rstrip('*') for x in M.MINEURS_FORT + M.MINEURS_AMBIGUS + M.MINEURS_VIOLENCE],
-        'nu': [x.rstrip('*') for x in M.NU_FORT + M.NU_MOYEN + M.NU_FAIBLE_PLANCHER + M.NU_FAIBLE_GENERAL],
-        'vio': [x.rstrip('*') for x in M.VIOLENCE_ENFANT_PLANCHER + M.VIOLENCE_ENFANT_GENERAL + M.GENERAL_CTX_VIOLENCE
+        'min': [x.strip('*') for x in M.MINEURS_FORT + M.MINEURS_AMBIGUS + M.MINEURS_VIOLENCE + M.MINEURS_INDICES],
+        'nu': [x.strip('*') for x in M.NU_FORT + M.NU_MOYEN + M.NU_FAIBLE_PLANCHER + M.NU_FAIBLE_GENERAL + M.NU_EXACTS
+               + M.SEXE_MINEUR_FORT],
+        'vio': [x.strip('*') for x in M.VIOLENCE_ENFANT_PLANCHER + M.VIOLENCE_ENFANT_GENERAL + M.GENERAL_CTX_VIOLENCE
                 + M.GENERAL_VIOLENCE_DUR + M.GENERAL_DROGUE_DUR + M.GENERAL_ARMES_DUR],
-        'gen': [x.rstrip('*') for x in M.GENERAL_SEXUEL_DUR + M.GENERAL_CTX_SEXUEL + M.CONTEXTE_SEXUEL_FAIBLE + M.PERSONNES
+        'gen': [x.strip('*') for x in M.GENERAL_SEXUEL_DUR + M.GENERAL_CTX_SEXUEL + M.CONTEXTE_SEXUEL_FAIBLE + M.PERSONNES
                 + M.NUDITE_EXTREME + M.GENERAL_EXTREMISME_DUR + M.GENERAL_AUTOBLESSURE_DUR + M.GENERAL_HAINE_DUR],
         'age': ['12 ans', 'twelve year old', 'aged 10', '11yo', '17 y/o', '25 years old', 'age of 15', 'una de 10 años', '9 anni',
-                'sixteen', 'age 18', 'under 18', 'eta di 14', '8 jahre alt', 'idade de 9', '7 ans'],
+                'sixteen', 'age 18', 'under 18', 'eta di 14', '8 jahre alt', 'idade de 9', '7 ans', 'aged elf', 'aged ten thousand',
+                'dix ans de guerre', '10 años de edad', '10岁', '10 лет', '10살', '10 yaşında', 'born in 2019', 'zehnjährig'],
         'neutre': ['a', 'the', 'warrior', 'robot', 'with', 'in', 'dragon', 'sword', 'castle', 'orc', 'knight', 'holding', 'and', 'of',
-                   'kind', 'kind', 'kinder', 'shower', 'bath', 'bed', 'young', 'hero', 'toy', 'gun', 'blood', 'hot'],
-        'unicode': [CYR_E + 'lf', 'n' + CYR_O + 'de', 'élève', 'café', 'ロリ', '中文', '\U0001f600', 'straße'],
+                   'kind', 'kind', 'kinder', 'shower', 'bath', 'bed', 'young', 'hero', 'toy', 'gun', 'blood', 'hot', 'stable',
+                   'heroine', 'pieds nus', 'baby dragon', 'hit points', 'Nudeln'],
+        'unicode': [CYR_E + 'lf', 'n' + CYR_O + 'de', 'élève', 'café', 'ロリ', '中文', '\U0001f600', 'straße', 'nữ', 'nụ', 'ñu',
+                    '裸足', '아이템'] + [x.strip('*') for x in M.MINEURS_FORT_UNICODE + M.MINEURS_AMBIGUS_UNICODE
+                                          + M.NU_FORT_UNICODE + M.NU_MOYEN_UNICODE + M.NU_FAIBLE_UNICODE],
+        'colle': [m + n for m in M.COLLE_MINEURS[:12] for n in M.COLLE_NUDITE[:8]] + [n + m for m in M.COLLE_MINEURS[:6]
+                                                                                       for n in M.COLLE_NUDITE_BORD],
     }
     noms = list(pools)
-    poids = [3, 3, 2, 2, 2, 5, 1]
+    poids = [3, 3, 2, 2, 2, 5, 2, 1]
     degs = list(DEGUISEMENTS.values())
     for _ in range(4000):
         k = rnd.randint(1, 5)
@@ -475,6 +484,129 @@ class TestPariteTypeScript(unittest.TestCase):
         refus = len([1 for a in attendu if not a[1]['safe']])
         self.assertGreater(refus, 300)
         self.assertGreater(len(attendu) - refus, 300)
+
+
+# ── Audit langue / moderation du 11/10/2026 : cas PARTAGES avec le cloud et le bureau ─────────────────────────────────
+# Les cas vivent dans cloud/tests/_cas-moderation.mjs (assembles par fragments, aucun contenu explicite en clair) ; node les
+# fournit AVEC les verdicts du TypeScript. Preuve d'echec : MODERATION_MODULE=<ancien _moderation_texte.py>.
+CHEMIN_CAS = os.environ.get('CAS_MODERATION') or os.path.join(RACINE, 'cloud', 'tests', '_cas-moderation.mjs')
+RUNNER_CAS = r"""
+const fs = require('fs');
+const { pathToFileURL } = require('url');
+const ts = require(process.argv[3]);
+const js = ts.transpileModule(fs.readFileSync(process.argv[2], 'utf8'),
+  { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+const mod = {};
+new Function('exports', 'require', js)(mod, require);
+const zw = String.fromCharCode(0x200b);
+import(pathToFileURL(process.argv[4]).href).then((C) => {
+  const v = (t) => [mod.checkHardFloor(t), mod.checkPromptSafety(t, false), mod.checkPromptSafety(t, true)];
+  const longueurs = ['x'.repeat(2000), 'x'.repeat(2001), '孩'.repeat(666), '孩'.repeat(667), zw.repeat(5000) + 'x', 'x'.repeat(40000)];
+  process.stdout.write(JSON.stringify({
+    plancher: C.casPlancher().map(([c, t]) => [c, t, v(t)]),
+    general: C.casGeneral().map(([c, t]) => [c, t, v(t)]),
+    legitimes: C.LEGITIMES.map((t) => [t, v(t)]),
+    plancherSeulement: C.PLANCHER_SEULEMENT.map((t) => [t, v(t)]),
+    syntaxe: C.SYNTAXE.map(([e, a]) => [e, a, mod.neutraliserSyntaxePrompt ? mod.neutraliserSyntaxePrompt(e) : null]),
+    longueur: longueurs.map((t) => [t, mod.controlerLongueurPrompt ? mod.controlerLongueurPrompt(t) : null]),
+  }));
+});
+"""
+
+
+def _verdicts(t):
+    return [M.check_hard_floor(t), M.check_prompt_safety(t, False), M.check_prompt_safety(t, True)]
+
+
+@unittest.skipIf(M is None, 'modal_app/_moderation_texte.py absent')
+@unittest.skipUnless(_node() and os.path.isdir(CHEMIN_TYPESCRIPT) and os.path.exists(CHEMIN_TS) and os.path.exists(CHEMIN_CAS),
+                     'node, typescript, nsfw_filter.ts ou _cas-moderation.mjs absent : cas partages non verifies')
+class TestCasPartages(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as d:
+            runner = os.path.join(d, 'runner_cas.js')
+            with open(runner, 'w', encoding='utf-8') as f:
+                f.write(RUNNER_CAS)
+            r = subprocess.run([_node(), runner, CHEMIN_TS, CHEMIN_TYPESCRIPT, CHEMIN_CAS], capture_output=True, timeout=300)
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.decode('utf-8', 'replace')[:2000])
+        cls.cas = json.loads(r.stdout.decode('utf-8'))
+
+    def test_plancher_tient_meme_sous_unrestricted(self):
+        self.assertGreater(len(self.cas['plancher']), 500)
+        rates = [(c, ascii(t)) for c, t, _ in self.cas['plancher']
+                 if M.check_hard_floor(t)['safe'] or M.check_prompt_safety(t, True)['safe']]
+        self.assertEqual(rates, [])
+
+    def test_adultes_filtre_general_jamais_le_plancher(self):
+        ecarts = []
+        for c, t, _ in self.cas['general']:
+            h, g, u = _verdicts(t)
+            if not h['safe'] or g['safe'] or not u['safe']:
+                ecarts.append((c, ascii(t)))
+        self.assertEqual(ecarts, [])
+
+    def test_faux_positifs_corriges(self):
+        self.assertEqual([ascii(t) for t, _ in self.cas['legitimes']
+                          if not M.check_hard_floor(t)['safe'] or not M.check_prompt_safety(t, False)['safe']], [])
+        self.assertEqual([ascii(t) for t, _ in self.cas['plancherSeulement'] if not M.check_hard_floor(t)['safe']], [])
+
+    def test_syntaxe_et_longueur(self):
+        self.assertTrue(hasattr(M, 'neutraliser_syntaxe_prompt'), 'neutraliser_syntaxe_prompt absent')
+        for e, attendu, ts_sortie in self.cas['syntaxe']:
+            self.assertEqual(M.neutraliser_syntaxe_prompt(e), attendu, ascii(e))
+            self.assertEqual(ts_sortie, attendu, 'TypeScript : ' + ascii(e))
+        for t, ts_verdict in self.cas['longueur']:
+            self.assertEqual(M.controler_longueur_prompt(t), ts_verdict, ascii(t[:20]))
+
+    def test_parite_python_typescript_sur_tous_les_cas(self):
+        ecarts = []
+        for liste in ('plancher', 'general'):
+            for c, t, ts_v in self.cas[liste]:
+                if _verdicts(t) != ts_v:
+                    ecarts.append((c, ascii(t)))
+        for liste in ('legitimes', 'plancherSeulement'):
+            for t, ts_v in self.cas[liste]:
+                if _verdicts(t) != ts_v:
+                    ecarts.append((liste, ascii(t)))
+        self.assertEqual(ecarts[:5], [], '%d ecarts' % len(ecarts))
+
+
+@unittest.skipIf(M is None, 'modal_app/_moderation_texte.py absent')
+class TestPlancherSansNode(unittest.TestCase):
+    """Quelques cas du 13/10 verifies sans node (machine sans outillage JavaScript)."""
+
+    def test_actes_colles_effaces_langues(self):
+        cas = [
+            '%s %s' % (MIN_ENFANT, F('fel', 'latio')), '9 year old %s' % F('blow', 'job'), MIN_ENFANT + NA, NA + MIN_FILLE,
+            '%s na%sked' % (MIN_ENFANT, chr(1)), '%s na%sked' % (MIN_ENFANT, chr(0x2064)), '%s na%sked' % (MIN_ENFANT, chr(0xe000)),
+            '%s %s' % (F('孩', '子'), F('裸', '体')), '%s %s' % (F('ребё', 'нок'), F('гол', 'ый')), '10岁 ' + F('top', 'less'),
+            'age of %s %s' % (chr(0x661) + chr(0x660), F('top', 'less')), 'a 8 y/o ' + NU, 'newborn ' + NA,
+        ]
+        self.assertEqual([ascii(p) for p in cas if M.check_hard_floor(p)['safe'] or M.check_prompt_safety(p, True)['safe']], [])
+
+    def test_faux_positifs(self):
+        for p in ('aged elf shirtless monk', 'old wizard aged ten thousand years, shirtless', 'baby dragon in a stable',
+                  'fantasy heroine with a sword', 'un arbre nu en hiver', 'nữ hoàng ngồi trên ngai vàng', 'Nudeln mit Soße'):
+            self.assertTrue(M.check_hard_floor(p)['safe'], p)
+        for p in ('baby dragon in a stable', 'fantasy heroine with a sword', 'un arbre nu en hiver', 'nữ hoàng ngồi trên ngai vàng',
+                  'Nudeln mit Soße', 'kid scream mask'):
+            self.assertTrue(M.check_prompt_safety(p, False)['safe'], p)
+
+    def test_lettres_epelees_autour_d_une_expression_retiree_entiere(self):
+        # 21/10 : la production rapprochait « n » et « u s » en retirant « baby shower » ; la vue exacte (« nus ») ne le faisait plus
+        for e in ('baby shower', 'bridal shower', 'bath toys', 'suicide squad', 'nu metal'):
+            for t in ('%s n %s u s' % (MIN_ENFANT, e), '%s n %s u e s' % (MIN_ENFANT, e)):
+                self.assertFalse(M.check_hard_floor(t)['safe'], t)
+        for t in ('a baby shower with balloons', 'a child at a baby shower', 'a child n a u s'):
+            self.assertTrue(M.check_hard_floor(t)['safe'], t)
+
+    def test_longueur_et_syntaxe(self):
+        self.assertEqual(M.controler_longueur_prompt('x' * 2000), {'safe': True})
+        self.assertEqual(M.controler_longueur_prompt('x' * 2001)['blocked'], 'length')
+        self.assertFalse(M.controler_longueur_prompt('孩' * 667)['safe'])
+        self.assertEqual(M.neutraliser_syntaxe_prompt('a (cape:99999) <|endoftext|> (x:..)'), 'a (cape:2)  endoftext  (x)')
 
 
 if __name__ == '__main__':

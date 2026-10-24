@@ -258,3 +258,62 @@ test('parite : bureau et cloud rendent le MEME verdict (safe, blocked) cas par c
 test('NSFW_KEYWORDS du bureau (get-nsfw-keywords) : meme liste que le cloud', () => {
   assert.deepEqual(fabriqueBureau.NSFW_KEYWORDS, modCloud.NSFW_KEYWORDS);
 });
+
+// ── Audit langue / moderation du 11/10/2026 : memes cas que le cloud et Modal (cloud/tests/_cas-moderation.mjs) ─────────
+// Contre l'ancien main.js (preuve d'echec) : git show HEAD:src/main/main.js > /tmp/main_HEAD.js &&
+//   MAIN_JS=/tmp/main_HEAD.js node --test tests/main/moderation_bureau.test.mjs
+const CAS = await import('../../cloud/tests/_cas-moderation.mjs');
+
+test('jeux du 13/10 : le plancher du bureau tient (actes explicites, mots colles, ages, 12 langues, caracteres effaces)', () => {
+  const rates = CAS.casPlancher().filter(([, t]) => checkHardFloor(t).safe || checkPromptSafety(t, true).safe);
+  assert.deepEqual(rates.map(([c, t]) => `${c}: ${JSON.stringify(t)}`), []);
+  assert.deepEqual(CAS.LEGITIMES.filter((t) => !checkHardFloor(t).safe || !checkPromptSafety(t, false).safe), []);
+  assert.deepEqual(CAS.PLANCHER_SEULEMENT.filter((t) => !checkHardFloor(t).safe), []);
+});
+
+test('jeux du 13/10 : bureau et cloud rendent le MEME verdict sur tous les cas partages', () => {
+  const norm = (r) => (r || '').replace('Disable parental control in Settings to use unrestricted mode.', 'X').replace('Modify your prompt or contact support to request unrestricted access.', 'X');
+  const tous = [...CAS.casPlancher().map(([, t]) => t), ...CAS.casGeneral().map(([, t]) => t), ...CAS.LEGITIMES, ...CAS.PLANCHER_SEULEMENT];
+  const ecarts = [];
+  for (const p of tous) for (const u of [false, true]) {
+    const b = checkPromptSafety(p, u), c = modCloud.checkPromptSafety(p, u);
+    if (b.safe !== c.safe || b.blocked !== c.blocked || norm(b.reason) !== norm(c.reason) || b.categorie !== c.categorie || b.hardFloor !== c.hardFloor)
+      ecarts.push(JSON.stringify({ p, u, bureau: b.blocked, cloud: c.blocked }));
+  }
+  assert.deepEqual(ecarts, []);
+});
+
+// MODERATION-04 : les outils du bureau qui envoient un texte libre au moteur local passent le filtre (refusTexteOutil).
+function extraireRefusTexteOutil(unrestricted) {
+  const d = main.indexOf('function refusTexteOutil(');
+  assert.ok(d > 0, 'refusTexteOutil absent de main.js');
+  const f = main.indexOf('\n}\n', d);
+  return new Function('checkPromptSafety', 'checkHardFloor', main.slice(d, f + 2) + '\nreturn refusTexteOutil;')(
+    (p) => checkPromptSafety(p, unrestricted), checkHardFloor);
+}
+
+test('MODERATION-04 : refusTexteOutil — chaque champ filtre, et le plancher voit les champs ENSEMBLE', () => {
+  const refus = extraireRefusTexteOutil(false);
+  assert.equal(refus(), null);
+  assert.equal(refus('', null, undefined), null);
+  assert.equal(refus('a red cape'), null);
+  assert.equal(refus('bed', "child's toy box"), null, 'le filtre general reste champ par champ');
+  assert.match(refus(F('na', 'ked woman')) || '', /Content filter/);
+  // compte sans restriction : chaque champ passe seul, le plancher les refuse ENSEMBLE
+  const refusLibre = extraireRefusTexteOutil(true);
+  assert.equal(refusLibre(F('na', 'ked woman')), null, 'adulte : permis sous unrestricted');
+  assert.match(refusLibre(MIN_ENFANT, NA) || '', /illegal/, 'mineur en cible + nudite en remplacement = plancher');
+  assert.match(refusLibre(NA, MIN_ENFANT) || '', /illegal/);
+});
+
+test('MODERATION-04 : les outils d edition et de generation du bureau appellent refusTexteOutil avant tout calcul', () => {
+  const sans = [];
+  for (const nom of ['mask-inpaint', 'tex-variant', 'recolor', 'auto-inpaint', 'generate-from-prompt', 'refine-mesh', 'generate-build-stages',
+    'mesh:region-retex', 'mesh:reshape-region', 'redacteur:decrire']) {
+    const d = main.indexOf(`ipcMain.handle('${nom}'`);
+    assert.ok(d > 0, `handler ${nom} introuvable`);
+    const corps = main.slice(d, d + 900);
+    if (!corps.includes('refusTexteOutil(')) sans.push(nom);
+  }
+  assert.deepEqual(sans, []);
+});

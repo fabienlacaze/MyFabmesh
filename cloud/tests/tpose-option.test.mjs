@@ -37,6 +37,8 @@ function monter({ tposeUrl = 'https://tpose.example', t2iUrl = 'https://t2i.exam
     // filet de langue (2026-10-13, teste a part : tests/traduction-serveur.test.mjs) : ici le texte est anglais, il passe tel quel
     // filet de langue neutre ; meme contrat que le vrai (un champ ou une LISTE de champs -> `textes`, seconde revue du lot 2 de la langue)
     _filetLangue: async (_e, _u, texte) => { const textes = Array.isArray(texte) ? texte : [texte]; return { texte: textes[0], textes, traduit: false, langues: [] }; },
+    // 2026-10-13 (MODERATION-07) : borne de longueur du prompt, testee a part (tests/moderation-worker.test.mjs)
+    _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000,
   };
   // filtre sur la chaine EXACTEMENT envoyee a Modal (quatrieme relecture du lot 2 de la langue) : la vraie aide, sur la doublure du filtre
   // negations de l'utilisateur (2026-10-14) : handleGenerateImage nettoie `negativeExtra` et le montre au filtre ; charges seulement s'ils existent
