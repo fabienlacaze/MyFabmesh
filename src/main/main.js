@@ -7188,6 +7188,8 @@ ipcMain.handle('animate-ai', async (event, { rigPath, animType, prompt, engine, 
   const safeAnim = (animType || 'idle').replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || 'idle';
   console.log(`[animate-ai] START rig=${rigPath} engine=${engine || 'anytop'} animType=${safeAnim} @${new Date(_t0).toISOString()}`);
   try {
+    const refusTexteAnim = refusTexteOutil(prompt);   // 24/10 (audit M8) : texte libre du mouvement, meme filtre que les autres outils
+    if (refusTexteAnim) return { success: false, error: refusTexteAnim };
     if (!rigPath || !fs.existsSync(rigPath)) {
       return { success: false, error: 'Rig file not found' };
     }
@@ -8080,6 +8082,8 @@ ipcMain.handle('detail-synth', async (event, { meshPath, jobId, strength, prompt
     return sortie;
   };
   try {
+    const refusTexteDetail = refusTexteOutil(prompt);   // 24/10 (audit M8) : texte libre de Detail++, meme filtre que les autres outils
+    if (refusTexteDetail) return { success: false, error: refusTexteDetail };
     if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
     progres({ pct: 1, etape: 'modeles' });
     const manquants = MODELES_DETAIL.filter((m) => !_modeleEnCache(m.repo, m.fichiers));
@@ -12486,6 +12490,11 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
   // 2026-10-03 (constat D-05) : meme controle que mesh-segment et les autres outils de maillage ; l'operation
   // ecrit un nouveau fichier a cote du maillage, il doit donc etre dans un dossier gere par l'appli.
   if (!meshPath || !isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+  // 24/10 (audit M8) : le « Style » de Texture variants (3e parametre) est un texte libre envoye au moteur d'image
+  if (operation === 'texture_var') {
+    const refusStyle = refusTexteOutil(String((params || [])[2] || ''));
+    if (refusStyle) return { success: false, error: refusStyle };
+  }
   const script = path.join(SCRIPTS_DIR, 'mesh_tools.py');
   const timestamp = Date.now();
   const ext = path.extname(meshPath);
@@ -12969,6 +12978,8 @@ ipcMain.handle('caption-image', async (_event, { imagePath }) => {
 // same subject, conditioned on the front photo.
 // ============================================================
 ipcMain.handle('generate-back-view', async (_event, { frontImage, promptHint, numImages, mode, assetType, sheetViews }) => {
+  const refusTexteDos = refusTexteOutil(promptHint);   // 24/10 (audit M8) : l'indice texte de la vue de dos n'etait filtre nulle part en local
+  if (refusTexteDos) return { success: false, error: refusTexteDos };
   if (!frontImage || !fs.existsSync(frontImage)) {
     return { success: false, error: `front image not found: ${frontImage}` };
   }

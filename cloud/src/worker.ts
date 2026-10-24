@@ -1441,6 +1441,11 @@ const REFUS_CONNUS: ReadonlyArray<readonly [RegExp, string, ((m: RegExpMatchArra
   [/^unauthori[sz]ed$/i, 'unauthorized', null],
   [/^forbidden$/i, 'forbidden', null],
   [/^not found$/i, 'not_found', null],
+  /* 24/10 (audit des prompts, m12) : les refus du filtre de contenu et de la borne de longueur n'existaient qu'en anglais, avec le MOT declencheur
+   * (parfois un radical tronque, « desnud », quand la traduction avait echoue). Un code stable : l'interface les redige dans la langue de
+   * l'utilisateur, sans citer le mot, en disant de reformuler. Le texte anglais `error` reste tel quel (journaux, cles d'API). */
+  [/^Prompt too long \((\d+) \/ (\d+)\)/i, 'prompt_too_long', (m) => ({ n: Number(m[1]), max: Number(m[2]) })],
+  [/^Content filter:|^prompt blocked by content filter/i, 'content_filter', null],
 ];
 function codeRefus(message: unknown): { code: string; params?: ParamsRefus } | null {
   if (typeof message !== 'string' || !message) return null;

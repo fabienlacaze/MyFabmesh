@@ -214,3 +214,52 @@ for (const [cible, rel] of [['web', 'cloud/public/app/index2.js'], ['bureau', 's
     assert.equal(achats.length, 1, 'la boite d achat doit s ouvrir (motif teste sur le texte anglais)');
   });
 }
+
+// ------------------------------------------------------------------------------------------------------- 24/10 : m12, refus du filtre de contenu
+// Le filtre de contenu et la borne de longueur n'avaient qu'un message ANGLAIS, avec le mot declencheur. Code stable + gabarit traduit dans
+// les 5 langues, sans le mot. Ancien code : WORKER_SRC=<worker.ts de prompts-2410> RACINE_DEPOT=<copie de prompts-2410> node --test tests/codes-refus.test.mjs
+const REFUS_FILTRE = [
+  ['Content filter: "zzmotbloque" is blocked. Rephrase your description.', 'content_filter'],
+  ['Content filter: combination "zzmotun" + "zzmotdeux" is blocked. This type of content is not allowed.', 'content_filter'],
+  ['prompt blocked by content filter', 'content_filter'],
+  ['Prompt too long (2500 / 2000): please shorten your description. Characters outside the Latin alphabet count as 3.', 'prompt_too_long'],
+];
+
+test('m12 : les raisons du filtre ecrites dans nsfw_filter.ts commencent bien par les motifs reconnus', () => {
+  const filtre = fs.readFileSync(path.join(RACINE, 'cloud/src/nsfw_filter.ts'), 'utf8');
+  assert.match(filtre, /reason: `Content filter: "/);
+  assert.match(filtre, /reason: `Prompt too long \(\$\{n\} \/ \$\{max\}\)/);
+});
+
+test('m12 : le worker donne un code stable aux refus du filtre et de la longueur (texte anglais intact)', async () => {
+  const w = worker();
+  for (const [m, code] of REFUS_FILTRE) {
+    assert.equal(w.codeRefus(m).code, code, m);
+    const r = await sortie(w, w.json({ ok: false, success: false, error: m, blocked: 'x' }, { status: 400 }));
+    assert.equal(r.corps.code, code);
+    assert.equal(r.corps.error, m, 'texte anglais intact');
+  }
+  assert.deepEqual(w.codeRefus(REFUS_FILTRE[3][0]).params, { n: 2500, max: 2000 });
+  assert.equal(w.codeRefus('insufficient credits').code, 'insufficient_credits', 'les familles existantes ne bougent pas');
+});
+
+for (const cible of ['web', 'bureau']) {
+  test(`${cible} m12 : refus du filtre et de la longueur affiches dans les 5 langues, sans le mot declencheur`, () => {
+    const w = worker();
+    for (const L of LANGUES) {
+      const fm = pageReelle(cible, L).fenetre.FabMessages;
+      for (const [m, code] of REFUS_FILTRE) {
+        assert.equal(fm.reconnaitre(m).code, code, `${L} : ${m}`);
+        const v = fm.traduire(m);
+        assert.notEqual(v, m, `${L} : refus laisse en anglais`);
+        assert.ok(!/zzmot/.test(v), `${L} : le mot declencheur ne doit pas etre affiche : ${v}`);
+        assert.ok(!/Content filter|Rephrase|shorten/i.test(v), `${L} : reste d'anglais : ${v}`);
+      }
+      assert.match(fm.traduire(REFUS_FILTRE[3][0]), /2500/, `${L} : la longueur reste dite`);
+      assert.match(fm.traduire(REFUS_FILTRE[3][0]), /2000/, `${L} : la borne reste dite`);
+    }
+    assert.equal(pageReelle(cible, 'fr').fenetre.FabMessages.traduire(REFUS_FILTRE[0][0]),
+      "Cette description n'est pas autorisée par le filtre de contenu. Reformule-la et réessaie.");
+    assert.equal(pageReelle(cible, 'en').fenetre.FabMessages.traduire(REFUS_FILTRE[0][0]), REFUS_FILTRE[0][0], 'anglais : rien ne change');
+  });
+}
