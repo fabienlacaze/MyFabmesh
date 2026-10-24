@@ -1,0 +1,690 @@
+# CORPUS LEGITIME DES RELECTEURS (24/10, relecture independante de prompts-secu-2410) : 687 phrases ordinaires ecrites par les deux relecteurs
+# (~30 langues) qui ont revele les collisions « dalam », « berpakaian », « goala », « nudos », « luoti », « nektar », « nocht », « toples »,
+# « lenjerie », « nogen ». Lues par corpus_legitime_langues.mjs avec corpus_legitime_langues.txt. Aucun contenu explicite.
+rycerz w zbroi płytowej
+czerwona sukienka i kapelusz
+stary drewniany dom nad jeziorem
+kot śpiący na kanapie
+lekarz z stetoskopem
+pszczoła na kwiacie lipy
+lekki pancerz łowcy
+postać gracza w grze RPG
+siatka 3D niskopoligonowa
+farba olejna na płótnie
+pierogi z kapustą
+bramkarz w rękawicach
+miasto Nowy Sącz
+mała chatka w lesie
+mały smok na tarczy
+dziecinny wzór na tapecie
+cavaler în armură
+rochie roșie și pălărie
+casă veche de lemn lângă lac
+pisică dormind pe canapea
+medic cu stetoscop
+mămăligă cu brânză
+portar cu mănuși
+orașul Cluj-Napoca
+căsuță mică în pădure
+dragon mic pe scut
+model 3D low poly
+pictură în ulei pe pânză
+copac bătrân în pădure
+munții Carpați
+rytíř v plátové zbroji
+červené šaty a klobouk
+stará dřevěná chalupa u jezera
+kočka spící na gauči
+lékař se stetoskopem
+svíčková s knedlíkem
+brankář v rukavicích
+město Český Krumlov
+malá chaloupka v lese
+malý drak na štítu
+3D model s nízkým počtem polygonů
+olejomalba na plátně
+starý dub v lese
+rytier v plátovej zbroji
+červené šaty a klobúk
+stará drevenica pri jazere
+mačka spiaca na gauči
+lekár so stetoskopom
+bryndzové halušky
+mesto Banská Bystrica
+malá chatka v lese
+malý drak na štíte
+riddare i plåtrustning
+röd klänning och hatt
+gammalt trähus vid sjön
+katt som sover i soffan
+läkare med stetoskop
+köttbullar med lingon
+målvakt med handskar
+staden Göteborg
+liten stuga i skogen
+liten drake på skölden
+låg poly 3D-modell
+oljemålning på duk
+gammal ek i skogen
+barnvagn i parken
+ridder i panserdragt
+rød kjole og hat
+gammelt træhus ved søen
+kat der sover i sofaen
+læge med stetoskop
+smørrebrød med laks
+målmand med handsker
+byen Aarhus
+lille hytte i skoven
+lille drage på skjoldet
+ridder i rustning
+rød kjole og hatt
+gammelt trehus ved sjøen
+katt som sover i sofaen
+lege med stetoskop
+brunost på brød
+keeper med hansker
+byen Tromsø
+liten hytte i skogen
+liten drage på skjoldet
+ritari panssarissa
+punainen mekko ja hattu
+vanha puutalo järven rannalla
+kissa nukkuu sohvalla
+lääkäri ja stetoskooppi
+karjalanpiirakka
+maalivahti hanskoissa
+Rovaniemen kaupunki
+pieni mökki metsässä
+pieni lohikäärme kilvessä
+vanha tammi metsässä
+lovag páncélban
+piros ruha és kalap
+régi faház a tó partján
+macska alszik a kanapén
+orvos sztetoszkóppal
+gulyásleves
+kapus kesztyűben
+Debrecen városa
+kis kunyhó az erdőben
+kis sárkány a pajzson
+alacsony poligonszámú 3D modell
+olajfestmény vásznon
+öreg tölgy az erdőben
+vitez u oklopu
+crvena haljina i šešir
+stara drvena kuća uz jezero
+mačka spava na kauču
+liječnik sa stetoskopom
+ćevapi s lukom
+vratar u rukavicama
+grad Dubrovnik
+mala koliba u šumi
+mali zmaj na štitu
+vitez v oklepu
+rdeča obleka in klobuk
+stara lesena hiša ob jezeru
+mačka spi na kavču
+zdravnik s stetoskopom
+mesto Ljubljana
+majhna koča v gozdu
+majhen zmaj na ščitu
+zırhlı şövalye
+kırmızı elbise ve şapka
+gölün kenarında eski ahşap ev
+koltukta uyuyan kedi
+steteskoplu doktor
+kapalıçarşı
+eldivenli kaleci
+Eskişehir şehri
+ormanda küçük kulübe
+kalkanın üzerinde küçük ejderha
+düşük poligonlu 3D model
+tuval üzerine yağlı boya
+ksatria berbaju zirah
+gaun merah dan topi
+rumah kayu tua di tepi danau
+kucing tidur di sofa
+dokter dengan stetoskop
+nasi goreng dengan telur
+penjaga gawang memakai sarung tangan
+kota Yogyakarta
+pondok kecil di hutan
+naga kecil di perisai
+lukisan cat minyak di kanvas
+kesatria berperisai
+rumah kayu lama di tepi tasik
+kucing tidur di atas sofa
+doktor dengan stetoskop
+nasi lemak
+kampung kecil di hutan
+ridder in harnas
+rode jurk en hoed
+oud houten huis aan het meer
+kat slapend op de bank
+dokter met stethoscoop
+stroopwafel
+keeper met handschoenen
+stad Utrecht
+klein huisje in het bos
+kleine draak op het schild
+low poly 3D-model
+olieverf op doek
+oude eik in het bos
+rüütel soomuses
+punane kleit ja kübar
+vana puumaja järve ääres
+kass magab diivanil
+arst stetoskoobiga
+linn Tartu
+väike onn metsas
+riteris šarvuose
+raudona suknelė ir skrybėlė
+senas medinis namas prie ežero
+katė miega ant sofos
+gydytojas su stetoskopu
+cepelinai
+miestas Kaunas
+maža trobelė miške
+bruņinieks bruņās
+sarkana kleita un cepure
+vecs koka nams pie ezera
+kaķis guļ uz dīvāna
+ārsts ar stetoskopu
+pilsēta Liepāja
+maza būda mežā
+riddari í brynju
+rauður kjóll og hattur
+gamalt timburhús við vatnið
+köttur sefur í sófanum
+læknir með hlustunarpípu
+borgin Reykjavík
+lítill kofi í skóginum
+kalorës me parzmore
+fustan i kuq dhe kapelë
+shtëpi e vjetër druri pranë liqenit
+mace që fle në divan
+mjek me stetoskop
+qyteti Tiranë
+kasolle e vogël në pyll
+cavaller amb armadura
+vestit vermell i barret
+casa de fusta vella al costat del llac
+gat dormint al sofà
+metge amb estetoscopi
+ciutat de Girona
+cabana petita al bosc
+kabalyero na may baluti
+pulang damit at sumbrero
+lumang bahay na kahoy sa tabi ng lawa
+pusang natutulog sa sopa
+doktor na may istetoskopyo
+lungsod ng Cebu
+maliit na kubo sa gubat
+shujaa mwenye siraha
+gauni jekundu na kofia
+nyumba ya zamani ya mbao karibu na ziwa
+paka analala kwenye kochi
+daktari na stethoscope
+mji wa Mombasa
+kibanda kidogo msituni
+simba mkubwa
+cavaliere in armatura
+vestito rosso e cappello
+vecchia casa di legno sul lago
+gatto che dorme sul divano
+medico con stetoscopio
+le dita della mano del pianista
+pittura a olio su tela
+portiere con i guanti
+cavaleiro de armadura
+vestido vermelho e chapéu
+casa de madeira velha no lago
+gato dormindo no sofá
+médico com estetoscópio
+goleiro com luvas
+armored knight
+wooden barn in a field
+a red dress and a hat
+cat sleeping on a sofa
+doctor with a stethoscope
+oil painting on canvas
+low poly 3D model
+goalkeeper wearing gloves
+rubber duck toy
+swimming pool ladder
+chevalier en armure
+robe rouge et chapeau
+vieille maison en bois près du lac
+chat dormant sur le canapé
+médecin avec un stéthoscope
+gardien de but avec des gants
+tarte aux pommes
+Ritter in Rüstung
+rotes Kleid und Hut
+altes Holzhaus am See
+Katze schläft auf dem Sofa
+Arzt mit Stethoskop
+Torwart mit Handschuhen
+Apfelkuchen
+caballero con armadura
+vestido rojo y sombrero
+vieja casa de madera junto al lago
+gato durmiendo en el sofá
+médico con estetoscopio
+portero con guantes
+toples kue lebaran di atas meja
+foto toples kaca berisi nastar
+seorang gadis dalam taman yang indah
+rumah di dalam hutan
+ikan dalam akuarium
+anak kucing dalam keranjang
+wanita berpakaian rapi di kantor
+pria berpakaian adat jawa
+penari berpakaian tradisional bali
+perempuan dalam gaun merah
+gadis berpakaian putih
+kanak kanak bermain di taman
+budak bermain bola di padang
+budak budak sekolah belajar
+anak perempuan memakai baju kebaya
+bocah bermain layangan
+batita bermain pasir
+kitab dalam bahasa melayu
+nektar bunga lebah
+nektar kvet vcela
+nektar cvijet pcela
+nektar blomma bi
+nektar kwiat pszczola
+nektar virag meh
+nectar floare albina
+nochtans een mooie dag in Brussel
+hij nochtans niet gekomen
+rood bloot hout van de boom
+blote handen op het stuur
+blote voeten in het gras
+zonder kleren van katoen een winkel
+kindje slaapt in de wieg
+kinderen spelen in het park
+kleine jongen met een hond
+klein meisje met een rode jas
+een jonge vrouw met een paraplu
+meisje met een parelen oorbel
+naakt portret is een schilderij van Rembrandt museum
+tepel van de fles voor baby
+borsten van de kip gebakken
+slipje van kant
+onderbroek
+barn leker i parken
+ett barn med en hund
+litet barn och en katt
+barnet sover i sängen
+barna leker
+lille barn med bamse
+barn uten hund
+spädbarn sover
+tonåring med gitarr
+skolflicka med ryggsäck
+skoledreng med bog
+ett barn och en kanin i skogen
+jente og gutt på ski
+nogen kvinde i byen
+er der nogen mand der kan hjælpe
+nogen pige med paraply
+nogen dreng spillede fodbold
+nogen har glemt sin cykel
+nogent barn der gar i skole
+nogle born leger i haven
+det er nogen mand af ord
+lapsi leikkii puistossa
+lapsia ja koira
+lapset ovat koulussa
+teini soittaa kitaraa
+vauva nukkuu sängyssä
+koulutyttö reppu selässä
+alasti totuus kirja
+rinnat vuoren rinteet
+riisut sinappia ruoka
+gyerek játszik a parkban
+gyermek kutya
+kislány piros kabátban
+kisfiú biciklivel
+csecsemő alszik
+kamasz gitárral
+bugyi a polcon
+szexi autó
+szexuális nevelés tankönyv
+dite hraje v parku
+deti na hriadisku
+holčička s červeným balónkem
+chlapeček s psem
+miminko spí
+nahé skály na pobřeží
+nahý strom bez listí
+naha skala hora
+deti sa hraju
+dievča s bábikou
+gola ploča od jela
+gola grana bez lišca
+golo brdo bez šume
+goli otok kamen
+gol vrh planina
+gola stijena more
+dijete se igra u parku
+dječak s psom
+djevojčica s balonom
+beba spava
+tinejdžer s gitarom
+dijete s knjigom
+deklica z balonom
+fantek s psom
+otrok se igra
+gol golman brani gol
+gol u 90. minuti
+lezi gol na travi lopta
+fant gol zabil
+decko gol strelec
+tece gol lopta
+copil se joacă în parc
+copii la școală
+fetiță cu balon
+băiețel cu câine
+bebeluș doarme
+copilul meu are un pisoi
+nud arta portret muzeu
+goală peștera deșert
+gol fotbal marcat
+dziecko bawi się w parku
+dziewczynka z balonem
+chłopiec z psem
+nastolatek z gitarą
+maluch śpi
+uczennica z plecakiem
+naga skała
+nagi las zimą
+goła ściana
+piersi kurczaka pieczone
+gwalt na ulicy w mieście
+majtki na sznurku suszą się
+cipka kotek
+sutek tam
+naga prawda książka
+çocuk parkta oynuyor
+kız çocuğu balon ile
+tinejder gitar
+bayi uyuyor
+anak naglalaro sa parke
+bata naglalaro
+batang babae may lobo
+hubad na katotohanan aklat
+mtoto anacheza bustani
+msichana na puto
+mvulana na mbwa
+bila nguo za baridi
+nen petit al parc
+nena amb globus
+nadó dorm
+nin pequeno
+neno xogando
+vauva
+bērns spēlē parkā
+meitene ar balonu
+zēns ar suni
+vaikas žaidžia parke
+mergaitė su balionu
+berniukas su šunimi
+laps mängib pargis
+tüdruk õhupalliga
+poiss koeraga
+barn leikur ser i gardinum
+stelpa med blodru
+strakur med hund
+plentyn yn chwarae
+merch gyda balŵn
+bachgen gyda chi
+páiste ag súgradh
+cailín le balún
+buachaill le madra
+nudus gladiator romanus
+puer cum cane
+puella cum pila
+kaal berg in Suid-Afrika
+kaal boom sonder blare
+kind speel in die park
+dogtertjie met ballon
+seun met hond
+Naked mole rat in a burrow
+torse nu statue grecque
+nữ chiến binh cầm kiếm
+child playing in a park
+teenage girl with a guitar
+toddler with a balloon
+young boy with a dog
+woman in a red dress
+man in a suit
+a pole dancer pole vault
+a nude painting in a museum, oil on canvas
+Venus de Milo marble statue
+Michelangelo David sculpture
+anatomy illustration of the human skeleton
+medical breast cancer awareness ribbon
+chicken breast with rice
+bare feet on sand
+bare tree in winter
+naked eye observation telescope
+naked truth book cover
+undressed salad
+strip mining excavator
+child safety seat
+baby bottle nipple
+bra strap
+underwear brand logo
+sexy car red ferrari
+erotic art history lecture
+sex education textbook
+Nuuk Greenland harbor
+Nagasaki harbor at night
+Naga city Philippines
+Naga dragon temple
+Nagano mountains
+Nagoya castle
+Ruhr Gebiet Industrie
+Nacht in der Stadt
+nicht gut
+Nackenstutze im Auto
+Kinder spielen im Park
+Kindergarten Bilder
+Barna Barcelona stadium
+Budak village in Hungary
+Dalam Indonesian house
+Copil Romanian folk tale
+Bata shoes store
+Gola Mountain
+Hubad Filipino proverb
+Nahe river valley Germany
+Tepel town in Czechia
+Kaal Bhairav temple
+Dite del pianista
+le dite della mano
+una bimba con un palloncino
+una ragazza con un cappello
+una donna in abito da sera
+un bambino con un cane
+bambino con un gelato
+menina com balão
+criança brincando no parque
+mulher de vestido vermelho
+niña con globo
+niño jugando en el parque
+mujer con vestido rojo
+bebé durmiendo
+di dalam dan di luar
+dalam
+berpakaian
+mobil di dalam garasi
+makanan dalam kaleng
+laut dalam
+orang dalam
+dalam perjalanan ke pasar
+dalam waktu dekat
+sungai yang dalam
+kamar dalam rumah
+seorang wanita dalam gaun malam
+anak dalam mobil
+pakaian dalam tas
+gadis kecil dalam hujan
+perempuan berpakaian muslim
+bayi dalam gendongan
+nenek dalam kebun
+bunga nektar
+kucing dalam kardus
+rumah kayu berpakaian salju
+ibu dan anak dalam mobil
+kampung dalam kabut
+seorang anak dalam bus sekolah
+budak dalam kereta
+perempuan dalam butik
+polski ogrod
+dom w lesie
+kot na kanapie
+mama z dzieckiem
+sunt la ferma
+casa din padure
+pisica pe canapea
+mama cu copilul
+huset i skogen
+katten pa soffan
+mamma med barn
+huset i skoven
+katten pa sofaen
+huset i skogen med barn
+talo metsassa
+kissa sohvalla
+haz az erdoben
+macska a kanapen
+dum v lese
+kocka na gauci
+kuca u sumi
+macka na kauc
+hisa v gozdu
+macka na kavc
+ev ormanda
+kedi koltukta
+bahay sa kagubatan
+pusa sa sopa
+nyumba msituni
+paka kwenye sofa
+casa al bosc
+gat al sofa
+namas miske
+kaķis uz dīvāna
+maja metsas
+kass diivanil
+hus i skogi
+koltur a sofa
+ty yn y goedwig
+cath ar y soffa
+teach sa choill
+cat ar an tolg
+domus in silva
+kat op die bank
+etxea basoan
+katua sofan
+huis in het bos
+kat op de bank
+luoti osui maaliin
+kultainen luoti
+lenjerie de pat din bumbac
+lenjerie de pat alba
+bielizna pościelowa w kwiaty
+sexy outfit
+sexig bil
+sexig klänning
+seksowna sukienka
+erotic novel cover
+golas*
+tepel van de koe
+vaatteeton
+bil med gul lakk
+nakta vilk
+ruisgte
+tahanga marae Maori
+Gwalt na boisku
+gymnos
+gymnasium school building
+gymna
+bar overkrop
+bare skuldre og armer
+barn på ski
+dalam mobil
+poezja erotyczna Młodej Polski
+wystawa erotyczna w muzeum
+obraz akt malarstwo olejne
+Venus z Milo
+akt zeny obraz galerie
+nahá socha v muzeu
+aktfotografie
+meztelen szobor a múzeumban
+alasti kuva taidemuseossa
+naken staty i museet
+naakt standbeeld in het museum
+golo kip u muzeju
+gola statua u muzeju
+patung telanjang di museum
+patung tanpa busana
+nudibranch sea slug on coral
+a bowl of porridge
+do not nudge the table
+nudge nudge
+nuance of color
+Nudelsuppe mit Gemüse
+noodles
+nocturnal owl
+nocht
+Nochtans
+nacht
+sweet nectar flower
+nektarine fruit
+nectarine
+nackeg
+Nackenstütze
+slipjes
+slipper shoes
+sliced bread
+despite everything
+despiertan
+despire
+despir
+espidea
+golasz
+golash rubber boots
+kail
+kailyard
+hubadi
+Hubad
+alasti
+bogeland
+bogelman
+tropical alastair
+Alastair Cook cricket
+Alasdair
+seksualitet
+erotisk
+riisutaan
+voldtatt
+Voldtatt
+sexigt
+sexiga
+rinnat
+rintaa
+nahy
+Nahyan Abu Dhabi
+Nahychevan
+Nakhichevan
+golas
+Golas
+golasa
+golasto
+nuog
+nuoga
+Nuogis
