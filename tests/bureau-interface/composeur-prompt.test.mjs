@@ -49,10 +49,10 @@ function charger(chemin) {
   const manque = DECLARATIONS.filter((d) => !vus.has(d));
   assert.deepEqual(manque, [], chemin + ' : declarations introuvables ' + manque.join(', '));
   const f = new Function('analyserIntention', 'composerGabarit', 'clauseObjetTenu', 'retirerClauseFinale', 'composeurActif', 'modeDepuisTexte',
-    'positifSansNegations', 'negationsDe', 'assainirNegatifs', 'texteDUnAncienGabarit', 'retirerNegationsGabarit', 'nettoyerVirgules',
+    'positifSansNegations', 'negationsDe', 'assainirNegatifs', 'texteDUnAncienGabarit', 'retirerNegationsGabarit', 'nettoyerVirgules', 'NEG_MAX_LONG',
     morceaux.join('\n') + '\nreturn { buildFullPrompt, stripKnownPromptSuffixes, _optionsPose, ASSET_STYLE_PROMPTS, ASSET_TYPE_PROMPTS, ASSET_TYPE_PREFIXES, _epurerDemande,\n      _optionsAffichage: typeof _optionsAffichage === "function" ? _optionsAffichage : undefined,\n      _sansNegations: typeof _sansNegations === "function" ? _sansNegations : undefined,\n      _negativeExtraDe: typeof _negativeExtraDe === "function" ? _negativeExtraDe : undefined,\n      _autoDetectAssetType: typeof _autoDetectAssetType === "function" ? _autoDetectAssetType : undefined };');
   return f(LIB.analyser, LIB.composerGabarit, LIB.clauseObjetTenu, LIB.retirerClauseFinale, LIB.actif, () => null,
-    LIB.positifSansNegations, LIB.negationsDe, LIB.assainirNegatifs, LIB.texteDUnAncienGabarit, LIB.retirerNegationsGabarit, LIB.nettoyerVirgules);
+    LIB.positifSansNegations, LIB.negationsDe, LIB.assainirNegatifs, LIB.texteDUnAncienGabarit, LIB.retirerNegationsGabarit, LIB.nettoyerVirgules, LIB.NEG_MAX_LONG);
 }
 
 const ORC = 'An orc warrior covered in blood, holding a massive spiked club';
@@ -479,7 +479,9 @@ for (const [nom, chemin] of [['bureau', 'src/renderer/index2.js'], ['web', 'clou
       if (g.texte.length > 2000 || P._epurerDemande(g.texte) !== g.texte) continue;     // le client epure la phrase d'intention (« we want... ») avant d'analyser : autre texte
       compares++;
       const termes = P._negativeExtraDe(g.texte);
-      if (JSON.stringify(termes) !== JSON.stringify(g.negatifs)) { ecarts.push(['termes', g.texte, termes, g.negatifs]); continue; }
+      // le grave est calcule au plafond PRUDENT (8) : au-dela, les termes « perdus » sont ceux que la generation d'image (route longue, plafond 20) envoie en plus
+      const attenduTermes = g.negatifs.concat(g.perdus || []).slice(0, 20);
+      if (JSON.stringify(termes) !== JSON.stringify(attenduTermes)) { ecarts.push(['termes', g.texte, termes, attenduTermes]); continue; }
       const attendu = g.positif.trim() ? g.positif : g.texte;                             // un texte entierement negatif garde son positif tel quel
       const envoye = P.buildFullPrompt(g.texte, 'building', 'realistic');
       if (!(', ' + envoye + ', ').includes(', ' + attendu + ', ')) ecarts.push(['prompt envoye', g.texte, envoye.slice(0, 160), attendu]);

@@ -641,6 +641,16 @@ rectification attendait la fin du chargement.
 - Le négatif est assemblé **par priorité décroissante et borné au budget** ;
   ce qui tombe est écrit dans le journal Modal. Sans ce bornage il atteignait
   136 jetons pour une créature, et sa fin était jetée en silence.
+- **Plafond de négations PAR ROUTE (24/10, décision du propriétaire : 20).** Les termes
+  de négation de l'utilisateur (`negativeExtra`, « no helmet » → « helmet ») sont
+  plafonnés à `NEG_MAX_LONG = 20` sur les routes à encodeur long (text2image, T-pose :
+  blocs de 75 jetons) et à `NEG_MAX_DIRECT = 8` pour les outils à appel direct
+  (budget CLIP de 77 jetons : Modify, Variant, Recolor, Auto inpaint, Mask inpaint…,
+  via `separer_negations_outil`). Une fonction qui ne reçoit pas de plafond prend le
+  plus PETIT (8) : ce sont les appelants de la génération d'image qui passent
+  `NEG_MAX_LONG`. La 21e négation (9e sur un outil direct) quitte quand même le positif
+  et le code `negations-en-trop` l'annonce avec le plafond réel. Le repli local sans
+  Compel garde 8 termes en tête du négatif (sinon la sécurité sortirait de la fenêtre de 77).
 - `_ANATOMY_NEG` (négatifs anatomiques par type d'asset) n'existe **que** côté
   Modal. Le bureau (`scripts/local_juggernaut_bridge.py`) a quatre prompts
   négatifs écrits en dur, sans anatomie ni bornage. **Divergence connue, non

@@ -137,9 +137,9 @@ class ComposeurPont(unittest.TestCase):
         for marque in ("import composeur_intention as _ci_mod", "os.environ.get('FABMESH_USER_PROMPT') or prompt", "_ci.negatifs_pont(",
                        "_armes_neg = _ci_neg['armes']", "{_sym_pose}", "_ci.retirer_jetons(negative_prompt", "_ci.ajouter_jetons(negative_prompt",
                        "model=_modele_manifeste", "FABMESH_SEED",
-                       "import composeur_intention as _cn", "_cn.negations_et_positif(_texte_utilisateur)", "os.environ.get('FABMESH_NEGATIVE_EXTRA')",
+                       "import composeur_intention as _cn", "_cn.negations_et_positif(_texte_utilisateur, None, _cn.NEG_MAX_LONG)", "os.environ.get('FABMESH_NEGATIVE_EXTRA')",
                        "_cn.ajouter_jetons(negative_prompt, _neg_utilisateur, en_tete=False)", "_ci.analyser(_texte_composeur",
-                       "_cn.ajouter_jetons(negative_prompt, _neg_utilisateur, en_tete=True)", "_pipe_kwargs['negative_prompt'] = _negatif_sans_compel"):
+                       "_cn.ajouter_jetons(negative_prompt, _neg_utilisateur[:_cn.NEG_MAX_DIRECT], en_tete=True)", "_pipe_kwargs['negative_prompt'] = _negatif_sans_compel"):
             self.assertIn(marque, pont, 'pont : ' + marque)
         main = lire(os.path.join(RACINE, 'src', 'main', 'main.js'))
         # 2026-10-13 (audit de la langue CHAMPS-09) : le composeur recoit la TRADUCTION anglaise quand l'interface la fournit (son lexique
@@ -287,12 +287,15 @@ class NegationsUtilisateurDansLePont(unittest.TestCase):
         ns = self.executer_bloc({'FABMESH_USER_PROMPT': 'An orc', 'FABMESH_NEGATIVE_EXTRA': json.dumps({'a': 'b'})})
         self.assertEqual(ns['_neg_utilisateur'], [])
 
-    def test_huit_termes_au_plus(self):
+    def test_vingt_termes_au_plus_route_longue(self):
         noms = ['hat', 'coat', 'boots', 'gloves', 'scarf', 'belt', 'cape', 'mask', 'ring', 'sock', 'vest', 'cloak']
         ns = self.executer_bloc({'FABMESH_USER_PROMPT': 'A knight, ' + ', '.join('no ' + n for n in noms),
                                  'FABMESH_NEGATIVE_EXTRA': json.dumps(['one', 'two', 'three'])})
-        self.assertEqual(len(ns['_neg_utilisateur']), 8)
+        self.assertEqual(len(ns['_neg_utilisateur']), 15, '3 du renderer + 12 du texte : le pont lit le negatif par blocs de 75 jetons (plafond 20)')
         self.assertEqual(ns['_neg_utilisateur'][:3], ['one', 'two', 'three'])
+        trente = ['mot' + chr(97 + i) for i in range(26)]
+        ns = self.executer_bloc({'FABMESH_USER_PROMPT': 'A knight', 'FABMESH_NEGATIVE_EXTRA': json.dumps(trente)})
+        self.assertEqual(ns['_neg_utilisateur'], trente[:20], '20 termes au plus, jamais 21')
 
     def test_interrupteur_d_urgence_et_texte_sans_negation(self):
         ns = self.executer_bloc({'FABMESH_USER_PROMPT': 'An orc, no helmet', 'FABMESH_NEGATIVE_EXTRA': json.dumps(['helmet']), 'FABMESH_COMPOSEUR': '0'})

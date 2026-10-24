@@ -97,6 +97,26 @@ for (const e of grave.enveloppe || []) {
   if (!egal(r, e.sortie)) dit(`negationsEtPositif(${JSON.stringify(e.entree).slice(0, 60)}) : ${JSON.stringify(r).slice(0, 200)} au lieu de ${JSON.stringify(e.sortie).slice(0, 200)}`);
 }
 if (!grave.enveloppe || !grave.enveloppe.length) dit('intention_attendus.json ne porte aucune entree d enveloppe (python build/check_intention.py --ecrire)');
+// plafond par route (24/10) : extraireNegations / negationsEtPositif / assainirNegatifs (JS) = les fonctions Python, a chaque plafond (absent, 8, 20)
+for (const e of grave.plafonds || []) {
+  const r = J.extraireNegations(e.texte, undefined, e.plafond === null ? undefined : e.plafond);
+  const b = J.negationsEtPositif(e.texte, undefined, e.plafond === null ? undefined : e.plafond);
+  if (!egal(r, e.sortie)) dit(`extraireNegations(${JSON.stringify(e.texte).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(r).slice(0, 200)} au lieu de ${JSON.stringify(e.sortie).slice(0, 200)}`);
+  const av = J.detecterAvertissements(e.texte, e.texte, 'prop', { plafond: e.plafond === null ? undefined : e.plafond });
+  if (!egal(av, e.avertissements)) dit(`detecterAvertissements(${JSON.stringify(e.texte).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(av)} au lieu de ${JSON.stringify(e.avertissements)}`);
+  if (!egal(b, e.enveloppe)) dit(`negationsEtPositif(${JSON.stringify(e.texte).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(b).slice(0, 200)} au lieu de ${JSON.stringify(e.enveloppe).slice(0, 200)}`);
+}
+if (!grave.plafonds || !grave.plafonds.length) dit('intention_attendus.json ne porte aucun cas de plafond (python build/check_intention.py --ecrire)');
+for (const e of grave.assainir_plafond || []) {
+  const r = J.assainirNegatifs(e.entree, e.plafond === null ? undefined : e.plafond);
+  if (!egal(r, e.sortie)) dit(`assainirNegatifs(${JSON.stringify(e.entree).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(r)} au lieu de ${JSON.stringify(e.sortie)}`);
+}
+for (const e of grave.assainir_long || []) {
+  const r = J.assainirNegatifs(e.entree, J.NEG_MAX_LONG);
+  if (!egal(r, e.sortie)) dit(`assainirNegatifs(${JSON.stringify(e.entree).slice(0, 60)}, NEG_MAX_LONG) : ${JSON.stringify(r)} au lieu de ${JSON.stringify(e.sortie)}`);
+}
+if (!grave.assainir_long || !grave.assainir_long.length) dit('intention_attendus.json ne porte aucune entree assainir_long (python build/check_intention.py --ecrire)');
+if (!grave.assainir_plafond || !grave.assainir_plafond.length) dit('intention_attendus.json ne porte aucune entree d assainir par plafond (python build/check_intention.py --ecrire)');
 for (const [nom, valeur] of Object.entries(grave.constantes || {})) {
   if (J[nom] !== valeur) dit(`constante ${nom} : JS ${J[nom]} / Python ${valeur}`);
 }

@@ -35,7 +35,7 @@ const FILTRE = {
 const charger = (noms, doublures = {}) => chargerFonctions(noms.filter((n) => existe(n)), doublures);
 // Integration 24/10 : integration-2 ajoute les negations de l'utilisateur (_nettoyerNegativeExtra...) et le filet de langue (doublure neutre ici :
 // ce fichier teste la BORNE et le filtre, le filet a ses propres tests dans traduction-serveur.test.mjs).
-const NEGATIONS_UTILISATEUR = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_TERMES', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
+const NEGATIONS_UTILISATEUR = ['_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_DIRECT', 'NEG_MAX_LONG', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
 const FILET_NEUTRE = {
   _filetLangue: async (_e, _u, texte) => { const textes = Array.isArray(texte) ? texte : [texte]; return { texte: textes[0], textes, traduit: false, langues: [] }; },
   LangueTexte: { morceauxEtrangers: () => [] },

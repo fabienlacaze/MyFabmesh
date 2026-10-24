@@ -109,7 +109,7 @@ function monter(cheminFichier, { langue = 'fr', traduire = null, choix = [], sta
     langueSource: LT.langueSource, normaliserCodeLangue: LT.normaliserCodeLangue, ressembleAnglais: LT.ressembleAnglais,
     retirerClauseFinale: COMPO.retirerClauseFinale,
     composeurActif: COMPO.actif, nettoyerVirgules: COMPO.nettoyerVirgules, positifSansNegations: COMPO.positifSansNegations,
-    negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs,
+    negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs, NEG_MAX_LONG: COMPO.NEG_MAX_LONG,
     _setPromptBusy: () => {}, _clearPromptBusy: () => {}, TRANSLATING_MSG: {},
   };
   for (const n of ['_updatePromptLangHint', 'PROMPT_LANG_HINT', '_sonderTraducteur']) if (!vus.has(n)) doublures[n] = n === 'PROMPT_LANG_HINT' ? {} : (() => {});

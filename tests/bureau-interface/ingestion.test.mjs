@@ -39,9 +39,9 @@ function charger(chemin, env) {
     if (nom && (DECLARATIONS.includes(nom) || DECLARATIONS_AVERTISSEMENTS.includes(nom)) && !vus.has(nom)) { vus.add(nom); morceaux.push(src.slice(n.start, n.end)); }
   }
   assert.deepEqual(DECLARATIONS.filter((d) => !vus.has(d)), [], chemin + ' : declarations introuvables');
-  const f = new Function('composeurActif', 'detecterAvertissements', 'document', 'window', '_saveProjectMeta',
+  const f = new Function('composeurActif', 'detecterAvertissements', 'document', 'window', '_saveProjectMeta', 'NEG_MAX_LONG',
     morceaux.join('\n') + '\nreturn { _epurerDemande, _optionsPose, ' + (vus.has('_verifierAvantDepense') ? '_verifierAvantDepense, _confirmerAvertissements' : '_verifierAvantDepense: null, _confirmerAvertissements: null') + ' };');
-  return f(() => true, LIB.detecterAvertissements, env.document, env.window, env.sauver);
+  return f(() => true, LIB.detecterAvertissements, env.document, env.window, env.sauver, LIB.NEG_MAX_LONG);
 }
 
 // ---------------------------------------------------------------- faux DOM minimal

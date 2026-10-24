@@ -340,9 +340,9 @@ async function status() {
 // { success:false, needsCloudLogin:true } si aucune session valide.
 // -----------------------------------------------------------------------------
 async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee, negativeExtra, poseLibre }) {
-  // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : 8 au plus, 40 caracteres, lettres / espaces / tirets ; le serveur re-verifie.
+  // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : 20 au plus (NEG_MAX_LONG), 40 caracteres, lettres / espaces / tirets ; le serveur re-verifie.
   const _negatifs = Array.isArray(negativeExtra)
-    ? negativeExtra.filter((x) => typeof x === 'string' && x.length <= 40 && /^[a-z]+(?:[ -][a-z]+)*$/.test(x)).slice(0, 8)
+    ? negativeExtra.filter((x) => typeof x === 'string' && x.length <= 40 && /^[a-z]+(?:[ -][a-z]+)*$/.test(x)).slice(0, 20)
     : [];
   const tok = await getAccessToken();
   if (!tok) {
