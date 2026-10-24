@@ -75,3 +75,36 @@ for (const nom of Object.keys(C)) {
     assert.doesNotMatch(r.positif, /dagger|club/);
   });
 }
+
+// ── Tour 2 (24/10), bloquant C : une liste nie qui continue apres une virgule ───────────────────────────────────────────────────────────────────
+// « a knight with no helmet, sword or shield » laissait « sword or shield » dans le positif. Ancien code : COMPOSEUR_JS=<ancienne lib> (les cas « oui » echouent).
+for (const nom of Object.keys(C)) {
+  test(nom + ' C : la liste nie qui continue apres une virgule quitte le positif', () => {
+    const oui = [
+      ['a knight with no helmet, sword or shield', 'a knight', ['helmet', 'sword', 'shield']],
+      ['a knight without a helmet, a sword or a shield', 'a knight', ['helmet', 'sword', 'shield']],
+      ['a knight without helmet, sword, shield', 'a knight', ['helmet', 'sword', 'shield']],
+      ['an orc with no hat, cape or boots', 'an orc', ['hat', 'cape', 'boots']],
+      ['a knight with no helmet, sword or shield, castle', 'a knight, castle', ['helmet', 'sword', 'shield']],
+    ];
+    for (const [t, positif, negatifs] of oui) {
+      const r = C[nom].extraireNegations(t);
+      assert.equal(r.positif, positif, t);
+      assert.deepEqual(r.negatifs, negatifs, t);
+    }
+  });
+  test(nom + ' C : une suite qui n\'est pas une liste nie reste dans le positif (temoins)', () => {
+    const non = [
+      ['an orc without helmet, dark forest', 'an orc, dark forest', ['helmet']],
+      ['a knight with no helmet, red cape, castle', 'a knight, red cape, castle', ['helmet']],
+      ['a knight with no helmet, holding a sword', 'a knight, holding a sword', ['helmet']],
+      ['a knight with no helmet, sword or shield, standing in a field', 'a knight, standing in a field', ['helmet', 'sword', 'shield']],
+      ['a knight, no helmet, a sword or a shield', 'a knight, a sword or a shield', ['helmet']],
+    ];
+    for (const [t, positif, negatifs] of non) {
+      const r = C[nom].extraireNegations(t);
+      assert.equal(r.positif, positif, t);
+      assert.deepEqual(r.negatifs, negatifs, t);
+    }
+  });
+}
