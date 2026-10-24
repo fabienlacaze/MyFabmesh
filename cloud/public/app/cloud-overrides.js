@@ -1349,12 +1349,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const n = Math.max(1, parseInt($('ws-count')?.value, 10) || 4);   // meme defaut que le clic
       const turbo = $('ws-engine')?.value === 'local-lightning';
       const pas = turbo ? 4 : Math.max(10, Math.min(60, Math.round(Number($('ws-quality')?.value) || 30)));
+      // Moteurs du menu (2026-10-25) : prix PAR IMAGE lu dans la grille (cles text2image_zimage / text2image_qwen), sans pas ni supplement T-pose (meme regle que le worker).
+      const cleMoteur = turbo ? 'text2image_zimage' : ($('ws-engine')?.value === 'qwen-best' ? 'text2image_qwen' : null);
+      const prixMoteur = cleMoteur ? _prixDe(cleMoteur) : null;
       // SUPPLEMENT T-POSE (2026-10-03) : MEME regle que l'appel (meshyAPI-cloud.js) et que le worker (handleGenerateImage) — personnage, case cochee —,
       // chiffre lu dans la grille (cle `tpose`, null si le serveur ne la connait pas encore : alors rien n'est annonce en plus).
       const suppGrille = _prixDe('tpose');
       const tposeActive = ($('ws-asset-type')?.value || 'character') === 'character' && !!$('ws-tpose')?.checked && typeof suppGrille === 'number';
       const supp = tposeActive ? suppGrille : 0;
-      const pImg = tarif30 == null ? null : Math.max(1, Math.round(tarif30 * pas / 30)) + supp;
+      const pImg = prixMoteur != null ? Math.max(1, Math.round(prixMoteur))
+        : (tarif30 == null ? null : Math.max(1, Math.round(tarif30 * pas / 30)) + supp);
       const etapes = !!$('ws-img-buildstages')?.checked;
       const nImg = etapes ? 3 : n;
       // meme regle que le clic (index2.js) : en « auto », la vue arriere ne
@@ -1415,7 +1419,31 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
         bt.style.display = typeof suppGrille === 'number' ? '' : 'none';
       }
     };
-    window.__majPrixImage = recalc;
+    // PRIX DANS LE MENU « MOTEUR » (2026-10-25, demande du user) : chaque choix annonce son prix PAR IMAGE, lu dans la grille. Equilibre = prix de 30 pas ;
+    // Rapide / Meilleur = cles text2image_zimage / text2image_qwen. La traduction reecrit le texte des options : on retire notre suffixe avant de le reposer, et on
+    // n'ecrit que si le texte change (sinon l'observateur ci-dessous boucle).
+    const _majMenuMoteur = () => {
+      const sel = $('ws-engine');
+      if (!sel) return;
+      const cles = { 'img_balanced': 'text2image', 'local-lightning': 'text2image_zimage', 'qwen-best': 'text2image_qwen' };
+      for (const opt of sel.options) {
+        const p = cles[opt.value] ? _prixDe(cles[opt.value]) : null;
+        const base = opt.textContent.replace(/ · ⚡ \d+$/, '');
+        const voulu = p == null ? base : base + ' · ⚡ ' + Math.max(1, Math.round(p));
+        if (opt.textContent !== voulu) opt.textContent = voulu;
+      }
+      // Rapide / Meilleur n'ont pas de reglage de pas : la ligne Qualite ne sert a rien.
+      const ligne = $('ws-quality')?.closest('.form-row');
+      if (ligne) ligne.style.display = (sel.value === 'local-lightning' || sel.value === 'qwen-best') ? 'none' : '';
+    };
+    window.__majMenuMoteur = _majMenuMoteur;
+    {
+      const sel = $('ws-engine');
+      if (sel) new MutationObserver(_majMenuMoteur).observe(sel, { childList: true, characterData: true, subtree: true });
+      sel?.addEventListener('change', _majMenuMoteur);
+    }
+    _majMenuMoteur();
+    window.__majPrixImage = () => { recalc(); _majMenuMoteur(); };
     for (const id of ['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages', 'ws-asset-type', 'ws-mv-scope', 'ws-tpose']) {
       const el = $(id);
       el?.addEventListener('change', recalc);
