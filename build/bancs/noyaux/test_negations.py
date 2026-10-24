@@ -329,6 +329,31 @@ class Negations(unittest.TestCase):
             with self.subTest(texte=texte):
                 self.assertEqual(self.ext(texte), (positif, negatifs))
 
+    def test_liste_nie_qui_continue_apres_une_virgule(self):
+        """Tour 2 (24/10, bloquant C) : « a knight with no helmet, sword or shield » laissait « sword or shield » dans le POSITIF (le modele dessinait l'epee et le
+        bouclier interdits). Une liste qui continue apres une virgule se ferme par une conjonction, ou compte au moins deux elements d'un mot."""
+        oui = [
+            ('a knight with no helmet, sword or shield', 'a knight', ['helmet', 'sword', 'shield']),
+            ('a knight without a helmet, a sword or a shield', 'a knight', ['helmet', 'sword', 'shield']),
+            ('a knight without helmet, sword, shield', 'a knight', ['helmet', 'sword', 'shield']),
+            ('an orc with no hat, cape or boots', 'an orc', ['hat', 'cape', 'boots']),
+            ('a knight with no helmet, sword or shield, castle', 'a knight, castle', ['helmet', 'sword', 'shield']),
+        ]
+        for texte, positif, negatifs in oui:
+            with self.subTest(texte=texte):
+                self.assertEqual(self.ext(texte), (positif, negatifs))
+        # temoins : une suite qui n'est pas une liste nie (verbe, preposition, un seul mot, etiquettes) reste dans le positif
+        non = [
+            ('an orc without helmet, dark forest', 'an orc, dark forest', ['helmet']),
+            ('a knight with no helmet, red cape, castle', 'a knight, red cape, castle', ['helmet']),
+            ('a knight with no helmet, holding a sword', 'a knight, holding a sword', ['helmet']),
+            ('a knight with no helmet, sword or shield, standing in a field', 'a knight, standing in a field', ['helmet', 'sword', 'shield']),
+            ('a knight, no helmet, a sword or a shield', 'a knight, a sword or a shield', ['helmet']),
+        ]
+        for texte, positif, negatifs in non:
+            with self.subTest(texte=texte):
+                self.assertEqual(self.ext(texte), (positif, negatifs))
+
     def test_cas_construits(self):
         """Chaque FORME de phrase (build/bancs/noyaux/negations_constructions.py) devient ce qu'elle doit devenir, pour des centaines de sujets / groupes nies / complements
         (le texte et la sortie attendue sortent du meme gabarit). Sur l'ancien module : plusieurs milliers d'ecarts (participes, conjonctions, second declencheur)."""

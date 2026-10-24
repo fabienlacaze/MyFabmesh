@@ -4460,5 +4460,157 @@
   "attendu": {
    "avertissements": []
   }
+ },
+ {
+  "id": "n132",
+  "texte": "a knight with no helmet, sword or shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight",
+    "negatifs": [
+     "helmet",
+     "sword",
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n133",
+  "texte": "a knight without a helmet, a sword or a shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight",
+    "negatifs": [
+     "helmet",
+     "sword",
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n134",
+  "texte": "a knight without helmet, sword, shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight",
+    "negatifs": [
+     "helmet",
+     "sword",
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n135",
+  "texte": "an orc with no hat, cape or boots",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc",
+    "negatifs": [
+     "hat",
+     "cape",
+     "boots"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n136",
+  "texte": "a knight with no helmet, sword or shield, castle",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight, castle",
+    "negatifs": [
+     "helmet",
+     "sword",
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n137",
+  "texte": "a knight with no helmet, sword or shield, standing in a field",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight, standing in a field",
+    "negatifs": [
+     "helmet",
+     "sword",
+     "shield"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n138",
+  "texte": "an orc without helmet, dark forest",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "an orc, dark forest",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n139",
+  "texte": "a knight with no helmet, red cape, castle",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight, red cape, castle",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n140",
+  "texte": "a knight with no helmet, holding a sword",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight, holding a sword",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
+ },
+ {
+  "id": "n141",
+  "texte": "a knight, no helmet, a sword or a shield",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "negations": {
+    "positif": "a knight, a sword or a shield",
+    "negatifs": [
+     "helmet"
+    ]
+   }
+  }
  }
 ]
