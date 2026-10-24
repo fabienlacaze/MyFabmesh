@@ -182,6 +182,26 @@ ENTREES_ASSAINIR = [
 ]
 
 
+# PLAFOND PAR ROUTE (24/10, plafond 20) : textes a N negations (virgules, listes, forme « with no ») rejoues a chaque plafond par les deux langages. Le plafond absent
+# (None) vaut NEG_MAX_DIRECT (8) : un appelant qui oublie de passer NEG_MAX_LONG garde le comportement prudent d'avant.
+MOTS_PLAFOND = ['helmet', 'cape', 'sword', 'shield', 'crown', 'boots', 'belt', 'ring', 'staff', 'horns', 'wings', 'tail', 'beard', 'scarf', 'gloves', 'amulet', 'spear',
+                'quiver', 'hood', 'mask', 'banner', 'chain', 'torch', 'bow', 'axe']
+
+
+def textes_plafond():
+    t = []
+    for n in (0, 1, 8, 9, 12, 20, 21, 25):
+        mots = MOTS_PLAFOND[:n]
+        t.append('An orc warrior, ' + ', '.join('no ' + m for m in mots) if n else 'An orc warrior')
+        if n:
+            t.append('An orc warrior with no ' + ', '.join(mots[:-1]) + (' or ' if n > 1 else '') + mots[-1] + ', holding an axe')
+            t.append('An orc warrior without ' + ' and '.join(mots) + '.')
+    return t
+
+
+ENTREES_PLAFOND_ASSAINIR = [list(MOTS_PLAFOND[:n]) for n in (0, 8, 9, 12, 20, 21, 25)] + [['a'] * 30]
+
+
 # entrees de l'enveloppe negations_et_positif (2026-10-14) : un texte de plus de 2 000 caracteres n'est pas coupe, un texte entierement negatif garde son positif
 ENTREES_ENVELOPPE = [
     'An orc', 'An orc, no helmet', 'no helmet', 'NO HELMET', 'without a beard', 'no helmet, no beard',
@@ -399,7 +419,11 @@ def main():
     # enveloppe de fabrication du prompt (negations_et_positif / negationsEtPositif) : texte trop long non analyse, texte entierement negatif garde (2026-10-14)
     enveloppe = [{'entree': e, 'sortie': C.negations_et_positif(e)} for e in ENTREES_ENVELOPPE]
     constantes = {'MAX_TEXTE_NEGATIONS': C.MAX_TEXTE_NEGATIONS, 'MAX_TERMES_NEGATIFS': C.MAX_TERMES_NEGATIFS, 'MAX_CARS_TERME': C.MAX_CARS_TERME,
-                  'MAX_MOTS_TERME': C.MAX_MOTS_TERME}
+                  'MAX_MOTS_TERME': C.MAX_MOTS_TERME, 'NEG_MAX_DIRECT': C.NEG_MAX_DIRECT, 'NEG_MAX_LONG': C.NEG_MAX_LONG}
+    plafonds = [{'texte': t, 'plafond': p, 'sortie': canon(C.extraire_negations(t, None, p)), 'enveloppe': canon(C.negations_et_positif(t, None, p)),
+                 'avertissements': C.detecter_avertissements(t, t, 'prop', True, p)}
+                for t in textes_plafond() for p in (None, 8, 20)]
+    assainir_plafond = [{'entree': e, 'plafond': p, 'sortie': C.assainir_negatifs(e, p)} for e in ENTREES_PLAFOND_ASSAINIR for p in (None, 8, 20)]
 
     # 2. temoin : octet pour octet avec les regles actives
     gab = P.ASSET_TYPE_PROMPTS['character']
@@ -429,7 +453,7 @@ def main():
 
     # 3. sorties completes
     complet = {'gabarits': P.ASSET_TYPE_PROMPTS, 'cas': grav, 'negations': neg_grav, 'assainir': assainir, 'constantes': constantes,
-               'enveloppe': enveloppe}
+               'enveloppe': enveloppe, 'plafonds': plafonds, 'assainir_plafond': assainir_plafond}
     if ecrire:
         io.open(ATTENDUS, 'w', encoding='utf-8', newline='\n').write(json.dumps(complet, ensure_ascii=False, indent=0, sort_keys=True) + '\n')
         print('[intention] %s regrave (%d cas, %d negations)' % (os.path.relpath(ATTENDUS, RACINE), len(grav), len(neg_grav)))

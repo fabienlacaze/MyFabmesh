@@ -95,12 +95,12 @@ test('shim : sans userPromptEnvoye (autre appelant), userPrompt part tel quel', 
   assert.deepEqual(requetes[0].corps.negativeExtra, ['helmet']);
 });
 
-test('shim : plus de 8 termes ou termes invalides : 8 au plus, chaque lot de 4 images, et les etapes de construction portent aussi les termes', async () => {
-  const termes = Array.from({ length: 12 }, (_, i) => 'terme' + 'abcdefghijkl'[i]);
+test('shim : plus de 20 termes ou termes invalides : 20 au plus, chaque lot de 4 images, et les etapes de construction portent aussi les termes', async () => {
+  const termes = Array.from({ length: 25 }, (_, i) => 'terme' + 'abcdefghijklmnopqrstuvwxy'[i]);
   let m = fabriquer();
   await m.generer({ prompt: 'p', userPrompt: 'u', userPromptEnvoye: 'u2', negativeExtra: ['Bad!', ...termes], projectName: 'p', numImages: 6, steps: 30 });
   assert.equal(m.requetes.length, 2, 'six images = deux appels');
-  for (const q of m.requetes) { assert.deepEqual(q.corps.negativeExtra, termes.slice(0, 8)); assert.equal(q.corps.userPrompt, 'u2'); }
+  for (const q of m.requetes) { assert.deepEqual(q.corps.negativeExtra, termes.slice(0, 20)); assert.equal(q.corps.userPrompt, 'u2'); }
   m = fabriquer();
   await m.generer({ prompt: 'p', userPrompt: 'u', userPromptEnvoye: 'u2', negativeExtra: ['helmet'], projectName: 'p', numImages: 1, steps: 30, buildStages: true });
   assert.equal(m.requetes.length, 3, 'trois etapes');

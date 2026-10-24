@@ -307,7 +307,7 @@ def build_prompts(prompt: str, asset_type: str | None = None, negatif_utilisateu
         if isinstance(_m, list):
             # NEGATIONS DE L'UTILISATEUR (24/10, audit m7) : JAMAIS ecartees par le budget. Avant, au plus 14 jetons estimes et « jamais plus que ce qu'il reste » :
             # sur un personnage ou une creature (anatomie de 49 jetons) la 3e negation tombait, et le texte l'avait deja SORTI du positif : une demande perdue en
-            # silence. Les huit termes (40 caracteres au plus) sont toujours gardes ; ce sont les pieces GENERIQUES de la fin (anti-doublement, cadrage, texte,
+            # silence. Les termes (20 au plus, 40 caracteres au plus) sont toujours gardes ; ce sont les pieces GENERIQUES de la fin (anti-doublement, cadrage, texte,
             # qualite) qui cedent le budget de 77 jetons estimes (inchange, decision du proprietaire). Les termes deja interdits par une piece retenue sont sautes.
             _m, _retenus_u, _ecartes_u = _piece_negatifs_utilisateur(_m, _gardes, 10 ** 6)
             if _m:

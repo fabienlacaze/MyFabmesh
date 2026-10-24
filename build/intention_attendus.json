@@ -392,6 +392,733 @@ true,
 ]
 }
 ],
+"assainir_plafond": [
+{
+"entree": [],
+"plafond": null,
+"sortie": []
+},
+{
+"entree": [],
+"plafond": 8,
+"sortie": []
+},
+{
+"entree": [],
+"plafond": 20,
+"sortie": []
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"plafond": null,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"plafond": 8,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"plafond": 20,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"plafond": null,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"plafond": 8,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"plafond": 20,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"plafond": null,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"plafond": 8,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"plafond": 20,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"plafond": null,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"plafond": 8,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"plafond": 20,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"plafond": null,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"plafond": 8,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"plafond": 20,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"plafond": null,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"plafond": 8,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+]
+},
+{
+"entree": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"plafond": 20,
+"sortie": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+]
+},
+{
+"entree": [
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a"
+],
+"plafond": null,
+"sortie": [
+"a"
+]
+},
+{
+"entree": [
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a"
+],
+"plafond": 8,
+"sortie": [
+"a"
+]
+},
+{
+"entree": [
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a",
+"a"
+],
+"plafond": 20,
+"sortie": [
+"a"
+]
+}
+],
 "cas": [
 {
 "avertissements": [],
@@ -55856,7 +56583,9 @@ true,
 "MAX_CARS_TERME": 40,
 "MAX_MOTS_TERME": 3,
 "MAX_TERMES_NEGATIFS": 8,
-"MAX_TEXTE_NEGATIONS": 2000
+"MAX_TEXTE_NEGATIONS": 2000,
+"NEG_MAX_DIRECT": 8,
+"NEG_MAX_LONG": 20
 },
 "enveloppe": [
 {
@@ -64683,6 +65412,2936 @@ true,
 "negatifs": [],
 "positif": "two soldiers, in a dark cave",
 "texte": "two soldiers, in a dark cave"
+}
+],
+"plafonds": [
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt or ring, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt or ring, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt or ring, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring or staff, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring or staff, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring or staff, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings or tail, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings or tail, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings or tail, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood or mask, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood or mask, holding an axe"
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood or mask, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask."
+},
+{
+"avertissements": [],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask, no banner"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask, no banner"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask, no banner"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood, mask or banner, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood, mask or banner, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood, mask or banner, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask and banner."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask and banner."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask and banner."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask, no banner, no chain, no torch, no bow, no axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask, no banner, no chain, no torch, no bow, no axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior"
+},
+"texte": "An orc warrior, no helmet, no cape, no sword, no shield, no crown, no boots, no belt, no ring, no staff, no horns, no wings, no tail, no beard, no scarf, no gloves, no amulet, no spear, no quiver, no hood, no mask, no banner, no chain, no torch, no bow, no axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood, mask, banner, chain, torch, bow or axe, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood, mask, banner, chain, torch, bow or axe, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior, holding an axe"
+},
+"texte": "An orc warrior with no helmet, cape, sword, shield, crown, boots, belt, ring, staff, horns, wings, tail, beard, scarf, gloves, amulet, spear, quiver, hood, mask, banner, chain, torch, bow or axe, holding an axe"
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior."
+},
+"plafond": null,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask and banner and chain and torch and bow and axe."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior."
+},
+"plafond": 8,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring"
+],
+"perdus": [
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask",
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask and banner and chain and torch and bow and axe."
+},
+{
+"avertissements": [
+"negations-en-trop"
+],
+"enveloppe": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior."
+},
+"plafond": 20,
+"sortie": {
+"negatifs": [
+"helmet",
+"cape",
+"sword",
+"shield",
+"crown",
+"boots",
+"belt",
+"ring",
+"staff",
+"horns",
+"wings",
+"tail",
+"beard",
+"scarf",
+"gloves",
+"amulet",
+"spear",
+"quiver",
+"hood",
+"mask"
+],
+"perdus": [
+"banner",
+"chain",
+"torch",
+"bow",
+"axe"
+],
+"positif": "An orc warrior."
+},
+"texte": "An orc warrior without helmet and cape and sword and shield and crown and boots and belt and ring and staff and horns and wings and tail and beard and scarf and gloves and amulet and spear and quiver and hood and mask and banner and chain and torch and bow and axe."
 }
 ]
 }

@@ -11397,7 +11397,7 @@ const COUT_REPRISE_IMAGE_USD = 0.006;
  *  - il ne fait qu'AJOUTER au negatif, derriere les pieces de securite (« nude, naked, nsfw, undressed »), d'ombres et d'armes, qui gardent la priorite dans
  *    le budget de 77 jetons (modal_app/_realvis.py, build_prompts) : aucun terme ne retire ni ne remplace une piece existante. Le worker, lui, ne touche
  *    jamais au negatif : il ne fait que transporter des termes nettoyes ;
- *  - il est nettoye de facon STRICTE ici, puis de nouveau cote Modal : 8 termes au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets, passes en
+ *  - il est nettoye de facon STRICTE ici, puis de nouveau cote Modal : 20 termes au plus (NEG_MAX_LONG : toutes les routes qui lisent ce champ passent par l'encodeur long), 40 caracteres au plus, lettres ASCII / espaces / tirets, passes en
  *    minuscules ; ni virgule, ni parenthese, ni deux-points, ni crochet, ni chiffre. Un terme ne peut donc ni ouvrir une autre piece du prompt ni fabriquer
  *    une ponderation « (nude:0) » qui annulerait un terme de securite. Un element invalide est ECARTE, jamais corrige, sans erreur (jamais de 400 : un
  *    client plus ancien ou plus recent que le serveur doit continuer a generer) ;
@@ -11412,7 +11412,11 @@ const COUT_REPRISE_IMAGE_USD = 0.006;
  *  - un client qui inventerait d'autres termes ne peut, au pire, que changer le NEGATIF de SA propre generation, qui reste soumise au classifieur d'image
  *    de Modal et au plancher dur du filtre (le texte positif, lui, passe par la moderation).
  * Fonction PURE, sans acces au reseau : cloud/tests/negations-utilisateur.test.mjs l'execute telle quelle. */
-const NEG_MAX_TERMES = 8;
+// PLAFOND PAR ROUTE (24/10, decision du proprietaire : 20). Les routes qui lisent `negativeExtra` (text2image et T-pose) encodent le negatif par blocs de 75 jetons
+// (_sdxl_prompt_utils.encode_sdxl_long_prompt) : NEG_MAX_LONG. Les outils a appel direct (budget CLIP de 77 jetons) gardent NEG_MAX_DIRECT cote Modal
+// (composeur_intention.separer_negations_outil) ; le worker ne les transporte pas. Au-dela du plafond : le surplus est ECARTE sans erreur (jamais de 400).
+const NEG_MAX_DIRECT = 8;
+const NEG_MAX_LONG = 20;
 const NEG_MAX_CARS = 40;
 const NEG_SENSIBLES: ReadonlySet<string> = new Set(
   ('apparel attire bare bikini bra bras clothe clothed clothes clothing dress dresses garment garments lingerie naked nsfw nude nudity '
@@ -11420,8 +11424,9 @@ const NEG_SENSIBLES: ReadonlySet<string> = new Set(
     // 2026-10-14 (relecture) : vetements dont l'ABSENCE denude aussi (« no shorts »)
     + 'blouse blouses bottomless bottoms boxers briefs jeans knickers leggings loincloth shorts singlet swimwear thong thongs tshirt tshirts').split(' '));
 
-function _nettoyerNegativeExtra(brut: unknown): string[] {
+function _nettoyerNegativeExtra(brut: unknown, plafond: number = NEG_MAX_LONG): string[] {
   if (!Array.isArray(brut)) return [];
+  const maxi = Number.isInteger(plafond) && plafond >= 1 && plafond <= NEG_MAX_LONG ? plafond : NEG_MAX_DIRECT;   // meme regle que _plafond de composeur_intention
   const sortie: string[] = [];
   for (const x of brut.slice(0, 64)) {          // jamais plus de 64 elements lus, quelle que soit la taille du tableau recu
     if (typeof x !== 'string' || x.length > 200) continue;
@@ -11433,7 +11438,7 @@ function _nettoyerNegativeExtra(brut: unknown): string[] {
     const terme = mots.join(' ');
     if (terme.length > NEG_MAX_CARS || sortie.includes(terme)) continue;
     sortie.push(terme);
-    if (sortie.length >= NEG_MAX_TERMES) break;
+    if (sortie.length >= maxi) break;
   }
   return sortie;
 }

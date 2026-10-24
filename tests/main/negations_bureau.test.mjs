@@ -44,7 +44,7 @@ test('_assainirNegativeExtra : memes sorties que assainir_negatifs de Python sur
 test('_assainirNegativeExtra : plafonds et entrees hostiles', () => {
   const f = fonction('_assainirNegativeExtra');
   assert.deepEqual(f(['helmet', 'Helmet', ' beard ']), ['helmet', 'beard']);
-  assert.equal(f(Array.from({ length: 30 }, (_, i) => 'terme' + 'abcdefghijklmnopqrstuvwxyz'[i % 26])).length <= 8, true, '8 termes au plus');
+  assert.equal(f(Array.from({ length: 30 }, (_, i) => 'terme' + 'abcdefghijklmnopqrstuvwxyz'[i % 26])).length, 20, '20 termes au plus (route longue)');
   assert.deepEqual(f(['x'.repeat(41)]), []);
   assert.deepEqual(f(['x'.repeat(40)]), ['x'.repeat(40)]);
   assert.deepEqual(f(['<script>', 'rm -rf /', 'a;b', 'a,b', '1 2', "o'neil", 'café']), [], 'le moindre caractere hors lettres / espaces / tirets : ecarte');
@@ -146,9 +146,9 @@ test('cloud_fallback.generateImages : sans terme, le corps est celui d\'avant (a
   }
 });
 
-test('cloud_fallback.generateImages : plus de 8 termes : 8 au plus, a chaque lot de 4 images', async () => {
-  const termes = Array.from({ length: 12 }, (_, i) => 'terme' + 'abcdefghijkl'[i]);
+test('cloud_fallback.generateImages : plus de 20 termes : 20 au plus, a chaque lot de 4 images', async () => {
+  const termes = Array.from({ length: 25 }, (_, i) => 'terme' + 'abcdefghijklmnopqrstuvwxy'[i]);
   const { corps } = await genererAvecFetchFactice({ numImages: 6, args: { negativeExtra: termes } });
   assert.equal(corps.length, 2, 'six images = deux appels de 4 au plus');
-  for (const c of corps) assert.deepEqual(c.negativeExtra, termes.slice(0, 8));
+  for (const c of corps) assert.deepEqual(c.negativeExtra, termes.slice(0, 20));
 });
