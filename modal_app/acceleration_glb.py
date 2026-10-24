@@ -45,6 +45,29 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    un triangle : 4,2 % a 1 000 (des aretes vives de parties fines, pas des trous),
    rendu sans trou, 0,03 s. Au-dessus, rien ne change. Absent de l'environnement :
    reduction d'origine.
+
+4. DALLE DE SOL ET SOCLE (2026-10-03, audit de fidelite ; fonctions en fin de fichier : masque_dalle_sol, retirer_dalle_sol,
+   retirer_dalle_cumesh, retrait_dalle_actif). Sur le GLB de l'orc du proprietaire (512 301 faces) 64 % de l'AIRE et 37 % des
+   triangles servent a une feuille de sol de +/- 0,5 (le cube de TRELLIS ; 82 K faces, 2 mm d'epaisseur, a 8 % de la hauteur) et
+   a un rocher dessous. Le depliage UV repartit l'atlas au prorata de l'aire de surface (il ne sait pas ce qui est corps) : le
+   corps n'en garde que 35 % (flou au zoom) et le rig traine la dalle. Un sanglier : feuille de 271 K faces (81 % de l'aire,
+   0,1 mm d'epaisseur) a 0 %. Sur 36 maillages reels (l'orc + 35 paires du compte R2) ce sont les SEULS qui en portent une.
+   SIGNATURE : une bande de faces quasi horizontales (|n| >= 0,9), epaisse de 2 % de la hauteur au plus, dans le tiers inferieur,
+   faite de composantes connexes GROSSES (sommets soudes par position : les coutures d'UV dupliquent les sommets), dont l'aire
+   d'UNE face vaut au moins 3 fois la silhouette (vue de dessus, remplie) du corps qui est au-dessus. Mesure : orc 14,1 ; sanglier
+   23,8 ; le plus fort refus 0,70 (un abri) ; sans cette exigence un abri perdrait 29 % de son aire, un camion 6 %.
+   Alors la coupe passe 0,25 % de la hauteur au-dessus de la feuille (la « ligne des pieds ») : tout ce qui est dessous part
+   (feuille, rocher du dessous), RIEN au-dessus ne part jamais. Un socle plein plus epais que la fenetre a deux feuilles : la plus
+   haute qui deborde le corps donne la ligne. Au-dela de 15 % de la hauteur, seule la feuille a deux faces part (ce qui est
+   dessous pourrait etre le corps). RESIDU ASSUME : le rocher qui est au-dessus de la feuille reste (orc : 5 % des faces, 2 % de
+   l'aire), car rien ne distingue un rocher de bottes evasees ou d'un ourlet de robe par la seule geometrie.
+   PISTE ECARTEE (consigne : ligne des pieds par la chute de la section de silhouette, socle = faces dessous hors de l'empreinte du
+   corps dilatee, SANS feuille) : mesuree sur les memes 36 maillages, elle ampute de 0,4 a 4 % de leur aire 7 maillages SANS
+   dalle (oie, canards, trois humains, un abri : pieds, bottes, soubassement) et ne retire que 49 % de l'aire de l'orc (contre 64 %). Banc : build/bancs/fidelite/dalle_sol_campagne.py.
+   Fonctions pures (numpy ; scipy et cv2 si presents), 0,3 s pour 500 K faces, 2,3 s et 0,9 Go de pic pour 5 M. L'APPELANT choisit
+   les types (TYPES_CONCERNES : un batiment ou un vehicule a de vrais planchers). Apres le retrait la peau reste OUVERTE sous les
+   pieds : aucune semelle n'est rebouchee (invisible de dessus ; avec conserver_socle=True la jonction feuille / rocher reste
+   ouverte aussi).
 """
 
 _INPAINT_AVANT = """    base_color = cv2.inpaint(base_color, mask_inv, 3, cv2.INPAINT_TELEA)
@@ -469,3 +492,673 @@ def webp_rapide(glb_obj, log=None) -> float:
         return preencoder_couleur(glb_obj, log=log or (lambda *_: None))
     except Exception:
         return 0.0
+
+
+# ======================================================================================================
+# 4. RETRAIT DE LA DALLE DE SOL ET DU SOCLE (2026-10-03, audit de fidelite) -- voir l'en-tete du fichier
+# ======================================================================================================
+# Fonctions PURES (numpy ; scipy et cv2 les accelerent quand ils sont la, repli numpy pur pour les composantes connexes
+# et la silhouette) : elles
+# ne chargent aucun modele et ne touchent ni au GPU ni au reseau. L'appelant decide de leur emploi
+# (`type_concerne`) : un batiment, un vehicule ou une arme a legitimement des planchers et des dalles.
+
+import contextlib as _contextlib
+import threading as _threading
+
+TYPES_CONCERNES = ('character', 'creature', 'animal')     # types d'actif vivants (index2.js : np-asset-type)
+
+# Reglages (fractions de la hauteur totale T sauf mention contraire). Calibres le 2026-10-03 sur l'orc du
+# proprietaire, un sanglier et 36 autres maillages reels : voir build/bancs/fidelite/dalle_sol_campagne.py.
+REGLAGES_DALLE = {
+    'faces_min': 300,            # sous ce nombre de faces : rien n'est tente
+    'cos_horizontal': 0.9,       # |n_haut| >= 0,9 : face « quasi horizontale » (26 degres)
+    'fenetre': 0.02,             # epaisseur de la fenetre de recherche de la dalle (2 % de T)
+    'bande_demi': 0.01,          # demi-largeur de la bande de selection autour de la hauteur de la dalle
+    'hauteur_max': 0.35,         # la dalle est dans le tiers inferieur : centre de fenetre sous 35 % de T
+    'part_min': 0.04,            # la fenetre porte au moins 4 % de l'aire totale en faces horizontales
+    'composante_min': 0.01,      # une composante de la dalle pese au moins 1 % de l'aire totale (ou 20 % de la plus grosse)
+    'ratio_min': 3.0,            # aire d'UNE face de la dalle / aire de la silhouette du corps vue de dessus
+    'dessus_min': 0.10,          # au moins 10 % des faces au-dessus de la ligne de coupe (il y a un corps)
+    'marge_coupe': 0.0025,       # la coupe passe 0,25 % de T au-dessus du sommet de la dalle (bruit de surface)
+    'profondeur_socle_max': 0.15,   # le socle retire ne descend pas sous 15 % de T (au-dela : feuille seule)
+    'conserve_min': 0.03,        # garde-fou : jamais moins de 3 % des faces gardees
+}
+NB_CASES_HAUTEUR = 1000
+
+
+def type_concerne(type_actif) -> bool:
+    """Vrai si le type d'actif (identifiant de l'interface : « character », « creature », « animal ») est
+    un type vivant pour lequel le retrait de la dalle de sol est pertinent."""
+    return str(type_actif or '').strip().lower() in TYPES_CONCERNES
+
+
+def _verifier_entrees(sommets, faces, axe_haut):
+    import numpy as np
+    V = np.asarray(sommets)
+    F = np.asarray(faces)
+    if V.size == 0:
+        V = V.reshape(0, 3)
+    if F.size == 0:
+        F = F.reshape(0, 3)
+    if V.ndim != 2 or V.shape[1] != 3:
+        raise ValueError('sommets : tableau (n, 3) attendu, recu %s' % (V.shape,))
+    if F.ndim != 2 or F.shape[1] != 3:
+        raise ValueError('faces : tableau (m, 3) attendu, recu %s' % (F.shape,))
+    if axe_haut not in (0, 1, 2):
+        raise ValueError('axe_haut doit valoir 0, 1 ou 2 (recu %r)' % (axe_haut,))
+    if F.size and not np.issubdtype(F.dtype, np.integer):
+        raise ValueError('faces : indices entiers attendus')
+    if F.size and (int(F.min()) < 0 or int(F.max()) >= len(V)):
+        raise ValueError('faces : indice de sommet hors limites')
+    return V, F
+
+
+def _geometrie_faces(V, F, axe, bloc=1_000_000):
+    """(centres (m,3) float64, composante « haut » de la normale unitaire (m,), aires (m,)) -- par blocs."""
+    import numpy as np
+    m = len(F)
+    centres = np.empty((m, 3), np.float64)
+    nh = np.zeros(m, np.float64)
+    aires = np.empty(m, np.float64)
+    for d in range(0, m, bloc):
+        P = V[F[d:d + bloc]].astype(np.float64)
+        centres[d:d + bloc] = P.mean(axis=1)
+        cr = np.cross(P[:, 1] - P[:, 0], P[:, 2] - P[:, 0])
+        n2 = np.sqrt((cr * cr).sum(axis=1))
+        aires[d:d + bloc] = 0.5 * n2
+        np.divide(cr[:, axe], n2, out=nh[d:d + bloc], where=n2 > 0)
+    return centres, nh, aires
+
+
+def _percentile_pondere(valeurs, poids, q):
+    import numpy as np
+    o = np.argsort(valeurs, kind='stable')
+    cum = np.cumsum(poids[o])
+    k = int(np.searchsorted(cum, q * cum[-1]))
+    return float(valeurs[o][min(k, len(o) - 1)])
+
+
+def _etiquettes_numpy(a, b, n):
+    """Composantes connexes d'un graphe (aretes a[i]-b[i], n noeuds) en numpy pur : etiquette minimale par
+    accrochage des racines et saut de pointeurs. Repli de scipy.sparse.csgraph (meme resultat a la numerotation pres)."""
+    import numpy as np
+    lab = np.arange(n, dtype=np.int64)
+    while True:
+        la, lb = lab[a], lab[b]
+        diff = la != lb
+        if not diff.any():
+            return lab
+        la, lb = la[diff], lb[diff]
+        m = np.minimum(la, lb)
+        np.minimum.at(lab, la, m)
+        np.minimum.at(lab, lb, m)
+        while True:
+            suivant = lab[lab]
+            if np.array_equal(suivant, lab):
+                break
+            lab = suivant
+
+
+def _composantes_faces(V, Fs, etendue):
+    """Etiquette (une par face de Fs) de la composante connexe, les sommets confondus en POSITION etant soudes
+    d'abord : un maillage texture duplique ses sommets le long des coutures d'UV (piege documente), sans la soudure
+    chaque ilot d'UV serait une composante a part."""
+    import numpy as np
+    n = len(Fs)
+    if n == 0:
+        return np.zeros(0, np.int64)
+    pts = V[Fs.reshape(-1)].astype(np.float64)
+    tol = max(float(etendue) * 1e-6, 1e-12)
+    q = np.round((pts - pts.min(axis=0)) / tol).astype(np.int64)
+    cle = (q[:, 0] << 42) | (q[:, 1] << 21) | q[:, 2]            # chaque axe < 2**21 : cle exacte sur 63 bits
+    _, inv = np.unique(cle, return_inverse=True)
+    W = inv.reshape(n, 3).astype(np.int64)
+    nb = int(W.max()) + 1
+    a = np.concatenate([W[:, 0], W[:, 1], W[:, 2]])
+    b = np.concatenate([W[:, 1], W[:, 2], W[:, 0]])
+    try:
+        from scipy.sparse import coo_matrix
+        from scipy.sparse.csgraph import connected_components
+        g = coo_matrix((np.ones(len(a), np.int8), (a, b)), shape=(nb, nb))
+        _, lab = connected_components(g, directed=False)
+    except ImportError:
+        lab = _etiquettes_numpy(a, b, nb)
+    return lab[W[:, 0]]
+
+
+def _fermer_remplir_numpy(img):
+    """Repli sans cv2 : fermeture 3 x 3 (dilatation puis erosion, bords neutres comme cv2) et remplissage des trous par
+    inondation 4-connexe depuis le bord. `img` (G, G) 0/1 ; rend un tableau bool (G + 2, G + 2) : vrai = interieur de la forme."""
+    import numpy as np
+
+    def decale(a, dy, dx, bord):
+        h, w = a.shape
+        return np.pad(a, 1, constant_values=bord)[1 + dy:1 + dy + h, 1 + dx:1 + dx + w]
+    a = img.astype(bool)
+    d = a.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            d |= decale(a, dy, dx, False)
+    e = d.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            e &= decale(d, dy, dx, True)
+    fond = ~np.pad(e, 1)
+    ext = np.zeros_like(fond)
+    ext[0, :] = ext[-1, :] = ext[:, 0] = ext[:, -1] = True
+    ext &= fond
+    while True:
+        suite = ext.copy()
+        suite[1:, :] |= ext[:-1, :]
+        suite[:-1, :] |= ext[1:, :]
+        suite[:, 1:] |= ext[:, :-1]
+        suite[:, :-1] |= ext[:, 1:]
+        suite &= fond
+        if np.array_equal(suite, ext):
+            return ~ext
+        ext = suite
+
+
+def _aire_silhouette(x, y, moteur='auto'):
+    """Aire de la silhouette REMPLIE d'un nuage de points (x, y) : grille adaptee a la densite, fermeture 3 x 3,
+    remplissage des trous par inondation depuis le bord (la peau d'un corps vue de dessus est un anneau creux).
+    cv2 si present (moteur 'auto' ou 'cv2'), sinon numpy pur (meme resultat, verifie par le test)."""
+    import numpy as np
+    n = len(x)
+    if n == 0:
+        return 0.0
+    G = int(np.clip(np.sqrt(n / 4.0), 8, 128))
+    x0, x1, y0, y1 = float(x.min()), float(x.max()), float(y.min()), float(y.max())
+    cote = max(x1 - x0, y1 - y0, 1e-12)
+    cell = cote / G
+    ix = np.minimum(((x - x0) / cell).astype(np.int64), G - 1)
+    iy = np.minimum(((y - y0) / cell).astype(np.int64), G - 1)
+    img = np.zeros((G, G), np.uint8)
+    img[iy, ix] = 1
+    cv2 = None
+    if moteur != 'numpy':
+        try:
+            import cv2
+        except ImportError:
+            cv2 = None
+    if cv2 is None:
+        return float(_fermer_remplir_numpy(img).sum()) * cell * cell
+    img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+    pad = (np.pad(img, 1) * 255).astype(np.uint8)
+    masque = np.zeros((pad.shape[0] + 2, pad.shape[1] + 2), np.uint8)
+    cv2.floodFill(pad, masque, (0, 0), 128)
+    return float((pad != 128).sum()) * cell * cell
+
+
+def _pts_silhouette(V, F, centres, idx, axes, maxi=1_200_000):
+    """Centres + sommets des faces idx (sous-echantillon regulier au-dela de `maxi` points)."""
+    import numpy as np
+    pas = max(1, (4 * len(idx)) // maxi)
+    sel = idx[::pas]
+    x = np.concatenate([centres[sel, axes[0]]] + [V[F[sel, j], axes[0]].astype(np.float64) for j in range(3)])
+    y = np.concatenate([centres[sel, axes[1]]] + [V[F[sel, j], axes[1]].astype(np.float64) for j in range(3)])
+    return x, y
+
+
+def _rebord_dalle(centres, h, axes, est_dalle, h_bas, h_sommet, T, etendue):
+    """Faces de la bande de la dalle (n'importe quelle normale : tranche de la feuille) situees HORS de l'empreinte du
+    reste du maillage (corps, rocher) : le rebord libre de la feuille. Rend un masque bool (m,)."""
+    import numpy as np
+    bande = (h >= h_bas - 0.0015 * T) & (h <= h_sommet + 0.0015 * T)
+    reste = np.flatnonzero(~bande)
+    if len(reste) == 0:
+        return np.zeros(len(h), bool)
+    ctr = centres[reste[::max(1, len(reste) // 400_000)]][:, axes]
+    lo, hi = np.percentile(ctr, 0.1, axis=0), np.percentile(ctr, 99.9, axis=0)
+    marge = 0.02 * etendue
+    hors = ((centres[:, axes[0]] < lo[0] - marge) | (centres[:, axes[0]] > hi[0] + marge)
+            | (centres[:, axes[1]] < lo[1] - marge) | (centres[:, axes[1]] > hi[1] + marge))
+    return bande & hors & ~est_dalle
+
+
+def _fenetres_candidates(ah, A, K, nb, r, maxi=4):
+    """Les fenetres de K cases (K/nb de la hauteur) les plus chargees en aire horizontale, sans recouvrement, centrees
+    sous `hauteur_max` et portant au moins `part_min` de l'aire totale. Rend [(case de debut, part de l'aire)]."""
+    import numpy as np
+    cs = np.concatenate([[0.0], np.cumsum(ah)])
+    fen = cs[K:] - cs[:-K]
+    centres_fen = (np.arange(len(fen)) + K / 2.0) / nb
+    fen = np.where(centres_fen <= r['hauteur_max'], fen, -1.0)
+    res = []
+    for _ in range(maxi):
+        k0 = int(np.argmax(fen))
+        if fen[k0] < r['part_min'] * A:
+            break
+        res.append((k0, float(fen[k0] / A)))
+        fen[max(0, k0 - K):k0 + K + 1] = -1.0
+    return res
+
+
+def _evaluer_candidat(k0, part, K, nb, g, r):
+    """Une fenetre candidate : la dalle (composantes connexes de faces horizontales), la ligne de coupe, et le rapport entre
+    l'aire d'UNE face de la dalle et la silhouette du corps au-dessus. Rend (info, D) ; info['accepte'] dit si c'est une dalle."""
+    import numpy as np
+    h, horiz, nh, aires, T, A = g['h'], g['horiz'], g['nh'], g['aires'], g['T'], g['A']
+    c = {'hauteur_fenetre': float((k0 + K / 2.0) / nb), 'part_horizontale': float(part), 'accepte': False}
+    dans = horiz & (g['case'] >= k0) & (g['case'] < k0 + K)
+    if not dans.any():
+        c['raison'] = 'fenetre vide'
+        return c, None
+    hm = float(np.average(h[dans], weights=aires[dans]))
+    idx = np.flatnonzero(horiz & (np.abs(h - hm) <= r['bande_demi'] * T))
+    if len(idx) == 0:                         # deux nappes aux deux bords de la fenetre : la moyenne tombe entre elles
+        c['raison'] = 'aucune face horizontale autour de la hauteur moyenne'
+        return c, None
+    lab = _composantes_faces(g['V'], g['F'][idx], g['etendue'])
+    aire_c = np.bincount(lab, weights=aires[idx])
+    gros = aire_c >= max(r['composante_min'] * A, 0.2 * float(aire_c.max()))
+    D = idx[gros[lab]]
+    if len(D) == 0 or float(aires[D].sum()) < r['part_min'] * A * 0.5:
+        c['raison'] = 'aucune composante horizontale assez grosse'
+        return c, None
+    a_haut = float(aires[D][nh[D] > 0].sum())
+    a_bas = float(aires[D][nh[D] < 0].sum())
+    hd = h[D]
+    h_sommet = _percentile_pondere(hd, aires[D], 0.99)
+    h_bas = _percentile_pondere(hd, aires[D], 0.01)
+    coupe = h_sommet + r['marge_coupe'] * T                    # la « ligne des pieds » : rien n'est retire au-dessus
+    Vd = g['V'][np.unique(g['F'][D].reshape(-1))]
+    axes = g['axes']
+    c.update(hauteur=float(g['hmin'] + hm), fraction=float(hm / T), epaisseur=float(h_sommet - h_bas),
+             faces=int(len(D)), composantes=int(gros.sum()), aire_pct=float(100 * aires[D].sum() / A),
+             aire_une_face=max(a_haut, a_bas), double_face=bool(min(a_haut, a_bas) >= 0.2 * max(a_haut, a_bas, 1e-300)),
+             etendue=[float(np.ptp(Vd[:, axes[0]])), float(np.ptp(Vd[:, axes[1]]))],
+             coupe=float(coupe), coupe_fraction=float(coupe / T), h_bas=float(h_bas), h_sommet=float(h_sommet))
+    au = np.flatnonzero(h > coupe)
+    if len(au) < max(r['dessus_min'] * len(g['F']), 50):
+        c['raison'] = 'presque rien au-dessus de la dalle (%d faces)' % len(au)
+        return c, D
+    x, y = _pts_silhouette(g['V'], g['F'], g['centres'], au, axes)
+    sil = _aire_silhouette(x, y)
+    ratio = c['aire_une_face'] / max(sil, 1e-300)
+    pa, pb = np.percentile(x, [0.5, 99.5]), np.percentile(y, [0.5, 99.5])
+    c.update(ratio_empreinte=float(ratio),
+             empreinte_corps={'axes': list(axes), 'etendue': [float(pa[1] - pa[0]), float(pb[1] - pb[0])],
+                              'minimum': [float(pa[0]), float(pb[0])], 'maximum': [float(pa[1]), float(pb[1])],
+                              'aire_silhouette': float(sil), 'faces_au_dessus': int(len(au))})
+    if ratio < r['ratio_min']:
+        c['raison'] = 'la bande horizontale ne deborde pas du corps (rapport %.2f < %.1f)' % (ratio, r['ratio_min'])
+        return c, D
+    c['accepte'] = True
+    return c, D
+
+
+def _analyser_dalle(V, F, axe, conserver_socle, r):
+    """Coeur : (retire (m,) bool ou None, info dict). `info` est toujours renseigne (diagnostic compris)."""
+    import time
+    import numpy as np
+    t0 = time.time()
+    m = len(F)
+    info = {'faces': int(m), 'axe_haut': int(axe), 'conserver_socle': bool(conserver_socle)}
+
+    def non(raison):
+        info['decision'] = 'inchange'
+        info['raison'] = raison
+        info['duree_s'] = round(time.time() - t0, 3)
+        return None, info
+
+    if m < r['faces_min']:
+        return non('maillage trop petit (%d faces)' % m)
+    marque = np.zeros(len(V), bool)
+    marque[F.reshape(-1)] = True
+    Vu = V[marque]
+    if not np.isfinite(Vu).all():
+        return non('sommets non finis')
+    hmin, hmax = float(Vu[:, axe].min()), float(Vu[:, axe].max())
+    T = hmax - hmin
+    etendue = float((Vu.max(axis=0) - Vu.min(axis=0)).max())
+    del Vu
+    if not T > 0:
+        return non('hauteur nulle')
+    axes = [i for i in range(3) if i != axe]
+    centres, nh, aires = _geometrie_faces(V, F, axe)
+    A = float(aires.sum())
+    if not A > 0:
+        return non('aire nulle')
+    info.update(hauteur_totale=T, hauteur_min=hmin, aire_totale=A)
+    h = centres[:, axe] - hmin
+    horiz = np.abs(nh) >= r['cos_horizontal']
+
+    # --- 1. les bandes horizontales les plus chargees dans le tiers inferieur (une dalle, ou le dessus et le dessous d'un socle plein)
+    nb = NB_CASES_HAUTEUR
+    case = np.clip((h / T * nb).astype(np.int64), 0, nb - 1)
+    ah = np.bincount(case[horiz], weights=aires[horiz], minlength=nb)
+    K = max(2, int(round(r['fenetre'] * nb)))
+    fenetres = _fenetres_candidates(ah, A, K, nb, r)
+    if not fenetres:
+        cs = np.concatenate([[0.0], np.cumsum(ah)])
+        fen = cs[K:] - cs[:-K]
+        ok = (np.arange(len(fen)) + K / 2.0) / nb <= r['hauteur_max']
+        part = float(fen[ok].max() / A) if ok.any() else 0.0
+        info['part_horizontale'] = part
+        return non('aucune bande horizontale assez chargee (%.1f %% de l\'aire)' % (100 * part))
+    info['part_horizontale'] = fenetres[0][1]
+
+    # --- 2. chaque bande : une dalle si elle DEBORDE largement la silhouette du corps qui est au-dessus
+    g = dict(V=V, F=F, centres=centres, nh=nh, aires=aires, h=h, horiz=horiz, case=case, T=T, A=A, hmin=hmin,
+             etendue=etendue, axes=axes)
+    candidats, bandes = [], []
+    for k0, part in fenetres:
+        c, D = _evaluer_candidat(k0, part, K, nb, g, r)
+        candidats.append(c)
+        bandes.append(D)
+    info['candidats'] = candidats
+    acceptes = [i for i, c in enumerate(candidats) if c['accepte']]
+    if not acceptes:
+        principal = candidats[0]
+        return non(principal.get('raison', 'aucune dalle'))
+
+    # --- 3. choix de la ligne des pieds
+    criteres = ['plan_mince']
+    limite = r['profondeur_socle_max'] * T
+    if conserver_socle:
+        # la feuille la plus basse, a DEUX faces (une feuille mince) ; un dessus de socle plein n'est pas touche
+        doubles = [i for i in acceptes if candidats[i]['double_face']]
+        if not doubles:
+            return non('aucune dalle a deux faces : socle probable, conserve (conserver_socle)')
+        choix = min(doubles, key=lambda i: candidats[i]['coupe'])
+        mode = 'dalle_seule'
+        criteres.append('socle_conserve')
+    else:
+        dans_limite = [i for i in acceptes if candidats[i]['coupe'] <= limite]
+        if dans_limite:
+            choix = max(dans_limite, key=lambda i: candidats[i]['coupe'])    # la plus haute : un socle plein a un dessus ET un dessous
+            mode = 'socle_retire'
+        else:
+            doubles = [i for i in acceptes if candidats[i]['double_face']]
+            if not doubles:
+                return non('feuille a une seule face trop haute : ce qui est dessous pourrait etre le corps')
+            choix = min(doubles, key=lambda i: candidats[i]['coupe'])
+            mode = 'dalle_seule'
+            criteres.append('socle_trop_profond')   # la feuille est trop haute : ce qui est dessous pourrait etre le corps
+    dalle = candidats[choix]
+    coupe = dalle['coupe']
+
+    # --- 4. ce qui part
+    est_dalle = np.zeros(m, bool)
+    for i in acceptes:
+        if candidats[i]['coupe'] <= coupe:
+            est_dalle[bandes[i]] = True
+    rebord = _rebord_dalle(centres, h, axes, est_dalle, dalle['h_bas'], dalle['h_sommet'], T, etendue)
+    if mode == 'socle_retire':
+        sous = h < coupe                         # tout ce qui est sous la ligne des pieds : feuille, rocher, socle
+        retire = sous
+        socle = int(np.count_nonzero(sous & ~est_dalle & ~rebord))
+        if socle >= max(50, int(0.002 * m)):
+            criteres.append('socle_epais')
+        info['socle'] = {'profondeur': float(coupe), 'faces': socle}
+    else:
+        est_dalle = np.zeros(m, bool)
+        est_dalle[bandes[choix]] = True          # une seule feuille : la tranche libre se calcule sur elle
+        rebord = _rebord_dalle(centres, h, axes, est_dalle, dalle['h_bas'], dalle['h_sommet'], T, etendue)
+        retire = est_dalle | rebord
+        if rebord.any():
+            criteres.append('rebord')
+    nb_retire = int(retire.sum())
+    if nb_retire == 0:
+        return non('rien a retirer')
+    if m - nb_retire < max(100, r['conserve_min'] * m):
+        return non('retrait excessif refuse (%d faces gardees sur %d)' % (m - nb_retire, m))
+    a_ret = float(aires[retire].sum())
+    dalle_pub = {k: v for k, v in dalle.items() if k not in ('empreinte_corps', 'accepte', 'coupe', 'coupe_fraction', 'h_bas', 'h_sommet')}
+    info['dalle'] = dalle_pub
+    info['empreinte_corps'] = dalle['empreinte_corps']
+    info.update(decision='retire', mode=mode, criteres=criteres, faces_retirees=nb_retire,
+                faces_retirees_pct=float(100 * nb_retire / m), aire_retiree=a_ret, aire_retiree_pct=float(100 * a_ret / A),
+                ligne_pieds={'hauteur': float(hmin + coupe), 'fraction': float(coupe / T)},
+                duree_s=round(time.time() - t0, 3))
+    return retire, info
+
+
+def analyser_dalle_sol(sommets, faces, axe_haut=1, conserver_socle=False, **reglages):
+    """Comme masque_dalle_sol mais rend (garder, info) avec `info` TOUJOURS renseigne (decision, raison du refus,
+    mesures intermediaires : part horizontale de la fenetre, rapport d'empreinte...). Sert au banc de calibrage."""
+    import numpy as np
+    r = _reglages(reglages)
+    V, F = _verifier_entrees(sommets, faces, axe_haut)
+    retire, info = _analyser_dalle(V, F, axe_haut, conserver_socle, r)
+    if retire is None:
+        return np.ones(len(F), bool), info
+    return ~retire, info
+
+
+def _reglages(reglages):
+    inconnus = set(reglages) - set(REGLAGES_DALLE)
+    if inconnus:
+        raise TypeError('reglages inconnus : %s' % sorted(inconnus))
+    r = dict(REGLAGES_DALLE)
+    r.update(reglages)
+    return r
+
+
+def masque_dalle_sol(sommets, faces, axe_haut=1, conserver_socle=False, diagnostic=None, **reglages):
+    """Retrait de la dalle de sol et du socle d'un maillage de personnage / creature / animal.
+
+    Rend (garder, rapport) : `garder` = tableau bool par face (True = on garde) ; `rapport` = dict JSON-isable
+    (nombre de faces et aire retirees, hauteur de la « ligne des pieds », empreinte du corps, criteres declenches)
+    ou {} quand RIEN n'est retire (garder est alors tout vrai : le maillage reste a l'identique).
+
+    CONSERVATEUR : il faut une feuille mince quasi horizontale, dans le tiers inferieur, qui deborde au moins
+    3 fois la silhouette du corps vue de dessus. Alors la coupe passe juste au-dessus de la feuille (ligne des
+    pieds) et tout ce qui est SOUS elle (feuille, rocher, socle) part ; rien n'est jamais retire au-dessus. Un
+    socle plein plus epais que la fenetre a deux feuilles (dessus et dessous) : la plus haute qui deborde le corps
+    donne la ligne, le socle entier part. Une base PETITE (moins de 3 fois la silhouette), un siege, une robe
+    evasee, un disque en hauteur, un champ de petites dalles : rien ne part.
+    `axe_haut` : 0, 1 ou 2 (1 = GLB / glTF, 2 = repere des sommets de cumesh avant to_glb).
+    `conserver_socle=True` : seule la feuille (et son rebord) part, le socle reste (usage futur de l'interface).
+    `diagnostic` : dict optionnel rempli avec le detail de l'analyse, retrait ou non."""
+    garder, info = analyser_dalle_sol(sommets, faces, axe_haut, conserver_socle, **reglages)
+    if diagnostic is not None:
+        diagnostic.update(info)
+    if info.get('decision') != 'retire':
+        return garder, {}
+    rapport = {k: v for k, v in info.items() if k not in ('decision', 'raison', 'candidats')}
+    rapport['faces_total'] = rapport.pop('faces')
+    return garder, rapport
+
+
+def _sous_maillage(g, garder):
+    """Nouveau trimesh.Trimesh limite aux faces `garder` : sommets inutiles retires, UV / couleurs / attributs suivent, le
+    MATERIAU (textures) est PARTAGE avec `g` (rien n'est copie). Les normales de sommet sont CONSERVEES telles quelles : trimesh
+    les recalcule sinon, sommet par sommet, ce qui durcit toutes les coutures d'UV (mesure sur l'orc : 75 % des sommets sont des
+    doubles de couture, leurs normales passent de identiques a 0,69 d'ecart moyen). Visuel inconnu : repli sur la copie de trimesh."""
+    import numpy as np
+    import trimesh
+    vis = g.visual
+    kind = getattr(vis, 'kind', None)
+    if kind not in ('texture', 'vertex', 'face', None):
+        nouveau = g.copy()
+        nouveau.update_faces(garder)
+        nouveau.remove_unreferenced_vertices()
+        return nouveau
+    V = np.asarray(g.vertices)
+    Fk = np.asarray(g.faces)[garder]
+    utiles, inv = np.unique(Fk.reshape(-1), return_inverse=True)
+    kw = {'vertices': V[utiles], 'faces': inv.reshape(-1, 3), 'process': False}
+    try:
+        kw['vertex_normals'] = np.asarray(g.vertex_normals)[utiles]
+    except Exception:
+        pass
+    if kind == 'texture' and getattr(vis, 'uv', None) is not None:
+        kw['visual'] = trimesh.visual.TextureVisuals(uv=np.asarray(vis.uv)[utiles], material=vis.material)
+    elif kind == 'vertex':
+        kw['visual'] = trimesh.visual.ColorVisuals(vertex_colors=np.asarray(vis.vertex_colors)[utiles])
+    elif kind == 'face':
+        kw['visual'] = trimesh.visual.ColorVisuals(face_colors=np.asarray(vis.face_colors)[garder])
+    nouveau = trimesh.Trimesh(**kw)
+    for nom, val in dict(getattr(g, 'vertex_attributes', None) or {}).items():
+        nouveau.vertex_attributes[nom] = np.asarray(val)[utiles]
+    for nom, val in dict(getattr(g, 'face_attributes', None) or {}).items():
+        nouveau.face_attributes[nom] = np.asarray(val)[garder]
+    nouveau.metadata = dict(getattr(g, 'metadata', None) or {})
+    nouveau.name = getattr(g, 'name', None)
+    return nouveau
+
+
+def retirer_dalle_sol(maillage, axe_haut=1, conserver_socle=False, **reglages):
+    """Version trimesh de masque_dalle_sol : rend (maillage, rapport). `maillage` : trimesh.Trimesh ou trimesh.Scene
+    (transformations des noeuds appliquees pour l'analyse, repere monde). Rien a retirer : le MEME objet et {}.
+    Le maillage d'entree n'est jamais modifie ; le resultat est un NOUVEAU maillage (UV et normales de sommet conservees,
+    textures partagees avec l'entree : ne pas modifier une texture en croyant l'autre intacte)."""
+    import numpy as np
+    import trimesh
+    if isinstance(maillage, trimesh.Scene):
+        return _retirer_scene(maillage, axe_haut, conserver_socle, **reglages)
+    garder, rapport = masque_dalle_sol(np.asarray(maillage.vertices), np.asarray(maillage.faces), axe_haut,
+                                       conserver_socle, **reglages)
+    if not rapport:
+        return maillage, {}
+    return _sous_maillage(maillage, garder), rapport
+
+
+def _retirer_scene(scene, axe_haut, conserver_socle, **reglages):
+    import numpy as np
+    noeuds = []
+    vus = set()
+    for nom_noeud in scene.graph.nodes_geometry:
+        T, nom_geo = scene.graph[nom_noeud]
+        g = scene.geometry.get(nom_geo)
+        if g is None or not hasattr(g, 'faces') or len(g.faces) == 0:
+            continue
+        if nom_geo in vus:
+            return scene, {}                      # geometrie instanciee plusieurs fois : non prise en charge, rien n'est touche
+        vus.add(nom_geo)
+        noeuds.append((nom_geo, g, np.asarray(T, np.float64)))
+    if not noeuds:
+        return scene, {}
+    Vs, Fs, borne = [], [], [0]
+    deca = 0
+    for _, g, T in noeuds:
+        v = np.asarray(g.vertices, np.float64) @ T[:3, :3].T + T[:3, 3]
+        Vs.append(v)
+        Fs.append(np.asarray(g.faces, np.int64) + deca)
+        deca += len(v)
+        borne.append(borne[-1] + len(g.faces))
+    garder, rapport = masque_dalle_sol(np.concatenate(Vs), np.concatenate(Fs), axe_haut, conserver_socle, **reglages)
+    if not rapport:
+        return scene, {}
+    nouvelle = scene.copy()
+    for (nom_geo, g, _), a, b in zip(noeuds, borne[:-1], borne[1:]):
+        gk = garder[a:b]
+        if gk.all():
+            continue
+        if not gk.any():
+            nouvelle.delete_geometry(nom_geo)
+        else:
+            nouvelle.geometry[nom_geo] = _sous_maillage(nouvelle.geometry[nom_geo], gk)
+    return nouvelle, rapport
+
+
+# ---- Branchement AVANT le depliage UV de o_voxel.postprocess.to_glb (la seule position qui redonne de l'atlas
+# au corps : le depliage repartit l'atlas selon l'aire de surface, la dalle et le socle en prennent 65 %).
+# Dans to_glb, `mesh` est un cumesh.CuMesh dans le repere des sommets de TRELLIS (Z vers le haut : to_glb ne
+# permute y et z qu'a la FIN) : axe_haut=2. Le crochet enveloppe CuMesh.uv_unwrap, qu'appellent les deux branches
+# de to_glb (avec et sans remaillage) : aucun texte de to_glb a rechercher, donc rien a casser si la bibliotheque change.
+
+def _en_numpy(x):
+    import numpy as np
+    return x.detach().cpu().numpy() if hasattr(x, 'detach') else np.asarray(x)
+
+
+def retirer_dalle_cumesh(mesh, axe_haut=2, conserver_socle=False, log=print, **reglages):
+    """Retire la dalle de sol d'un cumesh.CuMesh : lecture `mesh.read()`, reinitialisation `mesh.init()` avec les
+    seules faces gardees (meme schema que _reduire_sans_plis). Rend le rapport ({} si rien n'est retire).
+    NE LEVE JAMAIS : au pire le maillage reste tel quel et la raison est journalisee."""
+    try:
+        import numpy as np
+        v, f = mesh.read()
+        vn = _en_numpy(v)
+        f_np = _en_numpy(f)
+        fn = f_np.astype(np.int64)
+        garder, rapport = masque_dalle_sol(vn, fn, axe_haut, conserver_socle, **reglages)
+        if not rapport:
+            return {}
+        utiles, inv = np.unique(fn[garder].reshape(-1), return_inverse=True)
+        v2 = np.ascontiguousarray(vn[utiles])
+        f2 = np.ascontiguousarray(inv.reshape(-1, 3).astype(f_np.dtype))
+        if hasattr(v, 'detach'):
+            import torch
+            mesh.init(torch.from_numpy(v2).to(device=v.device, dtype=v.dtype),
+                      torch.from_numpy(f2).to(device=f.device, dtype=f.dtype))
+        else:
+            mesh.init(v2, f2)
+        log("[mesh] dalle de sol retiree : %d faces (%.1f %%), %.1f %% de l'aire, ligne des pieds a %.1f %% de la hauteur (%s)"
+            % (rapport['faces_retirees'], rapport['faces_retirees_pct'], rapport['aire_retiree_pct'],
+               100 * rapport['ligne_pieds']['fraction'], '+'.join(rapport['criteres'])))
+        return rapport
+    except Exception as e:
+        log("[mesh] dalle de sol : retrait ignore (%s: %s)" % (type(e).__name__, e))
+        return {}
+
+
+class _EtatRetrait(_threading.local):
+    actif = False
+    conserver_socle = False
+    axe_haut = 2
+    log = None
+    reglages = None
+    rapports = None
+
+
+_ETAT_RETRAIT = _EtatRetrait()
+
+
+def _avant_depliage(mesh):
+    e = _ETAT_RETRAIT
+    if not e.actif or getattr(mesh, '_dalle_traitee', False):
+        return
+    try:
+        mesh._dalle_traitee = True            # une seule passe par maillage, meme si le depliage est rejoue
+    except Exception:
+        pass
+    rapport = retirer_dalle_cumesh(mesh, e.axe_haut, e.conserver_socle, e.log or print, **(e.reglages or {}))
+    if rapport and e.rapports is not None:
+        e.rapports.append(rapport)
+
+
+def installer_retrait_dalle(cumesh_module=None, log=print) -> bool:
+    """Enveloppe (une fois) cumesh.CuMesh.uv_unwrap : tant qu'un `retrait_dalle_actif` est ouvert dans le fil courant,
+    la dalle est retiree juste avant le depliage. Hors contexte le crochet ne fait rien. Rend False (journal) si cumesh
+    est absent ou refuse l'enveloppe."""
+    try:
+        if cumesh_module is None:
+            import cumesh as cumesh_module
+        cls = cumesh_module.CuMesh
+        if getattr(cls, '_fabmesh_retrait_dalle', False):
+            return True
+        original = cls.uv_unwrap
+
+        def uv_unwrap(self, *args, **kwargs):
+            _avant_depliage(self)
+            return original(self, *args, **kwargs)
+        uv_unwrap.__wrapped__ = original
+        cls.uv_unwrap = uv_unwrap
+        cls._fabmesh_retrait_dalle = True
+        return True
+    except Exception as e:
+        log("[mesh] dalle de sol : crochet du depliage impossible (%s: %s)" % (type(e).__name__, e))
+        return False
+
+
+@_contextlib.contextmanager
+def retrait_dalle_actif(actif=True, conserver_socle=False, axe_haut=2, log=print, cumesh_module=None, **reglages):
+    """Contexte d'une generation : `with retrait_dalle_actif(type_concerne(type_actif), log=log) as rapports: ...to_glb...`.
+    Hors de ce contexte (ou actif=False), to_glb se comporte exactement comme avant. `rapports` : liste des rapports
+    (un par maillage depliee dans le contexte). L'etat est propre au fil et remis a zero a la sortie, meme sur exception."""
+    if not actif:
+        yield []
+        return
+    e = _ETAT_RETRAIT
+    ancien = (e.actif, e.conserver_socle, e.axe_haut, e.log, e.reglages, e.rapports)
+    rapports = []
+    installe = installer_retrait_dalle(cumesh_module, log)
+    e.actif, e.conserver_socle, e.axe_haut, e.log, e.reglages, e.rapports = installe, conserver_socle, axe_haut, log, reglages, rapports
+    try:
+        yield rapports
+    finally:
+        e.actif, e.conserver_socle, e.axe_haut, e.log, e.reglages, e.rapports = ancien

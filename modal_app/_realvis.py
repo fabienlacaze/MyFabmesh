@@ -10,6 +10,8 @@ its weights once and replay them in seconds on cold restore.
 The desktop script keeps doing its own thing (CLI + subprocess + custom
 loggers + GPU throttle) — we do NOT touch it.
 """
+import re
+
 from PIL import Image as _PImage
 import torch
 
@@ -118,7 +120,42 @@ _ARMES_NEG = {
 }
 
 
-def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]:
+# NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence « l'image doit correspondre EXACTEMENT au prompt »).
+# « an orc, no helmet » : SDXL voit « helmet » dans le positif et le dessine. La locution est sortie du positif (_prompts.separer_negations) et son
+# terme entre ICI, dans le negatif, comme UNE piece (build_prompts, parametre negatif_utilisateur). Place dans la liste des pieces, par priorite :
+#   securite, ombres, armes (inchangees, toujours en tete) > anatomie du type > objet tenu (composeur) > NEGATIONS DE L'UTILISATEUR > anti-doublement,
+#   cadrage, texte, personnages en trop, qualite. Elles passent donc devant les pieces generiques, JAMAIS devant la securite, les ombres, les armes ni
+#   l'anatomie : un terme ne chasse pas « five legs » du negatif d'une creature, et le budget de 77 jetons estimes n'est PAS modifie (decision du
+#   proprietaire). Un terme a la fois (le premier qui ne tient pas est ecarte et ECRIT dans le journal, les suivants tentent leur chance), et toute la
+#   piece est plafonnee a PART_MAX_NEGATIF_UTILISATEUR jetons : une longue liste ne vide pas le reste du negatif.
+# Ponderation 1,4 : comme « (club:1.4) » de la liste des armes, sous l'anatomie (1,5 a 1,6) ; elle ne coute aucun jeton (l'encodeur lit « (mot:1.4) »).
+# A MESURER sur le GPU (graines fixes, avec et sans ponderation) : l'effet sur l'image n'est pas encore verifie.
+POIDS_NEGATIF_UTILISATEUR = 1.4
+PART_MAX_NEGATIF_UTILISATEUR = 14
+
+
+def _piece_negatifs_utilisateur(termes, gardes, plafond):
+    """-> (piece, retenus, ecartes) : les termes de l'utilisateur, ponderes, en UNE piece de negatif qui ne depasse pas `plafond` jetons estimes (meme
+    mesure que les autres pieces : mots x 1,35). Un terme deja interdit par une piece retenue (`gardes` : « weapon », « text »...) est saute en silence."""
+    deja = set()
+    for g in gardes:
+        for seg in g.split(','):
+            seg = seg.strip().lower()
+            m = re.match(r'^\((.*):[0-9.]+\)$', seg)
+            deja.add((m.group(1) if m else seg).strip())
+    retenus, ecartes = [], []
+    for t in termes:
+        if t in deja or t in retenus:
+            continue
+        essai = ', '.join('(%s:%s)' % (x, POIDS_NEGATIF_UTILISATEUR) for x in retenus + [t])
+        if round(len(essai.replace(',', ' ').split()) * 1.35) > plafond:
+            ecartes.append(t)
+            continue
+        retenus.append(t)
+    return ', '.join('(%s:%s)' % (x, POIDS_NEGATIF_UTILISATEUR) for x in retenus), retenus, ecartes
+
+
+def build_prompts(prompt: str, asset_type: str | None = None, negatif_utilisateur=None) -> tuple[str, str]:
     """Returns (optimized_prompt, negative_prompt). Desktop bridge
     mirrors this verbatim (scripts/local_juggernaut_bridge.py L211-302).
 
@@ -135,6 +172,9 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
 
     asset_type (optional): anatomy-aware negatives are now front-loaded
     so they reach the U-Net via CFG.
+
+    negatif_utilisateur (optionnel, 2026-10-03) : liste de termes de negatif tires des NEGATIONS de l'utilisateur (« no helmet » -> « helmet »), voir
+    POIDS_NEGATIF_UTILISATEUR plus haut. Nettoyes ici a nouveau (termes_negatifs_valides). Absent ou vide : negatif IDENTIQUE a l'octet a celui d'avant.
     """
     angle_token = _angle_token(prompt)
     # POSITIVE: minimal — the enriched prompt from
@@ -182,6 +222,11 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
                 _extra_neg = ", ".join(x for x in _ci.negatifs_extra(asset_type, _intention)[0] if x != "duplicate objects")
         except Exception as _e:   # le composeur ne doit jamais empecher une generation
             print(f"[prompt] composeur d'intention ignore ({type(_e).__name__}: {_e})", flush=True)
+    # NEGATIONS DE L'UTILISATEUR : nettoyees (strictement) par la derniere porte avant le negatif ; [] si le composeur est coupe (FABMESH_COMPOSEUR=0).
+    _termes_u = []
+    if negatif_utilisateur:
+        from modal_app._prompts import termes_negatifs_valides
+        _termes_u = termes_negatifs_valides(negatif_utilisateur)
     anatomy = _ANATOMY_NEG.get(asset_type or "") if asset_type else ""
     if asset_type in ('animal', 'creature'):                  # gabarit sans_pattes / poisson present ?
         _pl = (prompt or '').lower()
@@ -234,6 +279,9 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
         anatomy.rstrip(', ') if anatomy else '',
         # Objet tenu : pas deux fois le meme (composeur d'intention) ; vide sans objet tenu.
         _extra_neg,
+        # NEGATIONS DE L'UTILISATEUR (« no helmet » -> « (helmet:1.4) ») : une LISTE, resolue dans la boucle (sa place dans le budget depend de ce que les
+        # pieces precedentes ont consomme). Voir POIDS_NEGATIF_UTILISATEUR. Vide sans negation.
+        _termes_u or '',
         # Anti-doublement : deux sujets dans une image la rendent inutilisable.
         "duplicate, twin, split image, collage, side by side",
         # Cadrage : un buste ne fait pas un mesh complet.
@@ -254,7 +302,12 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     ]
     _BUDGET_NEG = 77          # limite CLIP, au-dela la fin est jetee
     _gardes, _jetons, _jetes = [], 0, []
+    _retenus_u = []
     for _m in _MORCEAUX:
+        if isinstance(_m, list):
+            # termes de l'utilisateur : au plus PART_MAX_NEGATIF_UTILISATEUR jetons, et jamais plus que ce qu'il reste du budget
+            _m, _retenus_u, _ecartes_u = _piece_negatifs_utilisateur(_m, _gardes, min(PART_MAX_NEGATIF_UTILISATEUR, _BUDGET_NEG - _jetons))
+            _jetes.extend("negation de l'utilisateur : " + t for t in _ecartes_u)
         if not _m:
             continue
         _n = round(len(_m.replace(',', ' ').split()) * 1.35)
@@ -266,12 +319,15 @@ def build_prompts(prompt: str, asset_type: str | None = None) -> tuple[str, str]
     if _jetes:
         print(f"[prompt] negatif tronque a {_jetons} jetons — ecarte : "
               f"{' | '.join(_jetes)}", flush=True)
+    if _retenus_u:
+        print(f"[prompt] negations de l'utilisateur au negatif : {', '.join(_retenus_u)}", flush=True)
     negative = ", ".join(_gardes)
     return optimized, negative
 
 
 def generate(pipe, prompt: str, seed: int, steps: int = 30,
-             asset_type: str | None = None, turbo: bool = False) -> _PImage.Image:
+             asset_type: str | None = None, turbo: bool = False,
+             negatif_utilisateur=None) -> _PImage.Image:
     """Run RealVisXL on the given pipeline. `pipe` must already be on
     GPU and configured (called by app.py after Memory Snapshot restore).
 
@@ -279,10 +335,12 @@ def generate(pipe, prompt: str, seed: int, steps: int = 30,
     negatives. Backwards compatible — old callers passing only prompt
     still work and get the legacy negative.
 
+    negatif_utilisateur (optionnel, 2026-10-03) : termes de negatif tires des negations de l'utilisateur, transmis tels quels a build_prompts().
+
     Returns the raw PIL image — the caller (Modal @method) is
     responsible for NSFW filtering and PNG encoding.
     """
-    optimized, negative = build_prompts(prompt, asset_type=asset_type)
+    optimized, negative = build_prompts(prompt, asset_type=asset_type, negatif_utilisateur=negatif_utilisateur)
     base_kwargs = dict(
         num_inference_steps=(4 if turbo else int(steps)),
         guidance_scale=(0.0 if turbo else 9.5),
