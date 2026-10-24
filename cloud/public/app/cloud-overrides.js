@@ -1499,7 +1499,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const sel = $('ws-engine');
       if (!sel) return;
       const cles = { 'img_balanced': 'text2image', 'local-lightning': 'text2image_zimage', 'qwen-best': 'text2image_qwen' };
-      for (const opt of sel.options) {
+      for (const opt of (sel.options || [])) {
         const p = cles[opt.value] ? _prixDe(cles[opt.value]) : null;
         const base = opt.textContent.replace(/ · ⚡ \d+$/, '');
         const voulu = p == null ? base : base + ' · ⚡ ' + Math.max(1, Math.round(p));

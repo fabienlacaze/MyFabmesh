@@ -113,50 +113,52 @@ class _Base:
         img.save(b, "PNG")
         return b.getvalue()
 
-    def _api(self):
-        from fastapi import FastAPI, HTTPException, Request
-        from fastapi.responses import Response
-        from modal_app._moderation_texte import prompt_hard_floor as _prompt_hard_floor   # meme plancher illegal que la route d'origine (jamais contourne)
-        from modal_app._prompts import texte_pour_plancher
-        api = FastAPI(title="myfabmesh-imagegen")
 
-        @api.post("/text2image")
-        async def text2image(request: Request):
-            try:
-                payload = await request.json()
-            except Exception:
-                raise HTTPException(status_code=400, detail="bad json")
-            attendu = os.environ.get("SHARED_SECRET", "")
-            if not attendu or (payload.get("_auth") or "").strip() != attendu:
-                raise HTTPException(status_code=401, detail="auth")
-            prompt = (payload.get("prompt") or "").strip()
-            if not prompt:
-                raise HTTPException(status_code=400, detail="prompt required")
-            negs = _nettoyer_negations(payload.get("negative_extra"))
-            raison = _prompt_hard_floor(texte_pour_plancher(prompt, negs))
-            if raison:
-                raise HTTPException(status_code=403, detail=raison)
-            cle = str(payload.get("_cle_rejeu") or "")
-            boucle = asyncio.get_running_loop()
-            with self.verrou_cle:
-                for k in [k for k, (h, _) in self.en_cours.items() if time.time() - h > 600]:
-                    del self.en_cours[k]
-                existant = self.en_cours.get(cle) if cle else None
-                if existant is None:
-                    futur = boucle.run_in_executor(None, lambda: self._generer(
-                        prompt, payload.get("asset_type") or "character", payload.get("asset_style") or "realistic",
-                        int(payload.get("seed") or 0), bool(payload.get("pose_libre")), negs, bool(payload.get("unrestricted"))))
-                    if cle:
-                        self.en_cours[cle] = (time.time(), futur)
-                else:
-                    futur = existant[1]
-            png = await asyncio.shield(futur)   # un 524 n'annule pas le calcul : le rejeu s'y rattache
-            return Response(content=png, media_type="image/png")
+# Fonction de module (pas methode) : partagee par les deux classes ; evite aussi que la garde check_modal_deps cherche une methode heritee.
+def construire_api(self):
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.responses import Response
+    from modal_app._moderation_texte import prompt_hard_floor as _prompt_hard_floor   # meme plancher illegal que la route d'origine (jamais contourne)
+    from modal_app._prompts import texte_pour_plancher
+    api = FastAPI(title="myfabmesh-imagegen")
 
-        @api.get("/healthz")
-        async def healthz():
-            return {"ok": True, "modele": self.REPO}
-        return api
+    @api.post("/text2image")
+    async def text2image(request: Request):
+        try:
+            payload = await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="bad json")
+        attendu = os.environ.get("SHARED_SECRET", "")
+        if not attendu or (payload.get("_auth") or "").strip() != attendu:
+            raise HTTPException(status_code=401, detail="auth")
+        prompt = (payload.get("prompt") or "").strip()
+        if not prompt:
+            raise HTTPException(status_code=400, detail="prompt required")
+        negs = _nettoyer_negations(payload.get("negative_extra"))
+        raison = _prompt_hard_floor(texte_pour_plancher(prompt, negs))
+        if raison:
+            raise HTTPException(status_code=403, detail=raison)
+        cle = str(payload.get("_cle_rejeu") or "")
+        boucle = asyncio.get_running_loop()
+        with self.verrou_cle:
+            for k in [k for k, (h, _) in self.en_cours.items() if time.time() - h > 600]:
+                del self.en_cours[k]
+            existant = self.en_cours.get(cle) if cle else None
+            if existant is None:
+                futur = boucle.run_in_executor(None, lambda: self._generer(
+                    prompt, payload.get("asset_type") or "character", payload.get("asset_style") or "realistic",
+                    int(payload.get("seed") or 0), bool(payload.get("pose_libre")), negs, bool(payload.get("unrestricted"))))
+                if cle:
+                    self.en_cours[cle] = (time.time(), futur)
+            else:
+                futur = existant[1]
+        png = await asyncio.shield(futur)   # un 524 n'annule pas le calcul : le rejeu s'y rattache
+        return Response(content=png, media_type="image/png")
+
+    @api.get("/healthz")
+    async def healthz():
+        return {"ok": True, "modele": self.REPO}
+    return api
 
 
 _COMMUN = dict(image=image, volumes={"/poids": poids}, secrets=SECRETS, timeout=1800, max_containers=2, cpu=4.0)
@@ -175,7 +177,7 @@ class ZImageTurbo(_Base):
 
     @modal.asgi_app()
     def web(self):
-        return self._api()
+        return construire_api(self)
 
 
 @app.cls(gpu="A100-80GB", scaledown_window=120, memory=65536, **_COMMUN)
@@ -191,4 +193,4 @@ class QwenImage(_Base):
 
     @modal.asgi_app()
     def web(self):
-        return self._api()
+        return construire_api(self)
