@@ -47,10 +47,26 @@ def _strip_accents(s):
     return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 
+def recolor_separer_negations(prompt):
+    """-> (texte sans ses locutions negatives, termes de negatif). « make the sword blue, no helmet » : la cible CLIPSeg ne doit pas deplacer le masque vers
+    la tete, et « helmet » part au negatif du re-rendu (24/10, audit M7). Module composeur_intention (Modal : modal_app.composeur_intention ; bureau :
+    scripts/composeur_intention.py) ; sans lui ou en cas d'erreur : le texte tel quel et []."""
+    t = '' if prompt is None else str(prompt)
+    try:
+        try:
+            from modal_app import composeur_intention as _ci
+        except ImportError:
+            import composeur_intention as _ci
+        return _ci.separer_negations_outil(t)
+    except Exception:
+        return t, []
+
+
 def parse_recolor_prompt(prompt):
     """'cape rouge' -> ('cape', color_spec) ; color_spec is None when no known
-    colour word is present (-> ControlNet-Tile material fallback)."""
-    text = (prompt or '').strip()
+    colour word is present (-> ControlNet-Tile material fallback).
+    Les locutions negatives (« no hood », « without feathers ») ne font jamais partie de la cible."""
+    text = recolor_separer_negations(prompt)[0].strip()
     color_spec = None
     noun_words = []
     for raw in text.split():
@@ -100,7 +116,7 @@ def recolor_hsv_masked(img_rgb, mask_soft, color_spec, strength=1.0):
 def recolor_mots_descriptifs(prompt):
     """Mots du prompt qui ne sont PAS des mots de couleur : « military green camo » -> ['military', 'camo'] ; « green » -> []."""
     mots = []
-    for raw in (prompt or '').split():
+    for raw in recolor_separer_negations(prompt)[0].split():
         if _strip_accents(raw.strip(".,;:!?\"'()").lower()) not in _COLOR_LEXICON:
             mots.append(raw)
     return mots
@@ -114,13 +130,23 @@ def recolor_tile_route(color_spec, prompt, recolor_all):
     return color_spec is None or bool(recolor_all and recolor_mots_descriptifs(prompt))
 
 
-def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0):
+def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0, negatifs=None):
     """Reglages du re-rendu : { denoise, cn, steps, guidance, prompt, negative }.
 
     Toute l'image (style) : vrai re-rendu img2img (denoise 0,57 a 0,85 selon le curseur Strength, ControlNet a 0,45 pour que les
     couleurs changent tout en tenant la forme, prompt oriente COHERENCE). Une partie : reglage prudent (denoise 0,18) pour
     preserver la zone detectee."""
     s = max(0.2, min(1.0, float(strength)))
+    p = _recolor_tile_params(noun, full_prompt, recolor_all, s)
+    if negatifs:       # negations de l'utilisateur (24/10, M7) : AJOUTEES au negatif de l'outil
+        deja = {x.strip().lower() for x in p['negative'].split(',')}
+        neufs = [x for x in negatifs if x.lower() not in deja]
+        if neufs:
+            p['negative'] = p['negative'] + ', ' + ', '.join(neufs)
+    return p
+
+
+def _recolor_tile_params(noun, full_prompt, recolor_all, s):
     if recolor_all:
         return {
             'denoise': 0.5 + s * 0.35, 'cn': 0.45, 'steps': 30, 'guidance': 6.5,
@@ -338,6 +364,7 @@ def generate_tile(seg_processor, seg_model, tile_pipe, source_img, prompt,
     deja utilise par `tex_variant` (self._get_tile_pipe()). Le re-rendu est recolle sur l'image d'ORIGINE (recolor_recoller) :
     hors du masque, pixels d'origine. Leve ValueError si la partie nommee est introuvable."""
     import torch
+    prompt, _negs = recolor_separer_negations(prompt)    # 24/10 (M7) : « no hood » va au negatif du re-rendu, pas dans le positif ni dans la cible CLIPSeg
     noun, _spec = parse_recolor_prompt(prompt)
     img = source_img.convert('RGB')
     travail, w, h = _image_de_travail(img, max_dim)
@@ -351,7 +378,7 @@ def generate_tile(seg_processor, seg_model, tile_pipe, source_img, prompt,
         if couverture < 0.2:
             raise ValueError("'%s' not found on the image (coverage %.1f %%)." % (noun or prompt, couverture))
 
-    p = recolor_tile_params(noun, prompt, recolor_all, strength)
+    p = recolor_tile_params(noun, prompt, recolor_all, strength, negatifs=_negs)
     with torch.inference_mode():
         resultat = tile_pipe(
             prompt=p['prompt'], negative_prompt=p['negative'],

@@ -18,7 +18,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
-  positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules } from './lib/composeur-intention.js';
+  positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements } from './lib/composeur-intention.js';
 import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
@@ -7610,6 +7610,95 @@ function _choixTraductionEchouee(r) {
     setTimeout(() => { try { ok.focus(); } catch (_) {} }, 50);
   });
 }
+/* AVERTISSEMENTS AVANT DEPENSE (24/10, audit des prompts m5 / M12). Rien n'est modifie, rien n'est lance ni debite tant que l'utilisateur n'a pas choisi :
+ *  - texte de 55 mots ou plus (saisi OU traduit) : le moteur lit tout, mais la fin pese moins et le cadrage / la pose / le fond du gabarit sont repousses tres loin ;
+ *  - texte de plus de 2 000 caracteres : le serveur le refuse (seul « Modifier mon texte » est propose) ;
+ *  - la demande contredit le gabarit (pose assise avec la case T-pose cochee, plusieurs personnages, vue particuliere, buste) : continuer tel quel, ou decocher T-pose.
+ * Les regles eteintes du composeur ne sont PAS allumees : le prompt envoye reste identique a l'octet. Detecteur : lib/composeur-intention.js detecterAvertissements. */
+const _TEXTES_AVERTISSEMENT = {
+  'texte-long': 'Your description is {x} words long. The image engine reads it in blocks: the end counts less, and the framing, pose and background instructions the app adds after your text are pushed far down and are often ignored. Shorten it to stay faithful, or continue as it is.',
+  'texte-trop-long': 'Your description is longer than 2,000 characters. The server will refuse it: shorten it before generating.',
+  'pose-incompatible-avec-tpose': 'You describe a pose (sitting, riding, crossed arms...) but the T-pose box is checked: the template forces a standing T-pose with open hands.',
+  'quantite-deux-personnages-gabarit-un-seul': 'You describe several characters, but the template draws one single character.',
+  'vue-demandee-gabarit-de-face': 'You ask for a particular view, but the template asks for a front view.',
+  'buste-gabarit-corps-entier': 'You ask for a portrait or a bust, but the template asks for a full body.',
+};
+function _nbMotsAvertissement(...textes) {
+  let n = 0;
+  for (const t of textes) n = Math.max(n, String(t || '').split(/\s+/).filter(Boolean).length);
+  return n;
+}
+/** Fenetre « Verifier avant de generer » : 'continuer' | 'decocher' | 'annuler' (Echap, clic a cote, « Modifier mon texte »). Le focus est sur « Modifier mon texte » :
+ *  Entree ne depense jamais de credits par megarde. */
+function _confirmerAvertissements(codes, textes) {
+  const nbMots = _nbMotsAvertissement(...(textes || []));
+  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], nbMots) : _i18nT(_TEXTES_AVERTISSEMENT[c]))).filter(Boolean);
+  return new Promise((resolve) => {
+    const fond = document.createElement('div');
+    fond.className = 'modal-overlay';
+    fond.id = 'modal-avertissement-prompt';
+    fond.style.zIndex = '10200';
+    const carte = document.createElement('div');
+    carte.className = 'modal-card';
+    carte.style.cssText = 'width:480px; max-width:92vw; padding:0;';
+    const tete = document.createElement('div');
+    tete.style.cssText = 'padding:14px 18px; border-bottom:1px solid var(--border); background:var(--bg-1);';
+    const titre = document.createElement('h3');
+    titre.style.cssText = 'margin:0; font-size:14px;';
+    titre.textContent = '\u26A0\uFE0F ' + _i18nT('Check before generating');
+    tete.appendChild(titre);
+    const corps = document.createElement('div');
+    corps.style.cssText = 'padding:16px 18px;';
+    const liste = document.createElement('ul');
+    liste.style.cssText = 'margin:0; padding-left:18px; line-height:1.5; color:var(--text-1);';
+    for (const l of lignes) { const li = document.createElement('li'); li.style.marginBottom = '6px'; li.textContent = l; liste.appendChild(li); }
+    corps.appendChild(liste);
+    const pied = document.createElement('div');
+    pied.style.cssText = 'padding:12px 18px; border-top:1px solid var(--border); background:var(--bg-1); display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;';
+    const bouton = (texte, classe, choix) => {
+      const b = document.createElement('button');
+      b.className = classe;
+      b.style.padding = '6px 16px';
+      b.textContent = _i18nT(texte);
+      b.addEventListener('click', () => fin(choix));
+      pied.appendChild(b);
+      return b;
+    };
+    const modifier = bouton('Edit my text', 'ghost-btn', 'annuler');
+    if (codes.includes('pose-incompatible-avec-tpose')) bouton('Uncheck T-pose and continue', 'ghost-btn', 'decocher');
+    if (!codes.includes('texte-trop-long')) bouton('Continue anyway', 'primary-btn', 'continuer');
+    carte.append(tete, corps, pied);
+    fond.appendChild(carte);
+    const surFond = (e) => { if (e.target === fond) fin('annuler'); };
+    const surTouche = (e) => { if (e.key === 'Escape') fin('annuler'); };
+    function fin(choix) {
+      fond.removeEventListener('click', surFond);
+      document.removeEventListener('keydown', surTouche);
+      try { fond.remove(); } catch (_) {}
+      resolve(choix);
+    }
+    fond.addEventListener('click', surFond);
+    document.addEventListener('keydown', surTouche);
+    document.body.appendChild(fond);
+    setTimeout(() => { try { modifier.focus(); } catch (_) {} }, 50);
+  });
+}
+/** Etape commune a « Generate » (bureau et site) : false = l'utilisateur annule, rien n'est lance. Decocher T-pose se fait AVANT la fabrication du prompt. */
+async function _verifierAvantDepense(p, texteSaisi, texteAnglais, assetType) {
+  try {
+    if (!composeurActif()) return true;
+    const avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, _optionsPose(assetType));
+    if (!avert.length) return true;
+    const choix = await _confirmerAvertissements(avert, [texteSaisi, texteAnglais]);
+    if (choix === 'annuler') return false;
+    if (choix === 'decocher') {
+      const cb = document.getElementById('ws-tpose');
+      if (cb) { cb.checked = false; try { cb.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
+      try { _saveProjectMeta(p.name, { tpose: false }); } catch (_) {}
+    }
+    return true;
+  } catch (e) { console.warn('[avertissements] ignore :', e && e.message); return true; }
+}
 /** Indice texte de la VUE DE DOS, en anglais (audit TRADUCTION-05 / CHAMPS-08 : on envoyait le texte d'ORIGINE de l'utilisateur). */
 async function _indiceDosAnglais(brut) {
   const base = stripKnownPromptSuffixes(String(brut || ''));
@@ -7838,7 +7927,7 @@ function _parleDeVol(texte) {
   const t = String(texte || "").toLowerCase().replace(/œ/g, "oe").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return t.split(/[^a-z0-9]+/).some((m) => _MOTS_VOL.has(m));
 }
-const _DEMANDE_EN = /^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?/i;
+const _DEMANDE_EN = /^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me\b|(?=\s+(?:an?|the|some|one)\b)))\s+(?:an?\s+|the\s+|some\s+|one\s+)?/i;
 const _DEMANDE_FR = /^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais|(?:fais|cr[ée]e|g[ée]n[èe]re|dessine|fabrique)(?:-moi)?)\s+(?:(?:faire|cr[ée]er|g[ée]n[ée]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?/i;
 /** Retire « please / thanks / thank you / merci » de la FIN du texte, avec la ponctuation qui l'entoure. MEME resultat que l'ancienne regle de _epurerDemande
  *  (une regex ancree en fin de chaine) mais en temps lineaire : celle-ci etait quadratique sur de longues suites de blancs (4 s pour 100 000 blancs, mesure du
@@ -7851,6 +7940,9 @@ function _retirerPolitesseFin(s) {
     if (!fin.endsWith(mot)) continue;
     const debut = b - mot.length;
     if (debut > 0 && /\w/.test(s[debut - 1])) continue;       // \b : pas au milieu d'un mot
+    // « a card saying thank you », « a sign that reads please » (24/10, m16b) : le mot fait partie du SUJET quand il suit un mot qui annonce un texte ecrit
+    const _av = /([a-z]+)[\s,;:'"-]*$/i.exec(s.slice(Math.max(0, debut - 30), debut));
+    if (_av && (_retirerPolitesseFin._avant || (_retirerPolitesseFin._avant = new Set('saying says said reading reads read text words word written writes titled named called label labeled quote quoting spelling spells sign banner'.split(' ')))).has(_av[1].toLowerCase())) continue;
     let a = debut;
     while (a > 0 && /[\s,;.!]/.test(s[a - 1])) a--;
     return s.slice(0, a);
@@ -8261,6 +8353,8 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   if (_aTraduire) _promptHideOverlay(_wsTa);
   if (!_tr) return;
   const englishUser = _tr.texte;
+  // AVERTISSEMENTS AVANT DEPENSE (24/10, m5 / M12) : texte long, demande en conflit avec le gabarit. Annule = rien n'est lance ni debite.
+  if (!(await _verifierAvantDepense(p, userPrompt, englishUser, assetType))) return;
   const engine = document.getElementById('ws-engine').value;
   // NEGATIONS (voir _negativeExtraDe) : « an orc, no helmet » part SANS la locution et le terme « helmet » part au negatif (negativeExtra). Le moteur HiDream local n'a pas
   // de negatif : son encodeur de texte lit la negation, le texte reste tel quel pour lui.
@@ -8349,7 +8443,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       // userPrompt = texte d'ORIGINE (prompt.txt, pour la reouverture) ; userPromptAnglais = sa traduction, que le composeur
       // d'intention du pont local analyse (lexique anglais : CHAMPS-09) ; langueVerifiee = « Envoyer tel quel » (filet du serveur).
       const _genArgs = { prompt, userPrompt, userPromptAnglais: englishUser, negativeExtra, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM,
-        assetStyle, langueVerifiee: _tr.telQuel || undefined };
+        assetStyle, langueVerifiee: _tr.telQuel || undefined,
+        // CASE « T-pose » DECOCHEE (24/10, M9) : pose libre. Le mode Cloud du bureau l'ignorait (le serveur remettait la T-pose dans son gabarit).
+        ...(_optionsPose(assetType).tpose === false ? { poseLibre: true } : {}) };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);

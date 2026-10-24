@@ -339,7 +339,7 @@ async function status() {
 // Retourne { success, images:[chemins locaux], creditsRemaining } ou
 // { success:false, needsCloudLogin:true } si aucune session valide.
 // -----------------------------------------------------------------------------
-async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee, negativeExtra }) {
+async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee, negativeExtra, poseLibre }) {
   // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : 8 au plus, 40 caracteres, lettres / espaces / tirets ; le serveur re-verifie.
   const _negatifs = Array.isArray(negativeExtra)
     ? negativeExtra.filter((x) => typeof x === 'string' && x.length <= 40 && /^[a-z]+(?:[ -][a-z]+)*$/.test(x)).slice(0, 8)
@@ -379,6 +379,8 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, assetSt
           ...(assetStyle ? { asset_style: assetStyle } : {}),
           // « Envoyer tel quel » choisi apres un echec de traduction : respecte par le filet de langue du serveur
           ...(langueVerifiee ? { langueVerifiee: true } : {}),
+          // case « T-pose » decochee (24/10, M9) : pose libre, pas de route T-pose ni de supplement
+          ...(poseLibre ? { tpose: false, poseLibre: true } : {}),
           steps: Number(steps) || 30,
           turbo: !!turbo,
           ...(_negatifs.length ? { negativeExtra: _negatifs } : {}),   // negations de l'utilisateur : ajoutees au negatif par le serveur

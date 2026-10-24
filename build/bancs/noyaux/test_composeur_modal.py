@@ -207,7 +207,9 @@ class ComposeurModal(unittest.TestCase):
     def test_tpose_sans_objet_identique(self):
         for t in ('An orc', 'A medieval peasant', 'A knight without a weapon'):
             p, n = self._tpose(t)
-            self.assertEqual(p, t + T.FRONT_PROMPT_TAIL)
+            self.assertEqual(p, t + T.queue_sans_doublons(t))      # 24/10 (m3) : la queue d'avant, moins « studio lighting »
+            self.assertNotIn('studio lighting', p)
+            self.assertEqual(p.replace(', ', ',').count('studio'), 0)
             self.assertEqual(n, T.NEG)
 
     def test_tpose_orc_ne_se_contredit_plus(self):
@@ -215,8 +217,8 @@ class ComposeurModal(unittest.TestCase):
         self.assertNotIn('symmetric T-pose', p)
         self.assertNotIn('open hands', p)
         self.assertIn('hands held away from the body', p)
-        self.assertIn('in a T-pose', p)
-        self.assertIn('arms extended horizontally', p)
+        self.assertEqual(p.count('T-pose'), 1, p)                    # 24/10 (m3) : le gabarit du client le dit deja, la queue ne le repete pas
+        self.assertEqual(p.count('arms extended horizontally'), 1, p)
         segs = [s.strip() for s in n.split(',')]
         self.assertNotIn('holding objects', segs)
         for garde in ('second weapon', 'dual wielding', 'duplicate weapon', 'duplicate objects', 'hands on hips', 'arms down'):
@@ -232,7 +234,7 @@ class ComposeurModal(unittest.TestCase):
 
     def test_tpose_interrupteur(self):
         p, n = sans_composeur(lambda: self._tpose(ORC_ATTENDU))
-        self.assertEqual(p, ORC_ATTENDU + T.FRONT_PROMPT_TAIL)
+        self.assertEqual(p, ORC_ATTENDU + T.queue_sans_doublons(ORC_ATTENDU))      # 24/10 (m3) : composeur coupe = la queue sans doublon ni studio lighting
         self.assertEqual(n, T.NEG)
 
 
@@ -526,11 +528,10 @@ class NegationsServeur(unittest.TestCase):
             self.assertTrue(neg.startswith(SECURITE + ', ' + OMBRES), typ)
             for m in marqueurs.get(typ, []):
                 self.assertIn(m, neg, typ + ' ' + m)
-            self.assertIn('(alpha bravo charlie:1.4)', neg, typ)           # le premier terme tient toujours
-            m = re.search(r'negatif tronque a (\d+) jetons', journal)
-            if m:
-                self.assertLessEqual(int(m.group(1)), 77, typ)
-            self.assertIn("negation de l'utilisateur : victor whiskey xray", journal, typ + ' : ce qui tombe est ecrit au journal')
+            # 24/10 (audit m7) : les huit termes de l'utilisateur tiennent TOUJOURS, quel que soit le type ; ce sont les pieces generiques de la fin qui cedent
+            for terme in INONDATION:
+                self.assertIn('(%s:1.4)' % terme, neg, typ + ' ' + terme)
+            self.assertNotIn("negation de l'utilisateur :", journal, typ + ' : aucune negation de l\'utilisateur ecartee')
 
     def test_le_budget_de_77_jetons_n_a_pas_bouge(self):
         with open(os.path.join(RACINE, 'modal_app', '_realvis.py'), 'r', encoding='utf-8') as f:
@@ -538,18 +539,28 @@ class NegationsServeur(unittest.TestCase):
         self.assertEqual(re.findall(r'^\s*_BUDGET_NEG = (\d+)', src, re.M), ['77'])
         self.assertEqual(R.PART_MAX_NEGATIF_UTILISATEUR, 14)
 
-    def test_la_piece_de_l_utilisateur_est_plafonnee_et_cede_devant_le_reste(self):
-        # character : au plus 14 jetons estimes pour les termes (3 termes de 3 mots = 12), les pieces generiques de la fin tombent a leur place
+    def test_la_piece_de_l_utilisateur_n_est_jamais_ecartee_et_les_pieces_generiques_cedent(self):
+        # 24/10 (audit m7) : les huit termes de l'utilisateur tiennent toujours ; le budget de 77 jetons estimes (inchange) retire les pieces generiques de la fin
         neg, journal = journal_de(lambda: self._neg('character', INONDATION))
-        self.assertIn('(golf hotel india:1.4)', neg)
-        self.assertNotIn('juliet', neg)
+        for terme in INONDATION:
+            self.assertIn('(%s:1.4)' % terme, neg)
         self.assertNotIn('text, watermark, logo, user interface', neg)
-        self.assertIn('headshot, portrait', neg)
-        # creature : l'anatomie (49 jetons) passe AVANT les termes ; il ne reste que 11 jetons, deux termes de trois mots tiennent
+        self.assertIn('negatif tronque a', journal)
+        self.assertIn('estimation', journal)
+        # creature : l'anatomie (49 jetons) passe AVANT les termes, ils tiennent quand meme
         neg, journal = journal_de(lambda: self._neg('creature', INONDATION))
         self.assertIn('(five legs:1.6)', neg)
-        self.assertIn('(delta echo foxtrot:1.4)', neg)
-        self.assertNotIn('golf', neg)
+        for terme in INONDATION:
+            self.assertIn('(%s:1.4)' % terme, neg)
+        self.assertTrue(neg.startswith(SECURITE + ', ' + OMBRES), neg)
+
+    def test_le_journal_dit_le_vrai_nombre_de_jetons_quand_un_compteur_est_fourni(self):
+        enrichi = P.build_enriched_prompt('An orc', 'character', 'realistic')
+        (_, neg), journal = journal_de(lambda: R.build_prompts(enrichi, 'character', negatif_utilisateur=['helmet'], compter=lambda t: len(t.split())))
+        self.assertIn('jetons CLIP reels', journal)
+        self.assertIn(str(len(neg.split())), journal)
+        _, journal = journal_de(lambda: R.build_prompts(enrichi, 'character', negatif_utilisateur=['helmet']))
+        self.assertNotIn('jetons CLIP reels', journal)
 
     def test_un_terme_deja_interdit_par_une_piece_retenue_n_est_pas_ajoute_deux_fois(self):
         neg = self._neg('character', ['weapon', 'sword', 'helmet'])
@@ -579,7 +590,7 @@ class NegationsServeur(unittest.TestCase):
     def test_tpose_les_termes_sont_ajoutes_a_la_fin_du_negatif(self):
         p, n = self._tpose('An orc', ['helmet', 'beard'])
         self.assertEqual(n, T.NEG + ', helmet, beard')
-        self.assertEqual(p, 'An orc' + T.FRONT_PROMPT_TAIL, 'le positif ne bouge pas')
+        self.assertEqual(p, 'An orc' + T.queue_sans_doublons('An orc'), 'le positif ne bouge pas')
 
     def test_tpose_apres_les_ajustements_du_composeur(self):
         p, n = self._tpose(ORC_ATTENDU, ['helmet'])
@@ -760,7 +771,7 @@ class GlueApp(unittest.TestCase):
     def test_route_tpose_les_termes_du_corps_arrivent_a_la_fin_du_negatif(self):
         p, n = self._lancer_tpose({'prompt': 'An orc', '_auth': 'x', 'negative_extra': ['helmet', '(nude:0)', 'clothes', 'Beard']})
         self.assertEqual(n, T.NEG + ', helmet, beard')
-        self.assertEqual(p, 'An orc' + T.FRONT_PROMPT_TAIL)
+        self.assertEqual(p, 'An orc' + T.queue_sans_doublons('An orc'))
 
     def test_route_tpose_sans_champ_ou_champ_invalide_le_negatif_est_celui_d_avant(self):
         for corps in ({'prompt': 'An orc', '_auth': 'x'}, {'prompt': 'An orc', '_auth': 'x', 'negative_extra': 'helmet'},

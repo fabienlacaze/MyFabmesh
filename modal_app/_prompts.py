@@ -155,9 +155,16 @@ _MOTS_AUTRES_ESPECES = set((
 ).split())
 
 
-def _compte_mode(mots, i, liste, autre_espece):
+# SUJET SEULEMENT (2026-10-24, audit des prompts M10) : jumeau de FIN_SUJET / APRES_NON_SUJET de lib/locomotion-procedurale.js (listes comparees par test_faux_amis_gabarit.py)
+_FIN_SUJET = set(('with without chasing chases chase eating eats eat holding holds hold carrying carries carry catching catches catch hunting hunts hunt wearing wears wear playing plays play watching watches watch near beside next by on in at from for and or while that which who under over behind using uses riding rides feeding feeds attacking attacks fighting fights stalking stalks biting bites pursuing pursues swallowing swallows devouring devours tossing throwing throws avec qui tient tenant mange mangeant chasse poursuit sur dans pres contre et ou con que sobre sostiene come caza mit und oder auf sopra com onde').split())
+_APRES_NON_SUJET = set(('bowl bowls tank tanks aquarium market stall tattoo tattoos pattern print prints shirt costume mask toy toys lamp sculpture statue stew soup dish curry fillet fillets bait hook hooks net nets cake sandwich skin leather shaped like themed food pond').split())
+
+
+def _compte_mode(mots, i, liste, autre_espece, fin):
     m = mots[i]
     if m not in liste:
+        return False
+    if i >= fin or (mots[i + 1] if i + 1 < len(mots) else '') in _APRES_NON_SUJET:
         return False
     if m not in _MOTS_AMBIGUS:
         return True
@@ -174,9 +181,10 @@ def mode_depuis_texte(texte: str):
     t = ''.join(c for c in t if _ud.category(c) != 'Mn')
     mots = [m for m in _re.split(r'[^a-z0-9]+', t) if m]
     autre_espece = any(m in _MOTS_AUTRES_ESPECES for m in mots)
-    if any(_compte_mode(mots, i, _MOTS_NAGE, autre_espece) for i in range(len(mots))):
+    fin = next((i for i, m in enumerate(mots) if m in _FIN_SUJET), len(mots))
+    if any(_compte_mode(mots, i, _MOTS_NAGE, autre_espece, fin) for i in range(len(mots))):
         return 'nage'
-    if any(_compte_mode(mots, i, _MOTS_REPTATION, autre_espece) for i in range(len(mots))):
+    if any(_compte_mode(mots, i, _MOTS_REPTATION, autre_espece, fin) for i in range(len(mots))):
         return 'reptation'
     return None
 
@@ -286,7 +294,7 @@ def _epurer_demande(texte: str) -> str:
             r"^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?"
             r"|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
             r"|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
-            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
+            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me\b|(?=\s+(?:an?|the|some|one)\b)))\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
         _DEMANDE_FR = _re.compile(
             r"^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais"
             r"|(?:fais|cr[eé]e|g[eé]n[èe]re|dessine|fabrique)(?:-moi)?)\s+"
@@ -298,6 +306,9 @@ def _epurer_demande(texte: str) -> str:
 
 
 _POLITESSE_FIN = None
+
+
+_MOTS_AVANT_TEXTE = set('saying says said reading reads read text words word written writes titled named called label labeled quote quoting spelling spells sign banner'.split())
 
 
 def _retirer_politesse_fin(t: str) -> str:
@@ -317,6 +328,10 @@ def _retirer_politesse_fin(t: str) -> str:
     if not m:
         return t
     debut = m.start()
+    # « a card saying thank you », « a sign that reads please » (24/10, m16b) : le mot fait partie du SUJET quand il suit un mot qui annonce un texte ecrit
+    av = _re.search(r"([a-z]+)[\s,;:'\"-]*$", t[max(0, debut - 30):debut], _re.I)
+    if av and av.group(1).lower() in _MOTS_AVANT_TEXTE:
+        return t
     while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
         debut -= 1
     return t[:debut]

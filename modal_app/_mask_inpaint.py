@@ -65,7 +65,31 @@ def _boost(obj: str) -> str:
     return obj
 
 
+def _tri_negations(texte):
+    """(texte sans ses locutions negatives, termes de negatif) : 24/10, audit M7 (voir composeur_intention.separer_negations_outil)."""
+    try:
+        from modal_app import composeur_intention as _ci
+        return _ci.separer_negations_outil(texte)
+    except Exception:
+        return ('' if texte is None else str(texte)), []
+
+
+def _neg_avec(negatif, termes):
+    try:
+        from modal_app import composeur_intention as _ci
+        return _ci.negatif_avec_termes(negatif, termes)
+    except Exception:
+        return negatif
+
+
 def _enrich_prompt(raw: str) -> tuple[str, str]:
+    """Negations de l'utilisateur (24/10, M7) : « no helmet » va au NEGATIF, jamais dans le positif. Le reste : _enrich_prompt_base."""
+    texte, negs = _tri_negations(raw)
+    positif, negatif = _enrich_prompt_base(texte)
+    return positif, _neg_avec(negatif, negs)
+
+
+def _enrich_prompt_base(raw: str) -> tuple[str, str]:
     """Light prompt cleanup — match the desktop's behaviour as closely
     as possible (it just uses the raw prompt), with three small
     exceptions where a literal-instruction prompt would actively

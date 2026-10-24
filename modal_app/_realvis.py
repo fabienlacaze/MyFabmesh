@@ -131,7 +131,7 @@ _ARMES_NEG = {
 # Ponderation 1,4 : comme « (club:1.4) » de la liste des armes, sous l'anatomie (1,5 a 1,6) ; elle ne coute aucun jeton (l'encodeur lit « (mot:1.4) »).
 # A MESURER sur le GPU (graines fixes, avec et sans ponderation) : l'effet sur l'image n'est pas encore verifie.
 POIDS_NEGATIF_UTILISATEUR = 1.4
-PART_MAX_NEGATIF_UTILISATEUR = 14
+PART_MAX_NEGATIF_UTILISATEUR = 14   # N'EST PLUS APPLIQUE depuis le 24/10 (audit m7) : les termes de l'utilisateur sont exemptes du budget, voir build_prompts
 
 
 def _piece_negatifs_utilisateur(termes, gardes, plafond):
@@ -155,7 +155,7 @@ def _piece_negatifs_utilisateur(termes, gardes, plafond):
     return ', '.join('(%s:%s)' % (x, POIDS_NEGATIF_UTILISATEUR) for x in retenus), retenus, ecartes
 
 
-def build_prompts(prompt: str, asset_type: str | None = None, negatif_utilisateur=None) -> tuple[str, str]:
+def build_prompts(prompt: str, asset_type: str | None = None, negatif_utilisateur=None, compter=None) -> tuple[str, str]:
     """Returns (optimized_prompt, negative_prompt). Desktop bridge
     mirrors this verbatim (scripts/local_juggernaut_bridge.py L211-302).
 
@@ -305,9 +305,15 @@ def build_prompts(prompt: str, asset_type: str | None = None, negatif_utilisateu
     _retenus_u = []
     for _m in _MORCEAUX:
         if isinstance(_m, list):
-            # termes de l'utilisateur : au plus PART_MAX_NEGATIF_UTILISATEUR jetons, et jamais plus que ce qu'il reste du budget
-            _m, _retenus_u, _ecartes_u = _piece_negatifs_utilisateur(_m, _gardes, min(PART_MAX_NEGATIF_UTILISATEUR, _BUDGET_NEG - _jetons))
-            _jetes.extend("negation de l'utilisateur : " + t for t in _ecartes_u)
+            # NEGATIONS DE L'UTILISATEUR (24/10, audit m7) : JAMAIS ecartees par le budget. Avant, au plus 14 jetons estimes et « jamais plus que ce qu'il reste » :
+            # sur un personnage ou une creature (anatomie de 49 jetons) la 3e negation tombait, et le texte l'avait deja SORTI du positif : une demande perdue en
+            # silence. Les huit termes (40 caracteres au plus) sont toujours gardes ; ce sont les pieces GENERIQUES de la fin (anti-doublement, cadrage, texte,
+            # qualite) qui cedent le budget de 77 jetons estimes (inchange, decision du proprietaire). Les termes deja interdits par une piece retenue sont sautes.
+            _m, _retenus_u, _ecartes_u = _piece_negatifs_utilisateur(_m, _gardes, 10 ** 6)
+            if _m:
+                _gardes.append(_m)
+                _jetons += round(len(_m.replace(',', ' ').split()) * 1.35)
+            continue
         if not _m:
             continue
         _n = round(len(_m.replace(',', ' ').split()) * 1.35)
@@ -317,11 +323,18 @@ def build_prompts(prompt: str, asset_type: str | None = None, negatif_utilisateu
         _gardes.append(_m)
         _jetons += _n
     if _jetes:
-        print(f"[prompt] negatif tronque a {_jetons} jetons — ecarte : "
+        print(f"[prompt] negatif tronque a {_jetons} jetons (estimation) — ecarte : "
               f"{' | '.join(_jetes)}", flush=True)
     if _retenus_u:
         print(f"[prompt] negations de l'utilisateur au negatif : {', '.join(_retenus_u)}", flush=True)
     negative = ", ".join(_gardes)
+    # VRAI nombre de jetons CLIP (24/10, audit m7) : l'estimation (mots x 1,35) sert au budget ; le journal dit aussi la mesure reelle quand l'appelant fournit un
+    # compteur (generate : le tokenizer du pipeline). L'encodeur long lit TOUT le negatif, meme au-dela de 77.
+    if compter is not None:
+        try:
+            print(f"[prompt] negatif : {int(compter(negative))} jetons CLIP reels (estimation du budget : {_jetons})", flush=True)
+        except Exception:
+            pass
     return optimized, negative
 
 
@@ -340,7 +353,8 @@ def generate(pipe, prompt: str, seed: int, steps: int = 30,
     Returns the raw PIL image — the caller (Modal @method) is
     responsible for NSFW filtering and PNG encoding.
     """
-    optimized, negative = build_prompts(prompt, asset_type=asset_type, negatif_utilisateur=negatif_utilisateur)
+    optimized, negative = build_prompts(prompt, asset_type=asset_type, negatif_utilisateur=negatif_utilisateur,
+                                        compter=(lambda t: len(pipe.tokenizer(t).input_ids) - 2))
     base_kwargs = dict(
         num_inference_steps=(4 if turbo else int(steps)),
         guidance_scale=(0.0 if turbo else 9.5),

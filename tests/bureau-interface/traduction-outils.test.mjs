@@ -57,6 +57,8 @@ const DECLARATIONS = [
   // New project (mode Auto)
   '_npAutoSync', '_npTexteAnalyse', 'NP_TYPE_NON_DETECTE', '_npTraductions', '_npTradMinuteur', '_npDescAuto', '_npAutoInfo', '_npResume',
   'detecterTypeEtStyle', '_npNormaliser', '_NP_TYPES', '_NP_STYLES', '_npCompter', '_i18nT', '_i18nTf',
+  // avertissements avant depense (24/10, chantier ingestion)
+  '_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_confirmerAvertissements', '_verifierAvantDepense',
 ];
 
 // ------------------------------------------------------------------------------------------------ lecture des fichiers (acorn)
@@ -213,6 +215,7 @@ function monter(plateforme, opts = {}) {
     retirerClauseFinale: COMPO.retirerClauseFinale,
     composeurActif: COMPO.actif, nettoyerVirgules: COMPO.nettoyerVirgules, positifSansNegations: COMPO.positifSansNegations,
     negationsDe: COMPO.negationsDe, assainirNegatifs: COMPO.assainirNegatifs,
+    detecterAvertissements: COMPO.detecterAvertissements, _saveProjectMeta() {},
     showToast: (message, genre) => { journal.toasts.push({ genre, message: String(message) }); },
     gatedRun: (_genre, _nom, fn) => { const pr = Promise.resolve().then(fn); journal.travaux.push(pr); return pr; },
     pushJob: () => ({ id: 'travail-1' }),

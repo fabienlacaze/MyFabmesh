@@ -67,6 +67,7 @@ for (const a of attendus) {
     ['notes (regles actives)', notesD, a.notes_defaut],
     ['gabarit (pose libre)', tplL, a.tpl_libre],
     ['notes (pose libre)', notesL, a.notes_libre],
+    ['avertissements avant depense', J.detecterAvertissements(a.texte, a.texte, a.type, { tpose: true }), a.avertissements],
   ];
   for (const [nom, js, py] of verifs) {
     if (!egal(js, py)) dit(`cas ${a.id} : ${nom} different\n      JS     : ${JSON.stringify(js)}\n      Python : ${JSON.stringify(py)}`);
