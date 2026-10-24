@@ -13402,7 +13402,7 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   let targetText = String(cibleRecue);
   const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
   // FILET DE LANGUE (lot 2 de l'audit de la langue) : CLIPSeg ne comprend que l'anglais ; le site envoyait la cible telle quelle.
-  if (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length) {
+  if (LangueTexte.morceauxEtrangers(targetText).length) {
     const userState = await getParentalState(env, user.id);
     const filet = await _filetLangue(env, user.id, targetText,
       { verifie: langueVerifiee, unrestricted: env.FABMESH_UNRESTRICTED === '1' || !!userState.unrestricted, credits: user.credits, prix: cost,
@@ -13516,7 +13516,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
       }
     }
   }
-  if (rawPrompt || (langueVerifiee !== true && LangueTexte.morceauxEtrangers(targetText).length)) {
+  if (rawPrompt || LangueTexte.morceauxEtrangers(targetText).length) {
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : la CIBLE part a CLIPSeg, qui ne comprend que l'anglais (TRADUCTION-04) ; le
     // remplacement part au moteur d'image. LIMITE (revue du 2026-10-14) : le filet ne traduit qu'un texte SUREMENT etranger (deux indices
     // au moins, lib/langue-texte.js) : « le chapeau du chevalier » oui, un mot seul (« chapeau », « casque ») non, car « van » ou « den »
@@ -18515,7 +18515,20 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   if (!rigUrl || typeof rigUrl !== 'string') return err(400, 'rig_url required');
   if (!isTrustedAssetHost(env, rigUrl)) return err(400, 'rig_url host not allowed');
   const animType = typeof body.anim_type === 'string' ? body.anim_type.slice(0, 32) : 'idle';
-  const prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 400) : '';
+  let prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 400) : '';
+  /* 24/10 (audit des prompts, m19) : le texte libre partait a Modal sans filtre de contenu ni filet de langue (aucun champ libre dans
+   * l'interface actuelle, donc latent ; mais une cle API ou un ancien client l'atteignait). Meme regle que toutes les routes : filet de langue
+   * AVANT tout debit (texte etranger traduit, ou refus 422), puis filtre sur la chaine EXACTEMENT envoyee. Le drapeau client `langueVerifiee`
+   * n'est pas lu ici : le serveur verifie toujours. */
+  if (prompt.trim()) {
+    const unrestrictedAnim = env.FABMESH_UNRESTRICTED === '1' || !!(await getParentalState(env, user.id)).unrestricted;
+    const filetAnim = await _filetLangue(env, user.id, prompt, { unrestricted: unrestrictedAnim, credits: user.credits,
+      prix: await getPrice(env, 'anim'), langueInterface: req.headers.get('x-fabmesh-langue') });
+    if (filetAnim.refus) return filetAnim.refus;
+    prompt = filetAnim.texte.slice(0, 400);
+    const refusAnim = await _refusChaineEnvoyee(env, user.id, prompt, unrestrictedAnim);
+    if (refusAnim) return refusAnim;
+  }
   // Moteur UNIQUE depuis le 2026-09-26 : « Motion+ » (texte -> mouvement,
   // app myfabmesh-unimate, routee par l'app d'animation). L'ancien moteur ne
   // produisait rien d'exploitable (decision user) — y compris pour un client
@@ -24438,11 +24451,21 @@ async function _filetLangue(env: Env, userId: string, texte: string | string[],
     opts: { verifie?: unknown; unrestricted?: boolean; credits?: number; prix?: number; langueInterface?: unknown } = {},
 ): Promise<{ texte: string; textes: string[]; refus?: Response; traduit: boolean; langues: string[] }> {
   const textes = (Array.isArray(texte) ? texte : [texte]).map((x) => String(x ?? ''));
+  /* MODE « MODERATION SEULE » (24/10, audit des prompts M1, mandat du proprietaire : la SECURITE ne s'affaiblit jamais). Le drapeau
+   * client `langueVerifiee` (« Envoyer tel quel » apres un echec de traduction, ou interface qui a deja traduit) coupait ce filet ET, par
+   * contrecoup, la moderation multilingue : un texte etranger partait au moteur d'image sans que le serveur ait jamais vu ce qu'il veut dire
+   * (le filtre general ne connait que quelques langues). Un client malveillant n'avait qu'a poser le drapeau. Desormais, avec le drapeau, le
+   * texte ENVOYE reste intact (le choix de l'utilisateur est respecte, aucun refus de langue, aucun 422) mais le serveur en traduit une COPIE
+   * JETABLE et la fait passer par le filtre de contenu ; une copie non sure refuse la requete (400, comme tout refus du filtre). Traducteur
+   * indisponible, quota atteint, langue non prise en charge, texte trop long : le serveur retombe sur le seul filtre general (jamais moins
+   * qu'avant, et le filtre du lot securite couvre zh, hi, ar, ru, ja, tr). */
+  const soloModeration = opts.verifie === true;
   const rendre = (r: { textes?: string[]; refus?: Response; traduit?: boolean; langues?: string[] } = {}) => {
-    const sorties = r.textes ?? textes;
-    return { texte: sorties[0] ?? '', textes: sorties, traduit: !!r.traduit, langues: r.langues ?? [], ...(r.refus ? { refus: r.refus } : {}) };
+    const sorties = soloModeration && !(r.refus && r.refus.status === 400) ? textes : (r.textes ?? textes);
+    const refus = soloModeration && r.refus && r.refus.status !== 400 ? undefined : r.refus;
+    return { texte: sorties[0] ?? '', textes: sorties, traduit: soloModeration ? false : !!r.traduit, langues: r.langues ?? [], ...(refus ? { refus } : {}) };
   };
-  if (opts.verifie === true || !textes.some((x) => x.trim())) return rendre();
+  if (!textes.some((x) => x.trim())) return rendre();
   const parTexte = textes.map((x) => (x.trim() ? LangueTexte.morceauxEtrangers(x) : []));
   const tous = parTexte.flat();
   if (!tous.length) return rendre();
@@ -24545,6 +24568,16 @@ async function _filetLangue(env: Env, userId: string, texte: string | string[],
     }
     return s + t.slice(pos);
   });
+  /* Mode « moderation seule » : la copie traduite est controlee ENSEMBLE (les regles de combinaison du filtre portent sur la chaine
+   * entiere : deux champs de la meme requete forment un seul sens), puis chacune seule ; le texte renvoye est l'original. */
+  if (soloModeration && sorties.length > 1) {
+    const ensemble = sorties.filter((s) => s.trim()).join(' ');
+    const sureteEnsemble = await _checkPromptSafetyAlerte(env, userId, ensemble, !!opts.unrestricted);
+    if (!sureteEnsemble.safe) {
+      return rendre({ langues, refus: json({ ok: false, success: false,
+        error: sureteEnsemble.reason ?? 'prompt blocked by content filter', blocked: sureteEnsemble.blocked }, { status: 400 }) });
+    }
+  }
   for (let i = 0; i < sorties.length; i++) {
     if (sorties[i] === textes[i]) continue;
     const surete = await _checkPromptSafetyAlerte(env, userId, sorties[i], !!opts.unrestricted);
