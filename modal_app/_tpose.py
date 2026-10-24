@@ -47,8 +47,45 @@ NEG = (
     'side view, profile view, three quarter view, back view, '
     'perspective distortion, cropped, blurry, deformed, '
     'extra limbs, bad anatomy, multiple people, watermark, '
-    'low quality, pose reference sheet, feet out of frame'
+    'low quality, pose reference sheet, feet out of frame, '
+    # 24/10 (audit des prompts m3) : le negatif de la route T-pose n'avait pas « nude, naked, nsfw » (le negatif de la generation d'image les a) ;
+    # ils s'ajoutent en FIN de liste, apres tout le reste.
+    'nude, naked, nsfw'
 )
+
+# 24/10 (audit des prompts m3) : le client envoie un prompt DEJA enrichi de son gabarit (« isolated 3D character, full body, fully clothed, T-pose, arms extended
+# horizontally, ... strict front view, facing camera, ... plain white background ») et la queue ci-dessus s'y collait ENCORE : 157 a 416 jetons, chaque consigne
+# deux fois, et « studio lighting » (que la generation d'image retire depuis le 25/09 : ombres cuites dans l'atlas) reintroduit. La queue ne garde plus que ce que le
+# prompt ne dit pas deja : une clause est retiree quand le prompt porte deja l'expression equivalente (CLE ci-dessous), « studio lighting » est retire toujours.
+# Un texte sans gabarit (« an orc ») recoit toute la queue, moins « studio lighting ». Le texte de l'utilisateur et ses negations ne sont jamais touches.
+QUEUE_DEJA_DITE = {
+    'full body': 'full body',
+    'arms extended horizontally sideways in a T-pose': 'arms extended horizontally',
+    'strict front view': 'strict front view',
+    'facing camera directly': 'facing camera',
+    'symmetric T-pose': 'symmetric',
+    'T-pose': 'T-pose',
+    'legs apart shoulder-width': 'legs apart',
+    'plain white background': 'plain white background',
+}
+QUEUE_RETIREES = ('studio lighting',)
+
+
+def queue_sans_doublons(prompt, queue=None):
+    """La queue de T-pose (FRONT_PROMPT_TAIL, ou sa variante « objet tenu »), sans les consignes que `prompt` porte deja et sans « studio lighting ». Commence par
+    « , » comme FRONT_PROMPT_TAIL ; chaine vide si tout est deja dit."""
+    import re as _re
+    queue = FRONT_PROMPT_TAIL if queue is None else queue
+    bas = str(prompt or '').lower()
+    gardees = []
+    for clause in [c.strip() for c in queue.split(',') if c.strip()]:
+        if clause in QUEUE_RETIREES:
+            continue
+        cle = QUEUE_DEJA_DITE.get(clause)
+        if cle and _re.search(r'(?<![a-z0-9-])' + _re.escape(cle.lower()) + r'(?![a-z0-9-])', bas):
+            continue
+        gardees.append(clause)
+    return (', ' + ', '.join(gardees)) if gardees else ''
 
 
 def remove_bg_and_center(img: Image.Image, size: int = 1024,
@@ -105,7 +142,7 @@ def generate(
     see app.py MyFabmeshBackview.move_to_gpu). When ref_img is provided,
     pipe.set_ip_adapter_scale(ip_scale) is called and the IP-Adapter
     image is passed; otherwise the IPAdapter branch is skipped (set to 0)."""
-    full_prompt = prompt.strip().rstrip('.,') + FRONT_PROMPT_TAIL
+    full_prompt = prompt.strip().rstrip('.,') + queue_sans_doublons(prompt)
     negatif = NEG
     # COMPOSEUR D'INTENTION (2026-10-03) : quand le texte fait TENIR quelque chose, la queue ne reclame plus une « symmetric T-pose » ni des
     # « open hands », et le negatif ne reprend plus « holding objects » (le chemin T-pose recoit le prompt ENRICHI du client, dont le texte
@@ -116,8 +153,8 @@ def generate(
             _intention = _ci.analyser(prompt, 'character', '')
             if _intention['objets']:
                 full_prompt = (prompt.strip().rstrip('.,')
-                               + FRONT_PROMPT_TAIL.replace('symmetric T-pose', 'T-pose')
-                                                  .replace('open hands held away from the body', 'hands held away from the body'))
+                               + queue_sans_doublons(prompt, FRONT_PROMPT_TAIL.replace('symmetric T-pose', 'T-pose')
+                                                     .replace('open hands held away from the body', 'hands held away from the body')))
                 _ajout = ['duplicate objects']
                 if len(_intention['objets']) == 1 and _intention['objets'][0]['count'] == 1 and _intention['arme_nommee']:
                     _ajout += list(_ci.NEG_UNE_SEULE_ARME)
