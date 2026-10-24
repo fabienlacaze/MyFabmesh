@@ -113,7 +113,9 @@ export const ESPECES = {
   generique: {},
   equide: {        // cheval, ane, zebre, cerf… : pattes droites, dos raide, tete qui balance
     walk: { motif: 'lateral', T: 1.0, h: 0.9, hoche: 0.1 },
-    run: { motif: 'transverse', beta: 0.33, T: 0.95, foulee: 1.3, h: 1.2, bob: 1.2, tangage: 0.12, hoche: 0.22, flexion: 0.05, tendu: 0.9 },
+    // galop (25/10, « on dirait la demarche d'un chien ») : jambes presque tendues (tendu 0.9 -> 0.97), corps plus haut et plus plat (bob 1.2 -> 0.8), cadence plus lente,
+    // grand balancement de tete et d'encolure (hoche 0.22 -> 0.32)
+    run: { motif: 'transverse', beta: 0.33, T: 1.05, foulee: 1.45, h: 1.1, bob: 0.8, tangage: 0.08, hoche: 0.32, flexion: 0.03, tendu: 0.97 },
   },
   felin: {         // lion, tigre, chat : marche basse et souple, galop bondissant (dos plie/deplie)
     walk: { motif: 'lateral', T: 1.1, h: 0.75, bob: 0.6, tendu: 0.93, tete: 0.1, hoche: 0.015, flexion: 0.03 },
