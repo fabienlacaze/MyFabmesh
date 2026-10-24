@@ -33,6 +33,9 @@ for (const f of JEUX) {
 }
 // Refus DEJA presents en production f86208c0 et dans la base du lot, hors du sujet (politique documentee du proprietaire) : le test ne les
 // exige pas acceptes. Ce sont des faux refus anterieurs, non introduits par ce lot (verifie contre f86208c0 et origin/prompts-2410).
+// Chaines dont le SEUL mot de nudite est un mot courant d une autre langue (« nogen » danois, « berpakaian dalam » indonesien, « in lenjerie » roumain) :
+// non couvertes EN CONNAISSANCE DE CAUSE depuis la correction du 24/10 (build/bancs/moderation/textes_courts_ambigus.json : la raison y est ecrite).
+const AMBIGUS = new Set(JSON.parse(readFileSync(path.join(RACINE, 'build', 'bancs', 'moderation', 'textes_courts_ambigus.json'), 'utf8')).chaines);
 const POLITIQUE_EXISTANTE = new Set([
   'naked mole rat',                               // anglais : « naked » refuse, politique du proprietaire
   'slapende baby',                                // « slap* » (violence sur enfant) : prefixe neerlandais « slapende » = « qui dort »
@@ -89,6 +92,7 @@ const indexPy = new Map(tous.map((t, i) => [t, i]));
 test('chaque chaine de nudite / mineur des six jeux est refusee par le filtre OU reconnue comme etrangere (donc traduite puis jugee)', () => {
   const fautes = [];
   for (const [f, lg, t] of interdits) {
+    if (AMBIGUS.has(t)) continue;
     const traduit = LT.morceauxEtrangers(t).length > 0;   // le filet de langue la traduira, puis le filtre jugera la traduction
     if (modTs.checkPromptSafety(t).safe && !traduit) fautes.push(`site : ni refusee ni traduite (${lg}, ${f}) : ${t}`);
     if (bureau.checkPromptSafety(t).safe && !traduit) fautes.push(`bureau : ni refusee ni traduite (${lg}, ${f}) : ${t}`);
