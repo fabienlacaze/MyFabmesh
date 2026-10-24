@@ -4083,6 +4083,9 @@ function startMcpBridge() {
 // For now they delegate to the IPC handlers by simulating the event object.
 
 async function handleGenerateImages(params) {
+  // 24/10 (audit des prompts, M8) : ce pont (MCP / API de controle) envoyait le prompt au moteur d'image sans aucun filtre de texte
+  const refusTexteMcp = refusTexteOutil(params && params.userPrompt, params && params.prompt);
+  if (refusTexteMcp) return { success: false, error: refusTexteMcp };
   // Reuse the IPC handler by invoking it directly
   const fakeEvent = { sender: mainWindow?.webContents };
   return new Promise((resolve) => {

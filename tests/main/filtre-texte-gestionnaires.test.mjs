@@ -74,3 +74,9 @@ test('M8 : les 9 outils nommes par l audit appellent le filtre (generate-back-vi
   }
   assert.deepEqual(manque, []);
 });
+
+test('M8 : le pont MCP / API de controle (handleGenerateImages) filtre aussi le texte avant le moteur d image', () => {
+  const i = src.indexOf('async function handleGenerateImages(params)');
+  assert.ok(i > 0);
+  assert.ok(FILTRES.some((f) => src.slice(i, i + 800).includes(f)), 'handleGenerateImages sans filtre de texte');
+});
