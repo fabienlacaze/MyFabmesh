@@ -308,6 +308,7 @@ def sorties(cas):
         'tpl_libre': tpl_l, 'notes_libre': notes_l,
         'negatif_armes': canon(arm), 'negatifs_extra': canon([ajout, retire]),
         'negations': canon(C.extraire_negations(cas['texte'])),
+        'avertissements': C.detecter_avertissements(cas['texte'], cas['texte'], typ, True),
         '_retire_tot': list(retire) + (arm[1] if arm else []),
         '_ajout_tot': list(ajout) + (arm[2] if arm else []),
     }
@@ -349,6 +350,8 @@ def verifier(cas, s):
             pb.append('neg_ajout sans %r' % x)
     if att.get('neg_ajout') == [] and any('dual' in a or 'second' in a for a in s['_ajout_tot']):
         pb.append('neg_ajout devrait etre vide')
+    if 'avertissements' in att and s['avertissements'] != att['avertissements']:
+        pb.append('avertissements %s != %s' % (s['avertissements'], att['avertissements']))
     if 'negations' in att:
         got, exp = s['negations'], att['negations']
         if got['positif'] != exp['positif']:

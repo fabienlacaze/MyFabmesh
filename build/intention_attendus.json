@@ -394,6 +394,7 @@ true,
 ],
 "cas": [
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "id": "01",
@@ -473,6 +474,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one sword in the left hand, right hand open and empty",
 "id": "02",
@@ -553,6 +555,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding sword in the right hand and shield in the left hand",
 "clause_toutes": "holding sword in the right hand and shield in the left hand",
 "id": "03",
@@ -637,6 +640,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one wooden staff in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one wooden staff in the right hand, left hand open and empty",
 "id": "04",
@@ -716,6 +720,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two katanas, one in each hand",
 "clause_toutes": "holding exactly two katanas, one in each hand",
 "id": "05",
@@ -792,6 +797,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two pistols, one in each hand",
 "clause_toutes": "holding exactly two pistols, one in each hand",
 "id": "06",
@@ -875,6 +881,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one axe in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one axe in the right hand, left hand open and empty",
 "id": "07",
@@ -954,6 +961,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pitchfork in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one pitchfork in the right hand, left hand open and empty",
 "id": "08",
@@ -1025,6 +1033,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one torch in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one torch in the right hand, left hand open and empty",
 "id": "09",
@@ -1096,6 +1105,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one teddy bear in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one teddy bear in the right hand, left hand open and empty",
 "id": "10",
@@ -1167,6 +1177,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "11",
@@ -1217,6 +1228,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "12",
@@ -1269,6 +1281,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "13",
@@ -1321,6 +1334,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "14",
@@ -1387,6 +1403,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "15",
@@ -1453,6 +1472,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "16",
@@ -1519,6 +1541,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "17",
@@ -1585,6 +1610,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "18",
@@ -1651,6 +1679,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "19",
@@ -1717,6 +1748,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "20",
@@ -1775,6 +1809,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "21",
@@ -1823,6 +1858,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "22",
@@ -1871,6 +1907,7 @@ true,
 "type": "building"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "23",
@@ -1923,6 +1960,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "24",
@@ -1975,6 +2013,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "25",
@@ -2026,6 +2065,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "26",
@@ -2072,6 +2112,7 @@ true,
 "type": "animal"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "27",
@@ -2129,6 +2170,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "28",
@@ -2180,6 +2222,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "29",
@@ -2239,6 +2282,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "30",
@@ -2294,6 +2338,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "31",
@@ -2350,6 +2395,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "32",
@@ -2404,6 +2450,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "33",
@@ -2458,6 +2505,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "34",
@@ -2512,6 +2560,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "35",
@@ -2566,6 +2615,7 @@ true,
 "type": "weapon"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "36",
@@ -2615,6 +2665,9 @@ true,
 "type": "avion"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "37",
@@ -2669,6 +2722,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "38",
@@ -2727,6 +2783,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "39",
@@ -2767,6 +2824,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "40",
@@ -2809,6 +2867,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "41",
@@ -2859,6 +2918,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "42",
@@ -2909,6 +2969,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "43",
@@ -2959,6 +3020,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "44",
@@ -3009,6 +3071,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "45",
@@ -3075,6 +3140,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bow in the right hand, left hand open and empty",
 "id": "46",
@@ -3154,6 +3220,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one longbow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one longbow in the right hand, left hand open and empty",
 "id": "47",
@@ -3233,6 +3300,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one knife in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one knife in the right hand, left hand open and empty",
 "id": "48",
@@ -3313,6 +3381,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one greatsword with both hands",
 "clause_toutes": "holding exactly one greatsword with both hands",
 "id": "49",
@@ -3393,6 +3462,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one umbrella in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one umbrella in the right hand, left hand open and empty",
 "id": "50",
@@ -3464,6 +3534,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "51",
@@ -3514,6 +3585,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one rifle in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one rifle in the right hand, left hand open and empty",
 "id": "52",
@@ -3593,6 +3665,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two balloons, one in each hand",
 "clause_toutes": "holding exactly two balloons, one in each hand",
 "id": "53",
@@ -3664,6 +3737,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "54",
@@ -3704,6 +3778,7 @@ true,
 "type": "building"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one severed head in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one severed head in the right hand, left hand open and empty",
 "id": "55",
@@ -3775,6 +3850,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": "holding exactly one cutlass in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cutlass in the right hand, left hand open and empty",
 "id": "56",
@@ -3867,6 +3945,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "57",
@@ -3917,6 +3996,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two daggers, one in each hand",
 "clause_toutes": "holding exactly two daggers, one in each hand",
 "id": "58",
@@ -3993,6 +4073,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "59",
@@ -4047,6 +4128,7 @@ true,
 "type": "animal"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one plasma rifle in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one plasma rifle in the right hand, left hand open and empty",
 "id": "60",
@@ -4127,6 +4209,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "61",
@@ -4177,6 +4260,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "62",
@@ -4248,6 +4332,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "id": "63",
@@ -4327,6 +4412,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one stone hammer in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one stone hammer in the right hand, left hand open and empty",
 "id": "64",
@@ -4405,6 +4491,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one club in the right hand, left hand open and empty",
 "id": "n01",
@@ -4486,6 +4573,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n02",
@@ -4538,6 +4626,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n03",
@@ -4590,6 +4679,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n04",
@@ -4642,6 +4732,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n05",
@@ -4695,6 +4786,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n06",
@@ -4748,6 +4840,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n07",
@@ -4800,6 +4893,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n08",
@@ -4882,6 +4976,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n09",
@@ -4935,6 +5030,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n10",
@@ -4989,6 +5085,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n11",
@@ -5041,6 +5138,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n12",
@@ -5093,6 +5191,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n13",
@@ -5146,6 +5245,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n14",
@@ -5200,6 +5300,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n15",
@@ -5252,6 +5353,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n16",
@@ -5334,6 +5436,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n17",
@@ -5395,6 +5498,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n18",
@@ -5447,6 +5551,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n19",
@@ -5497,6 +5602,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n20",
@@ -5549,6 +5655,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n21",
@@ -5601,6 +5708,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n22",
@@ -5653,6 +5761,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword but no shield in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword but no shield in the right hand, left hand open and empty",
 "id": "n23",
@@ -5734,6 +5843,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n24",
@@ -5802,6 +5912,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n25",
@@ -5856,6 +5967,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n26",
@@ -5908,6 +6020,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flag in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one flag in the right hand, left hand open and empty",
 "id": "n27",
@@ -5982,6 +6095,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n28",
@@ -6035,6 +6149,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n29",
@@ -6117,6 +6232,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n30",
@@ -6169,6 +6285,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n31",
@@ -6221,6 +6338,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n32",
@@ -6273,6 +6391,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one club in the right hand, left hand open and empty",
 "id": "n33",
@@ -6354,6 +6473,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n34",
@@ -6422,6 +6544,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n35",
@@ -6490,6 +6615,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "id": "n36",
@@ -6571,6 +6697,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n37",
@@ -6625,6 +6752,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n38",
@@ -6679,6 +6807,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n39",
@@ -6731,6 +6860,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n40",
@@ -6783,6 +6913,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n41",
@@ -6835,6 +6966,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n42",
@@ -6888,6 +7020,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n43",
@@ -6970,6 +7103,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n44",
@@ -7031,6 +7165,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n45",
@@ -7085,6 +7220,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n46",
@@ -7167,6 +7303,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f01",
@@ -7217,6 +7354,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f02",
@@ -7267,6 +7405,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f03",
@@ -7317,6 +7456,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f04",
@@ -7367,6 +7507,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f05",
@@ -7417,6 +7558,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f06",
@@ -7467,6 +7609,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f07",
@@ -7517,6 +7660,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f08",
@@ -7567,6 +7711,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f09",
@@ -7617,6 +7762,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f10",
@@ -7669,6 +7815,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f11",
@@ -7719,6 +7866,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f12",
@@ -7769,6 +7917,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f13",
@@ -7819,6 +7968,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f14",
@@ -7869,6 +8019,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f15",
@@ -7919,6 +8070,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f16",
@@ -7969,6 +8121,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f17",
@@ -8019,6 +8172,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f18",
@@ -8076,6 +8230,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f19",
@@ -8126,6 +8281,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f20",
@@ -8176,6 +8332,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f21",
@@ -8226,6 +8383,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f22",
@@ -8276,6 +8434,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f23",
@@ -8326,6 +8485,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f24",
@@ -8376,6 +8536,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f25",
@@ -8426,6 +8587,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f26",
@@ -8476,6 +8638,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f27",
@@ -8526,6 +8689,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f28",
@@ -8576,6 +8740,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f29",
@@ -8626,6 +8791,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f30",
@@ -8676,6 +8842,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f31",
@@ -8726,6 +8893,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f32",
@@ -8776,6 +8944,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f33",
@@ -8826,6 +8995,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f34",
@@ -8876,6 +9046,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f35",
@@ -8926,6 +9097,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f36",
@@ -8976,6 +9148,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f37",
@@ -9026,6 +9199,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f38",
@@ -9076,6 +9250,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f39",
@@ -9125,6 +9300,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f40",
@@ -9175,6 +9351,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f41",
@@ -9225,6 +9402,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f42",
@@ -9275,6 +9453,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f43",
@@ -9325,6 +9504,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f44",
@@ -9375,6 +9555,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f45",
@@ -9425,6 +9606,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n47",
@@ -9477,6 +9659,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n48",
@@ -9530,6 +9713,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f46",
@@ -9580,6 +9764,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f47",
@@ -9630,6 +9815,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f48",
@@ -9680,6 +9866,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f49",
@@ -9730,6 +9917,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f50",
@@ -9780,6 +9968,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f51",
@@ -9830,6 +10019,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f52",
@@ -9880,6 +10070,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f53",
@@ -9930,6 +10121,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f54",
@@ -9980,6 +10172,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f55",
@@ -10030,6 +10223,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f56",
@@ -10080,6 +10274,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f57",
@@ -10130,6 +10325,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f58",
@@ -10180,6 +10376,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f59",
@@ -10230,6 +10427,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f60",
@@ -10282,6 +10480,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f61",
@@ -10332,6 +10531,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f62",
@@ -10382,6 +10582,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one axe in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one axe in the right hand, left hand open and empty",
 "id": "n49",
@@ -10463,6 +10664,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n50",
@@ -10517,6 +10719,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one staff in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one staff in the right hand, left hand open and empty",
 "id": "n51",
@@ -10598,6 +10801,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "id": "n52",
@@ -10679,6 +10883,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n53",
@@ -10727,6 +10932,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n54",
@@ -10779,6 +10985,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n55",
@@ -10831,6 +11038,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n56",
@@ -10883,6 +11091,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n57",
@@ -10935,6 +11144,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n58",
@@ -10987,6 +11197,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n59",
@@ -11039,6 +11250,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n60",
@@ -11091,6 +11303,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n61",
@@ -11143,6 +11356,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f63",
@@ -11193,6 +11407,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f64",
@@ -11243,6 +11458,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n62",
@@ -11311,6 +11529,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one staff in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one staff in the right hand, left hand open and empty",
 "id": "n63",
@@ -11394,6 +11613,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n64",
@@ -11446,6 +11666,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n65",
@@ -11498,6 +11719,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n66",
@@ -11566,6 +11788,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n67",
@@ -11618,6 +11841,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f65",
@@ -11668,6 +11892,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f66",
@@ -11718,6 +11943,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shield in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one shield in the right hand, left hand open and empty",
 "id": "f67",
@@ -11797,6 +12023,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "f68",
@@ -11877,6 +12104,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f69",
@@ -11927,6 +12155,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f70",
@@ -11977,6 +12206,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f71",
@@ -12027,6 +12257,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f72",
@@ -12077,6 +12308,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f73",
@@ -12127,6 +12359,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f74",
@@ -12177,6 +12410,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n68",
@@ -12229,6 +12463,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n69",
@@ -12281,6 +12516,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n70",
@@ -12333,6 +12569,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n71",
@@ -12386,6 +12623,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f75",
@@ -12436,6 +12674,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f76",
@@ -12486,6 +12725,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f77",
@@ -12536,6 +12776,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f78",
@@ -12586,6 +12827,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f79",
@@ -12636,6 +12878,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f80",
@@ -12686,6 +12929,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n72",
@@ -12738,6 +12982,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n73",
@@ -12790,6 +13035,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n74",
@@ -12842,6 +13088,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n75",
@@ -12894,6 +13141,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n76",
@@ -12946,6 +13194,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one club in the right hand, left hand open and empty",
 "id": "n77",
@@ -13027,6 +13276,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n78",
@@ -13079,6 +13329,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n79",
@@ -13140,6 +13391,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n80",
@@ -13192,6 +13444,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n81",
@@ -13244,6 +13497,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f81",
@@ -13294,6 +13548,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n82",
@@ -13346,6 +13601,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n83",
@@ -13398,6 +13654,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n84",
@@ -13450,6 +13707,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n85",
@@ -13502,6 +13760,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f82",
@@ -13552,6 +13811,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "f83",
@@ -13602,6 +13862,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n86",
@@ -13684,6 +13945,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n87",
@@ -13766,6 +14028,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one spear in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one spear in the right hand, left hand open and empty",
 "id": "n88",
@@ -13847,6 +14110,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n89",
@@ -13899,6 +14163,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shield in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one shield in the right hand, left hand open and empty",
 "id": "n90",
@@ -13980,6 +14245,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n91",
@@ -14033,6 +14299,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n92",
@@ -14085,6 +14352,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n93",
@@ -14137,6 +14405,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n94",
@@ -14189,6 +14458,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n95",
@@ -14241,6 +14511,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n96",
@@ -14323,6 +14594,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n97",
@@ -14405,6 +14677,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n98",
@@ -14457,6 +14730,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n99",
@@ -14509,6 +14783,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n100",
@@ -14561,6 +14836,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n101",
@@ -14613,6 +14889,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n102",
@@ -14663,6 +14940,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n103",
@@ -14713,6 +14991,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n104",
@@ -14763,6 +15042,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n105",
@@ -14813,6 +15093,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n106",
@@ -14865,6 +15146,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n107",
@@ -14917,6 +15199,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n108",
@@ -14969,6 +15252,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n109",
@@ -15021,6 +15305,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n110",
@@ -15089,6 +15376,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n111",
@@ -15141,6 +15429,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n112",
@@ -15210,6 +15501,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n113",
@@ -15278,6 +15572,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n114",
@@ -15330,6 +15625,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n115",
@@ -15382,6 +15678,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n116",
@@ -15434,6 +15731,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n117",
@@ -15486,6 +15784,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n118",
@@ -15538,6 +15837,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n119",
@@ -15590,6 +15890,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n120",
@@ -15642,6 +15943,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n121",
@@ -15694,6 +15996,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n122",
@@ -15746,6 +16049,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "n123",
@@ -15828,6 +16132,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n124",
@@ -15880,6 +16185,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n125",
@@ -15932,6 +16238,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n126",
@@ -15985,6 +16292,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n127",
@@ -16037,6 +16345,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n128",
@@ -16087,6 +16396,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n129",
@@ -16142,6 +16452,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n130",
@@ -16197,6 +16508,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "n131",
@@ -16249,6 +16561,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one massive spiked club in the right hand, left hand open and empty",
 "id": "a01",
@@ -16328,6 +16641,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding sword in the right hand and shield in the left hand",
 "clause_toutes": "holding sword in the right hand and shield in the left hand",
 "id": "a02",
@@ -16412,6 +16726,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bow in the right hand, left hand open and empty",
 "id": "a03",
@@ -16491,6 +16806,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pitchfork in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one pitchfork in the right hand, left hand open and empty",
 "id": "a04",
@@ -16562,6 +16878,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one umbrella in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one umbrella in the right hand, left hand open and empty",
 "id": "a05",
@@ -16633,6 +16950,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "a06",
@@ -16713,6 +17031,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shield in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one shield in the left hand, right hand open and empty",
 "id": "a07",
@@ -16792,6 +17111,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a08",
@@ -16842,6 +17162,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a09",
@@ -16894,6 +17215,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a10",
@@ -16944,6 +17266,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a11",
@@ -16996,6 +17319,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one club in the right hand, left hand open and empty",
 "id": "a12",
@@ -17077,6 +17401,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a13",
@@ -17129,6 +17454,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a14",
@@ -17181,6 +17507,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a15",
@@ -17233,6 +17560,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a16",
@@ -17287,6 +17615,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a17",
@@ -17339,6 +17668,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a18",
@@ -17391,6 +17721,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a19",
@@ -17443,6 +17774,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a20",
@@ -17497,6 +17829,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a21",
@@ -17549,6 +17882,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a22",
@@ -17599,6 +17933,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a23",
@@ -17649,6 +17984,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a24",
@@ -17701,6 +18037,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a25",
@@ -17751,6 +18088,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "a26",
@@ -17810,6 +18148,950 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w01",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight sitting on a throne"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "A knight sitting on a throne",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w02",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight with arms crossed"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "A knight with arms crossed",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"quantite-deux-personnages-gabarit-un-seul"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w03",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "Two men fighting"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "Two men fighting",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"quantite-deux-personnages-gabarit-un-seul"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w04",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A crowd of soldiers"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A crowd of soldiers",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w05",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": "side view"
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"side view",
+"three-quarter view",
+"profile view",
+"back view",
+"aerial view"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight in side view"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"vue demandee : side view, in profile"
+],
+"style": "realistic",
+"texte": "A knight in side view",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, side view, in profile, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w06",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": true,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"headshot",
+"portrait",
+"close-up",
+"partial body",
+"cropped"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A portrait of an old wizard"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"buste demande : full body retire"
+],
+"style": "realistic",
+"texte": "A portrait of an old wizard",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, fully clothed, T-pose, arms extended horizontally, empty open hands, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w07",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A knight",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w08",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [
+"sitting"
+],
+"positif": "A knight"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "A knight, not sitting",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"quantite-deux-personnages-gabarit-un-seul"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w09",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [
+"blue",
+"red"
+],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "A man with a red hat and a man with a blue hat"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "A man with a red hat and a man with a blue hat",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": "holding exactly two swords, one in each hand",
+"clause_toutes": "holding exactly two swords, one in each hand",
+"id": "w10",
+"intent": {
+"arme_nommee": true,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [
+{
+"arme": true,
+"cls": "sword",
+"count": 2,
+"hand": null,
+"item": "swords"
+}
+],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[
+"weapon",
+"holding weapon",
+"sword",
+"blade"
+],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks",
+"duplicate objects"
+],
+[
+"holding objects",
+"asymmetric"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A knight holding two swords"
+},
+"notes_defaut": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)",
+"cadrage : objet tenu entierement visible"
+],
+"notes_toutes": [
+"mains vides retire (objet tenu)",
+"symmetric retire (objet tenu)",
+"cadrage : objet tenu entierement visible"
+],
+"style": "realistic",
+"texte": "A knight holding two swords",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, plain white background, entire figure and held item fully visible, generous empty margins",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w11",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {
+"head": 2
+},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"two heads"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A two-headed ogre"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"nombres anatomiques ajoutes"
+],
+"style": "realistic",
+"texte": "A two-headed ogre",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette, exactly 2 heads",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w12",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": true,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[
+"dynamic pose",
+"action pose",
+"combat stance",
+"fighting",
+"running",
+"jumping",
+"crouching",
+"bent arms",
+"bent legs",
+"asymmetric",
+"hands on hips",
+"arms at sides",
+"hands touching body"
+]
+],
+"negations": {
+"negatifs": [],
+"positif": "A sitting cat"
+},
+"notes_defaut": [],
+"notes_libre": [],
+"notes_toutes": [
+"pose demandee : T-pose non imposee"
+],
+"style": "realistic",
+"texte": "A sitting cat",
+"tpl_defaut": "full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette",
+"tpl_libre": "full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette",
+"tpl_toutes": "full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette",
+"type": "other_living"
+},
+{
+"avertissements": [
+"texte-long"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w13",
+"intent": {
+"arme_nommee": false,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "a tired old knight scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"symmetric retire (asymetrie demandee)"
+],
+"style": "realistic",
+"texte": "a tired old knight scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w14",
+"intent": {
+"arme_nommee": false,
+"asymetrique": true,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "a tired old knight scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [
+"symmetric retire (asymetrie demandee)"
+],
+"style": "realistic",
+"texte": "a tired old knight scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [
+"texte-trop-long"
+],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w15",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": [
+"(weapon:1.6), (holding weapon:1.6), (sword:1.5), (blade:1.5), (knife:1.5), (spear:1.5), (axe:1.5), (club:1.4), (shield:1.5), (bow:1.4), (gun:1.4), (staff:1.3)",
+[],
+[]
+],
+"negatifs_extra": [
+[
+"pedestal",
+"base",
+"rocks"
+],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+},
+"notes_defaut": [],
+"notes_libre": [
+"pose libre : T-pose non imposee (case decochee)"
+],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+"tpl_defaut": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"tpl_libre": "isolated 3D character, full body, fully clothed, strict front view, facing camera, plain white background, centered, clean silhouette",
+"tpl_toutes": "isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette",
+"type": "character"
+},
+{
+"avertissements": [],
+"clause_defaut": null,
+"clause_toutes": null,
+"id": "w16",
+"intent": {
+"arme_nommee": false,
+"asymetrique": false,
+"buste": false,
+"couleurs": [],
+"mot_multiple": false,
+"non_humain": false,
+"objets": [],
+"parties": {},
+"pose_libre": false,
+"quantite": null,
+"roche_voulue": false,
+"sans_arme": false,
+"socle_voulu": false,
+"style_non_photo": false,
+"vue": null
+},
+"negatif_armes": null,
+"negatifs_extra": [
+[],
+[]
+],
+"negations": {
+"negatifs": [],
+"positif": "Two men fighting"
+},
+"notes_defaut": [],
+"notes_libre": [],
+"notes_toutes": [],
+"style": "realistic",
+"texte": "Two men fighting",
+"tpl_defaut": "isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette",
+"tpl_libre": "isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette",
+"tpl_toutes": "isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette",
+"type": "prop"
+},
+{
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b001",
@@ -17890,6 +19172,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b002",
@@ -17970,6 +19253,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b003",
@@ -18050,6 +19334,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b004",
@@ -18130,6 +19415,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b005",
@@ -18210,6 +19496,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b006",
@@ -18290,6 +19577,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b007",
@@ -18370,6 +19658,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b008",
@@ -18450,6 +19739,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b009",
@@ -18530,6 +19820,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b010",
@@ -18610,6 +19901,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b011",
@@ -18690,6 +19982,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b012",
@@ -18770,6 +20063,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b013",
@@ -18850,6 +20144,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b014",
@@ -18930,6 +20225,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b015",
@@ -19014,6 +20310,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b016",
@@ -19098,6 +20395,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b017",
@@ -19178,6 +20476,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b018",
@@ -19258,6 +20557,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b019",
@@ -19338,6 +20638,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one axe in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one axe in the right hand, left hand open and empty",
 "id": "b020",
@@ -19417,6 +20718,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one hatchet in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one hatchet in the right hand, left hand open and empty",
 "id": "b021",
@@ -19496,6 +20798,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one battleaxe in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one battleaxe in the right hand, left hand open and empty",
 "id": "b022",
@@ -19575,6 +20878,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one tomahawk in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one tomahawk in the right hand, left hand open and empty",
 "id": "b023",
@@ -19654,6 +20958,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cleaver in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cleaver in the right hand, left hand open and empty",
 "id": "b024",
@@ -19733,6 +21038,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two axes, one in each hand",
 "clause_toutes": "holding exactly two axes, one in each hand",
 "id": "b025",
@@ -19808,6 +21114,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bow in the right hand, left hand open and empty",
 "id": "b026",
@@ -19887,6 +21194,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one longbow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one longbow in the right hand, left hand open and empty",
 "id": "b027",
@@ -19966,6 +21274,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one crossbow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one crossbow in the right hand, left hand open and empty",
 "id": "b028",
@@ -20045,6 +21354,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two bows, one in each hand",
 "clause_toutes": "holding exactly two bows, one in each hand",
 "id": "b029",
@@ -20120,6 +21430,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one club in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one club in the right hand, left hand open and empty",
 "id": "b030",
@@ -20199,6 +21510,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one mace in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one mace in the right hand, left hand open and empty",
 "id": "b031",
@@ -20278,6 +21590,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cudgel in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cudgel in the right hand, left hand open and empty",
 "id": "b032",
@@ -20357,6 +21670,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bat in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bat in the right hand, left hand open and empty",
 "id": "b033",
@@ -20436,6 +21750,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one maul in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one maul in the right hand, left hand open and empty",
 "id": "b034",
@@ -20515,6 +21830,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flail in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one flail in the right hand, left hand open and empty",
 "id": "b035",
@@ -20594,6 +21910,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one morning in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one morning in the right hand, left hand open and empty",
 "id": "b036",
@@ -20673,6 +21990,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one star in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one star in the right hand, left hand open and empty",
 "id": "b037",
@@ -20752,6 +22070,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one truncheon in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one truncheon in the right hand, left hand open and empty",
 "id": "b038",
@@ -20831,6 +22150,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two clubs, one in each hand",
 "clause_toutes": "holding exactly two clubs, one in each hand",
 "id": "b039",
@@ -20906,6 +22226,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one dagger in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one dagger in the right hand, left hand open and empty",
 "id": "b040",
@@ -20986,6 +22307,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one knife in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one knife in the right hand, left hand open and empty",
 "id": "b041",
@@ -21066,6 +22388,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one dirk in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one dirk in the right hand, left hand open and empty",
 "id": "b042",
@@ -21146,6 +22469,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one kunai in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one kunai in the right hand, left hand open and empty",
 "id": "b043",
@@ -21226,6 +22550,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one stiletto in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one stiletto in the right hand, left hand open and empty",
 "id": "b044",
@@ -21306,6 +22631,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two daggers, one in each hand",
 "clause_toutes": "holding exactly two daggers, one in each hand",
 "id": "b045",
@@ -21382,6 +22708,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one gun in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one gun in the right hand, left hand open and empty",
 "id": "b046",
@@ -21461,6 +22788,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one rifle in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one rifle in the right hand, left hand open and empty",
 "id": "b047",
@@ -21540,6 +22868,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pistol in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one pistol in the right hand, left hand open and empty",
 "id": "b048",
@@ -21619,6 +22948,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one musket in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one musket in the right hand, left hand open and empty",
 "id": "b049",
@@ -21698,6 +23028,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one blaster in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one blaster in the right hand, left hand open and empty",
 "id": "b050",
@@ -21777,6 +23108,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shotgun in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one shotgun in the right hand, left hand open and empty",
 "id": "b051",
@@ -21856,6 +23188,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one revolver in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one revolver in the right hand, left hand open and empty",
 "id": "b052",
@@ -21935,6 +23268,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cannon in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cannon in the right hand, left hand open and empty",
 "id": "b053",
@@ -22014,6 +23348,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two guns, one in each hand",
 "clause_toutes": "holding exactly two guns, one in each hand",
 "id": "b054",
@@ -22089,6 +23424,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one hammer in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one hammer in the right hand, left hand open and empty",
 "id": "b055",
@@ -22167,6 +23503,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one warhammer in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one warhammer in the right hand, left hand open and empty",
 "id": "b056",
@@ -22245,6 +23582,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sledgehammer in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sledgehammer in the right hand, left hand open and empty",
 "id": "b057",
@@ -22323,6 +23661,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one mallet in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one mallet in the right hand, left hand open and empty",
 "id": "b058",
@@ -22401,6 +23740,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two hammers, one in each hand",
 "clause_toutes": "holding exactly two hammers, one in each hand",
 "id": "b059",
@@ -22475,6 +23815,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shield in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one shield in the right hand, left hand open and empty",
 "id": "b060",
@@ -22554,6 +23895,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one buckler in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one buckler in the right hand, left hand open and empty",
 "id": "b061",
@@ -22633,6 +23975,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two shields, one in each hand",
 "clause_toutes": "holding exactly two shields, one in each hand",
 "id": "b062",
@@ -22708,6 +24051,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one spear in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one spear in the right hand, left hand open and empty",
 "id": "b063",
@@ -22787,6 +24131,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lance in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one lance in the right hand, left hand open and empty",
 "id": "b064",
@@ -22866,6 +24211,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one halberd in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one halberd in the right hand, left hand open and empty",
 "id": "b065",
@@ -22945,6 +24291,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pike in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one pike in the right hand, left hand open and empty",
 "id": "b066",
@@ -23024,6 +24371,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one trident in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one trident in the right hand, left hand open and empty",
 "id": "b067",
@@ -23103,6 +24451,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one javelin in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one javelin in the right hand, left hand open and empty",
 "id": "b068",
@@ -23182,6 +24531,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one glaive in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one glaive in the right hand, left hand open and empty",
 "id": "b069",
@@ -23261,6 +24611,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one polearm in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one polearm in the right hand, left hand open and empty",
 "id": "b070",
@@ -23340,6 +24691,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two spears, one in each hand",
 "clause_toutes": "holding exactly two spears, one in each hand",
 "id": "b071",
@@ -23415,6 +24767,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one staff in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one staff in the right hand, left hand open and empty",
 "id": "b072",
@@ -23494,6 +24847,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one wand in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one wand in the right hand, left hand open and empty",
 "id": "b073",
@@ -23573,6 +24927,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one scepter in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one scepter in the right hand, left hand open and empty",
 "id": "b074",
@@ -23652,6 +25007,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sceptre in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sceptre in the right hand, left hand open and empty",
 "id": "b075",
@@ -23731,6 +25087,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cane in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cane in the right hand, left hand open and empty",
 "id": "b076",
@@ -23810,6 +25167,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one crook in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one crook in the right hand, left hand open and empty",
 "id": "b077",
@@ -23889,6 +25247,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two staffs, one in each hand",
 "clause_toutes": "holding exactly two staffs, one in each hand",
 "id": "b078",
@@ -23964,6 +25323,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sword in the right hand, left hand open and empty",
 "id": "b079",
@@ -24044,6 +25404,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one blade in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one blade in the right hand, left hand open and empty",
 "id": "b080",
@@ -24124,6 +25485,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one saber in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one saber in the right hand, left hand open and empty",
 "id": "b081",
@@ -24204,6 +25566,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sabre in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sabre in the right hand, left hand open and empty",
 "id": "b082",
@@ -24284,6 +25647,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one katana in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one katana in the right hand, left hand open and empty",
 "id": "b083",
@@ -24364,6 +25728,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one scimitar in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one scimitar in the right hand, left hand open and empty",
 "id": "b084",
@@ -24444,6 +25809,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one rapier in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one rapier in the right hand, left hand open and empty",
 "id": "b085",
@@ -24524,6 +25890,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one claymore in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one claymore in the right hand, left hand open and empty",
 "id": "b086",
@@ -24604,6 +25971,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one greatsword in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one greatsword in the right hand, left hand open and empty",
 "id": "b087",
@@ -24684,6 +26052,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cutlass in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cutlass in the right hand, left hand open and empty",
 "id": "b088",
@@ -24764,6 +26133,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one machete in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one machete in the right hand, left hand open and empty",
 "id": "b089",
@@ -24844,6 +26214,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b090",
@@ -24920,6 +26291,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one morning star in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one morning star in the right hand, left hand open and empty",
 "id": "b091",
@@ -24999,6 +26371,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one torch in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one torch in the right hand, left hand open and empty",
 "id": "b092",
@@ -25070,6 +26443,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lantern in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one lantern in the right hand, left hand open and empty",
 "id": "b093",
@@ -25141,6 +26515,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lamp in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one lamp in the right hand, left hand open and empty",
 "id": "b094",
@@ -25212,6 +26587,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one book in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one book in the right hand, left hand open and empty",
 "id": "b095",
@@ -25283,6 +26659,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one tome in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one tome in the right hand, left hand open and empty",
 "id": "b096",
@@ -25354,6 +26731,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one scroll in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one scroll in the right hand, left hand open and empty",
 "id": "b097",
@@ -25425,6 +26803,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bag in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bag in the right hand, left hand open and empty",
 "id": "b098",
@@ -25496,6 +26875,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sack in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sack in the right hand, left hand open and empty",
 "id": "b099",
@@ -25567,6 +26947,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one satchel in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one satchel in the right hand, left hand open and empty",
 "id": "b100",
@@ -25638,6 +27019,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cup in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cup in the right hand, left hand open and empty",
 "id": "b101",
@@ -25709,6 +27091,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one mug in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one mug in the right hand, left hand open and empty",
 "id": "b102",
@@ -25780,6 +27163,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one goblet in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one goblet in the right hand, left hand open and empty",
 "id": "b103",
@@ -25851,6 +27235,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bottle in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bottle in the right hand, left hand open and empty",
 "id": "b104",
@@ -25922,6 +27307,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flask in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one flask in the right hand, left hand open and empty",
 "id": "b105",
@@ -25993,6 +27379,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one potion in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one potion in the right hand, left hand open and empty",
 "id": "b106",
@@ -26064,6 +27451,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flag in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one flag in the right hand, left hand open and empty",
 "id": "b107",
@@ -26135,6 +27523,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one banner in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one banner in the right hand, left hand open and empty",
 "id": "b108",
@@ -26206,6 +27595,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flower in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one flower in the right hand, left hand open and empty",
 "id": "b109",
@@ -26277,6 +27667,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bouquet in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bouquet in the right hand, left hand open and empty",
 "id": "b110",
@@ -26348,6 +27739,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one basket in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one basket in the right hand, left hand open and empty",
 "id": "b111",
@@ -26419,6 +27811,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one umbrella in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one umbrella in the right hand, left hand open and empty",
 "id": "b112",
@@ -26490,6 +27883,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one orb in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one orb in the right hand, left hand open and empty",
 "id": "b113",
@@ -26561,6 +27955,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one skull in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one skull in the right hand, left hand open and empty",
 "id": "b114",
@@ -26632,6 +28027,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one fish in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one fish in the right hand, left hand open and empty",
 "id": "b115",
@@ -26703,6 +28099,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one chicken in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one chicken in the right hand, left hand open and empty",
 "id": "b116",
@@ -26774,6 +28171,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one baby in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one baby in the right hand, left hand open and empty",
 "id": "b117",
@@ -26845,6 +28243,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one phone in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one phone in the right hand, left hand open and empty",
 "id": "b118",
@@ -26916,6 +28315,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one guitar in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one guitar in the right hand, left hand open and empty",
 "id": "b119",
@@ -26987,6 +28387,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lute in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one lute in the right hand, left hand open and empty",
 "id": "b120",
@@ -27058,6 +28459,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one harp in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one harp in the right hand, left hand open and empty",
 "id": "b121",
@@ -27129,6 +28531,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one trumpet in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one trumpet in the right hand, left hand open and empty",
 "id": "b122",
@@ -27200,6 +28603,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b123",
@@ -27271,6 +28675,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one map in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one map in the right hand, left hand open and empty",
 "id": "b124",
@@ -27342,6 +28747,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one key in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one key in the right hand, left hand open and empty",
 "id": "b125",
@@ -27413,6 +28819,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one chalice in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one chalice in the right hand, left hand open and empty",
 "id": "b126",
@@ -27484,6 +28891,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one candle in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one candle in the right hand, left hand open and empty",
 "id": "b127",
@@ -27555,6 +28963,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pitchfork in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one pitchfork in the right hand, left hand open and empty",
 "id": "b128",
@@ -27626,6 +29035,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shovel in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one shovel in the right hand, left hand open and empty",
 "id": "b129",
@@ -27697,6 +29107,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pickaxe in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one pickaxe in the right hand, left hand open and empty",
 "id": "b130",
@@ -27768,6 +29179,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one broom in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one broom in the right hand, left hand open and empty",
 "id": "b131",
@@ -27839,6 +29251,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one hammer in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one hammer in the right hand, left hand open and empty",
 "id": "b132",
@@ -27917,6 +29330,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one wrench in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one wrench in the right hand, left hand open and empty",
 "id": "b133",
@@ -27988,6 +29402,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one tool in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one tool in the right hand, left hand open and empty",
 "id": "b134",
@@ -28059,6 +29474,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one camera in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one camera in the right hand, left hand open and empty",
 "id": "b135",
@@ -28130,6 +29546,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sphere in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sphere in the right hand, left hand open and empty",
 "id": "b136",
@@ -28201,6 +29618,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one crystal in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one crystal in the right hand, left hand open and empty",
 "id": "b137",
@@ -28271,6 +29689,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one egg in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one egg in the right hand, left hand open and empty",
 "id": "b138",
@@ -28342,6 +29761,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one apple in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one apple in the right hand, left hand open and empty",
 "id": "b139",
@@ -28413,6 +29833,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cane in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one cane in the right hand, left hand open and empty",
 "id": "b140",
@@ -28492,6 +29913,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b141",
@@ -28542,6 +29964,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b142",
@@ -28592,6 +30015,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b143",
@@ -28642,6 +30066,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b144",
@@ -28692,6 +30117,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b145",
@@ -28763,6 +30189,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one letter in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one letter in the right hand, left hand open and empty",
 "id": "b146",
@@ -28834,6 +30261,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one line in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one line in the right hand, left hand open and empty",
 "id": "b147",
@@ -28905,6 +30333,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"quantite-deux-personnages-gabarit-un-seul"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b148",
@@ -28955,6 +30386,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding sword in the right hand and lance in the left hand",
 "clause_toutes": "holding sword in the right hand and lance in the left hand",
 "id": "b149",
@@ -29039,6 +30471,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b150",
@@ -29089,6 +30522,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one dagger in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one dagger in the left hand, right hand open and empty",
 "id": "b151",
@@ -29169,6 +30603,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bow with both hands",
 "clause_toutes": "holding exactly one bow with both hands",
 "id": "b152",
@@ -29248,6 +30683,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bow in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one bow in the right hand, left hand open and empty",
 "id": "b153",
@@ -29327,6 +30763,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one huge club with both hands",
 "clause_toutes": "holding exactly one huge club with both hands",
 "id": "b154",
@@ -29406,6 +30843,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one golden scepter in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one golden scepter in the left hand, right hand open and empty",
 "id": "b155",
@@ -29487,6 +30925,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding hammer in the right hand and axe in the left hand",
 "clause_toutes": "holding hammer in the right hand and axe in the left hand",
 "id": "b156",
@@ -29569,6 +31008,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two apples, one in each hand",
 "clause_toutes": "holding exactly two apples, one in each hand",
 "id": "b157",
@@ -29640,6 +31080,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one baby in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one baby in the right hand, left hand open and empty",
 "id": "b158",
@@ -29713,6 +31154,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one water in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one water in the right hand, left hand open and empty",
 "id": "b159",
@@ -29784,6 +31226,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b160",
@@ -29850,6 +31295,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b161",
@@ -29916,6 +31364,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b162",
@@ -29982,6 +31433,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b163",
@@ -30048,6 +31502,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b164",
@@ -30114,6 +31571,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b165",
@@ -30180,6 +31640,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b166",
@@ -30246,6 +31709,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b167",
@@ -30312,6 +31778,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b168",
@@ -30378,6 +31847,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b169",
@@ -30444,6 +31916,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b170",
@@ -30510,6 +31985,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b171",
@@ -30576,6 +32054,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b172",
@@ -30642,6 +32123,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b173",
@@ -30708,6 +32192,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b174",
@@ -30774,6 +32261,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b175",
@@ -30840,6 +32330,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b176",
@@ -30906,6 +32399,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b177",
@@ -30972,6 +32468,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b178",
@@ -31038,6 +32537,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b179",
@@ -31104,6 +32606,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b180",
@@ -31170,6 +32675,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b181",
@@ -31236,6 +32744,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b182",
@@ -31302,6 +32813,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b183",
@@ -31368,6 +32882,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b184",
@@ -31434,6 +32951,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b185",
@@ -31500,6 +33020,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b186",
@@ -31566,6 +33089,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b187",
@@ -31632,6 +33158,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b188",
@@ -31698,6 +33227,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b189",
@@ -31764,6 +33296,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b190",
@@ -31830,6 +33365,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b191",
@@ -31896,6 +33434,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b192",
@@ -31962,6 +33503,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b193",
@@ -32028,6 +33572,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b194",
@@ -32094,6 +33641,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b195",
@@ -32160,6 +33710,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b196",
@@ -32226,6 +33779,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b197",
@@ -32292,6 +33848,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b198",
@@ -32358,6 +33917,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b199",
@@ -32424,6 +33986,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b200",
@@ -32490,6 +34055,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b201",
@@ -32556,6 +34124,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b202",
@@ -32622,6 +34193,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b203",
@@ -32688,6 +34262,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b204",
@@ -32754,6 +34331,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b205",
@@ -32820,6 +34400,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b206",
@@ -32886,6 +34469,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b207",
@@ -32952,6 +34538,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b208",
@@ -33018,6 +34607,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b209",
@@ -33084,6 +34676,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b210",
@@ -33150,6 +34745,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b211",
@@ -33216,6 +34814,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b212",
@@ -33282,6 +34883,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b213",
@@ -33348,6 +34952,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b214",
@@ -33414,6 +35021,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b215",
@@ -33480,6 +35090,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b216",
@@ -33546,6 +35159,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b217",
@@ -33612,6 +35228,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b218",
@@ -33678,6 +35297,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b219",
@@ -33744,6 +35366,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b220",
@@ -33810,6 +35435,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b221",
@@ -33876,6 +35504,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b222",
@@ -33942,6 +35573,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b223",
@@ -34008,6 +35642,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b224",
@@ -34074,6 +35711,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b225",
@@ -34140,6 +35780,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b226",
@@ -34206,6 +35849,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"pose-incompatible-avec-tpose"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b227",
@@ -34272,6 +35918,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b228",
@@ -34330,6 +35979,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b229",
@@ -34388,6 +36040,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b230",
@@ -34446,6 +36101,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b231",
@@ -34504,6 +36162,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b232",
@@ -34562,6 +36223,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b233",
@@ -34620,6 +36284,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b234",
@@ -34678,6 +36345,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b235",
@@ -34736,6 +36406,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b236",
@@ -34794,6 +36467,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b237",
@@ -34852,6 +36528,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b238",
@@ -34910,6 +36589,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b239",
@@ -34968,6 +36650,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b240",
@@ -35026,6 +36711,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b241",
@@ -35084,6 +36772,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b242",
@@ -35142,6 +36833,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b243",
@@ -35200,6 +36894,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b244",
@@ -35258,6 +36955,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b245",
@@ -35316,6 +37016,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b246",
@@ -35374,6 +37077,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b247",
@@ -35432,6 +37138,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b248",
@@ -35490,6 +37199,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b249",
@@ -35548,6 +37260,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b250",
@@ -35606,6 +37321,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b251",
@@ -35664,6 +37382,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b252",
@@ -35722,6 +37443,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b253",
@@ -35780,6 +37504,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b254",
@@ -35838,6 +37565,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b255",
@@ -35896,6 +37626,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b256",
@@ -35954,6 +37687,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b257",
@@ -36012,6 +37748,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b258",
@@ -36070,6 +37809,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b259",
@@ -36128,6 +37870,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b260",
@@ -36186,6 +37931,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b261",
@@ -36244,6 +37992,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b262",
@@ -36302,6 +38053,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b263",
@@ -36360,6 +38114,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b264",
@@ -36418,6 +38175,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b265",
@@ -36476,6 +38236,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b266",
@@ -36534,6 +38297,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"vue-demandee-gabarit-de-face"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b267",
@@ -36592,6 +38358,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b268",
@@ -36646,6 +38415,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b269",
@@ -36704,6 +38476,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b270",
@@ -36762,6 +38537,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b271",
@@ -36820,6 +38598,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b272",
@@ -36878,6 +38659,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b273",
@@ -36936,6 +38720,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b274",
@@ -36994,6 +38781,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b275",
@@ -37048,6 +38838,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b276",
@@ -37106,6 +38899,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b277",
@@ -37164,6 +38960,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b278",
@@ -37222,6 +39021,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b279",
@@ -37280,6 +39082,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b280",
@@ -37338,6 +39143,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b281",
@@ -37396,6 +39204,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b282",
@@ -37454,6 +39265,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b283",
@@ -37512,6 +39326,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b284",
@@ -37570,6 +39387,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b285",
@@ -37622,6 +39440,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b286",
@@ -37674,6 +39493,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b287",
@@ -37726,6 +39546,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b288",
@@ -37778,6 +39599,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b289",
@@ -37829,6 +39651,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b290",
@@ -37881,6 +39704,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b291",
@@ -37929,6 +39753,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b292",
@@ -37981,6 +39806,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b293",
@@ -38033,6 +39859,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b294",
@@ -38085,6 +39912,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b295",
@@ -38137,6 +39965,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b296",
@@ -38189,6 +40018,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b297",
@@ -38241,6 +40071,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b298",
@@ -38293,6 +40124,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b299",
@@ -38345,6 +40177,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b300",
@@ -38397,6 +40230,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b301",
@@ -38449,6 +40283,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b302",
@@ -38501,6 +40336,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b303",
@@ -38552,6 +40388,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b304",
@@ -38604,6 +40441,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b305",
@@ -38656,6 +40494,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b306",
@@ -38704,6 +40543,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b307",
@@ -38756,6 +40596,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b308",
@@ -38808,6 +40649,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b309",
@@ -38860,6 +40702,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b310",
@@ -38912,6 +40755,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b311",
@@ -38964,6 +40808,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b312",
@@ -39016,6 +40861,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b313",
@@ -39068,6 +40914,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b314",
@@ -39120,6 +40967,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b315",
@@ -39172,6 +41020,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b316",
@@ -39224,6 +41073,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b317",
@@ -39270,6 +41120,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b318",
@@ -39316,6 +41167,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b319",
@@ -39364,6 +41216,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b320",
@@ -39410,6 +41263,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b321",
@@ -39456,6 +41310,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b322",
@@ -39502,6 +41357,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"buste-gabarit-corps-entier"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b323",
@@ -39556,6 +41414,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b324",
@@ -39602,6 +41461,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b325",
@@ -39648,6 +41508,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b326",
@@ -39697,6 +41558,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b327",
@@ -39746,6 +41608,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b328",
@@ -39795,6 +41658,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b329",
@@ -39844,6 +41708,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b330",
@@ -39895,6 +41760,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b331",
@@ -39944,6 +41810,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b332",
@@ -39993,6 +41860,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b333",
@@ -40042,6 +41910,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b334",
@@ -40091,6 +41960,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b335",
@@ -40140,6 +42010,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b336",
@@ -40190,6 +42061,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b337",
@@ -40240,6 +42112,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b338",
@@ -40290,6 +42163,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b339",
@@ -40340,6 +42214,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b340",
@@ -40390,6 +42265,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b341",
@@ -40440,6 +42316,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b342",
@@ -40490,6 +42367,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b343",
@@ -40540,6 +42418,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b344",
@@ -40590,6 +42469,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b345",
@@ -40640,6 +42520,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b346",
@@ -40690,6 +42571,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b347",
@@ -40740,6 +42622,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b348",
@@ -40790,6 +42673,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b349",
@@ -40840,6 +42724,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b350",
@@ -40890,6 +42775,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b351",
@@ -40940,6 +42826,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b352",
@@ -40990,6 +42877,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b353",
@@ -41061,6 +42949,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b354",
@@ -41132,6 +43021,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b355",
@@ -41203,6 +43093,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b356",
@@ -41274,6 +43165,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b357",
@@ -41345,6 +43237,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b358",
@@ -41416,6 +43309,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the right hand, left hand open and empty",
 "clause_toutes": "holding exactly one sign in the right hand, left hand open and empty",
 "id": "b359",
@@ -41487,6 +43381,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one torch in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one torch in the left hand, right hand open and empty",
 "id": "b360",
@@ -41558,6 +43453,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lantern in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one lantern in the left hand, right hand open and empty",
 "id": "b361",
@@ -41629,6 +43525,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lamp in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one lamp in the left hand, right hand open and empty",
 "id": "b362",
@@ -41700,6 +43597,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one book in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one book in the left hand, right hand open and empty",
 "id": "b363",
@@ -41771,6 +43669,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one tome in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one tome in the left hand, right hand open and empty",
 "id": "b364",
@@ -41842,6 +43741,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one scroll in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one scroll in the left hand, right hand open and empty",
 "id": "b365",
@@ -41913,6 +43813,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bag in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one bag in the left hand, right hand open and empty",
 "id": "b366",
@@ -41984,6 +43885,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sack in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one sack in the left hand, right hand open and empty",
 "id": "b367",
@@ -42055,6 +43957,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one satchel in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one satchel in the left hand, right hand open and empty",
 "id": "b368",
@@ -42126,6 +44029,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cup in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one cup in the left hand, right hand open and empty",
 "id": "b369",
@@ -42197,6 +44101,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one mug in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one mug in the left hand, right hand open and empty",
 "id": "b370",
@@ -42268,6 +44173,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one goblet in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one goblet in the left hand, right hand open and empty",
 "id": "b371",
@@ -42339,6 +44245,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bottle in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one bottle in the left hand, right hand open and empty",
 "id": "b372",
@@ -42410,6 +44317,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flask in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one flask in the left hand, right hand open and empty",
 "id": "b373",
@@ -42481,6 +44389,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one potion in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one potion in the left hand, right hand open and empty",
 "id": "b374",
@@ -42552,6 +44461,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flag in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one flag in the left hand, right hand open and empty",
 "id": "b375",
@@ -42623,6 +44533,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one banner in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one banner in the left hand, right hand open and empty",
 "id": "b376",
@@ -42694,6 +44605,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one flower in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one flower in the left hand, right hand open and empty",
 "id": "b377",
@@ -42765,6 +44677,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one bouquet in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one bouquet in the left hand, right hand open and empty",
 "id": "b378",
@@ -42836,6 +44749,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one basket in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one basket in the left hand, right hand open and empty",
 "id": "b379",
@@ -42907,6 +44821,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one umbrella in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one umbrella in the left hand, right hand open and empty",
 "id": "b380",
@@ -42978,6 +44893,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one orb in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one orb in the left hand, right hand open and empty",
 "id": "b381",
@@ -43049,6 +44965,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one skull in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one skull in the left hand, right hand open and empty",
 "id": "b382",
@@ -43120,6 +45037,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one fish in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one fish in the left hand, right hand open and empty",
 "id": "b383",
@@ -43191,6 +45109,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one chicken in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one chicken in the left hand, right hand open and empty",
 "id": "b384",
@@ -43262,6 +45181,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one baby in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one baby in the left hand, right hand open and empty",
 "id": "b385",
@@ -43333,6 +45253,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one phone in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one phone in the left hand, right hand open and empty",
 "id": "b386",
@@ -43404,6 +45325,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one guitar in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one guitar in the left hand, right hand open and empty",
 "id": "b387",
@@ -43475,6 +45397,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one lute in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one lute in the left hand, right hand open and empty",
 "id": "b388",
@@ -43546,6 +45469,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one harp in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one harp in the left hand, right hand open and empty",
 "id": "b389",
@@ -43617,6 +45541,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one trumpet in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one trumpet in the left hand, right hand open and empty",
 "id": "b390",
@@ -43688,6 +45613,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sign in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one sign in the left hand, right hand open and empty",
 "id": "b391",
@@ -43759,6 +45685,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one map in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one map in the left hand, right hand open and empty",
 "id": "b392",
@@ -43830,6 +45757,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one key in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one key in the left hand, right hand open and empty",
 "id": "b393",
@@ -43901,6 +45829,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one chalice in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one chalice in the left hand, right hand open and empty",
 "id": "b394",
@@ -43972,6 +45901,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one candle in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one candle in the left hand, right hand open and empty",
 "id": "b395",
@@ -44043,6 +45973,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pitchfork in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one pitchfork in the left hand, right hand open and empty",
 "id": "b396",
@@ -44114,6 +46045,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one shovel in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one shovel in the left hand, right hand open and empty",
 "id": "b397",
@@ -44185,6 +46117,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one pickaxe in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one pickaxe in the left hand, right hand open and empty",
 "id": "b398",
@@ -44256,6 +46189,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one broom in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one broom in the left hand, right hand open and empty",
 "id": "b399",
@@ -44327,6 +46261,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one hammer in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one hammer in the left hand, right hand open and empty",
 "id": "b400",
@@ -44405,6 +46340,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one wrench in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one wrench in the left hand, right hand open and empty",
 "id": "b401",
@@ -44476,6 +46412,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one tool in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one tool in the left hand, right hand open and empty",
 "id": "b402",
@@ -44547,6 +46484,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one camera in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one camera in the left hand, right hand open and empty",
 "id": "b403",
@@ -44618,6 +46556,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one sphere in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one sphere in the left hand, right hand open and empty",
 "id": "b404",
@@ -44689,6 +46628,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one crystal in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one crystal in the left hand, right hand open and empty",
 "id": "b405",
@@ -44759,6 +46699,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one egg in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one egg in the left hand, right hand open and empty",
 "id": "b406",
@@ -44830,6 +46771,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one apple in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one apple in the left hand, right hand open and empty",
 "id": "b407",
@@ -44901,6 +46843,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one cane in the left hand, right hand open and empty",
 "clause_toutes": "holding exactly one cane in the left hand, right hand open and empty",
 "id": "b408",
@@ -44980,6 +46923,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two double swords, one in each hand",
 "clause_toutes": "holding exactly two double swords, one in each hand",
 "id": "b409",
@@ -45064,6 +47008,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b410",
@@ -45113,6 +47058,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b411",
@@ -45197,6 +47143,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b412",
@@ -45246,6 +47193,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two eight swords, one in each hand",
 "clause_toutes": "holding exactly two eight swords, one in each hand",
 "id": "b413",
@@ -45322,6 +47270,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b414",
@@ -45376,6 +47325,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two five swords, one in each hand",
 "clause_toutes": "holding exactly two five swords, one in each hand",
 "id": "b415",
@@ -45452,6 +47402,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b416",
@@ -45506,6 +47457,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two four swords, one in each hand",
 "clause_toutes": "holding exactly two four swords, one in each hand",
 "id": "b417",
@@ -45582,6 +47534,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b418",
@@ -45636,6 +47589,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two nine swords, one in each hand",
 "clause_toutes": "holding exactly two nine swords, one in each hand",
 "id": "b419",
@@ -45712,6 +47666,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b420",
@@ -45766,6 +47721,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b421",
@@ -45842,6 +47798,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b422",
@@ -45882,6 +47839,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two seven swords, one in each hand",
 "clause_toutes": "holding exactly two seven swords, one in each hand",
 "id": "b423",
@@ -45958,6 +47916,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b424",
@@ -46012,6 +47971,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two single swords, one in each hand",
 "clause_toutes": "holding exactly two single swords, one in each hand",
 "id": "b425",
@@ -46088,6 +48048,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b426",
@@ -46128,6 +48089,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two six swords, one in each hand",
 "clause_toutes": "holding exactly two six swords, one in each hand",
 "id": "b427",
@@ -46204,6 +48166,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b428",
@@ -46258,6 +48221,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two ten swords, one in each hand",
 "clause_toutes": "holding exactly two ten swords, one in each hand",
 "id": "b429",
@@ -46334,6 +48298,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b430",
@@ -46388,6 +48353,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b431",
@@ -46464,6 +48430,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b432",
@@ -46518,6 +48485,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two triple swords, one in each hand",
 "clause_toutes": "holding exactly two triple swords, one in each hand",
 "id": "b433",
@@ -46594,6 +48562,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b434",
@@ -46634,6 +48603,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b435",
@@ -46718,6 +48688,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b436",
@@ -46767,6 +48738,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two swords, one in each hand",
 "clause_toutes": "holding exactly two swords, one in each hand",
 "id": "b437",
@@ -46843,6 +48815,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b438",
@@ -46897,6 +48870,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b439",
@@ -46947,6 +48921,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b440",
@@ -46997,6 +48972,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b441",
@@ -47047,6 +49023,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b442",
@@ -47099,6 +49076,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b443",
@@ -47151,6 +49129,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b444",
@@ -47203,6 +49182,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b445",
@@ -47255,6 +49235,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b446",
@@ -47307,6 +49288,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b447",
@@ -47357,6 +49339,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b448",
@@ -47407,6 +49390,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b449",
@@ -47457,6 +49441,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b450",
@@ -47507,6 +49492,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two katanas, one in each hand",
 "clause_toutes": "holding exactly two katanas, one in each hand",
 "id": "b451",
@@ -47583,6 +49569,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly one katana with both hands",
 "clause_toutes": "holding exactly one katana with both hands",
 "id": "b452",
@@ -47663,6 +49650,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b453",
@@ -47713,6 +49701,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": "holding exactly two katanas, one in each hand",
 "clause_toutes": "holding exactly two katanas, one in each hand",
 "id": "b454",
@@ -47797,6 +49786,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b455",
@@ -47852,6 +49842,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b456",
@@ -47910,6 +49901,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b457",
@@ -47962,6 +49954,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b458",
@@ -48014,6 +50007,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b459",
@@ -48066,6 +50060,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b460",
@@ -48125,6 +50120,9 @@ true,
 "type": "character"
 },
 {
+"avertissements": [
+"quantite-deux-personnages-gabarit-un-seul"
+],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b461",
@@ -48184,6 +50182,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b462",
@@ -48243,6 +50242,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b463",
@@ -48302,6 +50302,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b464",
@@ -48364,6 +50365,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b465",
@@ -48414,6 +50416,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b466",
@@ -48464,6 +50467,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b467",
@@ -48514,6 +50518,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b468",
@@ -48564,6 +50569,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b469",
@@ -48614,6 +50620,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b470",
@@ -48664,6 +50671,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b471",
@@ -48714,6 +50722,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b472",
@@ -48764,6 +50773,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b473",
@@ -48814,6 +50824,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b474",
@@ -48864,6 +50875,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b475",
@@ -48914,6 +50926,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b476",
@@ -48964,6 +50977,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b477",
@@ -49014,6 +51028,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b478",
@@ -49064,6 +51079,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b479",
@@ -49114,6 +51130,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b480",
@@ -49164,6 +51181,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b481",
@@ -49214,6 +51232,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b482",
@@ -49264,6 +51283,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b483",
@@ -49314,6 +51334,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b484",
@@ -49364,6 +51385,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b485",
@@ -49414,6 +51436,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b486",
@@ -49454,6 +51477,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b487",
@@ -49494,6 +51518,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b488",
@@ -49538,6 +51563,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b489",
@@ -49584,6 +51610,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b490",
@@ -49624,6 +51651,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b491",
@@ -49664,6 +51692,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b492",
@@ -49708,6 +51737,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b493",
@@ -49748,6 +51778,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b494",
@@ -49795,6 +51826,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b495",
@@ -49839,6 +51871,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b496",
@@ -49883,6 +51916,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b497",
@@ -49927,6 +51961,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b498",
@@ -49973,6 +52008,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b499",
@@ -50017,6 +52053,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b500",
@@ -50068,6 +52105,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b501",
@@ -50112,6 +52150,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b502",
@@ -50161,6 +52200,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b503",
@@ -50201,6 +52241,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b504",
@@ -50245,6 +52286,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b505",
@@ -50291,6 +52333,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b506",
@@ -50338,6 +52381,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b507",
@@ -50389,6 +52433,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b508",
@@ -50433,6 +52478,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b509",
@@ -50482,6 +52528,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b510",
@@ -50526,6 +52573,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b511",
@@ -50570,6 +52618,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b512",
@@ -50610,6 +52659,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b513",
@@ -50656,6 +52706,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b514",
@@ -50703,6 +52754,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b515",
@@ -50754,6 +52806,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b516",
@@ -50798,6 +52851,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b517",
@@ -50847,6 +52901,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b518",
@@ -50891,6 +52946,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b519",
@@ -50935,6 +52991,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b520",
@@ -50979,6 +53036,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b521",
@@ -51033,6 +53091,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b522",
@@ -51087,6 +53146,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b523",
@@ -51141,6 +53201,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b524",
@@ -51195,6 +53256,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b525",
@@ -51249,6 +53311,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b526",
@@ -51303,6 +53366,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b527",
@@ -51357,6 +53421,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b528",
@@ -51406,6 +53471,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b529",
@@ -51455,6 +53521,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b530",
@@ -51509,6 +53576,7 @@ true,
 "type": "prop"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b531",
@@ -51551,6 +53619,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b532",
@@ -51593,6 +53662,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b533",
@@ -51635,6 +53705,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b534",
@@ -51677,6 +53748,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b535",
@@ -51719,6 +53791,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b536",
@@ -51761,6 +53834,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b537",
@@ -51803,6 +53877,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b538",
@@ -51845,6 +53920,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b539",
@@ -51887,6 +53963,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b540",
@@ -51929,6 +54006,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b541",
@@ -51971,6 +54049,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b542",
@@ -52013,6 +54092,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b543",
@@ -52055,6 +54135,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b544",
@@ -52097,6 +54178,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b545",
@@ -52139,6 +54221,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b546",
@@ -52181,6 +54264,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b547",
@@ -52223,6 +54307,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b548",
@@ -52265,6 +54350,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b549",
@@ -52307,6 +54393,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b550",
@@ -52349,6 +54436,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b551",
@@ -52391,6 +54479,7 @@ true,
 "type": "creature"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b552",
@@ -52449,6 +54538,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b553",
@@ -52501,6 +54591,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b554",
@@ -52553,6 +54644,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b555",
@@ -52604,6 +54696,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b556",
@@ -52652,6 +54745,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b557",
@@ -52698,6 +54792,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b558",
@@ -52747,6 +54842,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b559",
@@ -52797,6 +54893,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b560",
@@ -52847,6 +54944,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b561",
@@ -52897,6 +54995,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b562",
@@ -52947,6 +55046,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b563",
@@ -52997,6 +55097,7 @@ true,
 "type": "character"
 },
 {
+"avertissements": [],
 "clause_defaut": null,
 "clause_toutes": null,
 "id": "b564",

@@ -260,6 +260,45 @@ export function analyser(texte, typeActif, style) {
   return intent;
 }
 
+// ── AVERTISSEMENTS AVANT DEPENSE (24/10, audit des prompts m5 / M12) ──────────────────────────────────────────────────────────────
+// Pur, SANS effet sur le prompt envoye : le client (index2.js) montre la liste AVANT toute requete payante et laisse choisir. Jumeau Python : detecter_avertissements.
+//   texte-trop-long ............................ plus de 2 000 caracteres : le serveur le refuse ;
+//   texte-long ................................. 55 mots ou plus : l'encodeur lit tout, mais le cadrage du gabarit est repousse apres le sujet et pese moins ;
+//   pose-incompatible-avec-tpose ............... personnage, case T-pose cochee, et le texte demande assis / bras croises / en selle... ;
+//   quantite-deux-personnages-gabarit-un-seul .. « two men fighting », « a crowd of soldiers » : le gabarit decrit UN personnage ;
+//   vue-demandee-gabarit-de-face ............... « side view », « from behind »... : le gabarit dit « strict front view » ;
+//   buste-gabarit-corps-entier ................. « portrait », « bust », « headshot » : le gabarit dit « full body ».
+// Aucune regle eteinte du composeur n'est allumee : on AVERTIT, on ne modifie pas le prompt.
+export const SEUIL_MOTS_LONG = 55;   // ~ un bloc de 75 jetons de l'encodeur, gabarit compris
+export const PROMPT_MAX_CARS = 2000;
+const RE_CJK = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/g;
+const RE_NOMBRE_PERSONNES = /\b(?:(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:[a-z'-]+\s+){0,2}?(?:men|women|people|persons|soldiers|knights|warriors|characters|humans|girls|boys|kids|children|brothers|sisters|orcs|elves|dwarves|goblins|pirates|guards|monsters|creatures|fighters|players|friends|wizards|mages|archers|hunters|villagers|workers|peasants|cats|dogs|wolves|horses|birds)|(?:a|the)\s+(?:crowd|group|army|horde|squad|team|pair|couple|band|pack|herd|flock|swarm)\s+of\s+(?:[a-z'-]+\s+){0,2}?(?:men|women|people|persons|soldiers|knights|warriors|characters|humans|girls|boys|kids|children|brothers|sisters|orcs|elves|dwarves|goblins|pirates|guards|monsters|creatures|fighters|players|friends|wizards|mages|archers|hunters|villagers|workers|peasants|cats|dogs|wolves|horses|birds)|twins|duo|trio|siblings)\b/i;
+// « a man with a red hat and a man with a blue hat » : deux sujets introduits chacun par un article
+const RE_PERSONNE_SINGULIER = /\b(?:an?|the)\s+(?:[a-z'-]+\s+){0,2}?(?:man|woman|boy|girl|knight|warrior|soldier|child|orc|elf|dwarf|goblin|wizard|pirate|guard|king|queen|lady|lord|hero|monster|dragon|ogre|troll)\b/gi;
+const TYPES_AVEC_AVERTISSEMENTS = ['character', 'other_living'];
+function compterMots(s) {
+  const t = String(s == null ? '' : s);
+  const cjk = (t.match(RE_CJK) || []).length;
+  return t.split(/\s+/).filter(Boolean).length + Math.floor((cjk + 1) / 2);
+}
+export function detecterAvertissements(texteSaisi, texteAnglais, typeActif, options) {
+  const saisi = String(texteSaisi == null ? '' : texteSaisi);
+  const anglais = String(texteAnglais == null ? '' : texteAnglais);
+  const codes = [];
+  if (Math.max(Array.from(saisi).length, Array.from(anglais).length) > PROMPT_MAX_CARS) codes.push('texte-trop-long');
+  else if (Math.max(compterMots(saisi), compterMots(anglais)) >= SEUIL_MOTS_LONG) codes.push('texte-long');
+  if (TYPES_AVEC_AVERTISSEMENTS.includes(typeActif)) {
+    const t = Array.from(anglais).length > PROMPT_MAX_CARS ? anglais : positifSansNegations(anglais);   // « not sitting » n'est pas une demande d'assis
+    const it = analyser(t, typeActif, '');
+    const tpose = !(options && options.tpose === false);
+    if (typeActif === 'character' && tpose && it.pose_libre) codes.push('pose-incompatible-avec-tpose');
+    if (RE_NOMBRE_PERSONNES.test(t) || (t.match(RE_PERSONNE_SINGULIER) || []).length >= 2) codes.push('quantite-deux-personnages-gabarit-un-seul');
+    if (it.vue) codes.push('vue-demandee-gabarit-de-face');
+    if (it.buste) codes.push('buste-gabarit-corps-entier');
+  }
+  return codes;
+}
+
 function _regles(regles) {
   if (regles === 'toutes') return TOUTES_REGLES;
   return regles == null ? REGLES_ACTIVES : regles;

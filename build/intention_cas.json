@@ -4298,5 +4298,167 @@
     ]
    }
   }
+ },
+ {
+  "id": "w01",
+  "texte": "A knight sitting on a throne",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "pose-incompatible-avec-tpose"
+   ]
+  }
+ },
+ {
+  "id": "w02",
+  "texte": "A knight with arms crossed",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "pose-incompatible-avec-tpose"
+   ]
+  }
+ },
+ {
+  "id": "w03",
+  "texte": "Two men fighting",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "quantite-deux-personnages-gabarit-un-seul"
+   ]
+  }
+ },
+ {
+  "id": "w04",
+  "texte": "A crowd of soldiers",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "quantite-deux-personnages-gabarit-un-seul"
+   ]
+  }
+ },
+ {
+  "id": "w05",
+  "texte": "A knight in side view",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "vue-demandee-gabarit-de-face"
+   ]
+  }
+ },
+ {
+  "id": "w06",
+  "texte": "A portrait of an old wizard",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "buste-gabarit-corps-entier"
+   ]
+  }
+ },
+ {
+  "id": "w07",
+  "texte": "A knight",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
+ },
+ {
+  "id": "w08",
+  "texte": "A knight, not sitting",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
+ },
+ {
+  "id": "w09",
+  "texte": "A man with a red hat and a man with a blue hat",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "quantite-deux-personnages-gabarit-un-seul"
+   ]
+  }
+ },
+ {
+  "id": "w10",
+  "texte": "A knight holding two swords",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
+ },
+ {
+  "id": "w11",
+  "texte": "A two-headed ogre",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
+ },
+ {
+  "id": "w12",
+  "texte": "A sitting cat",
+  "type": "other_living",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
+ },
+ {
+  "id": "w13",
+  "texte": "a tired old knight scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "texte-long"
+   ]
+  }
+ },
+ {
+  "id": "w14",
+  "texte": "a tired old knight scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred scarred",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
+ },
+ {
+  "id": "w15",
+  "texte": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "type": "character",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": [
+    "texte-trop-long"
+   ]
+  }
+ },
+ {
+  "id": "w16",
+  "texte": "Two men fighting",
+  "type": "prop",
+  "style": "realistic",
+  "attendu": {
+   "avertissements": []
+  }
  }
 ]

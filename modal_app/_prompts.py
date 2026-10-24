@@ -294,7 +294,7 @@ def _epurer_demande(texte: str) -> str:
             r"^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?"
             r"|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
             r"|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
-            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
+            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me\b|(?=\s+(?:an?|the|some|one)\b)))\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
         _DEMANDE_FR = _re.compile(
             r"^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais"
             r"|(?:fais|cr[eé]e|g[eé]n[èe]re|dessine|fabrique)(?:-moi)?)\s+"
@@ -306,6 +306,9 @@ def _epurer_demande(texte: str) -> str:
 
 
 _POLITESSE_FIN = None
+
+
+_MOTS_AVANT_TEXTE = set('saying says said reading reads read text words word written writes titled named called label labeled quote quoting spelling spells sign banner'.split())
 
 
 def _retirer_politesse_fin(t: str) -> str:
@@ -325,6 +328,10 @@ def _retirer_politesse_fin(t: str) -> str:
     if not m:
         return t
     debut = m.start()
+    # « a card saying thank you », « a sign that reads please » (24/10, m16b) : le mot fait partie du SUJET quand il suit un mot qui annonce un texte ecrit
+    av = _re.search(r"([a-z]+)[\s,;:'\"-]*$", t[max(0, debut - 30):debut], _re.I)
+    if av and av.group(1).lower() in _MOTS_AVANT_TEXTE:
+        return t
     while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
         debut -= 1
     return t[:debut]

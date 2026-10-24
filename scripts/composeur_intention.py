@@ -317,6 +317,54 @@ def analyser(texte, type_actif='character', style=''):
 
 
 # ---------------------------------------------------------------- composition du positif
+# ── AVERTISSEMENTS AVANT DEPENSE (24/10, audit des prompts m5 / M12) ──────────────────────────────────────────────────────────────
+# Pur, SANS effet sur le prompt envoye : le client (index2.js) montre la liste AVANT toute requete payante et laisse choisir. Jumeau JavaScript : detecterAvertissements.
+#   texte-trop-long ............................ plus de 2 000 caracteres : le serveur le refuse ;
+#   texte-long ................................. 55 mots ou plus : l'encodeur lit tout, mais le cadrage du gabarit est repousse apres le sujet et pese moins ;
+#   pose-incompatible-avec-tpose ............... personnage, case T-pose cochee, et le texte demande assis / bras croises / en selle... ;
+#   quantite-deux-personnages-gabarit-un-seul .. « two men fighting », « a crowd of soldiers » : le gabarit decrit UN personnage ;
+#   vue-demandee-gabarit-de-face ............... « side view », « from behind »... : le gabarit dit « strict front view » ;
+#   buste-gabarit-corps-entier ................. « portrait », « bust », « headshot » : le gabarit dit « full body ».
+# Aucune regle eteinte du composeur n'est allumee : on AVERTIT, on ne modifie pas le prompt.
+SEUIL_MOTS_LONG = 55   # ~ un bloc de 75 jetons de l'encodeur, gabarit compris
+PROMPT_MAX_CARS = 2000
+RE_CJK = re.compile('[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]')
+RE_NOMBRE_PERSONNES = re.compile(r"\b(?:(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:[a-z'-]+\s+){0,2}?(?:men|women|people|persons|soldiers|knights|warriors|characters|humans|girls|boys|kids|children|brothers|sisters|orcs|elves|dwarves|goblins|pirates|guards|monsters|creatures|fighters|players|friends|wizards|mages|archers|hunters|villagers|workers|peasants|cats|dogs|wolves|horses|birds)"
+                                 r"|(?:a|the)\s+(?:crowd|group|army|horde|squad|team|pair|couple|band|pack|herd|flock|swarm)\s+of\s+(?:[a-z'-]+\s+){0,2}?(?:men|women|people|persons|soldiers|knights|warriors|characters|humans|girls|boys|kids|children|brothers|sisters|orcs|elves|dwarves|goblins|pirates|guards|monsters|creatures|fighters|players|friends|wizards|mages|archers|hunters|villagers|workers|peasants|cats|dogs|wolves|horses|birds)"
+                                 r"|twins|duo|trio|siblings)\b", re.I)
+# « a man with a red hat and a man with a blue hat » : deux sujets introduits chacun par un article
+RE_PERSONNE_SINGULIER = re.compile(r"\b(?:an?|the)\s+(?:[a-z'-]+\s+){0,2}?(?:man|woman|boy|girl|knight|warrior|soldier|child|orc|elf|dwarf|goblin|wizard|pirate|guard|king|queen|lady|lord|hero|monster|dragon|ogre|troll)\b", re.I)
+TYPES_AVEC_AVERTISSEMENTS = ('character', 'other_living')
+
+
+def _compter_mots(s):
+    t = '' if s is None else str(s)
+    return len(t.split()) + (len(RE_CJK.findall(t)) + 1) // 2
+
+
+def detecter_avertissements(texte_saisi, texte_anglais, type_actif='character', tpose=True):
+    """-> liste de codes (ordre fixe), voir le bloc de commentaires ci-dessus. `tpose` : etat de la case « T-pose »."""
+    saisi = '' if texte_saisi is None else str(texte_saisi)
+    anglais = '' if texte_anglais is None else str(texte_anglais)
+    codes = []
+    if max(len(saisi), len(anglais)) > PROMPT_MAX_CARS:
+        codes.append('texte-trop-long')
+    elif max(_compter_mots(saisi), _compter_mots(anglais)) >= SEUIL_MOTS_LONG:
+        codes.append('texte-long')
+    if type_actif in TYPES_AVEC_AVERTISSEMENTS:
+        t = anglais if len(anglais) > PROMPT_MAX_CARS else negations_et_positif(anglais)['positif']   # « not sitting » n'est pas une demande d'assis
+        it = analyser(t, type_actif, '')
+        if type_actif == 'character' and tpose and it['pose_libre']:
+            codes.append('pose-incompatible-avec-tpose')
+        if RE_NOMBRE_PERSONNES.search(t) or len(RE_PERSONNE_SINGULIER.findall(t)) >= 2:
+            codes.append('quantite-deux-personnages-gabarit-un-seul')
+        if it['vue']:
+            codes.append('vue-demandee-gabarit-de-face')
+        if it['buste']:
+            codes.append('buste-gabarit-corps-entier')
+    return codes
+
+
 def _regles(regles):
     return TOUTES_REGLES if regles == 'toutes' else (REGLES_ACTIVES if regles is None else tuple(regles))
 
