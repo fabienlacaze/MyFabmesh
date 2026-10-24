@@ -392,13 +392,13 @@
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
                   <span style="display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden;">
                     <label style="white-space:nowrap;">Generation prompt</label>
-                    <span class="prompt-lang-hint" style="display:none; font-size:12px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
                   </span>
                   <div style="display:flex; gap:4px; flex-shrink:0;">
                     <button id="ws-copy-prompt" class="ghost-btn" style="font-size:13px; padding:2px 8px;" title="Copy prompt to clipboard">&#128203; Copy</button>
-                    <button id="ws-enhance-prompt" class="ghost-btn" style="font-size:13px; padding:2px 8px;" title="Enhance the prompt with style and quality keywords">&#10024; Enhance</button>
+                    <button id="ws-enhance-prompt" class="ghost-btn" style="font-size:13px; padding:2px 8px;" title="Translates your text to English if needed, keeps all your words, and adds the asset type and style keywords around them">&#10024; Enhance</button>
                   </div>
                 </div>
+                <div class="prompt-lang-hint" data-pour="ws-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
                 <div class="prompt-wrap">
                   <textarea id="ws-prompt" rows="3" placeholder="An orc warrior with leather armor..."></textarea>
                   <div class="prompt-overlay" style="display:none;" title="Click to edit"></div>
@@ -1426,9 +1426,9 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <span style="display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden;">
             <label style="margin:0; white-space:nowrap;">Description</label>
-            <span class="prompt-lang-hint" style="display:none; font-size:12px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
           </span>
         </div>
+        <div class="prompt-lang-hint" data-pour="np-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
         <div class="prompt-wrap">
           <textarea id="np-prompt" rows="3" placeholder="An orc warrior with leather armor, full-body pose..."></textarea>
           <div class="prompt-overlay" style="display:none;" title="Click to edit"></div>
@@ -1671,8 +1671,10 @@
           <div class="modal-form-side">
             <label>Find</label>
             <input type="text" id="ai-target" placeholder="hat, shirt, background, sword..." />
+            <div class="prompt-lang-hint" data-pour="ai-target" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
             <label>Replace with <span class="fen-facultatif">(empty = remove)</span></label>
             <input type="text" id="ai-replace" placeholder="leather helmet, plain background..." />
+            <div class="prompt-lang-hint" data-pour="ai-replace" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
             <label>Detection precision <span id="ai-precision-val" class="slider-val">65%</span></label>
             <input type="range" id="ai-precision" min="0" max="100" value="65" />
             <label>Padding <span id="ai-dilate-val" class="slider-val">15px</span></label>
@@ -1771,10 +1773,12 @@
             <div class="rc-f-zone">
               <label>What to recolor</label>
               <input type="text" id="rc-prompt" placeholder="cape, armor, helmet, axe..." />
+              <div class="prompt-lang-hint" data-pour="rc-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
             </div>
             <div class="rc-f-style" style="display:none;">
               <label>Coloring / style</label>
               <input type="text" id="rc-all-prompt" placeholder='e.g. "sunset gradient", "cyberpunk neon", "military green camo"' />
+              <div class="prompt-lang-hint" data-pour="rc-all-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
             </div>
             <div class="rc-f-color">
               <label style="margin-top:10px;">Colour</label>
@@ -1812,6 +1816,7 @@
             <div class="fen-echelle"><span>&#128118; Younger</span><span>Older &#128116;</span></div>
             <label>Guide <span class="fen-facultatif">(optional)</span></label>
             <input type="text" id="age-guide" placeholder="e.g. grey beard, smooth skin" />
+            <div class="prompt-lang-hint" data-pour="age-guide" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
           </div>
         </div>
         <div class="modal-actions">
@@ -2421,6 +2426,7 @@
               <div style="font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px;">Area to re-texture</div>
               <label style="font-size:13px;">What should this area look like?</label>
               <input type="text" id="pe-mask-prompt" placeholder="e.g. polished golden metal armor" style="width:100%; padding:6px; font-size:14px;" />
+              <div class="prompt-lang-hint" data-pour="pe-mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
               <label style="display:flex; justify-content:space-between; font-size:13px;">Strength <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
               <input type="range" id="pe-mask-strength" min="0.3" max="1" step="0.05" value="0.8" style="width:100%;" />
               <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Orbit with right-click, zoom with the wheel.</div>
@@ -3210,6 +3216,7 @@
         <p class="modal-subtitle">Describe what to change. The mesh is rebuilt from a new script.</p>
         <label>Modification</label>
         <textarea id="rfn-prompt" rows="3" placeholder="add wheels, make it taller, smoother surface..."></textarea>
+        <div class="prompt-lang-hint" data-pour="rfn-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
         <label>Output format</label>
         <select id="rfn-format">
           <option value="glb" selected>GLB</option>
@@ -3348,6 +3355,7 @@
           <div class="modal-form-side">
             <label>What to change</label>
             <textarea id="mod-prompt" rows="3" placeholder="make it red, add details, anime style..."></textarea>
+            <div class="prompt-lang-hint" data-pour="mod-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
             <select id="mod-engine" style="display:none;"><option value="local-sdxl" selected>MyFabmesh.AI</option></select>
             <label>Strength <span id="mod-strength-val" class="slider-val">55%</span></label>
             <input type="range" id="mod-strength" min="30" max="95" value="55" />
@@ -3384,6 +3392,7 @@
             <div class="var-scale"><span>Close to the original</span><span>Very different</span></div>
             <label>Guide <span class="var-optional">(optional)</span></label>
             <input type="text" id="var-tex-prompt" placeholder="e.g. golden armor, spotted coat" />
+            <div class="prompt-lang-hint" data-pour="var-tex-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
             <div class="var-count-row"><span>Number of variants</span><input type="number" id="var-count" min="1" max="8" value="1" /></div>
           </div>
         </div>
@@ -3434,6 +3443,7 @@
           <label for="mask-prompt" style="font-size: 14px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
           <input type="text" id="mask-prompt" placeholder="Describe what to put in the masked area — leave empty to just remove it" style="flex: 1; padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;" />
         </div>
+        <div class="prompt-lang-hint" data-pour="mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
         <div class="modal-actions fen-pied-editeur">
           <button id="mask-cancel" class="ghost-btn">Cancel</button>
           <button id="mask-apply" class="primary-btn">Apply Inpaint</button>

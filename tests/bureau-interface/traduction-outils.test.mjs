@@ -49,7 +49,7 @@ const DECLARATIONS = [
   '_cacheTraductions', '_etatTraduction', '_langueInterface', '_majEtatTraduction', '_occupationTraduction', '_ressembleAnglais',
   'traduireTexteUtilisateur', 'translateUserPrompt', '_traduirePourGeneration', 'MSG_TRADUCTION', '_messageTraduction',
   '_choixTraductionEchouee', '_indiceDosAnglais', '_texteUtilisateurPourGeneration', '_corrigerFauxAmis', 'stripKnownPromptSuffixes',
-  'ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', 'PROMPT_LANG_HINT', 'TRANSLATING_MSG',
+  'ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', 'AIDE_PROMPT_EN', 'CHAMPS_PROMPT_SANS_TRADUCTION', '_traductionActivePour', '_texteAideLangue', 'TRANSLATING_MSG',
   // negations de l'utilisateur (piste N, fusionnee le 20/10) : les gestionnaires les appellent
   '_sansNegations', '_negativeExtraDe', '_optionsAffichage', '_optionsPose', '_epurerDemande', '_retirerPolitesseFin', '_DEMANDE_EN', '_DEMANDE_FR',
   // outils
