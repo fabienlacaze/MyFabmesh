@@ -91,6 +91,10 @@ export interface Env {
   // Shares the back-view container's RealVisXL + ControlNet OpenPose +
   // IPAdapter snapshot, so cold start ≈ back-view (~30-40s).
   MODAL_TPOSE_URL?: string;
+  // Moteurs d'image « Rapide » (Z-Image Turbo) et « Meilleur » (Qwen-Image), application Modal separee `myfabmesh-imagegen` (2026-10-25).
+  // Meme contrat que MODAL_TEXT2IMAGE_URL (POST JSON -> PNG). URL absente : le moteur n'est pas propose, la demande retombe sur le moteur d'origine.
+  MODAL_ZIMAGE_URL?: string;
+  MODAL_QWEN_URL?: string;
   // Auto-rectify — strict orthographic FRONT or 3/4 ISO regeneration with
   // multi-seed symmetry scoring (port of generate_front_strict.py). Same
   // container as back-view/tpose, ControlNet is neutralized at call time.
@@ -2156,6 +2160,11 @@ const PRICING_DEFAULTS = {
   // 6 (2026-10-02, demande du user : le bouton « Generer une nouvelle version » doit afficher 6 ; il affichait 3). MESURE : x13 a 3 credits, donc pas une exigence de rentabilite.
   // Prix d'UNE image a 30 pas (au prorata des pas : 10 pas = 2, 60 pas = 12). La T-pose y AJOUTE `tpose` (voir plus bas, depuis le 2026-10-03).
   text2image:       6,
+  // Moteurs d'image du menu (2026-10-25, « marge constante » demandee par le user). Cout GPU MESURE au banc du 24/10 : SDXL 0,003 $ (mediane du fichier), Z-Image
+  // Turbo 3,9 s de L40S = 0,002 $, Qwen 44 s d'A100 80 Go = 0,031 $ HORS demarrage a froid (205 s de chargement). Par rapport a SDXL a 6 credits : Turbo ~4, Qwen ~60.
+  // Valeurs de DEPART, plus basses que le calcul strict (decision du proprietaire attendue) ; `_meta/pricing.json` les surcharge a chaud. Prix PAR IMAGE, sans pas.
+  text2image_zimage: 2,
+  text2image_qwen:   40,
   // SUPPLEMENT T-POSE (2026-10-03, demande du user : case « T-pose » cochee par defaut, « +1 credit »). S'ajoute a `text2image`, PAR IMAGE, uniquement
   // quand la pose est imposee par squelette (route Modal /tpose : conteneur Backview, ControlNet + IP-Adapter, ~3 fois le GPU d'une image simple, estimation
   // du worker 0,02 $ contre 0,006 $). Case decochee : pose libre, prix normal. Le tarif affiche (bureau et site) lit CETTE cle dans /api/pricing.
@@ -11333,6 +11342,7 @@ interface CogInput {
   steps?: number;
   unrestricted?: boolean;
   turbo?: boolean;
+  moteur?: 'zimage' | 'qwen';   // moteur d'image du menu : choisit l'URL Modal (application myfabmesh-imagegen) ; absent = text2image d'origine
   pose_libre?: boolean;   // case « T-pose » decochee (2026-10-03) : Modal retire la T-pose du gabarit
   negative_extra?: string[];   // negations de l'utilisateur (« no helmet » -> « helmet ») : termes AJOUTES au negatif par Modal (_nettoyerNegativeExtra)
 }
@@ -11451,9 +11461,11 @@ function _texteDeModerationNegations(texte: string, negatifs: string[]): string 
 }
 
 async function callModalText2Image(env: Env, userId: string, input: CogInput, folder: string): Promise<string> {
-  const url = env.MODAL_TEXT2IMAGE_URL;
+  const url = input.moteur === 'qwen' ? env.MODAL_QWEN_URL
+            : input.moteur === 'zimage' ? env.MODAL_ZIMAGE_URL
+            : env.MODAL_TEXT2IMAGE_URL;
   const secret = env.MODAL_SHARED_SECRET;
-  if (!url) throw new Error('MODAL_TEXT2IMAGE_URL not set');
+  if (!url) throw new Error(input.moteur ? `image engine ${input.moteur} not configured` : 'MODAL_TEXT2IMAGE_URL not set');
   if (!secret) throw new Error('MODAL_SHARED_SECRET not set');
   // Negations de l'utilisateur : re-nettoyees ici (derniere porte avant Modal). La cle n'est envoyee que s'il y en a : sans negation, le corps de la requete
   // est identique, a l'octet, a celui d'avant. Les MEMES champs partent dans les reprises (524, image de remplacement du filtre) : une reprise ne doit
@@ -12877,12 +12889,13 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
   const { prompt, numImages, seed, asset_type, asset_style, userPrompt, steps,
-          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo, langueVerifiee, negativeExtra } = await req.json() as {
+          tpose, poseLibre, refImageUrl, cn_scale, ip_scale, projectName, turbo, langueVerifiee, negativeExtra, moteur } = await req.json() as {
     prompt?: string;
     userPrompt?: string;
     // L'interface a traite la langue (traduit, ou « Envoyer tel quel » choisi apres un echec) : le filet de langue ne repasse pas.
     langueVerifiee?: boolean;
     turbo?: boolean;   // SDXL-Lightning 4-step turbo (Modal text2image only)
+    moteur?: string;   // menu « Moteur » : 'zimage' (Rapide) ou 'qwen' (Meilleur) ; autre valeur ou URL absente = moteur d'origine
     numImages?: number;
     seed?: number;
     asset_type?: string;
@@ -12961,7 +12974,11 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // l'accelerateur manquait, Modal ferait une image normale : le client paie
   // alors moins, jamais une image ratee.
   // T-pose mode requires Modal (no Replicate fallback yet). Decide AVANT le prix : la T-pose coute un supplement par image (2026-10-03).
-  const useTpose = !!tpose && !!env.MODAL_TPOSE_URL;
+  // Moteur du menu (2026-10-25) : la T-pose et le cadrage viennent du gabarit de texte cote Modal, pas de la route ControlNet : pas de supplement T-pose.
+  const moteurImage: 'zimage' | 'qwen' | undefined =
+    moteur === 'zimage' && env.MODAL_ZIMAGE_URL ? 'zimage'
+    : moteur === 'qwen' && env.MODAL_QWEN_URL ? 'qwen' : undefined;
+  const useTpose = !!tpose && !!env.MODAL_TPOSE_URL && !moteurImage;
   /* 2026-10-03 (CLOUD-05) : la garde SSRF etait posee APRES les debits (budget, appels, credits) et renvoyait 400 sans rembourser : un
    * refus coutait un credit. Troisieme relecture du lot 2 (14/10, B3) : remontee AVANT le filet de langue, qui traduisait puis laissait
    * cette garde refuser sans debit (67 comptes a 15 credits epuisaient ainsi le compteur partage du filet avec des refus gratuits). */
@@ -12969,7 +12986,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     return err(400, 'refImageUrl host not allowed');
   }
   const supplementTpose = useTpose ? await getPrice(env, 'tpose') : 0;
-  const COST_PER_IMAGE = _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
+  const COST_PER_IMAGE = moteurImage
+    ? Math.max(1, Math.round(await getPrice(env, moteurImage === 'qwen' ? 'text2image_qwen' : 'text2image_zimage')))
+    : _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
   const cost = n * COST_PER_IMAGE;
   // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
   // Le prompt enrichi (route T-pose, historique) recoit la MEME traduction. Seconde revue du 14/10 : quand il CONTIENT le texte brut
@@ -13035,7 +13054,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // doesn't share a wallet with Replicate). Counting Modal calls
   // against the Replicate budget locks the user out of Modal as soon
   // as the (separate) Replicate counter is exhausted.
-  const useModal = useTpose || !!env.MODAL_TEXT2IMAGE_URL;
+  const useModal = useTpose || !!moteurImage || !!env.MODAL_TEXT2IMAGE_URL;
   const callBackend = useModal ? callModalText2Image : callMyfabmeshCog;
 
   // Worst-case Replicate cost estimate per image (cold-start + active
@@ -13064,7 +13083,8 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
    * securite comprise. 0,006 = 2 x 0,003 ; 0,02 = 2 x (0,006 + 0,004),
    * la t-pose enchainant une generation PUIS une passe de rectification.
    * Les deux lignes sont donc coherentes a la meme marge de 2x. */
-  const ESTIMATED_USD_PER_IMAGE = useTpose ? 0.02 : (useModal ? 0.006 : 0.30);
+  // Moteurs du menu : 2 x le cout MESURE (Turbo 0,002 $, Qwen 0,031 $ + demarrage a froid), meme marge de securite que ci-dessus.
+  const ESTIMATED_USD_PER_IMAGE = moteurImage === 'qwen' ? 0.08 : moteurImage === 'zimage' ? 0.006 : useTpose ? 0.02 : (useModal ? 0.006 : 0.30);
   const estimatedTotal = ESTIMATED_USD_PER_IMAGE * n;
 
   // Hard daily spend cap — refund the estimate if the call fails.
@@ -13120,7 +13140,8 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
           unrestricted, // per-user parental state, forwarded to Modal
           seed: seedBase + i,
           steps: pas,
-          turbo: !!turbo,  // SDXL-Lightning 4-step (Modal only; Cog ignores it)
+          turbo: !moteurImage && !!turbo,  // SDXL-Lightning 4-step (Modal only; Cog ignores it)
+          ...(moteurImage ? { moteur: moteurImage } : {}),
           pose_libre: !!poseLibre,   // case « T-pose » decochee : le gabarit serveur n'impose pas la T-pose
           // Negations : Modal les derive aussi du texte brut (anciens clients), mais un client a jour envoie le texte DEJA sans elles, les termes ne
           // viennent alors QUE de ce champ. Cle absente sans negation : requete identique a celle d'avant. JAMAIS envoyee au repli Replicate (Cog ne connait
@@ -13157,7 +13178,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     const debut = opStart + i * trancheMs;
     await logOperation(env, user.id, opType,
                        COST_PER_IMAGE, debut, debut + trancheMs, 'succeeded',
-                       { req, projectName, asset_type, asset_style, batch_index: i, batch_size: n, pas: turbo ? 4 : pas });
+                       { req, projectName, asset_type, asset_style, batch_index: i, batch_size: n, pas: moteurImage ? undefined : (turbo ? 4 : pas), moteur: moteurImage });
   }
   // Persist in user_assets so /api/cloud-projects can list these
   // without the client needing to cache R2 paths in localStorage.
@@ -13169,7 +13190,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
         await insertUserAsset(env, user.id, projectName, kind, r2_path, null,
           { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
             // reglages complets pour l'historique des generations (2026-09-29)
-            steps: turbo ? 4 : (steps || 30), count: n, turbo: !!turbo || undefined, tpose: useTpose || undefined,
+            steps: moteurImage ? undefined : (turbo ? 4 : (steps || 30)), count: n, turbo: (!moteurImage && !!turbo) || undefined, moteur: moteurImage, tpose: useTpose || undefined,
             negative_extra: negatifs.length ? negatifs : undefined,
             full_prompt: String(promptEnrichi || '').slice(0, 1500),
             // langue(s) traduite(s) par le filet du serveur (lot 2 de l'audit de la langue) : le support sait ce qui est arrive

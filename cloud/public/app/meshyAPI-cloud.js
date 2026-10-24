@@ -835,7 +835,9 @@
             tpose: _tposeDemande(promptArg),     // personnage : pose imposee par squelette (case « T-pose » cochee)
             poseLibre: _poseLibre,               // case decochee : pose libre
             ...(_negatifs.length ? { negativeExtra: _negatifs } : {}),   // negations de l'utilisateur : ajoutees au negatif par le serveur
-            turbo: engine === 'local-lightning',  // SDXL-Lightning 4-step (Modal text2image)
+            turbo: engine === 'local-lightning',  // SDXL-Lightning 4-step (Modal text2image) : repli si le moteur du menu n'est pas disponible
+            // Moteur du menu (2026-10-25) : « Fast » = Z-Image Turbo, « Best » = Qwen-Image. Le serveur ignore la valeur si son URL n'est pas configuree.
+            ...(engine === 'local-lightning' ? { moteur: 'zimage' } : engine === 'qwen-best' ? { moteur: 'qwen' } : {}),
             projectName,         // for user_assets row insertion
             // « Envoyer tel quel » choisi apres un echec de traduction : le filet de langue du serveur respecte ce choix (2026-10-13)
             ...(langueVerifiee ? { langueVerifiee: true } : {}),

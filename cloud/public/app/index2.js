@@ -360,7 +360,8 @@ async function uploadClientMeshResult(bytes, opType, extra = {}) {
 const ENGINE_LABELS = {
   // Image engines
   'img_balanced':     'Balanced (quality/speed)',
-  'local-lightning':'Fast (Turbo ⚡ · ~4 steps)',
+  'local-lightning':'Fast (Turbo ⚡)',
+  'qwen-best':      'Best (highest quality)',
   // 3D engines — sf3d / local legacy IDs are silently rerouted to
   // the native engine at dispatch.
   'sf3d':           'MyFabmesh.AI 3D Native (rerouted)',
