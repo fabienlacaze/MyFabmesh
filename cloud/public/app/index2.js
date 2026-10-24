@@ -3589,6 +3589,7 @@ async function renderImageVersions(p) {
       <span class="v-used-badge" title="Used for next step">&#10003;</span>
       <span class="v-label">v${images.length - 1 - i}</span>
       <button class="version-delete-btn" title="Delete this version">&#10005;</button>
+      <button class="version-history-btn" title="${escapeHtml(_i18nT('View generation history'))}">&#9201;</button>
       ${emissiveBadge}
     `;
     t.addEventListener('click', () => {
@@ -3608,6 +3609,10 @@ async function renderImageVersions(p) {
       // bar stayed hidden even though the _multiview/ folder existed). Fires
       // after a short delay to let the DOM settle.
       setTimeout(() => { _checkMultiviewForCurrentImage(); }, 30);
+    });
+    t.querySelector('.version-history-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showGenerationHistory(img.path);   // 25/10 : historique d'une IMAGE (chaine generee <- modifiee <- rectifiee)
     });
     t.querySelector('.version-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -9901,7 +9906,9 @@ async function buildLineageTimeline(startPath, p) {
     if (rec) { const t = new Date(rec.created || rec.mtime || 0).getTime(); if (Number.isFinite(t) && t) return t; }
     return 0;
   };
-  let curPath = startPath;
+  // Depart sur une IMAGE de la bande des versions (25/10) : pas de maillage a remonter, on affiche directement la chaine de l'image.
+  const depuisImage = !!findIn(p.images, startPath);
+  let curPath = depuisImage ? null : startPath;
   let guard = 0;
   while (curPath && guard++ < 20) {
     const anim = findIn(p.animations, curPath);
@@ -9958,7 +9965,7 @@ async function buildLineageTimeline(startPath, p) {
     if (parentPath && norm(parentPath) === norm(curPath)) break;
     curPath = parentPath;
   }
-  const srcImg = (steps.find((s) => s.sourceImage) || {}).sourceImage;
+  const srcImg = depuisImage ? startPath : (steps.find((s) => s.sourceImage) || {}).sourceImage;
   if (srcImg) {
     const projPrompt = (p && typeof p.prompt === 'string' && p.prompt.trim()) ? p.prompt.trim() : null;
     // CHAINE DE L'IMAGE (2026-09-29, user : « on a plus de parametres pour les images que ce qu'il y a dans

@@ -659,7 +659,7 @@
     "From 2 to 12. Cloud fabrication (~1 min).": ["De 2 à 12. Fabrication cloud (~1 min).", "De 2 a 12. Fabricación en la nube (~1 min).", "2 到 12 个。云端生成（约 1 分钟）。", "2 से 12। क्लाउड पर निर्माण (~1 मिनट)।", "من 2 إلى 12. تصنيع سحابي (~1 دقيقة)."],
     "Flat material colours on the web (textured in the desktop app).": [null, "Colores de material planos en la web (con textura en la aplicación de escritorio).", "网页版使用纯色材质（桌面版带纹理）。", "वेब पर सादे सामग्री रंग (डेस्कटॉप ऐप में टेक्सचर के साथ)।", "ألوان خامات مسطحة على الويب (بخامات في تطبيق سطح المكتب)."],
     "Cancel job": ["Annuler la tâche", "Cancelar la tarea", "取消任务", "काम रद्द करें", "إلغاء المهمة"],
-    "View generation history": [null, "Ver el historial de generación", "查看生成历史", "जनरेशन इतिहास देखें", "عرض سجل التوليد"],
+    "View generation history": ["Voir l'historique de génération", "Ver el historial de generación", "查看生成历史", "जनरेशन इतिहास देखें", "عرض سجل التوليد"],
     "Reshape a region failed": ["Échec du remodelage de la zone", "Falló la remodelación de la zona", "区域重塑失败", "क्षेत्र को नया आकार देना विफल रहा", "فشلت إعادة تشكيل المنطقة"],
     "Pick or generate a mesh first.": ["Génère ou choisis un mesh d'abord.", "Elige o genera primero una malla.", "请先选择或生成网格。", "पहले कोई मेश चुनें या बनाएँ।", "اختر شبكة أو ولّدها أولًا."],
     "Current": [null, "Actual", "当前", "मौजूदा", "الحالي"],
