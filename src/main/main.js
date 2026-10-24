@@ -87,6 +87,8 @@ const OptionNormales = require('./option_normales');
 // MARQUAGE « GENERE PAR IA » des GLB derives (2026-10-03, reglement UE 2024/1689 art. 50, echeance 2026-12-02) : les outils de maillage,
 // l'editeur, Paint Mesh et le rig reecrivent le GLB et perdaient asset.extras.aiGenerated posee a la generation. Voir src/main/marquage_ia.js.
 const _marquageIA = require('./marquage_ia');
+// « Reshape a region » : vue CHOISIE dans le visualiseur 3D (yaw / pitch), validation (2026-10-19). Voir src/main/reshape_vue.js.
+const _reshapeVue = require('./reshape_vue');
 function _journalMarquageIA(canal, chemin, r) {
   try {
     if (r && r.ok && !r.deja) _log('info', '[marquage-ia] ' + canal + ' : GLB marque ' + chemin);
@@ -12992,7 +12994,12 @@ ipcMain.handle('save-buffer', async (_event, { path: filePath, buffer, base64 })
 // AI region re-texture (MVP modif-mesh): render the mesh front so the user can
 // draw a mask aligned to face_inpaint_atlas.py's projection, then re-texture the
 // painted region with a prompt (generalises face inpaint beyond the face).
-ipcMain.handle('mesh:render-front', async (_e, { meshPath } = {}) => {
+ipcMain.handle('mesh:render-front', async (_e, { meshPath, yaw, pitch } = {}) => {
+  // 2026-10-19 : vue CHOISIE dans le visualiseur 3D de la fenetre (yaw autour de Y, pitch autour de X, en degres).
+  // Absents ou nuls = la vue de face d'avant, inchangee. Angles invalides : refus avant tout calcul.
+  const choix = _reshapeVue.validerVue(yaw, pitch);
+  if (!choix.ok) return { ok: false, error: 'Invalid view: ' + choix.erreur };
+  const argsVue = (choix.yaw === 0 && choix.pitch === 0) ? [] : [String(choix.yaw), String(choix.pitch)];
   // Vue A PLAT sur fond BLANC (mesh_inpaint.py rendre, 2026-09-28) : meme
   // camera orthographique que face_inpaint_atlas (le masque se projette pareil),
   // mais les vraies couleurs de la texture. L'ancien rendu eclaire etait tres
@@ -13000,13 +13007,19 @@ ipcMain.handle('mesh:render-front', async (_e, { meshPath } = {}) => {
   const script = path.join(SCRIPTS_DIR, 'mesh_inpaint.py');
   const out = path.join(os.tmpdir(), `fabmesh_front_${Date.now()}.png`);
   return new Promise((resolve) => {
-    execFile(_aiPython(), [script, 'rendre', meshPath, out, '1024'],
+    execFile(_aiPython(), [script, 'rendre', meshPath, out, '1024', ...argsVue],
       { timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (error) => {
         if (error || !fs.existsSync(out)) { resolve({ ok: false, error: (error && error.message) || 'render failed' }); return; }
         try {
           const dataUrl = 'data:image/png;base64,' + fs.readFileSync(out).toString('base64');
+          // Vue tournee : le script ecrit <rendu>.vue.json (angles + demi-largeur de la fenetre, elargie si le modele deborde).
+          let vue = null;
+          if (argsVue.length) {
+            try { vue = _reshapeVue.normaliserVue(JSON.parse(fs.readFileSync(out + '.vue.json', 'utf8'))).vue; } catch (_) { vue = null; }
+            if (!vue) { resolve({ ok: false, error: 'The view could not be read back.' }); return; }
+          }
           // Keep the rendered front on disk so CLIPSeg auto-detect can run on it.
-          resolve({ ok: true, dataUrl, frontPath: out });
+          resolve({ ok: true, dataUrl, frontPath: out, vue });
         } catch (e) { resolve({ ok: false, error: String(e) }); }
       });
   });
@@ -13084,13 +13097,19 @@ function _lancerPy(exe, args, { timeout = 600000, env, etiquette = 'reshape' } =
     proc.stderr?.on('data', (d) => safeSend('ai3d-progress', `[${etiquette}] ${d}`));
   });
 }
-ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt } = {}) => {
+ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, vue: vueDemandee } = {}) => {
   const refusTexte = refusTexteOutil(prompt);   // 2026-10-13 (MODERATION-04)
   if (refusTexte) return { ok: false, error: refusTexte };
   if (isCloudMode()) {
     return { ok: false, error: 'Reshape a region runs on the local AI engine for now. Switch to Local mode (NVIDIA GPU).' };
   }
   if (!meshPath || !fs.existsSync(meshPath) || !isPathAllowed(meshPath)) return { ok: false, error: 'Mesh not found' };
+  // Vue CHOISIE dans le visualiseur 3D (2026-10-19) : { yaw, pitch, xmag }. Validee ICI (le renderer n'est pas fiable) ;
+  // absente ou a zero = la vue de face d'avant. Le meme couple d'angles sert au rendu et a l'assemblage (le cadre le porte).
+  const choixVue = _reshapeVue.normaliserVue(vueDemandee);
+  if (!choixVue.ok) return { ok: false, error: 'Invalid view: ' + choixVue.erreur };
+  const vueChoisie = choixVue.vue;
+  if (vueChoisie && uvMaskDataUrl) return { ok: false, error: 'A painted-on-3D area and a chosen view cannot be combined.' };
   // Deux entrees : masque de la vue de face (fenetre a plat) OU zone peinte
   // sur le modele 3D (uvMaskDataUrl, variante « comme Draw mask »).
   if (!uvMaskDataUrl && (!frontPath || !fs.existsSync(frontPath))) {
@@ -13123,7 +13142,8 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
 
     // vue a plat (vraies couleurs, fond blanc), meme projection que la fenetre
     const vue = path.join(dir, 'vue.png');
-    const r0 = await _lancerPy(_aiPython(), [script, 'rendre', meshPath, vue, String(taille.width || 1024)]);
+    const r0 = await _lancerPy(_aiPython(), [script, 'rendre', meshPath, vue, String(taille.width || 1024),
+      ...(vueChoisie ? [String(vueChoisie.yaw), String(vueChoisie.pitch)] : [])]);
     if (!r0.ok || !fs.existsSync(vue)) return { ok: false, error: 'Rendering the mesh failed: ' + (r0.error || 'unknown') };
 
     etape('1/4 painting the new part…');
@@ -13136,7 +13156,7 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
     etape('2/4 isolating the new part…');
     const piecePng = path.join(dir, 'piece.png');
     const cadre = path.join(dir, 'cadre.json');
-    const r2 = await _lancerPy(_aiPython(), [script, 'preparer', repeint, masque, piecePng, cadre, vue]);
+    const r2 = await _lancerPy(_aiPython(), [script, 'preparer', repeint, masque, piecePng, cadre, vue, ...(vueChoisie ? [vue + '.vue.json'] : [])]);
     if (!r2.ok || !fs.existsSync(piecePng)) return { ok: false, error: 'Isolating the new part failed: ' + (r2.error || 'unknown') };
 
     etape('3/4 building the part in 3D…');
@@ -13159,7 +13179,8 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
     const sortie = path.join(path.dirname(meshPath), `${base}_edited_${Date.now()}.glb`);
     const r4 = await _lancerPy(_aiPython(), [script, 'assembler', meshPath, masque, cadre, pieceGlb, sortie, ...(facesNpy ? [facesNpy] : [])]);
     if (!r4.ok || !fs.existsSync(sortie)) return { ok: false, error: 'Fitting the part failed: ' + (r4.error || 'unknown') };
-    writeMeta(sortie, { kind: 'op', op: 'reshape', parent: meshPath, params: { prompt: String(prompt) } });
+    writeMeta(sortie, { kind: 'op', op: 'reshape', parent: meshPath,
+      params: { prompt: String(prompt), ...(vueChoisie ? { view: { yaw: vueChoisie.yaw, pitch: vueChoisie.pitch } } : {}) } });
     // la source de la version d'origine reste la source de celle-ci
     try { const src = meshPath + '.source'; if (fs.existsSync(src)) fs.copyFileSync(src, sortie + '.source'); } catch (_) {}
     return { ok: true, path: sortie };
