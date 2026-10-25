@@ -4654,7 +4654,7 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 .fen-petit { align-self: flex-start; margin: 0; padding: 5px 12px; font-size: 12px; width: auto; }
 .modal-actions .secondary-btn { height: 42px; padding: 0 18px; margin: 0; width: auto; }
 /* fenetre 3D (apercu en direct) : grande carte, l'apercu prend toute la hauteur */
-.modal-card.fen-3d { width: min(1400px, 92vw); max-width: 92vw; height: min(88vh, 920px);
+.modal-card.fen-3d { width: min(1700px, 97vw); max-width: 97vw; height: min(94vh, 1000px);   /* REGLE COMMUNE 25/10 : fenetre de reference */
   display: flex; flex-direction: column; box-sizing: border-box; }
 .modal-card.fen-3d .fen-corps { flex: 1 1 0; grid-template-columns: minmax(0, 1fr) 300px; }
 .modal-card.fen-3d .modal-actions { margin-top: 16px; }
@@ -5281,3 +5281,10 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-job-details .modal-card.fen-detail:has(#jd-ref-img[style*="none"]) .fen-corps { grid-template-columns: 1fr !important; }
 #modal-job-details .modal-card.fen-detail:has(#jd-ref-img:not([src])) .fen-apercu,
 #modal-job-details .modal-card.fen-detail:has(#jd-ref-img[style*="none"]) .fen-apercu { display: none; }
+
+
+/* ══ REGLE COMMUNE (25/10) : fenetre de reference .fen-3d = min(1700px, 97vw) x min(94vh, 1000px) ; colonne de droite >= 330 px a 1400 x 900.
+   Sous 1500 px de large la marge interieure horizontale passe a 12 px (l'apercu, lui, ne change pas : --vz-w-corps). ══ */
+@media (max-width: 1500px) and (min-width: 901px) {
+  .modal-card.fen-3d { padding-left: 12px !important; padding-right: 12px !important; }
+}
