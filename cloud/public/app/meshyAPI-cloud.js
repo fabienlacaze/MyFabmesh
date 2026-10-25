@@ -3321,7 +3321,18 @@
     generateConstructionStages3d: async ({ meshPath, meshUrl, stageCount, material, materials, projectName } = {}) => {
       // 25/10 : « meshUrl host not allowed » apres la generation : le chemin pouvait etre RELATIF (/r2/...), que le serveur ne sait pas verifier. URL absolue.
       let url = meshUrl || meshPath;
-      try { if (url && /^\//.test(String(url))) url = new URL(String(url), window.location.origin).href; } catch (_) {}
+      // 25/10 : « meshUrl host not allowed: invalid URL » (capture user) : le chemin du maillage affiche n'etait pas une URL complete (cle R2 ou nom de fichier).
+      // On retrouve alors la version dans la liste des maillages du projet (adresse signee a jour) avant de se rabattre sur une URL absolue.
+      try {
+        const brut = String(url || '');
+        if (brut && !/^https?:/i.test(brut)) {
+          const nom = brut.split('?')[0].split(/[\/]/).pop();
+          const liste = (window.state && window.state.currentProject && window.state.currentProject.meshes) || [];
+          const m = liste.find((x) => x && /^https?:/i.test(String(x.path || '')) && String(x.path).split('?')[0].split(/[\/]/).pop() === nom);
+          if (m) url = m.path;
+          else if (/^\//.test(brut)) url = new URL(brut, window.location.origin).href;
+        }
+      } catch (_) {}
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };
       try {
         const r = await postJSON('/api/construction-stages-3d', {
