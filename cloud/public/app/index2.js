@@ -13403,7 +13403,7 @@ function openMeshToolModal(toolName) {
   if (schema.clientApplyOnly && applyParent) {
     deviceBtn = document.createElement('button');
     deviceBtn.id = 'mt-apply-device';
-    deviceBtn.className = 'secondary-btn';
+    deviceBtn.className = 'primary-btn';   // 25/10 : meme pied que les autres fenetres (action pleine largeur)
     // taille : .modal-actions .secondary-btn (kit des fenetres)
     // PAS « (free) » : l'enregistrement passe par /api/mesh-op/client-result,
     // facture mesh_op_simple comme la version serveur (2026-09-30). Le prix
