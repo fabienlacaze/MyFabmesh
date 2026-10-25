@@ -16035,6 +16035,8 @@ function _peConfigureModeUI() {
     if (apply) apply.textContent = '💾 Save new version';
     if (status) status.textContent = 'Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.';
   }
+  // LOT W25 : le libelle vient d'etre reecrit (textContent efface la pastille de prix) : la reposer
+  try { window._applyValidationPills?.(); } catch (_) {}
 }
 
 function openPaintEmissive(opts = {}) {
@@ -32813,6 +32815,11 @@ const _TARIFS_VALIDATION = {
   'ex3d-start': () => window._prixBouton('ws-mesh-explode-btn'),
   'rz-apply': () => window._prixBouton('ws-mesh-resize-btn'),
   'mat-apply-btn': () => window._prixBouton('ws-mesh-material-btn'),
+  // LOT W25 : fenetre Paint Emissive en mode zone (re-texture / recolor / reshape) ; clone et emissive = pas de prix annonce ici
+  'pe-apply-device': () => {
+    if (!peState.maskMode) return null;
+    return window._prixBouton(peState.recolor ? 'ws-mesh-recolor-btn' : (peState.reshape ? 'ws-mesh-reshape-draw-btn' : 'ws-mesh-region-retex-btn'));
+  },
 };
 window._applyValidationPills = function () {
   try {

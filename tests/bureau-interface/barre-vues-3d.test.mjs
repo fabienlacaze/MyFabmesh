@@ -106,6 +106,8 @@ for (const c of COTES) {
     for (const id of ['pe-viewport-wrap', 'at-preview-canvas-wrap', 'rz-viewport']) {
       const i = html.indexOf(`id="${id}"`);
       const tag = html.slice(i, html.indexOf('>', i));
+      // LOT W25 : Paint Emissive passe en .fen-apercu (hauteur var(--vz-h-corps) donnee par le CSS .fen-3d)
+      if (id === 'pe-viewport-wrap') { assert.match(tag, /class="fen-apercu"/, id); continue; }
       assert.match(tag, /var\(--vz-h-corps\)/, id);
     }
     assert.doesNotMatch(html.slice(html.indexOf('id="pm-viewport-wrap"'), html.indexOf('id="pm-canvas"')), /560px/);
