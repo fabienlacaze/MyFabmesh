@@ -206,27 +206,27 @@ export const ESPECES = {
     trot: { motif: 'trot', T: 1.1, h: 1.25, bob: 0.85, hoche: 0.03, tangage: 0.02, tendu: 0.93, talon: 0.4, leve: 0.8 },
     // galop (25/10, « on dirait la demarche d'un chien ») : jambes presque tendues (tendu 0.9 -> 0.97), corps plus haut et plus plat (bob 1.2 -> 0.8), cadence plus lente,
     // grand balancement de tete et d'encolure (hoche 0.22 -> 0.32)
-    run: { motif: 'transverse', beta: 0.3, T: 0.9, foulee: 1.6, h: 1.1, bob: 0.8, tangage: 0.08, hoche: 0.32, flexion: 0.03, tendu: 0.9, leve: 0.65 },
+    run: { motif: 'transverse', beta: 0.3, T: 0.9, foulee: 1.6, h: 1.9, bob: 0.8, tangage: 0.08, hoche: 0.32, flexion: 0.03, tendu: 0.9, leve: 0.65 },
   },
   felin: {         // lion, tigre, chat : marche basse et souple, galop bondissant (dos plie/deplie)
     walk: { motif: 'lateral', T: 1.1, h: 0.75, bob: 0.6, tendu: 0.93, tete: 0.1, hoche: 0.015, flexion: 0.03 },
     // galop rotatif (26/10 ; tendu 0.82 -> 0.9 le 25/10 apres relecture : 5 % d'os sous le sol sur Mule / Phacochere) : foulee ~3,5 hauteurs de garrot, 2 suspensions (rassemblee + etendue), colonne qui se plie et se deplie
     // (Hildebrand 1959 ; Hudson, Corr & Wilson 2012, JEB 215:2425 : guepard 2,4 -> 3,2 foulees/s), pattes bien repliees au decollage
-    run: { motif: 'rotatif', beta: 0.27, T: 0.9, foulee: 1.5, h: 1.1, bob: 1.4, tangage: 0.06, hoche: 0.02, tete: 0.06, flexion: 0.34, tendu: 0.9, leve: 0.65 },
+    run: { motif: 'rotatif', beta: 0.27, T: 0.9, foulee: 1.5, h: 1.5, bob: 1.4, tangage: 0.06, hoche: 0.02, tete: 0.06, flexion: 0.34, tendu: 0.9, leve: 0.65 },
     idle: { T: 1.2, bob: 1.8, queue: 2.0, regard: 1.2 },
     jump: { decalage: 0.08, h: 1.3 },
   },
   canide: {        // chien, loup, renard
     walk: { motif: 'lateral', hoche: 0.03 },
     // galop du chien (26/10) : ~2,5-3 foulees/s (greyhound ~3,5 : Hudson 2012), foulee 3-4 hauteurs, dos bien plie
-    run: { motif: 'rotatif', beta: 0.28, T: 0.88, foulee: 1.4, h: 1.1, bob: 1.3, tangage: 0.07, hoche: 0.05, flexion: 0.3, tendu: 0.9, leve: 0.65 },
+    run: { motif: 'rotatif', beta: 0.28, T: 0.88, foulee: 1.4, h: 1.5, bob: 1.3, tangage: 0.07, hoche: 0.05, flexion: 0.3, tendu: 0.9, leve: 0.65 },
     trot: { motif: 'trot', T: 1.0, h: 1.1, bob: 0.9, hoche: 0.03, tendu: 0.86, leve: 0.8 },
     idle: { T: 1.1, bob: 2.0, queue: 2.2, regard: 1.4 },
     jump: { decalage: 0.08, h: 1.2 },
   },
   bovin: {         // vache, boeuf, chevre, cochon : pas lourd, tete basse, galop pataud
     walk: { motif: 'lateral', T: 1.2, h: 0.75, bob: 1.3, hoche: 0.05, tete: 0.08 },
-    run: { motif: 'transverse', beta: 0.36, T: 1.1, foulee: 0.85, bob: 1.8, tangage: 0.07, hoche: 0.07, flexion: 0.05, tete: 0.1 },
+    run: { motif: 'transverse', beta: 0.36, T: 1.1, foulee: 0.85, h: 1.6, leve: 0.75, bob: 1.8, tangage: 0.07, hoche: 0.07, flexion: 0.05, tete: 0.1 },
     trot: { motif: 'trot', T: 1.05, h: 1.0, bob: 1.0, hoche: 0.04, tete: 0.08, leve: 0.8 },
     idle: { T: 1.5, bob: 2.4, queue: 1.6, regard: 0.5, tete: 0.08 },
   },
@@ -258,8 +258,8 @@ export const ESPECES = {
     run: { motif: 'trot', beta: 0.46, T: 1.0, foulee: 1.5, bob: 0.5, ondulation: 1.0, queue: 2.0, piedPlat: true, cycleEntier: true, talon: 0.2, teteContre: 0.7, queueOnde: 1.2 },
   },
   tortue: {        // tortue : lente, toujours trois pattes au sol
-    walk: { motif: 'lateral', beta: 0.8, T: 1.9, foulee: 0.5, h: 0.6, bob: 0.4 },
-    run: { motif: 'lateral', beta: 0.7, T: 1.8, foulee: 0.6, h: 0.7, bob: 0.5 },
+    walk: { motif: 'lateral', beta: 0.8, T: 1.9, foulee: 0.7, h: 0.65, bob: 0.4 },
+    run: { motif: 'lateral', beta: 0.7, T: 1.8, foulee: 0.75, h: 0.7, bob: 0.5 },
   },
   oiseau: {        // bipede a plumes : pas vif et haut, tete qui hoche a chaque pas
     idle: { T: 1.0 },
@@ -311,7 +311,7 @@ export const ESPECES = {
   },
   dragon: {        // quadrupede reptilien et lourd, le dos ondule
     walk: { motif: 'lateral', T: 1.2, h: 0.85, bob: 1.1, tendu: 0.92, ondulation: 0.12, hoche: 0.05 },
-    run: { motif: 'rotatif', beta: 0.32, T: 1.0, foulee: 1.2, bob: 1.4, tangage: 0.06, flexion: 0.12, hoche: 0.06 },
+    run: { motif: 'rotatif', beta: 0.32, T: 1.0, foulee: 1.2, h: 1.4, bob: 1.4, tangage: 0.06, flexion: 0.12, hoche: 0.06 },
   },
   // 25/10 (« realisme de chaque animation ») pour les 6 pattes et plus. Rapport cyclique (part du cycle au sol) :
   //  - insecte : trepied alterne, jamais sous 0,5 (pas de phase aerienne : Full & Tu 1991 ; Ting, Blickhan & Full
