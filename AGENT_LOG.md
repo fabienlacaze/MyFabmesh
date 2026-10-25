@@ -26269,3 +26269,5 @@ Voir depot principal.
 ## 2026-10-25 - LOT W18 : Recolorier au gabarit fen-3d (voir depot principal)
 ## 2026-10-25 - LOT W23 : fenetre de lancement (#modal-lancement) au gabarit .fen-3d
 Apercu a gauche (984x616 a 1400x900), aide sous le titre, colonne droite 300 px, pied Annuler + action pleine largeur ; sans apercu la petite carte reste. Bureau + site.
+## 2026-10-25 - LOT W29 : edition de maillage (Sculpt / Paint / Select) au gabarit .fen-3d
+- #modal-mesh-edit (site ET bureau) : carte .modal-card.fen-3d, titre + phrase d'aide, apercu 3D a gauche (.fen-apercu, 984 x 616 a 1400 x 900), colonne de droite .fen-form (modes, loupe / annuler / refaire, miroir, rayon, force, options du mode), pied Annuler + action pleine largeur. Tous les id conserves. CSS « LOT W29 » en fin de feuille ; 1 cle de langue dans _additions6.js ; test tests/bureau-interface/lot-w29-edition-maillage.test.mjs. Mesure navigateur du site a 1400 x 900 : rien ne deborde.

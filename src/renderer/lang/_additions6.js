@@ -1523,6 +1523,8 @@
     "Paint on the image. Right-drag to pan, wheel to zoom, Ctrl+wheel to change the brush size.": ["Peignez sur l'image. Clic droit maintenu = déplacer, molette = zoom, Ctrl + molette = taille du pinceau.", "Pinta sobre la imagen. Arrastre derecho = mover, rueda = zoom, Ctrl + rueda = tamaño del pincel.", "在图像上绘制。右键拖动 = 平移，滚轮 = 缩放，Ctrl + 滚轮 = 画笔大小。", "छवि पर पेंट करें। दायाँ-खींचें = खिसकाएँ, व्हील = ज़ूम, Ctrl + व्हील = ब्रश का आकार।", "ارسم على الصورة. سحب أيمن = تحريك، العجلة = تكبير، Ctrl + العجلة = حجم الفرشاة."],
     /* LOT W14 */
     "Choose what changes and how far. The preview shows the current image.": ["Choisissez ce qui change et jusqu'où. L'aperçu montre l'image actuelle.", "Elija qué cambia y hasta qué punto. La vista previa muestra la imagen actual.", "选择要改变的内容和程度。预览显示当前图像。", "चुनें कि क्या बदले और कितना। पूर्वावलोकन वर्तमान छवि दिखाता है।", "اختر ما الذي يتغير وإلى أي مدى. تعرض المعاينة الصورة الحالية."],
+    /* LOT W29 */
+    "Sculpt, paint or select faces on the model, then save the result as a new version.": ["Sculptez, peignez ou sélectionnez des faces sur le modèle, puis enregistrez le résultat comme nouvelle version.", "Esculpe, pinta o selecciona caras en el modelo y guarda el resultado como una nueva versión.", "在模型上雕刻、绘制或选择面，然后将结果保存为新版本。", "मॉडल पर स्कल्प्ट करें, पेंट करें या फेस चुनें, फिर परिणाम को नए संस्करण के रूप में सहेजें।", "انحت أو لوّن أو حدّد أوجهًا على النموذج، ثم احفظ النتيجة كنسخة جديدة."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
