@@ -5161,3 +5161,9 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ===== LOT W16 : fenetre Habits / Outfit au gabarit .fen-3d (apercu a gauche, reglages a droite, pied pleine largeur) ===== */
+#modal-outfit .fen-apercu { display: flex; align-items: center; justify-content: center; }
+#modal-outfit .fen-apercu > img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+#modal-outfit .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-outfit .fen-apercu > img:not([src]), #modal-outfit .fen-apercu > img[src=""] { display: none; }
