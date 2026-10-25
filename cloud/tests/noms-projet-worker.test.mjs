@@ -179,6 +179,7 @@ test('handleMeshOp (outils de maillage) : chaque version est rangee sous le segm
     getPrice: async () => 1, checkAndIncrementModalSpend: async () => 1, checkAndIncrementUserCalls: async () => 1,
     spendCredits: async () => 10, addCredits: async () => 10, refundModalSpend: async () => {}, _spendRefusalMessage: async () => 'refus',
     fetch: async () => new Response(JSON.stringify({ glb_base64: Buffer.from('glTF version').toString('base64'), stats: {} })),
+    _urlPutR2Signee: async () => null,   // 25/10 : pas de cles S3 dans le test -> repli base64
     signedR2Url: async (_e, cle) => 'https://r2.example/' + cle, logOperation: async () => {}, console: silence,
   });
   const segments = {};

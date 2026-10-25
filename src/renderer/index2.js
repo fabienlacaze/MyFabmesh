@@ -3143,7 +3143,7 @@ document.getElementById('btn-import-image')?.addEventListener('click', async () 
 // PAGE 2: PROJECT WORKSPACE
 // ============================================================
 async function openProject(p) {
-  if (_gnActive()) return;   // garde de navigation : pas de changement de projet automatique juste apres la fin d'un travail
+  if (_gnFenetre()) return;   // garde de navigation : pas de changement de projet automatique juste apres la fin d'un travail
   state.currentProject = p;
   // 2026-06-13: reset the Step 4 EDIT SELECTED viewer when switching
   // projects so the previously-selected animation (from another
@@ -11678,8 +11678,14 @@ const _OP_LABEL = {
   set_pivot: 'pivot adjustment', watertight: 'watertight sealing', texture_var: 'texture variation',
   edited: 'editing', upscale: 'upscale', refine: 'refinement', augment: 'augmentation',
   vc: 'vertex colors', segment: 'part segmentation', reshape: 'Reshape a region',
+  chantier3d: 'construction steps',
+  explode: 'explosion',
+  recolor: 'recoloring',
+  mat: 'material adjustment',
+  region_retex: 'region re-texture',
+  enhance_tex: 'texture sharpening',
 };
-const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment)(?:_\d{6,})?$/i;
+const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment|chantier3d|explode|recolor|mat(?=_\d{6,}$)|region_retex|enhance_tex)(?:_\d{6,})?$/i;
 // MASQUAGE des noms d'IA internes (exigence produit) : les moteurs
 // (trellis2, PartSAM, Puppeteer, RealVis…) ne doivent JAMAIS apparaître dans
 // l'UI. Les fichiers sur disque GARDENT leurs noms (les renommer casserait
@@ -22226,7 +22232,17 @@ function _choisirOngletJobs(onglet) {
 // l'utilisateur est un geste : le defilement qu'il declenche passe). Desactivable : window.__gardeNavigation = false.
 // ============================================================
 var _GN = { dernierGeste: 0, jusqua: 0, vue: null, tPhoto: null, libre: false };   // var : openProject peut etre appele avant que le module n'atteigne cette ligne
-function _gnActive() { if (!_GN) return false; return window.__gardeNavigation !== false && !_GN.libre && Date.now() < _GN.jusqua && (Date.now() - _GN.dernierGeste) > 1500; }
+// Fenetre « apres la fin d'un travail » (premiere version de la garde) : sert au changement de projet et au rembobinage de la vue.
+function _gnFenetre() { if (!_GN) return false; return window.__gardeNavigation !== false && !_GN.libre && Date.now() < _GN.jusqua && (Date.now() - _GN.dernierGeste) > 1500; }
+// 25/10, SECOND retour du user (« il y a toujours un saut vers l'endroit quand la generation finit, supprime cette logique de partout ») : la garde ne
+// depend plus d'une fenetre apres la fin d'un travail (un clic, une molette ou une touche la desarmait pendant 1,5 s, et les fins de travail arrivent
+// de partout : sondage serveur, reprise, sous-taches...). REGLE UNIQUE : aucun defilement programmatique (scrollIntoView / scrollTo / scrollBy) sans un
+// geste de l'utilisateur dans les 6 dernieres secondes. Un travail qui finit des minutes apres le dernier clic ne peut plus rien deplacer.
+function _gnActive() {
+  if (!_GN) return false;
+  if (window.__gardeNavigation === false || _GN.libre) return false;
+  return (Date.now() - _GN.dernierGeste) > 6000 || _gnFenetre();
+}
 function _gnCle(s) { return String(s || '').replace(/[?#].*$/, '').replace(/\\/g, '/').toLowerCase(); }
 function _gnLireVue() {
   const p = state.currentProject;
@@ -22240,7 +22256,7 @@ function _gnLireVue() {
       .map((d) => ({ carte: d.closest('.step-card') && d.closest('.step-card').id, cls: d.classList.contains('stage-create') ? 'stage-create' : 'stage-edit', open: d.open })),
   };
 }
-function _gnPhoto() { try { if (!_gnActive()) _GN.vue = _gnLireVue(); } catch (_) {} }
+function _gnPhoto() { try { if (!_gnFenetre()) _GN.vue = _gnLireVue(); } catch (_) {} }
 function _gnRestaurer() {
   const v = _GN.vue;
   if (!v) return;
@@ -22272,8 +22288,8 @@ function _gnRestaurer() {
 }
 function _gnArmer() {
   if (window.__gardeNavigation === false) return;
-  _GN.jusqua = Date.now() + 8000;
-  [250, 900, 2200, 4500, 7500].forEach((t) => setTimeout(() => { if (_gnActive()) { try { _gnRestaurer(); } catch (_) {} } }, t));
+  _GN.jusqua = Date.now() + 20000;
+  [250, 900, 2200, 4500, 7500, 12000, 18000].forEach((t) => setTimeout(() => { if (_gnFenetre()) { try { _gnRestaurer(); } catch (_) {} } }, t));
 }
 (function _gnInstaller() {
   if (window.__gnInstalle) return;

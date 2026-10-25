@@ -1398,6 +1398,12 @@
     "Recolor 3D — error": ["Recolorier 3D — erreur", "Recolorear 3D — error", "3D 重新着色 — 出错", "3D रंग बदलना — त्रुटि", "تغيير اللون ثلاثي الأبعاد — خطأ"],
     "Change the colour of the model, keeping its lighting: the whole model, or one part painted on it.": ["Change la couleur du modèle en gardant son éclairage : tout le modèle, ou une partie peinte dessus.", "Cambia el color del modelo conservando su iluminación: todo el modelo o una parte pintada sobre él.", "更改模型颜色并保留光照：整个模型，或在其上涂抹的一部分。", "मॉडल का रंग बदलें और रोशनी बनी रहे: पूरा मॉडल, या उस पर पेंट किया हुआ एक हिस्सा।", "غيّر لون النموذج مع الحفاظ على إضاءته: النموذج كله أو جزء تلوّنه عليه."],
     "Right-click + drag on the mesh to paint. Left-drag = pan, middle-drag = rotate.": ["Clic droit + glisser sur le maillage pour peindre. Glisser à gauche = déplacer, molette enfoncée = tourner.", "Clic derecho + arrastrar sobre la malla para pintar. Arrastrar con el izquierdo = desplazar, rueda pulsada = girar.", "在网格上右键 + 拖动即可涂抹。左键拖动 = 平移，中键拖动 = 旋转。", "पेंट करने के लिए मेश पर राइट-क्लिक + खींचें। बायाँ खींचना = खिसकाना, बीच का बटन = घुमाना।", "انقر يمينًا واسحب على الشبكة للتلوين. سحب يسار = تحريك، الزر الأوسط = تدوير."],
+    "construction steps": ["étapes de construction", "pasos de construcción", "施工步骤", "निर्माण चरण", "مراحل البناء"],
+    "explosion": ["explosion", "explosión", "爆炸", "विस्फोट", "انفجار"],
+    "recoloring": ["recoloration", "recoloración", "重新着色", "रंग बदलना", "إعادة التلوين"],
+    "material adjustment": ["réglage du matériau", "ajuste del material", "材质调整", "सामग्री समायोजन", "ضبط المادة"],
+    "region re-texture": ["re-texturage de zone", "re-texturizado de zona", "区域重新贴图", "क्षेत्र री-टेक्सचर", "إعادة إكساء منطقة"],
+    "texture sharpening": ["netteté de la texture", "nitidez de la textura", "纹理锐化", "बनावट की तीक्ष्णता", "حدّة النسيج"],
     "Could not open this step.": ["Impossible d'ouvrir cette étape.", "No se pudo abrir este paso.", "无法打开此步骤。", "यह चरण नहीं खुल सका।", "تعذّر فتح هذه الخطوة."],
     // --- mode Vol et bouton « moteur rapide » (25/10) ---
     "🦅 Flies": ["🦅 Vole", "🦅 Vuela", "🦅 飞行", "🦅 उड़ता है", "🦅 يطير"],

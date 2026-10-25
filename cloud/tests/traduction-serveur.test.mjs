@@ -37,7 +37,8 @@ const json = (o, init) => reponse(o, init);
 // chaine-verifiee-integration.test.mjs, avec le vrai filtre).
 const LOT_SECURITE_NEUTRE = () => (existe('_refusLongueur')
   ? { _refusLongueur: () => null, PROMPT_MAX_CARACTERES: 2000, PROMPT_MAX_ENRICHI: 4000, neutraliserSyntaxePrompt: (t) => t, _negatifTexVariant: (n) => (typeof n === 'string' ? n : undefined) } : {});
-const charger = (noms, doublures = {}) => chargerFonctions(noms.filter((n) => existe(n)), { ...LOT_SECURITE_NEUTRE(), ...doublures });
+// 25/10 : _urlPutR2Signee (URL PUT pre-signee pour le televersement direct de Modal vers R2) : sans cles S3 elle rend null, le chemin base64 d'avant sert
+const charger = (noms, doublures = {}) => chargerFonctions(noms.filter((n) => existe(n)), { ...LOT_SECURITE_NEUTRE(), _urlPutR2Signee: async () => null, ...doublures });
 const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_derniereCoupe', '_plafondTraduction', 'TRADUCTION_MAX_CARACTERES',
   'TRADUCTION_MORCEAU_MAX', 'TRADUCTION_PLAFOND_HEURE', 'TRADUCTION_PLAFOND_JOUR', 'LANGUES_TRADUITES', '_filetLangue',
   '_quotaTraduction', '_refusFiletLangue', 'TRADUCTION_APPELS_PAR_REQUETE', 'TRADUCTION_PLAFOND_JOUR_COMPTE',
