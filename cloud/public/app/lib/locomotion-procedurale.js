@@ -187,6 +187,18 @@ export const VARIANTES = {
 //  - oiseau : hochement de tete = phase de tenue + poussee (Frost 1978, J Exp Biol 74). Kangourou : ~2 bonds/s a 3 m/s (Alexander & Vernon
 //    1975, J Zool 177). Manchot : dandinement (Griffin & Kram 2000, Nature 408). Chimpanze bipede : hanches et genoux flechis (Pontzer et al. 2009).
 //    Dinosaure bipede : queue en contrepoids (Gatesy 1990, Paleobiology 16).
+// BIPEDES, 2e tour (26/10, regard sur planches de rendu, pas seulement des chiffres) :
+//  - marche humaine : foulee 0,58 -> 0,82 hauteur du corps (1,02 -> 1,44 m pour 1,75 m), v/H 0,56 -> 0,75 (~1,3 m/s), cadence 116 -> 109 pas/min
+//    (Perry & Burnfield 2010 : ~110 pas/min, ~1,3-1,4 m/s ; valeur de memoire). Leviers : tendu 0,965 -> 0,92 et bob x1,4 (le bassin plonge plus
+//    a la pose du pied, ce qui autorise un pas plus long sans tendre la jambe au-dela de sa longueur) ;
+//  - course du primate (189 -> 164 pas/min) et du dinosaure (189 -> 157) : cadence trop haute pour la taille (les grands animaux ont une frequence de
+//    pas plus basse, Heglund & Taylor 1988 JEB 138 pour la tendance generale ; valeurs choisies a l'oeil, a verifier) ; manchot : course 360 -> 212 pas/min ;
+//  - manchot : le buste n'annule plus le roulis du bassin (contre-roulis 15 % au lieu de 100 %) : le corps entier se dandine, comme sur les
+//    films de manchots (Griffin & Kram 2000 : roulis du corps entier) ; foulee 0,45 -> 0,6 ;
+//  - oiseau : les ailes bougent ensemble, deux fois par cycle, a demi-amplitude (elles balancaient en opposition comme des bras humains) ;
+//  - kangourou rapide : buste penche de 0,3 rad. Frequence de bonds laissee a ~1,6/s : le reel est ~2/s quasi constant (Dawson & Taylor 1973,
+//    Nature 246, constat qualitatif retrouve en ligne ; le chiffre 2,1 de Alexander & Vernon 1975 n'a PAS pu etre reverifie) mais raccourcir la
+//    periode a 30 images/s fait monter les a-coups mesures (12,7 -> 16 deg).
 // PROFILS D'ESPECE (2026-09-28) : le meme squelette ne court pas pareil selon l'animal (un cheval
 // galope, un lion bondit en pliant le dos, un lapin sautille, un lezard ondule). Par allure :
 //   motif      : ordre de pose des pieds d'un quadrupede (voir MOTIFS) ;
@@ -270,7 +282,7 @@ export const ESPECES = {
   // --- ajoutes le 2026-09-28 (user : « il manque humain et d'autres choix »)
   humain: {        // bipede : pas deroule, bras qui balancent (valeurs de reference : voir REFERENCES BIPEDES ci-dessus)
     idle: { T: 1.5 },
-    walk: { T: 0.95, bras: 1.0, attaque: 0.28, bob: 0.72, lateral: 0.026, levee: 1, h: 0.7 },
+    walk: { T: 1.0, bras: 1.0, attaque: 0.28, bob: 1.0, lateral: 0.026, levee: 1, h: 0.7, tendu: 0.92 },
     // course (25/10, « la course ressemble a une marche sur place ») : foulee 6 fois plus courte que la marche -> 2,1 hauteurs de hanche ;
     // cadence ~156 pas/min (T 0,77 s), jambe plus pliee au milieu de l'appui (tendu), phase aerienne, attaque du talon
     run: { T: 1.25, bras: 1.15, h: 1.3, bob: 1.2, beta: 0.33, attaque: 0.17, tendu: 0.9, lateral: 0.02 },
@@ -280,26 +292,26 @@ export const ESPECES = {
     // marche bipede du chimpanze : « hanches et genoux flechis » (Elftman & Manter 1935 ; Pontzer 2009) -> genou ~35 deg en milieu d'appui
     // (tendu 0,9), tronc penche d'environ 17 deg, bassin qui roule beaucoup, pas courts et frequents
     walk: { T: 0.85, h: 0.9, tendu: 0.9, bras: 1.6, tete: 0.1, roulis: 0.08, tronc: 0.3, lateral: 0.05, attaque: 0.12, bob: 0.9 },
-    run: { T: 1.0, tendu: 0.85, bras: 1.4, tronc: 0.35, h: 1.2, lateral: 0.04, attaque: 0.08 },
+    run: { T: 1.2, tendu: 0.85, bras: 1.4, tronc: 0.35, h: 1.2, lateral: 0.04, attaque: 0.08 },
   },
   dinosaure: {     // T-rex, raptor : pas lourd, tete qui balance, queue en balancier, petits bras immobiles
     idle: { T: 1.5 },
     walk: { T: 1.25, h: 0.9, bob: 1.3, hoche: 0.06, bras: 0.2, queue: 1.8, tendu: 0.93 },
-    run: { T: 1.0, bras: 0.15, queue: 1.5, hoche: 0.08, h: 1.2, bob: 1.2 },
+    run: { T: 1.25, bras: 0.15, queue: 1.5, hoche: 0.08, h: 1.2, bob: 1.2 },
   },
   kangourou: {     // bipede qui avance par BONDS, les deux pattes ensemble
     idle: { T: 1.5 },
     // rebond du kangourou roux : ~2,1 bonds / s a 3 m/s (Alexander & Vernon 1975, J Zool 177) -> periode 0,5-0,7 s, et une hauteur de vol
     // petite devant la longueur du pas (le centre de masse monte de ~10-15 cm seulement) : sautH 0,3 -> 0,14 de la hauteur de hanche
     walk: { saut: true, T: 0.7, h: 0.8, foulee: 0.7, sautH: 0.14 },
-    run: { saut: true, T: 1.0, h: 1.2, foulee: 1.2, sautH: 0.18 },
+    run: { saut: true, T: 1.0, h: 1.2, foulee: 1.2, sautH: 0.18, tronc: 0.3 },
   },
   manchot: {       // se dandine : petits pas, gros roulis, ailerons presque immobiles
     idle: { T: 1.5 },
     // dandinement : le centre de masse passe d'un pied a l'autre (translation laterale ~ 1/10 de la hauteur de hanche) avec un roulis de
     // +/- 8 a 10 deg (Griffin & Kram 2000, Nature 408 « Penguin waddling is not wasteful »)
-    walk: { T: 0.6, foulee: 0.45, h: 0.45, roulis: 0.14, bras: 0.35, tete: -0.05, lateral: 0.055 },
-    run: { T: 0.55, foulee: 0.6, roulis: 0.12, bras: 0.4 },
+    walk: { T: 0.6, foulee: 0.6, h: 0.45, roulis: 0.14, bras: 0.35, tete: -0.05, lateral: 0.055 },
+    run: { T: 0.9, foulee: 0.6, roulis: 0.12, bras: 0.4 },
   },
   grenouille: {    // quadrupede qui avance par BONDS
     // 25/10 : bond a 3 temps (accroupie / poussee / vol, voir « bond » dans animerAllure), museau qui monte au
@@ -1246,7 +1258,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         continue;
       }
       bob[i] = f < b0 ? -0.12 * hanche * Math.sin(Math.PI * f / b0) : (Pr.sautH ?? 0.3) * hanche * (V.h || 1) * Math.sin(Math.PI * (f - b0) / (1 - b0));
-      tangage[i] = f < b0 ? -0.06 * Math.sin(Math.PI * f / b0) : 0.04 * Math.sin(2 * Math.PI * (f - b0) / (1 - b0));
+      tangage[i] = (A.tronc ?? 0) + (f < b0 ? -0.06 * Math.sin(Math.PI * f / b0) : 0.04 * Math.sin(2 * Math.PI * (f - b0) / (1 - b0)));   // tronc : buste penche (kangourou rapide)
     }
   }
   // --- actions (pieds plantes) : corps, tete et bras suivent les courbes ; V.ampleur les amplifie
@@ -1468,7 +1480,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const nC = Math.max(colonne.length, 1);
     // respiration de l'attente : la cage thoracique se releve / s'abaisse (~1 deg, 2 cycles par periode)
     const respire = (i) => (!A.pas && !B.action ? 0.02 * Math.min(A.bob / 0.008, 1.6) * Math.sin(4 * Math.PI * t[i] / T) : 0);
-    for (const j of colonne) balance.set(j, t.map((_, i) => mm(mm(Ry((C ? torseL[i] : -1.6 * lacetBassin[i]) / nC), Rz(-roulis[i] / nC)), Rx(((C ? torseP[i] : 0) + respire(i)) / nC))));
+    for (const j of colonne) balance.set(j, t.map((_, i) => mm(mm(Ry((C ? torseL[i] : -1.6 * lacetBassin[i]) / nC), Rz(-(famille === 'manchot' && A.pas ? 0.15 : 1) * roulis[i] / nC)), Rx(((C ? torseP[i] : 0) + respire(i)) / nC))));
     // coude : marche 12 -> 35 deg selon la position du bras (plus plie bras en avant, Murray 1967 ; Pontzer 2009), course ~85 -> 105 deg
     // (Hinrichs 1987), attente : mains detendues, coude ~14 deg
     const [ampB0, flex] = genre === 'run' ? [0.5, 1.45] : genre === 'idle' ? [0.05, 0.25] : [0.3, 0.22];
@@ -1489,6 +1501,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         : brasSaut ? brasSaut[i] * A.bras * (enT && !baisse ? 0.35 : 1)   // saut (action) : elan des bras en trois temps
         : SAUT && B.saut && !Pr.saut ? cles(((tt / T + pattes[0].phase) % 1 + 1) % 1, BRAS_SAUT) * A.bras   // saut : balancier des bras (voir BRAS_SAUT)
         : SAUT ? -ampL * Math.cos(2 * Math.PI * tt / T)           // saut : les deux bras ensemble (elan)
+        // oiseau (26/10) : les deux ailes bougent ENSEMBLE, deux fois par cycle (une petite poussee a chaque pas), au lieu de balancer en
+        // opposition comme des bras humains ; amplitude reduite de moitie (choix de realisme visuel : un oiseau qui court garde les ailes quasi repliees ; amplitude non mesuree sur un oiseau reel)
+        : A.pas && famille === 'oiseau' ? -0.5 * ampL * (2 * sG[i] * sG[i] - 1)
         : A.pas ? -b.cote * ampL * sG[i] : ampL * Math.sin(2 * Math.PI * tt / T + (b.cote === 1 ? 0 : 1.3))));
       // bras abaisse : balancement d'avant en arriere (autour de l'axe lateral) APRES l'abaissement. Fait
       // avant, en course le balancier + le coude remontaient la main a hauteur d'epaule (« bras de zombie »).
