@@ -3662,48 +3662,54 @@
 
   <!-- Symmetrize modal -->
   <div id="modal-symmetrize" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
+    <div class="modal-card fen-3d fen-sym">
       <div class="fen-tete"><h2>Symmetrize</h2><button id="sym-close" class="settings-close-x">&#10005;</button></div>
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
-          Direction:
-          <button id="sym-dir-lr" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">L &#8594; R</button>
-          <button id="sym-dir-rl" class="secondary-btn" style="padding:4px 10px; font-size:13px;">R &#8594; L</button>
-        </label>
-        <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
-          Mode:
-          <button id="sym-mode-full" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Full</button>
-          <button id="sym-mode-mask" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Mask</button>
-        </label>
-        <label id="sym-brush-label" style="font-size:13px; display:none; align-items:center; gap:4px;">
-          Brush:
-          <input type="range" id="sym-brush-size" min="5" max="200" value="40" style="width:80px;" />
-          <span id="sym-brush-val">40</span>
-          <button id="sym-paint-mode" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px; margin-left:6px;">Paint</button>
-          <button id="sym-erase-mode" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Erase</button>
-        </label>
-        <span style="flex:1;"></span>
-        <div style="display:flex; gap:4px; flex-shrink:0;">
-          <button id="sym-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="sym-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="sym-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-          <button id="sym-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="sym-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+      <p class="modal-subtitle">Drag the <strong style="color:#22c55e;">green line</strong> to move the axis. <strong>Shift+drag</strong> to rotate. In Mask mode: paint to select, <strong>Ctrl+drag</strong> to move axis, <strong>Shift+drag</strong> to rotate.</p>
+      <div class="fen-corps">
+        <div class="fen-apercu">
+          <div id="sym-canvas-container" class="sym-conteneur">
+            <canvas id="sym-canvas" style="position:absolute; left:0; top:0;"></canvas>
+            <canvas id="sym-overlay" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
+            <div id="sym-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid rgba(255,60,60,0.8); border-radius:50%; display:none; z-index:1000;">
+              <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:rgba(255,60,60,0.9); border-radius:50%; transform:translate(-50%,-50%);"></div>
+            </div>
+          </div>
+        </div>
+        <div class="fen-form">
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Direction:</span></div>
+            <div class="fen-groupe-btn">
+              <button id="sym-dir-lr" class="secondary-btn tool-active">L &#8594; R</button>
+              <button id="sym-dir-rl" class="secondary-btn">R &#8594; L</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Mode:</span></div>
+            <div class="fen-groupe-btn">
+              <button id="sym-mode-full" class="secondary-btn tool-active">Full</button>
+              <button id="sym-mode-mask" class="secondary-btn">Mask</button>
+            </div>
+          </div>
+          <div id="sym-brush-label" class="fen-champ" style="display:none;">
+            <div class="fen-champ-tete"><span class="fen-label">Brush:</span><span id="sym-brush-val" class="fen-valeur">40</span></div>
+            <input type="range" id="sym-brush-size" min="5" max="200" value="40" />
+            <div class="fen-groupe-btn">
+              <button id="sym-paint-mode" class="secondary-btn tool-active">Paint</button>
+              <button id="sym-erase-mode" class="secondary-btn">Erase</button>
+            </div>
+          </div>
+          <div class="fen-groupe-btn fen-outils-rangee">
+            <button id="sym-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+            <button id="sym-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="sym-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+            <button id="sym-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="sym-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+          </div>
         </div>
       </div>
-      <div style="font-size:12px; color:var(--text-3);">
-        Drag the <strong style="color:#22c55e;">green line</strong> to move the axis. <strong>Shift+drag</strong> to rotate. In Mask mode: paint to select, <strong>Ctrl+drag</strong> to move axis, <strong>Shift+drag</strong> to rotate.
-      </div>
-      <div id="sym-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
-        <canvas id="sym-canvas" style="position:absolute; left:0; top:0;"></canvas>
-        <canvas id="sym-overlay" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
-        <div id="sym-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid rgba(255,60,60,0.8); border-radius:50%; display:none; z-index:1000;">
-          <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:rgba(255,60,60,0.9); border-radius:50%; transform:translate(-50%,-50%);"></div>
-        </div>
-      </div>
-      <div class="modal-actions fen-pied-editeur">
+      <div class="modal-actions">
         <button id="sym-cancel" class="ghost-btn">Cancel</button>
         <button id="sym-apply" class="primary-btn">Apply Symmetrize</button>
       </div>
