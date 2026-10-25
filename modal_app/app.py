@@ -154,6 +154,28 @@ def _prevenir_worker(job_id: str) -> None:
         print(f"[livraison] {job_id} : worker injoignable ({e}) — le sondage prendra le relais", flush=True)
 
 
+def _rendre_glb(out: bytes, payload: dict | None, **champs) -> dict:
+    """Rend un GLB au worker (25/10). « Worker exceeded resource limits » (HTTP 503 de Cloudflare, constate sur Re-texture a region, Etapes de
+    construction 3D...) : un GLB de 60 a 90 Mo renvoye en base64 dans du JSON fait coexister dans la memoire du worker (128 Mo) la chaine
+    base64, la chaine rendue par atob() et le Uint8Array, et la boucle octet par octet depasse le temps CPU. Quand le worker fournit
+    `r2_put_url` (URL PUT pre-signee pour UNE cle), le GLB y est televerse d'ici et seule la taille est rendue (`uploaded: true`). Sans URL
+    (ancien worker) ou si le televersement echoue : base64 comme avant, rien ne casse."""
+    import base64 as _b64
+    url = (payload or {}).get("r2_put_url") if isinstance(payload, dict) else None
+    if url:
+        try:
+            import urllib.request as _ur
+            req = _ur.Request(url, data=out, method="PUT", headers={"content-type": "model/gltf-binary"})
+            with _ur.urlopen(req, timeout=240) as r:
+                if 200 <= r.status < 300:
+                    print(f"[glb] televerse directement dans R2 : {len(out) / 1e6:.1f} Mo", flush=True)
+                    return {"ok": True, "uploaded": True, "bytes": len(out), **champs}
+            print(f"[glb] televersement direct refuse (HTTP {r.status}) : repli base64", flush=True)
+        except Exception as e:
+            print(f"[glb] televersement direct impossible ({type(e).__name__}: {e}) : repli base64", flush=True)
+    return {"ok": True, "bytes": len(out), "glb_base64": _b64.b64encode(out).decode("ascii"), **champs}
+
+
 def _check_auth(payload: dict) -> None:
     """401 immediately if the shared secret is missing/wrong.
 
@@ -2171,8 +2193,7 @@ class MyFabmeshBackview:
         out = _marquer_ia(buf.getvalue())      # 2026-10-03 (AI Act art. 50)
         print(f"[texvar] {faits} atlas, force={force} graine={graine} "
               f"style={style!r} en {time.time() - t0:.1f}s", flush=True)
-        return {"ok": True, "op_type": "texture_var", "bytes": len(out),
-                "glb_base64": base64.b64encode(out).decode("ascii")}
+        return _rendre_glb(out, payload, op_type="texture_var")
 
     def _route_mesh_enhance_tex(self, payload: dict):
         """« Sharpen texture (x2) » — portage cloud de scripts/texture_upscale.py.
@@ -2228,8 +2249,7 @@ class MyFabmeshBackview:
         out = _marquer_ia(buf.getvalue())      # 2026-10-03 (AI Act art. 50)
         print(f"[enhance-tex] {faits} atlas ({', '.join(tailles)}) "
               f"en {time.time() - t0:.1f}s", flush=True)
-        return {"ok": True, "op_type": "enhance_tex", "bytes": len(out),
-                "glb_base64": base64.b64encode(out).decode("ascii")}
+        return _rendre_glb(out, payload, op_type="enhance_tex")
 
     def _route_mesh_name_parts(self, payload: dict):
         """« Name the zones (AI) » — portage cloud de l'IPC bureau 'name-parts'.
@@ -2401,8 +2421,7 @@ class MyFabmeshBackview:
         out = _marquer_ia(buf.getvalue())      # 2026-10-03 (AI Act art. 50)
         print(f"[region-retex] zone {couverture * 100:.1f}% de l'atlas, force={force} "
               f"en {time.time() - t0:.1f}s", flush=True)
-        return {"ok": True, "op_type": "region_retex", "bytes": len(out),
-                "glb_base64": base64.b64encode(out).decode("ascii")}
+        return _rendre_glb(out, payload, op_type="region_retex")
 
     def _route_outfit(self, payload: dict):
         """Habits seuls — extrait les vetements d'une image de personnage.
@@ -3648,12 +3667,7 @@ def mesh_router():
                 # (fill_holes : « aucun trou », « aurait supprime X % des faces ») leve RuntimeError.
                 # Sans ce 422, FastAPI rendait un 500 muet et l'utilisateur ne lisait qu'un echec generique.
                 raise HTTPException(status_code=422, detail=str(e))
-            resp = {
-                "ok": True,
-                "op_type": op_type,
-                "bytes": len(out),
-                "glb_base64": base64.b64encode(out).decode("ascii"),
-            }
+            resp = _rendre_glb(out, payload, op_type=op_type)
             if stats is not None:
                 resp["stats"] = stats
             return resp
@@ -3834,8 +3848,9 @@ def mesh_router():
             return {"ready": False}
         with open(out_path, "rb") as f:
             glb = f.read()
-        return {"ready": True, "glb_base64": base64.b64encode(glb).decode("ascii"),
-                "bytes": len(glb)}
+        r = _rendre_glb(glb, payload, ready=True)
+        r.pop("ok", None)
+        return r
 
     @api.post("/mesh_fetch")
     async def mesh_fetch(request: Request):
