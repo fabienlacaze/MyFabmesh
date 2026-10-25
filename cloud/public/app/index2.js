@@ -31826,6 +31826,15 @@ function _lctImageCourante() {
   chemin = chemin || p?.previewImagePath || p?.selectedImagePath;
   return chemin ? _toFileUrl(chemin) : '';
 }
+/** Pastille de credits en haut a droite de la fenetre de lancement (meme prix que le bouton d'action). */
+function _lctPastilleEntete(prix) {
+  const p = document.getElementById('lct-credits');
+  if (!p) return;
+  const ok = (typeof prix === 'number' && prix > 0) || (typeof prix === 'string' && prix !== '');
+  p.hidden = !ok;
+  const v = document.getElementById('lct-credits-val');
+  if (v) v.textContent = ok ? String(prix) : '';
+}
 function _ouvrirLancement(def, boutonPrix) {
   return new Promise((resoudre) => {
     const m = document.getElementById('modal-lancement');
@@ -31850,6 +31859,7 @@ function _ouvrirLancement(def, boutonPrix) {
       b.textContent = prix;
       lancer.appendChild(b);
     }
+    _lctPastilleEntete(prix);
     const fin = (ok) => {
       m.classList.add('hidden');
       lancer.onclick = annuler.onclick = fermer.onclick = null;

@@ -33638,6 +33638,15 @@ function _prixLancement(boutonPrix) {
   const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
   return (cloud && boutonPrix && window._prixBouton) ? window._prixBouton(boutonPrix.id) : null;
 }
+/** Pastille de credits en haut a droite de la fenetre de lancement (meme prix que le bouton d'action). */
+function _lctPastilleEntete(prix) {
+  const p = document.getElementById('lct-credits');
+  if (!p) return;
+  const ok = (typeof prix === 'number' && prix > 0) || (typeof prix === 'string' && prix !== '');
+  p.hidden = !ok;
+  const v = document.getElementById('lct-credits-val');
+  if (v) v.textContent = ok ? String(prix) : '';
+}
 function _ouvrirLancement(def, boutonPrix) {
   return new Promise((resoudre) => {
     const m = document.getElementById('modal-lancement');
@@ -33657,6 +33666,7 @@ function _ouvrirLancement(def, boutonPrix) {
     // commun avec le site recopiait une pastille `.cloud-cost-badge` que le
     // bureau ne pose pas : la fenetre n'affichait jamais de prix ici.
     window._posePastille?.(lancer, _prixLancement(boutonPrix));
+    _lctPastilleEntete(_prixLancement(boutonPrix));
     const fin = (ok) => {
       m.classList.add('hidden');
       lancer.onclick = annuler.onclick = fermer.onclick = null;
