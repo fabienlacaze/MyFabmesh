@@ -37,7 +37,7 @@ function bloc(html, id) {
 // Suite ordonnee de boutons et de separateurs d'une fenetre
 function suite(b, ids) {
   const out = [];
-  const re = /<button id="([^"]+)"|class="vz-sep"/g;
+  const re = /<button id="([^"]+)"|class="vz-sep"|class="fen-groupe-btns"/g;
   let m;
   while ((m = re.exec(b))) {
     if (m[1]) { if (ids.includes(m[1])) out.push(m[1]); } else if (out.length && out[out.length - 1] !== '|') out.push('|');

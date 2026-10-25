@@ -5161,3 +5161,14 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ══ LOT W02 (25/10) : Clone Stamp au gabarit .fen-3d — apercu a gauche (taille commune des fenetres),
+   reglages en colonne a droite, pied Annuler + action sur toute la largeur restante. ══ */
+.fen-groupe-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.fen-groupe-btns .tool-btn { padding: 6px 12px !important; font-size: 14px !important; }
+.fen-form input[type=range] { width: 100%; }
+#clone-modal .modal-card.fen-2d .fen-form { overflow-y: auto; }
+#clone-modal .modal-actions.fen-pied-editeur { margin-top: 16px; }
+#clone-modal .modal-actions.fen-pied-editeur .ghost-btn { flex: 0 0 auto; min-width: 0; height: 38px; padding: 0 18px; }
+#clone-modal .modal-actions.fen-pied-editeur .primary-btn { flex: 1 1 0; }
+#clone-modal .fen-apercu-etat { bottom: 6px; }
