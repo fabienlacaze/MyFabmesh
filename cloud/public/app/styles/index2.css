@@ -5027,3 +5027,9 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-region-retex .rrx-form .form-row > input[type=text] { width: 100%; box-sizing: border-box; }
 #modal-region-retex label.rrx-curseur { gap: 6px; }
 #modal-region-retex .rrx-curseur input[type=range] { width: 100%; }
+/* ===== LOT W11 : Brightness (fenetre au gabarit .fen-3d, apercu image a gauche, reglages a droite, pied Annuler + Appliquer pleine largeur) ===== */
+#modal-brightness .fen-apercu-image { display: flex; align-items: center; justify-content: center; }
+#modal-brightness .fen-apercu-image img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+#modal-brightness .modal-actions { justify-content: stretch; }
+#modal-brightness .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; height: 36px; padding: 0 16px; }
+#modal-brightness .modal-actions .primary-btn { flex: 1 1 0; }

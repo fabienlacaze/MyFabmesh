@@ -890,6 +890,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-select-btn':            'manual_tool',        // Cut/Paste
     'ws-extend-btn':            'manual_tool',
     'ws-brightness-btn':        'manual_tool',
+    'bright-apply':             'manual_tool',        // pastille dans le pied de la fenetre Brightness
     'ws-picker-btn':            'manual_tool',        // Color Pick
     'ws-blur-btn':              'manual_tool',
     'ws-symmetrize-btn':        'manual_tool',

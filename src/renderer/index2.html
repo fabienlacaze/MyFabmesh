@@ -3733,21 +3733,30 @@
                           preserveAlpha="true" />
       </filter>
     </svg>
-    <div class="modal-card modal-card-wide">
+    <div class="modal-card fen-3d">
       <div class="fen-tete"><h2>Brightness / Contrast</h2><button class="settings-close-x" id="bright-close-x">&#10005;</button></div>
-      <div class="modal-with-image">
-        <div class="modal-image-side">
+      <p class="modal-subtitle">Adjust brightness, contrast, saturation and sharpness.</p>
+      <div class="fen-corps">
+        <div class="fen-apercu fen-apercu-image">
           <img id="bright-preview" alt="" />
         </div>
-        <div class="modal-form-side">
-          <label>Brightness <span id="bright-brightness-val" class="slider-val">100%</span></label>
-          <input type="range" id="bright-brightness" min="50" max="200" value="100" />
-          <label>Contrast <span id="bright-contrast-val" class="slider-val">100%</span></label>
-          <input type="range" id="bright-contrast" min="50" max="200" value="100" />
-          <label>Saturation <span id="bright-saturation-val" class="slider-val">100%</span></label>
-          <input type="range" id="bright-saturation" min="0" max="200" value="100" />
-          <label>Sharpness <span id="bright-sharpness-val" class="slider-val">100%</span></label>
-          <input type="range" id="bright-sharpness" min="0" max="300" value="100" />
+        <div class="fen-form">
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Brightness</span><span id="bright-brightness-val" class="fen-valeur">100%</span></div>
+            <input type="range" id="bright-brightness" min="50" max="200" value="100" />
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Contrast</span><span id="bright-contrast-val" class="fen-valeur">100%</span></div>
+            <input type="range" id="bright-contrast" min="50" max="200" value="100" />
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Saturation</span><span id="bright-saturation-val" class="fen-valeur">100%</span></div>
+            <input type="range" id="bright-saturation" min="0" max="200" value="100" />
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Sharpness</span><span id="bright-sharpness-val" class="fen-valeur">100%</span></div>
+            <input type="range" id="bright-sharpness" min="0" max="300" value="100" />
+          </div>
           <button id="bright-reset" class="ghost-btn fen-petit" type="button">&#8634; Reset</button>
         </div>
       </div>
