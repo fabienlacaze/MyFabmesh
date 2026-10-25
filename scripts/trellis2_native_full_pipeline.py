@@ -1166,7 +1166,9 @@ def main():
     # DALLE DE SOL (25/10) : variante apres export de la piste G (ne leve jamais, journalise) ; pas avec « Max triangles ».
     try:
         from acceleration_glb import retirer_dalle_glb, type_concerne
-        glb, _ = retirer_dalle_glb(glb, type_concerne(os.environ.get('FABMESH_ASSET_TYPE', '')) and os.environ.get('FABMESH_TRELLIS2_TRIS_EXACT') != '1', log=log)
+        _type = os.environ.get('FABMESH_ASSET_TYPE', '').strip().lower()   # « other » / vide et sous-types vivants aussi (25/10)
+        _concerne = type_concerne(_type) or _type in ('', 'other', 'other_living', 'insect', 'sans_pattes', 'en_vol', 'poisson', 'unit', 'humanoid')
+        glb, _ = retirer_dalle_glb(glb, _concerne and os.environ.get('FABMESH_TRELLIS2_TRIS_EXACT') != '1', log=log)
     except Exception as _e:
         log(f'dalle de sol : etape ignoree ({type(_e).__name__}: {_e})')
     _cm.mesurer('glb_built')

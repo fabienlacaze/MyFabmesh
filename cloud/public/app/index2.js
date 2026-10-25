@@ -10924,7 +10924,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     // Network-boundary key: the Worker (/api/generate) reads `asset_type`.
     // Sending `assetType` here was a silent no-op that disabled the
     // asset-type-aware pipeline routing on the server side.
-    asset_type: document.getElementById('ws-asset-type')?.value || 'character',
+    // 25/10 : le type du PROJET prime sur le menu de l'etape Image (un bulbizard etait envoye en « avion » : le menu gardait la valeur du projet precedent).
+    asset_type: (state.currentProject && state.currentProject.assetType) || document.getElementById('ws-asset-type')?.value || 'character',
   };
   const qualityLabels = { draft: 'Draft', standard: 'Standard', high: 'High' };
   // DETAILS DU TRAVAIL (2026-09-27, user : « les infos de la vignette ne sont

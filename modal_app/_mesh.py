@@ -764,7 +764,11 @@ def generate(
     # journalise sa decision, ne touche que personnage / creature / animal, et pas avec « Max triangles » (nombre exact a tenir).
     try:
         from modal_app.acceleration_glb import retirer_dalle_glb, type_concerne
-        glb_obj, _ = retirer_dalle_glb(glb_obj, type_concerne(asset_type) and not tris_exact, log=lambda m: print(m, flush=True))
+        # 25/10 : « other » / type vide (projet sans type) et sous-types vivants sont aussi concernes (la dalle n'etait retiree que pour 3 types
+        # et le bulbizard « other » la gardait) ; batiment, vehicule, avion, bateau, arme, objet restent exclus (vrais planchers).
+        _type = str(asset_type or '').strip().lower()
+        _concerne = type_concerne(_type) or _type in ('', 'other', 'other_living', 'insect', 'sans_pattes', 'en_vol', 'poisson', 'unit', 'humanoid')
+        glb_obj, _ = retirer_dalle_glb(glb_obj, _concerne and not tris_exact, log=lambda m: print(m, flush=True))
     except Exception as e:
         print(f'[mesh] dalle de sol : etape ignoree ({type(e).__name__}: {e})', flush=True)
     t_fin = time.time()
