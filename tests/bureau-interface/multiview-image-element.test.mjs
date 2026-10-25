@@ -13,10 +13,11 @@ for (const [html, js] of [['cloud/public/app/index.html', 'cloud/public/app/inde
     const i = h.indexOf('<div id="modal-multiview-options"');
     const fin = h.indexOf('MESH TOOL PARAMS MODAL', i);
     const bloc = h.slice(i, fin > 0 ? fin : i + 4000);
-    assert.ok(bloc.includes('class="modal-card modal-card-wide"'));
-    assert.ok(bloc.includes('<div class="modal-with-image">'));
+    assert.ok(bloc.includes('class="modal-card fen-3d"'));
+    assert.ok(bloc.includes('<div class="fen-corps">'));
+    assert.ok(bloc.includes('<div class="fen-apercu"><img id="mv-opt-source-img"'));
     assert.ok(bloc.includes('<img id="mv-opt-source-img" alt="" />'));
-    assert.ok(bloc.includes('<div class="modal-form-side">'));
+    assert.ok(bloc.includes('<div class="fen-form">'));
     assert.ok(bloc.indexOf('mv-opt-source-img') < bloc.indexOf('id="mv-opt-mode"'), "l'image vient avant les reglages");
     assert.ok(bloc.indexOf('id="mv-opt-start"') > bloc.indexOf('id="mv-opt-mode"'));
   });
