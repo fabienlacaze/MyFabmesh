@@ -1639,11 +1639,11 @@
          AUTO INPAINT MODAL (CLIPSeg target + replacement)
          ============================================================ -->
     <div id="modal-auto-inpaint" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d fen-2d-w15">
         <div class="fen-tete"><h2>Auto Inpaint</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Name what to replace &mdash; it is found and repainted.</p>
-        <div class="modal-with-image">
-          <div class="modal-image-side" style="position:relative;">
+        <div class="fen-corps">
+          <div class="fen-apercu modal-image-side" style="position:relative;">
             <img id="ai-source-img" alt="" />
             <img id="ai-mask-overlay" alt="" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; pointer-events:none; opacity:0.55; mix-blend-mode:screen; filter:sepia(1) saturate(7) hue-rotate(-25deg);" />
             <div id="ai-detect-spinner" style="display:none; position:absolute; inset:0; flex-direction:column; gap:12px; align-items:center; justify-content:center; background:rgba(0,0,0,0.25); border-radius:inherit;">
@@ -1651,17 +1651,23 @@
               <div id="ai-detect-label" style="color:#fff; font-size:13px; font-weight:500; letter-spacing:0.3px; text-shadow:0 1px 4px rgba(0,0,0,0.7); text-align:center; max-width:80%;">Detecting target&hellip;</div>
             </div>
           </div>
-          <div class="modal-form-side">
-            <label>Find</label>
-            <input type="text" id="ai-target" placeholder="hat, shirt, background, sword..." />
-            <div class="prompt-lang-hint" data-pour="ai-target" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
-            <label>Replace with <span class="fen-facultatif">(empty = remove)</span></label>
-            <input type="text" id="ai-replace" placeholder="leather helmet, plain background..." />
-            <div class="prompt-lang-hint" data-pour="ai-replace" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
-            <label>Padding <span id="ai-dilate-val" class="slider-val">15px</span></label>
-            <input type="range" id="ai-dilate" min="0" max="40" value="15" />
-            <div class="fen-echelle"><span>Tight</span><span>Wide</span></div>
-            <small id="ai-dilate-hint" hidden></small>
+          <div class="fen-form modal-form-side">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Find</span></div>
+              <input type="text" id="ai-target" placeholder="hat, shirt, background, sword..." />
+              <div class="prompt-lang-hint" data-pour="ai-target" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Replace with <span class="fen-facultatif">(empty = remove)</span></span></div>
+              <input type="text" id="ai-replace" placeholder="leather helmet, plain background..." />
+              <div class="prompt-lang-hint" data-pour="ai-replace" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Padding</span><span id="ai-dilate-val" class="fen-valeur">15px</span></div>
+              <input type="range" id="ai-dilate" min="0" max="40" value="15" />
+              <div class="fen-echelle"><span>Tight</span><span>Wide</span></div>
+              <small id="ai-dilate-hint" hidden></small>
+            </div>
           </div>
         </div>
         <div class="modal-actions">
