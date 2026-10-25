@@ -7399,7 +7399,7 @@ const ASSET_TYPE_PROMPTS = {
   creature: 'full body creature, wide establishing shot, whole creature head to tail, body stretched out, fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
   environment: 'isolated, full structure, plain white background, even studio lighting, centered, strict front view, clean silhouette',
   icon: 'flat app icon, isolated subject centered in square frame, pure white background, soft rim light, vibrant colors, slight isometric 3/4 angle, glossy material, clean silhouette',
-  avion: 'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
+  avion: 'complete aircraft, three-quarter view from front left, slightly above, nose pointing left, nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
   bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
   animal: 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
   // 2026-10-01 : animal qui VOLE (« flying pink pig ») : le gabarit « animal » dit « all four feet on ground » et contredit le vol.
@@ -8257,6 +8257,7 @@ function stripKnownPromptSuffixes(raw) {
   let connus = stripKnownPromptSuffixes._gabaritsConnus;
   if (!connus || connus.signature !== signature) {
     const GABARITS_HISTORIQUES = [
+      'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
       'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
       'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
       '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',

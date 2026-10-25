@@ -30,7 +30,7 @@ ASSET_TYPE_PROMPTS = {
     'creature'          : 'full body creature, wide establishing shot, whole creature head to tail, body stretched out, fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
     'environment'       : 'isolated, full structure, plain white background, even studio lighting, centered, strict front view, clean silhouette',
     'icon'              : 'flat app icon, isolated subject centered in square frame, pure white background, soft rim light, vibrant colors, slight isometric 3/4 angle, glossy material, clean silhouette',
-    'avion'             : 'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
+    'avion'             : 'complete aircraft, three-quarter view from front left, slightly above, nose pointing left, nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
     'bateau'            : 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
     'animal'            : 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
     'en_vol'            : 'full body animal, airborne, lateral profile, whole animal nose to tail, fills 60 percent of frame, plain white background, centered',
