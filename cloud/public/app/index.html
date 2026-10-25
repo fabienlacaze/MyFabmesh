@@ -1440,6 +1440,7 @@
               <div class="lm-fs-subviewer" data-pane="a">
                 <canvas id="lm-fs-canvas" data-pane="a"></canvas>
                 <div class="lm-fs-view-toolbar" data-pane="a">
+                  <button data-act="reset" title="Reset camera">&#10227;</button>
                   <button data-view="iso"    title="Isometric">Iso</button>
                   <button data-view="front"  title="Front view">Front</button>
                   <button data-view="back"   title="Back view">Back</button>
@@ -1447,12 +1448,16 @@
                   <button data-view="right"  title="Right side">Right</button>
                   <button data-view="top"    title="Top view">Top</button>
                   <button data-view="bottom" title="Bottom view">Bottom</button>
+                  <button data-act="zoom-in" title="Zoom in">+</button>
+                  <button data-act="zoom-out" title="Zoom out">&minus;</button>
+                  <button data-act="fit" title="Fit to view">Fit</button>
                 </div>
                 <div class="lm-fs-pane-label" id="lm-fs-pane-label-a">FRONT</div>
               </div>
               <div class="lm-fs-subviewer" data-pane="b">
                 <canvas id="lm-fs-canvas-b" data-pane="b"></canvas>
                 <div class="lm-fs-view-toolbar" data-pane="b">
+                  <button data-act="reset" title="Reset camera">&#10227;</button>
                   <button data-view="iso"    title="Isometric">Iso</button>
                   <button data-view="front"  title="Front view">Front</button>
                   <button data-view="back"   title="Back view">Back</button>
@@ -1460,6 +1465,9 @@
                   <button data-view="right"  title="Right side">Right</button>
                   <button data-view="top"    title="Top view">Top</button>
                   <button data-view="bottom" title="Bottom view">Bottom</button>
+                  <button data-act="zoom-in" title="Zoom in">+</button>
+                  <button data-act="zoom-out" title="Zoom out">&minus;</button>
+                  <button data-act="fit" title="Fit to view">Fit</button>
                 </div>
                 <div class="lm-fs-pane-label" id="lm-fs-pane-label-b">RIGHT</div>
               </div>
@@ -1730,7 +1738,6 @@
             </div>
             <small id="r3-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:12px; line-height:1.4;"></small>
           </div>
-        </div>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="r3-cancel">Cancel</button>

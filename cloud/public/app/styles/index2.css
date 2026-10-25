@@ -5055,7 +5055,7 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
   #lightbox-2 .lightbox-nav,
   #lightbox-2-bottom { opacity: 1; }
 }
-@media (max-width: 900px) {
+@media (max-width: 640px) {
   #lightbox-2 img { max-width: 96vw; max-height: 60vh; margin-right: 0; }
   #lightbox-2 .lightbox-nav.next { right: 12px; }
   #lightbox-2-bottom { left: 50%; max-width: 96vw; }
@@ -5364,9 +5364,19 @@ html[dir="rtl"] .p3-cat { text-align: start; }
     box-sizing: border-box !important; width: 100% !important; height: var(--vz-h-corps) !important;
   }
   #modal-paint .paint-apercu { height: var(--vz-h-corps) !important; }
-  html body .modal-card.fen-3d .fen-form { overflow: visible; min-height: 0; }
+  html body .modal-card.fen-3d .fen-form { overflow: visible; min-height: max-content; height: auto; flex: 0 0 auto; }
+  html body .modal-card.fen-3d .fen-corps { grid-template-rows: auto auto !important; }
+  html body .modal-card.fen-3d .fen-form > * { flex-shrink: 0; }
   html body .modal-card.fen-3d > .modal-actions {
     position: sticky !important; bottom: -28px; z-index: 7; background: var(--bg-1);
     padding: 10px 0 28px !important; margin: 12px 0 -28px !important;
   }
 }
+
+/* ===== verif-2510 (25/10) : corrections de la relecture visuelle finale ===== */
+/* Bouton de pied portant une pastille de prix : il s'elargit pour contenir libelle + pastille (la pastille ne recouvre plus le texte). */
+.modal-actions > button:has(> .cloud-cost-badge),
+.modal-actions > button:has(> .generate-cost-pill) { width: auto; flex: 0 0 auto; min-width: max-content; gap: 8px; }
+/* Fenetre « Skeleton points » : barre de vues sur UNE ligne, comme la barre commune (reset, vues, zoom). */
+.lm-fs-view-toolbar { flex-wrap: nowrap; width: max-content; max-width: calc(100% - 12px); overflow-x: auto; row-gap: 0; gap: 2px; padding: 4px; }
+.lm-fs-view-toolbar button { padding: 4px 6px; height: 24px; white-space: nowrap; flex: 0 0 auto; }
