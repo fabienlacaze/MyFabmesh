@@ -7,6 +7,7 @@
 //   - « Tester l'os » fait osciller l'os choisi pour voir ce qu'il entraine ;
 //   - l'enregistrement reecrit JOINTS_0 / WEIGHTS_0 DANS le GLB d'origine (tout le reste intact) et le
 //     rend a l'appelant, qui le range comme nouvelle version du rig.
+import { centrerRotation } from './centre-rotation.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -155,6 +156,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   // molette = zoom ; molette enfoncee + glisser = tourner le modele.
   ctrl.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
   ctrl.zoomToCursor = true;
+  centrerRotation(ctrl, canvas);   // rotation autour du centre du modele (25/10)
   ctrl.screenSpacePanning = true;
   let vivant = true;
   const matsEpais = [];                                   // materiaux des traits epais (resolution a jour a chaque redimensionnement)

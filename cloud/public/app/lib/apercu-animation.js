@@ -3,6 +3,7 @@
 // chargé qu'une fois ; chaque allure est calculée par le moteur procédural (quelques ms) et
 // jouée directement, sans réécrire de GLB. Même fichier sur le bureau et le web
 // (THREE importé par « three » : un chemin relatif chargerait un second THREE sur le web).
+import { centrerRotation } from './centre-rotation.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -33,6 +34,7 @@ export function creerApercu(canvas) {
     controles.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     controles.screenSpacePanning = true;
     controles.zoomToCursor = true;
+    centrerRotation(controles, canvas);   // rotation autour du centre du modele (25/10)
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.style.cursor = 'grab';
     boucle();

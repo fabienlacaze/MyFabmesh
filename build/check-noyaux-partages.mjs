@@ -140,6 +140,7 @@ const FICHIERS = [
   { nom: 'reshape (vue choisie)', source: 'src/renderer/lib/reshape-vue.js', copie: 'cloud/public/app/lib/reshape-vue.js' },
   { nom: 'serpent etire (silhouette)', source: 'scripts/serpent_etire.py', copie: 'modal_app/serpent_etire.py' },
   { nom: 'acceleration du GLB (atlas, WebP)', source: 'scripts/acceleration_glb.py', copie: 'modal_app/acceleration_glb.py' },
+  { nom: 'rotation autour du centre du modele', source: 'cloud/public/app/lib/centre-rotation.js', copie: 'src/renderer/lib/centre-rotation.js' },
   { nom: 'Etanche : coque interieure (watertight_seal)', source: 'scripts/watertight_seal.py', copie: 'modal_app/watertight_seal.py' },
   // carte de normales cuite du maillage fin vers le maillage final (2026-10-13) : generation bureau ET Modal, outils
   { nom: 'carte de normales (cuisson)', source: 'scripts/normal_bake.py', copie: 'modal_app/normal_bake.py' },
