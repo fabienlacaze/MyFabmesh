@@ -5121,21 +5121,17 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
   flex-wrap: wrap; justify-content: center; overflow: visible; row-gap: 6px;
 }
 /* Fenetres hautes (Resize, Paint Mesh) : la carte tient dans l'ecran, defile au besoin ; entete et boutons restent visibles. */
-#modal-resize .modal-card,
 #modal-paint-mesh .modal-card {
   max-height: 96vh; overflow-y: auto; box-sizing: border-box;
 }
-#modal-resize .modal-card > .fen-tete,
 #modal-paint-mesh .modal-card > div:first-child {
   position: sticky; top: -28px; z-index: 5; background: var(--bg-1);
   padding-top: 28px; margin-top: -28px;
 }
-#modal-resize .modal-card > .modal-actions,
 #modal-paint-mesh .modal-card > .modal-actions {
   position: sticky; bottom: -28px; z-index: 5; background: var(--bg-1);
   padding: 10px 0 28px; margin-bottom: -28px;
 }
-#rz-viewport { height: min(var(--vz-h-corps), 62vh) !important; }
 #pm-viewport-wrap { min-height: min(var(--vz-h-corps), 62vh) !important; }
 
 /* ============================================================
@@ -5153,7 +5149,6 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
   height: var(--vz-h-corps) !important; min-height: 0 !important;
 }
 #me-viewport { flex-basis: var(--vz-w-corps) !important; }
-#modal-resize .modal-card { width: min(1600px, 96vw) !important; max-width: 96vw !important; }   /* la fenetre Resize restait a 1100 px : son viewer n'atteignait pas la taille commune */
 @media (max-width: 900px) {
   :root { --vz-w-corps: 100%; }
   .modal-card.fen-3d .fen-corps { grid-template-columns: 1fr !important; }
@@ -5438,3 +5433,8 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-mesh-edit #me-panel > div { flex-shrink: 0; }
 #modal-mesh-edit #me-sym-opts { flex-wrap: wrap; }
 #modal-mesh-edit .modal-card.fen-3d .fen-corps { margin-bottom: 14px; }
+/* LOT W30 (25/10) : Redimensionner adopte la carte .fen-3d (apercu a gauche, colonne a droite, pied pleine largeur). */
+#modal-resize .modal-actions { gap: 12px; }
+#modal-resize .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-resize .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+#modal-resize .fen-form { gap: 8px; }
