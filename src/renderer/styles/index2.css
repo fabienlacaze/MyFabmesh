@@ -5514,3 +5514,27 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 @media (max-width: 1500px) and (min-width: 901px) {
   .modal-card.fen-3d { padding-left: 12px !important; padding-right: 12px !important; }
 }
+
+/* ============================================================
+ * LOT P4 (25/10) : outils de RIG et d'ANIMATION au gabarit .fen-3d (Re-skin only, Test animation, Import GLB, Add Animation).
+ * Apercu reel du rig a gauche, colonne de droite, pied « Annuler » + action sur TOUTE la largeur restante.
+ * ============================================================ */
+.fen-p4 .fen-p4-valeur { font-size: 15px; padding: 8px 10px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; min-height: 1.4em; }
+.fen-p4 .fen-p4-valeur:empty { display: none; }
+.fen-p4 .fen-form select { width: 100%; box-sizing: border-box; }
+.fen-p4 .fen-form > .ghost-btn { align-self: stretch; padding: 10px 12px; }
+#modal-rig-reskin .modal-actions,
+#modal-rig-test .modal-actions,
+#modal-anim-import .modal-actions,
+#modal-anim-gen .modal-actions { gap: 12px; }
+#modal-rig-reskin .modal-actions .ghost-btn,
+#modal-rig-test .modal-actions .ghost-btn,
+#modal-anim-import .modal-actions .ghost-btn,
+#modal-anim-gen .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; padding: 0 18px; }
+#modal-rig-reskin .modal-actions .primary-btn,
+#modal-rig-test .modal-actions .primary-btn,
+#modal-anim-import .modal-actions .primary-btn,
+#modal-anim-gen .modal-actions .primary-btn { flex: 1 1 auto; width: auto; }
+#modal-anim-gen .fen-apercu { padding: 0; overflow: hidden; }
+#modal-anim-gen #modal-anim-types { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding: 0; gap: 8px; }
+#modal-anim-gen #modal-anim-types .anim-type-opt { padding: 8px 10px; font-size: 14px; }

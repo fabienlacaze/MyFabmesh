@@ -11,6 +11,7 @@ import { animerPistes, modeDuSquelette, pattesDuSquelette, squeletteDe, corriger
 
 export function creerApercu(canvas) {
   let rendu = null, scene = null, camera = null, melangeur = null, modele = null;
+  let clipsIntegres = [];   // clips contenus dans le GLB charge (LOT P4 : apercu d'un fichier importe)
   let cle = null, tampon = null, noeuds = null, raf = 0, detruit = false, enCours = null, controles = null, modeSq = null;
   const horloge = new THREE.Clock();
 
@@ -109,6 +110,7 @@ export function creerApercu(canvas) {
       noeuds = new Map();
       for (const [obj, a] of g.parser.associations) if (a && a.nodes !== undefined && obj.isObject3D) noeuds.set(a.nodes, obj);
       tampon = buf;
+      clipsIntegres = g.animations || [];
       modeSq = null; nbP = null;                             // nouveau rig : mode et pattes a recalculer
       cle = nouvelleCle;
       melangeur = new THREE.AnimationMixer(modele);
@@ -150,6 +152,17 @@ export function creerApercu(canvas) {
     melangeur.clipAction(new THREE.AnimationClip(nomClip, c.duree, pistes)).play();
     return true;
   }
+  /** Joue en boucle un clip CONTENU dans le fichier charge (import d'un GLB anime). Rend le nombre de clips. */
+  function jouerIntegre(indice = 0) {
+    if (!modele || !melangeur || !clipsIntegres.length) return 0;
+    melangeur.stopAllAction();
+    melangeur.uncacheRoot(modele);
+    melangeur.clipAction(clipsIntegres[Math.min(indice, clipsIntegres.length - 1)]).play();
+    return clipsIntegres.length;
+  }
+  function nomsIntegres() { return clipsIntegres.map((c, i) => c.name || ('clip ' + (i + 1))); }
+  /** Pause / reprise de la lecture (le melangeur garde son temps). */
+  function pause(on) { if (melangeur) melangeur.timeScale = on ? 0 : 1; }
   /** Pose de repos (animation IA : pas d'aperçu). */
   function arreter() { if (melangeur) { melangeur.stopAllAction(); modele?.traverse((o) => { if (o.isSkinnedMesh) o.skeleton.pose(); }); } }
   function detruire() {
@@ -167,5 +180,5 @@ export function creerApercu(canvas) {
     return nbP;
   }
   // 25/10 : camera et commandes exposees a la barre commune des visualiseurs (lib/barre-vues-3d.js) ; rien d'autre ne change.
-  return { chargerRig, jouer, arreter, detruire, modeSquelette, nbPattes, pret: () => !!modele, cleChargee: () => cle, vue3d: () => (camera && controles ? { camera, controls: controles, scene, model: modele } : null) };
+  return { chargerRig, jouer, jouerIntegre, nomsIntegres, pause, arreter, detruire, modeSquelette, nbPattes, pret: () => !!modele, cleChargee: () => cle, vue3d: () => (camera && controles ? { camera, controls: controles, scene, model: modele } : null) };
 }

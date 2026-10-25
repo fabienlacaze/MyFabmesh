@@ -848,6 +848,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     // Rig (/api/auto-rig) : squelette tire par l'IA = rig, squelette impose = reskin
     'ws-generate-rig-ai':       'rig',
     'ws-rig-reskin-btn':        'reskin',
+    'rgs-go':                   'reskin',             // pied de la fenetre Re-skin only
     'pts-regenerer':            (b) => (b && b.dataset.cleTarif) || 'rig',   // index2.js : reskin si squelette retouche
     'pts-enregistrer-sans-ia':  'manual_tool',        // /api/upload-rig, aucun calcul
     // Maillage : /api/mesh-op, ou /api/mesh-op/client-result au meme prix
@@ -908,6 +909,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'pp-save':                  'manual_tool',        // editeur de poids de peau (bouton cree a l'ouverture)
     'ws-lm-manual':             'manual_tool',        // Skeleton points
     'ws-rig-poids-btn':         'manual_tool',        // Skin weights (a l'enregistrement)
+    'ami-go':                   'manual_tool',        // pied de la fenetre Import GLB
     'ws-anim-import-btn':       'manual_tool',        // import d'une animation (FBX)
     // Exports et publication
     'ws-export-img-btn':        'export',

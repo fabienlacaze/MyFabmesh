@@ -12,7 +12,7 @@ for (const [html, css] of [['cloud/public/app/index.html', 'cloud/public/app/sty
     const b = bloc(lire(html), 'modal-anim-gen', 'id="modal-confirm"');
     assert.ok(b.includes('class="modal-card fen-3d fen-anim-gen"'));
     assert.ok(b.includes('<div class="fen-corps">') && b.includes('<div class="fen-form">'));
-    assert.ok(b.indexOf('id="modal-anim-types"') < b.indexOf('class="fen-form"'), 'choix a gauche, colonne a droite');
+    assert.ok(b.indexOf('id="modal-anim-apercu"') < b.indexOf('class="fen-form"') && b.indexOf('class="fen-form"') < b.indexOf('id="modal-anim-types"'), 'apercu du rig a gauche (LOT P4), choix dans la colonne de droite');
     assert.equal((b.match(/name="modal-anim-type"/g) || []).length, 14);
     for (const id of ['modal-anim-cancel', 'modal-anim-go']) assert.ok(b.includes(`id="${id}"`));
     assert.ok(!b.includes('width:440px'));

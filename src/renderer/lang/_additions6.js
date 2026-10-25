@@ -1553,3 +1553,31 @@
   }
   if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
 })();
+
+/* LOT P4 : cles des fenetres Re-skin only, Test animation, Import GLB (gabarit .fen-3d) */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
+    "Recompute the skin weights of this rig. The skeleton stays exactly as it is.": ["Recalcule les poids de peau de ce rig. Le squelette reste exactement tel quel.", "Recalcula los pesos de piel de este rig. El esqueleto se queda exactamente como está.", "重新计算此骨架的蒙皮权重。骨骼保持原样不变。", "इस रिग के स्किन वेट दोबारा गणना करें। कंकाल बिल्कुल वैसा ही रहता है।", "أعد حساب أوزان الجلد لهذا الهيكل. يبقى العظم كما هو تمامًا."],
+    "The AI recomputes how each bone moves the surface. Bones, names and pose do not change. The result is saved as a new version of the rig.": ["L'IA recalcule comment chaque os déplace la surface. Les os, leurs noms et la pose ne changent pas. Le résultat est enregistré comme nouvelle version du rig.", "La IA recalcula cómo cada hueso mueve la superficie. Los huesos, sus nombres y la pose no cambian. El resultado se guarda como una nueva versión del rig.", "AI 会重新计算每根骨骼如何带动表面。骨骼、名称和姿势都不变。结果会保存为骨架的新版本。", "AI यह दोबारा गणना करता है कि हर हड्डी सतह को कैसे हिलाती है। हड्डियाँ, उनके नाम और पोज़ नहीं बदलते। परिणाम रिग के नए संस्करण के रूप में सहेजा जाता है।", "يعيد الذكاء الاصطناعي حساب كيفية تحريك كل عظمة للسطح. لا تتغير العظام ولا أسماؤها ولا الوضعية. تُحفَظ النتيجة كنسخة جديدة من الهيكل."],
+    "Play a test motion on the rig to check that it holds up. Nothing is saved.": ["Joue un mouvement d'essai sur le rig pour vérifier qu'il tient. Rien n'est enregistré.", "Reproduce un movimiento de prueba en el rig para comprobar que aguanta. No se guarda nada.", "在骨架上播放测试动作，检查是否稳定。不会保存任何内容。", "रिग पर एक परीक्षण गति चलाकर जाँचें कि वह टिकता है। कुछ भी सहेजा नहीं जाता।", "شغّل حركة اختبار على الهيكل للتحقق من تماسكه. لا يُحفَظ شيء."],
+    "Clip": ["Clip", "Clip", "片段", "क्लिप", "مقطع"],
+    "Dance": ["Danse", "Baile", "舞蹈", "नृत्य", "رقص"],
+    "Motion": ["Mouvement", "Movimiento", "动作", "गति", "الحركة"],
+    "Free: the motion is computed on your rig, in this window only.": ["Gratuit : le mouvement est calculé sur ton rig, dans cette fenêtre seulement.", "Gratis: el movimiento se calcula en tu rig, solo en esta ventana.", "免费：动作在你的骨架上计算，仅在此窗口内。", "मुफ़्त: गति आपके रिग पर केवल इसी विंडो में गणना की जाती है।", "مجاني: تُحسَب الحركة على هيكلك داخل هذه النافذة فقط."],
+    "This rig has no motion to play.": ["Ce rig n'a aucun mouvement à jouer.", "Este rig no tiene ningún movimiento que reproducir.", "此骨架没有可播放的动作。", "इस रिग में चलाने के लिए कोई गति नहीं है।", "لا توجد حركة لتشغيلها على هذا الهيكل."],
+    "Import an animated GLB as a new version of the animations.": ["Importe un GLB animé comme nouvelle version des animations.", "Importa un GLB animado como una nueva versión de las animaciones.", "将带动画的 GLB 导入为动画的新版本。", "एनिमेटेड GLB को एनिमेशन के नए संस्करण के रूप में आयात करें।", "استورد ملف GLB متحركًا كنسخة جديدة من الحركات."],
+    "Choose a GLB file…": ["Choisir un fichier GLB…", "Elegir un archivo GLB…", "选择 GLB 文件…", "GLB फ़ाइल चुनें…", "اختر ملف GLB…"],
+    "Animation type": ["Type d'animation", "Tipo de animación", "动画类型", "एनिमेशन प्रकार", "نوع الحركة"],
+    "The file is kept as it is and added to the project as a new animation version.": ["Le fichier est gardé tel quel et ajouté au projet comme nouvelle version d'animation.", "El archivo se conserva tal cual y se añade al proyecto como una nueva versión de animación.", "文件原样保留，并作为新的动画版本添加到项目中。", "फ़ाइल जैसी है वैसी ही रखी जाती है और प्रोजेक्ट में नए एनिमेशन संस्करण के रूप में जुड़ती है।", "يُحفَظ الملف كما هو ويُضاف إلى المشروع كنسخة حركة جديدة."],
+    "Choose a .glb file to see it here.": ["Choisis un fichier .glb pour le voir ici.", "Elige un archivo .glb para verlo aquí.", "选择一个 .glb 文件即可在此查看。", "यहाँ देखने के लिए .glb फ़ाइल चुनें।", "اختر ملف .glb لعرضه هنا."],
+    "No animation found in this file.": ["Aucune animation dans ce fichier.", "No hay ninguna animación en este archivo.", "此文件中没有动画。", "इस फ़ाइल में कोई एनिमेशन नहीं मिला।", "لا توجد حركة في هذا الملف."],
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();
