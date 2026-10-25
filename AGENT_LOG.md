@@ -26266,3 +26266,4 @@ Reprise apres le plantage du PC. La copie `C:/tmp/modify_2010` contenait un debu
 
 ## 2026-10-25 - LOT W13 : fenetre Modify (image) au gabarit .fen-3d
 Voir depot principal.
+## 2026-10-25 - LOT W18 : Recolorier au gabarit fen-3d (voir depot principal)
