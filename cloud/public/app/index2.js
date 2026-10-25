@@ -6051,8 +6051,34 @@ async function openLightbox(imgPath) {
   const lb = document.getElementById('lightbox-2');
   const img = document.getElementById('lightbox-2-img');
   const p = state.currentProject;
-  _lightboxImages = (p && p.images) ? p.images.map(i => i.path) : [imgPath];
-  _lightboxIndex = Math.max(0, _lightboxImages.indexOf(imgPath));
+  // Galerie : si l'image appartient a une version de construction (etapes), les etapes servent de galerie (parite bureau).
+  let _lbGallery = null, _lbStart = 0, _lbStagesMeta = null;
+  if (p && p._stagesList) {
+    const key = Object.keys(p._stagesList).find(k =>
+      _normPath(k) === _normPath(imgPath) ||
+      (p.previewImagePath && _normPath(k) === _normPath(p.previewImagePath)) ||
+      (p._stagesList[k] || []).some(s => _normPath(s.path) === _normPath(imgPath)));
+    if (key) {
+      const list = p._stagesList[key] || [];
+      if (list.length >= 2) {
+        const stagePaths = list.map(s => s.path);
+        let si = stagePaths.indexOf(imgPath);
+        if (si < 0 && p._activeStage) si = stagePaths.indexOf(p._activeStage);
+        if (si < 0) si = list.length - 1;
+        _lbGallery = stagePaths; _lbStart = si; _lbStagesMeta = list;
+      }
+    }
+  }
+  if (!_lbGallery) {
+    const versions = (p && p.images) ? p.images.map(i => i.path) : [imgPath];
+    const vi = versions.indexOf(imgPath);
+    _lbGallery = vi >= 0 ? versions : [imgPath];
+    _lbStart = vi >= 0 ? vi : 0;
+  }
+  _lightboxImages = _lbGallery;
+  _lightboxIndex = _lbStart;
+  _renderLbStagesBar(_lbStagesMeta);
+  _syncLbStagesBarActive();
   img.src = _bust(_toFileUrl(imgPath));
   updateLightboxBottom(imgPath);
   updateLightboxNavButtons();
@@ -6218,7 +6244,44 @@ function updateLightboxBottom(imgPath) {
   const useBtn = document.getElementById('lightbox-2-use-3d');
   if (useBtn) {
     const p = state.currentProject;
+  _syncLbStagesBarActive();
+}
+
+// Frise des etapes de construction dans la visionneuse plein ecran (port du bureau ; sans effet tant qu'aucune etape n'existe).
+function _renderLbStagesBar(stages) {
+  const bar = document.getElementById('lb-stages-bar');
+  if (!bar) return;
+  if (!Array.isArray(stages) || stages.length < 2) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+  const last = stages.length - 1;
+  bar.innerHTML = '';
+  for (const s of stages) {
+    const btn = document.createElement('button');
+    btn.className = 'stage-btn';
+    btn.dataset.path = s.path;
+    btn.dataset.stage = String(s.index);
+    const pct = Math.round((s.progress != null ? s.progress : (s.index / last)) * 100);
+    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    btn.innerHTML = '<span class="stage-num">' + (s.index + 1) + '</span><span class="stage-lbl">' + lbl + '</span>';
+    bar.appendChild(btn);
+  }
+  bar.classList.remove('hidden');
+}
+function _syncLbStagesBarActive() {
+  const bar = document.getElementById('lb-stages-bar');
+  if (!bar || bar.classList.contains('hidden')) return;
+  const cur = _lightboxImages[_lightboxIndex];
+  bar.querySelectorAll('.stage-btn').forEach(b =>
+    b.classList.toggle('stage-active', _normPath(b.dataset.path) === _normPath(cur)));
     const isAlready = p && p.selectedImagePath === imgPath;
+document.getElementById('lb-stages-bar')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.stage-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const idx = _lightboxImages.indexOf(btn.dataset.path);
+  if (idx >= 0) lightboxShowAt(idx);
+  const p = state.currentProject;
+  if (p) { p._activeStage = btn.dataset.path; p._activeStageKey = parseInt(btn.dataset.stage, 10); }
+});
     useBtn.classList.toggle('used-state', isAlready);
     useBtn.textContent = isAlready ? '\u2713 Used for 3D generation \u2192' : 'Use this image for 3D \u2192';
   }
@@ -6265,8 +6328,71 @@ document.addEventListener('keydown', (e) => {
   const lbVisible = !document.getElementById('lightbox-2').classList.contains('hidden');
   if (!lbVisible) return;
   if (e.key === 'Escape') closeLightbox();
+// Visionneuse 2D (harmonisation 25/10) : molette = zoom (x1.15, de 0.2 a 10), clic droit maintenu = deplacer,
+// comme dans les visualiseurs 3D. Remise a zero a chaque nouvelle image et a la fermeture.
+const _lbView = { z: 1, x: 0, y: 0, pan: false, ox: 0, oy: 0, dist: 0, bloque: false };
+function _lbApplyView() {
+  const im = document.getElementById('lightbox-2-img');
+  if (!im) return;
+  im.style.transform = (_lbView.z === 1 && !_lbView.x && !_lbView.y) ? '' : 'translate(' + _lbView.x + 'px, ' + _lbView.y + 'px) scale(' + _lbView.z + ')';
+}
+function _lbResetView() { _lbView.z = 1; _lbView.x = 0; _lbView.y = 0; _lbApplyView(); }
+function _lbZoomAt(f, cx, cy) {
+  const im = document.getElementById('lightbox-2-img');
+  if (!im) return;
+  const z2 = Math.max(0.2, Math.min(10, _lbView.z * f));
+  const g = z2 / _lbView.z;
+  if (g === 1) return;
+  const r = im.getBoundingClientRect();
+  const mx = r.left + r.width / 2, my = r.top + r.height / 2;   // le zoom se fait autour du centre : on rattrape l'ecart au curseur
+  _lbView.x += (cx - mx) * (1 - g);
+  _lbView.y += (cy - my) * (1 - g);
+  _lbView.z = z2;
+  _lbApplyView();
+}
+(function _lbWireZoom() {
+  const lb = document.getElementById('lightbox-2');
+  const im = document.getElementById('lightbox-2-img');
+  if (!lb || !im) return;
+  const OUTILS = '.lb-toolbox, #lightbox-2-bottom, .lightbox-nav, #lb-multiview-bar, #lb-stages-bar, #lightbox-2-close, #lightbox-2-info';
+  lb.addEventListener('wheel', (e) => {
+    if (e.target.closest && e.target.closest(OUTILS)) return;
+    e.preventDefault();
+    _lbZoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+  }, { passive: false });
+  lb.addEventListener('contextmenu', (e) => { if (!(e.target.closest && e.target.closest(OUTILS))) e.preventDefault(); });
+  lb.addEventListener('mousedown', (e) => {
+    if (e.button !== 2 || (e.target.closest && e.target.closest(OUTILS))) return;
+    _lbView.pan = true; _lbView.dist = 0; _lbView.bloque = false;
+    _lbView.ox = e.clientX; _lbView.oy = e.clientY;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!_lbView.pan) return;
+    const dx = e.clientX - _lbView.ox, dy = e.clientY - _lbView.oy;
+    _lbView.ox = e.clientX; _lbView.oy = e.clientY;
+    _lbView.dist += Math.abs(dx) + Math.abs(dy);
+    _lbView.x += dx; _lbView.y += dy;
+    _lbApplyView();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_lbView.pan) return;
+    _lbView.pan = false;
+    if (_lbView.dist > 4) _lbView.bloque = true;   // le clic qui suit un deplacement ne ferme pas la visionneuse
+  });
+  im.addEventListener('load', _lbResetView);
+  document.getElementById('lightbox-2-fit')?.addEventListener('click', (e) => { e.stopPropagation(); _lbResetView(); });
+  document.getElementById('lightbox-2-actual')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!im.naturalWidth || !im.clientWidth) return;
+    _lbView.x = 0; _lbView.y = 0;
+    _lbView.z = Math.max(0.2, Math.min(10, im.naturalWidth / im.clientWidth));   // 1 pixel de l'image = 1 pixel de l'ecran
+    _lbApplyView();
+  });
+})();
   else if (e.key === 'ArrowLeft') lightboxShowAt(_lightboxIndex - 1);
   else if (e.key === 'ArrowRight') lightboxShowAt(_lightboxIndex + 1);
+  if (_lbView.bloque) { _lbView.bloque = false; return; }
 });
 
 // Persist prompt edits to localStorage so they survive a reload
@@ -7750,13 +7876,14 @@ function _symApplyView() {
     _symApplyView();
   }, { passive: false });
   container.addEventListener('mousedown', (e) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) {   // clic droit maintenu = deplacer (25/10)
       symState.panning = true;
       symState.panStart = { x: e.clientX - symState.panX, y: e.clientY - symState.panY };
       container.style.cursor = 'grabbing';
       e.preventDefault();
     }
   });
+  container.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousemove', (e) => {
     if (symState.panning && symState.panStart) {
       symState.panX = e.clientX - symState.panStart.x;
@@ -7991,6 +8118,7 @@ if (_symOverlay) {
     } else if (e.ctrlKey || e.metaKey) {
       // Ctrl+drag = move axis (works in both modes)
       symState.dragging = true;
+    if (e.button !== 0 || e.altKey) return;   // les autres boutons deplacent la vue
     } else if (symState.mode === 'full' && Math.abs(p.x - axPx) < 20) {
       // Near axis in full mode = drag axis
       symState.dragging = true;
@@ -8452,6 +8580,7 @@ function _cropDrawOverlay() {
   const overlay = document.getElementById('crop-overlay');
   if (!overlay) return;
   const ctx = overlay.getContext('2d');
+    cropState.hist = []; cropState.redo = []; _cropBtns();
   const w = cropState.w, h = cropState.h;
   ctx.clearRect(0, 0, w, h);
   // Darken outside crop area
@@ -8511,6 +8640,8 @@ function _cropUpdateLabel() {
   ov.addEventListener('mousemove', (e) => {
     if (!cropState.dragging) return;
     const p = _coords(e);
+    if (e.button !== 0) return;
+    _cropPush();
     cropState.x2 = Math.max(0, Math.min(1, p.x));
     cropState.y2 = Math.max(0, Math.min(1, p.y));
     // Enforce aspect ratio if set
@@ -8541,8 +8672,84 @@ function _cropSetPreset(aspect, id) {
   const recentrer = (aspect === 'center');
   if (recentrer) aspect = cropState.aspect;
   const ratioVerrouille = (typeof aspect === 'number' && aspect > 0);
+// Historique du cadre (annuler / refaire, 20 niveaux), recentrage et loupe (harmonisation des editeurs 2D, 25/10)
+cropState.hist = []; cropState.redo = []; cropState.loupe = true;
+function _cropSnap() { return { x1: cropState.x1, y1: cropState.y1, x2: cropState.x2, y2: cropState.y2, aspect: cropState.aspect }; }
+function _cropBtns() {
+  const u = document.getElementById('crop-undo'), r = document.getElementById('crop-redo');
+  if (u) u.disabled = cropState.hist.length === 0;
+  if (r) r.disabled = cropState.redo.length === 0;
+}
+function _cropPush() {
+  cropState.hist.push(_cropSnap());
+  if (cropState.hist.length > 20) cropState.hist.shift();
+  cropState.redo = [];
+  _cropBtns();
+}
+function _cropRestore(s) {
+  Object.assign(cropState, s);
+  document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
+  const marque = [[null, 'crop-preset-free'], [1, 'crop-preset-1-1'], [4 / 3, 'crop-preset-4-3'], [16 / 9, 'crop-preset-16-9']]
+    .find(([r]) => (r === null ? !s.aspect : (s.aspect && Math.abs(r - s.aspect) < 0.01)));
+  if (marque) document.getElementById(marque[1])?.classList.add('tool-active');
+  _cropDrawOverlay(); _cropUpdateLabel(); _cropBtns();
+}
+document.getElementById('crop-undo')?.addEventListener('click', () => {
+  if (!cropState.hist.length) return;
+  cropState.redo.push(_cropSnap());
+  _cropRestore(cropState.hist.pop());
+});
+document.getElementById('crop-redo')?.addEventListener('click', () => {
+  if (!cropState.redo.length) return;
+  cropState.hist.push(_cropSnap());
+  _cropRestore(cropState.redo.pop());
+});
+// Recentrer = recadrer toute l'image (le cadre n'a pas de zoom)
+document.getElementById('crop-recenter')?.addEventListener('click', () => {
+  if (!cropState.w) return;
+  _cropPush();
+  cropState.x1 = 0; cropState.y1 = 0; cropState.x2 = 1; cropState.y2 = 1; cropState.aspect = null;
+  document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
+  document.getElementById('crop-preset-free')?.classList.add('tool-active');
+  _cropDrawOverlay(); _cropUpdateLabel();
+});
+document.getElementById('crop-loupe-toggle')?.addEventListener('click', () => {
+  cropState.loupe = !cropState.loupe;
+  document.getElementById('crop-loupe-toggle')?.classList.toggle('tool-active', cropState.loupe);
+  if (!cropState.loupe) { const l = document.getElementById('clone-loupe'); if (l) l.style.display = 'none'; }
+});
+document.getElementById('crop-loupe-toggle')?.classList.add('tool-active');
+(() => {
+  const ov = document.getElementById('crop-overlay');
+  if (!ov) return;
+  ov.addEventListener('mousemove', (e) => {
+    const el = document.getElementById('clone-loupe');
+    const lc = document.getElementById('clone-loupe-canvas');
+    const cv = document.getElementById('crop-canvas');
+    if (!el || !lc || !cv || !cropState.loupe || !cropState.w) { if (el) el.style.display = 'none'; return; }
+    const rect = cv.getBoundingClientRect();
+    const sx = cropState.w / rect.width;
+    const cx = Math.round((e.clientX - rect.left) * sx), cy = Math.round((e.clientY - rect.top) * sx);
+    const src = 20;
+    const lctx = lc.getContext('2d');
+    lctx.clearRect(0, 0, 120, 120);
+    lctx.save(); lctx.beginPath(); lctx.arc(60, 60, 58, 0, Math.PI * 2); lctx.clip();
+    lctx.drawImage(cv, cx - src, cy - src, src * 2, src * 2, 0, 0, 120, 120);
+    lctx.strokeStyle = 'rgba(255,255,255,0.6)'; lctx.lineWidth = 1;
+    lctx.beginPath(); lctx.moveTo(60, 50); lctx.lineTo(60, 70); lctx.moveTo(50, 60); lctx.lineTo(70, 60); lctx.stroke();
+    lctx.restore();
+    const cr = document.getElementById('crop-canvas-container').getBoundingClientRect();
+    let lx = e.clientX + 20, ly = e.clientY - 140;
+    if (lx + 120 > cr.right) lx = e.clientX - 140;
+    if (ly < cr.top) ly = e.clientY + 20;
+    el.style.left = lx + 'px'; el.style.top = ly + 'px'; el.style.display = 'block';
+  });
+  ov.addEventListener('mouseleave', () => { const l = document.getElementById('clone-loupe'); if (l) l.style.display = 'none'; });
+})();
+
   document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
   if (recentrer && ratioVerrouille) {
+  _cropPush();
     const marque = [[1, 'crop-preset-1-1'], [4 / 3, 'crop-preset-4-3'], [16 / 9, 'crop-preset-16-9']].find(([r]) => Math.abs(r - aspect) < 0.01);
     document.getElementById(marque ? marque[1] : id)?.classList.add('tool-active');
   } else {
@@ -8905,6 +9112,7 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
         const ay = Math.max(0, Math.round(y - r));
         const aw = Math.min(mgr.w - ax, Math.round(r * 2));
         const ah = Math.min(mgr.h - ay, Math.round(r * 2));
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (aucune autre fonction ici)
         if (aw <= 0 || ah <= 0) return;
         const tmp = document.createElement('canvas');
         tmp.width = aw; tmp.height = ah;
@@ -8977,6 +9185,8 @@ document.getElementById('blur-mode-blur')?.addEventListener('click', () => {
 });
 document.getElementById('blur-mode-sharpen')?.addEventListener('click', () => {
   blurState.mode = 'sharpen';
+document.getElementById('blur-fit')?.addEventListener('click', () => { if (_blurMgr && _blurMgr.recenter) _blurMgr.recenter(); });
+
   document.getElementById('blur-mode-sharpen')?.classList.add('tool-active');
   document.getElementById('blur-mode-blur')?.classList.remove('tool-active');
 });
@@ -9528,6 +9738,7 @@ document.getElementById('ws-paint-btn')?.addEventListener('click', () => {
           paintState.color = hex;
           document.getElementById('paint-color').value = hex;
           paintState.eyedropping = false;
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (la pipette et les outils sont au clic gauche)
           document.getElementById('paint-eyedropper')?.classList.remove('tool-active');
           document.getElementById('paint-canvas').style.cursor = 'none';
           return false;

@@ -888,6 +888,7 @@
       container: document.getElementById('select-canvas-container'),
       undoBtn: document.getElementById('select-undo'),
       redoBtn: document.getElementById('select-redo'),
+      loupeBtn: document.getElementById('select-loupe-toggle'),
       rightClickPan: true,
       // NB: no onMouseDown/onPaint — CanvasManager only does zoom/pan/undo
       // here; selection uses our own left-button listeners below (returning

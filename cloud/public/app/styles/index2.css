@@ -7,6 +7,17 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+  /* Harmonisation des visualiseurs (25/10) : UNE regle par famille, identique site / bureau. */
+  --vz-h-principal: 440px;            /* A : visualiseur principal (carte, maillage, rig, animation) */
+  --vz-h-fenetre: min(88vh, 920px);   /* B : visualiseur de fenetre d'outil */
+  --vz-apercu-min: 360px;
+  --vz-editeur-w: 95vw;               /* C : editeurs 2D a canevas */
+  --vz-editeur-h: 95vh;
+  --vz-editeur-zone-min: 400px;
+  --vz-source-min: 240px;             /* D : apercus de source des etapes */
+  --vz-vignette-h: 200px;             /* E : vignettes de cartes */
+  --vz-pub-thumb: 84px;
+  --lb-colonne: 252px;                /* colonne d'outils de la visionneuse 2D / 3D */
   --bg-0: #0b0b14;
   --bg-1: #15151f;
   --bg-2: #1d1d2c;
@@ -958,7 +969,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
 }
 .viewer-filename {
   text-align: center;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-2);
   font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
   margin-top: 4px;
@@ -1134,7 +1145,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  height: 440px;
+  height: var(--vz-h-principal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1144,7 +1155,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
 /* Large variant (used by the rig viewer) keeps the same height so the
    preview block matches image and mesh one-for-one. */
 .step-card-preview.large {
-  height: 440px;
+  height: var(--vz-h-principal);
 }
 /* Navigation arrows on image preview */
 .nav-arrow {
@@ -1171,7 +1182,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
   transform: translateX(-50%);
   background: rgba(0,0,0,0.6);
   color: white;
-  font-size: 11px;
+  font-size: 13px;
   padding: 2px 10px;
   border-radius: 10px;
   z-index: 10;
@@ -1202,7 +1213,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.15s;
-  font-size: 8px;
+  font-size: 10px;
 }
 .mv-btn:hover { background: rgba(255,255,255,0.1); color: white; }
 .mv-btn.mv-active {
@@ -3804,13 +3815,13 @@ details.stage-generating > summary .stage-icon-gear {
 }
 #lightbox-2.hidden { display: none; }
 #lightbox-2 img {
-  /* Place reservee a droite pour la colonne d outils (252 px + marges) */
-  max-width: calc(92vw - 290px);
+  /* Place reservee a droite pour la colonne d outils (--lb-colonne + marges) */
+  max-width: calc(92vw - var(--lb-colonne) - 38px);
   max-height: 92vh;
   object-fit: contain;
   box-shadow: 0 20px 60px rgba(0,0,0,0.8);
   border-radius: 8px;
-  margin-right: 270px;
+  margin-right: calc(var(--lb-colonne) + 18px);
 }
 
 /* Tool column on the right side of the big viewer */
@@ -3819,7 +3830,7 @@ details.stage-generating > summary .stage-icon-gear {
   right: 20px;
   top: 72px;
   bottom: 72px;
-  width: 252px;
+  width: var(--lb-colonne);
   background: rgba(26, 26, 40, 0.85);
   border: 1px solid #2a2a3a;
   border-radius: 8px;
@@ -3832,7 +3843,7 @@ details.stage-generating > summary .stage-icon-gear {
   z-index: 9510;
 }
 .lb-toolbox-group-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-2, #8a8a9a);
   text-transform: uppercase;
@@ -3848,7 +3859,7 @@ details.stage-generating > summary .stage-icon-gear {
   border: 1px solid #3a3a4d;
   border-radius: 5px;
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
   /* Libelle a la ligne au lieu d un « … » qui cache aussi la pastille de prix (2026-10-04) */
@@ -3956,7 +3967,7 @@ details.stage-generating > summary .stage-icon-gear {
   opacity: 1;
 }
 #lightbox-2-filename {
-  font-size: 11px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
   background: rgba(0, 0, 0, 0.6);
@@ -4601,7 +4612,7 @@ details.stage-generating > summary .stage-icon-gear {
 /* Recolor : cadrage du bureau, jamais porte sur le web (2026-09-29, user : « mal cadre » — l'image
    de 400 px debordait sur les reglages, colonne de 280 px). */
 #modal-recolor .modal-card.modal-card-wide { width: 880px; }
-#modal-recolor .modal-with-image { grid-template-columns: minmax(360px, 1.2fr) 1fr; }
+#modal-recolor .modal-with-image { grid-template-columns: minmax(400px, 1.2fr) 1fr; }
 #modal-recolor .modal-image-side { min-height: 440px; }
 #modal-recolor .modal-form-side { justify-content: flex-start; min-width: 0; }
 
@@ -4620,11 +4631,11 @@ details.stage-generating > summary .stage-icon-gear {
 .fen-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; overflow-y: auto; }
 .fen-champ { display: flex; flex-direction: column; gap: 6px; }
 .fen-champ-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.fen-label { font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-2); }
-.fen-valeur { font-size: 12px; font-weight: 600; color: var(--accent); }
+.fen-label { font-size: 13px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-2); }
+.fen-valeur { font-size: 14px; font-weight: 600; color: var(--accent); }
 input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inherit; font-size: 12px; color: inherit;
   background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border); border-radius: 6px; }
-.fen-note { font-size: 11.5px; color: var(--text-muted); }
+.fen-note { font-size: 13.5px; color: var(--text-muted); }
 .fen-petit { align-self: flex-start; margin: 0; padding: 5px 12px; font-size: 12px; width: auto; }
 .modal-actions .secondary-btn { height: 42px; padding: 0 18px; margin: 0; width: auto; }
 /* fenetre 3D (apercu en direct) : grande carte, l'apercu prend toute la hauteur */
@@ -4651,7 +4662,7 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 .modal-card.modal-card-wide { width: 880px; }
 .modal-with-image { grid-template-columns: minmax(300px, 1.15fr) minmax(260px, 1fr); }
 .modal-image-side { min-height: 380px; }
-.fen-echelle { display: flex; justify-content: space-between; margin-top: 3px; font-size: 11px; color: var(--text-muted); }
+.fen-echelle { display: flex; justify-content: space-between; margin-top: 3px; font-size: 13px; color: var(--text-muted); }
 /* Modify : ligne d'aide sous la consigne (retrait / remplacement detecte) et curseur sans effet (2026-10-20) */
 #mod-retrait-hint { display: block; line-height: 1.35; }
 #mod-retrait-hint[hidden] { display: none; }
@@ -4818,3 +4829,34 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
   font-size: 12px; line-height: 1.35; color: var(--text-2, #8a8f98);
   white-space: normal; overflow-wrap: anywhere; word-break: normal; text-align: start;
 }
+
+/* Harmonisation des visualiseurs : ecrans etroits (identique site / bureau) */
+@media (max-width: 900px) {
+  :root { --vz-h-principal: min(440px, 56vh); }
+}
+@media (max-width: 760px) {
+  :root { --vz-apercu-min: 260px; }
+  #mask-modal .modal-content, #clone-modal .modal-content, #select-modal .modal-content,
+  #modal-colorpick .modal-content, #modal-blur .modal-content, #modal-crop .modal-content,
+  #modal-symmetrize .modal-content, #modal-paint .modal-content {
+    width: 100vw !important; max-width: 100vw !important;
+    height: 100dvh !important; max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+  .vz-barre, #mask-modal .modal-content > div[style*="flex-wrap"], #clone-modal .modal-content > div[style*="flex-wrap"],
+  #select-modal .modal-content > div[style*="flex-wrap"], #modal-blur .modal-content > div[style*="flex-wrap"],
+  #modal-crop .modal-content > div[style*="flex-wrap"], #modal-symmetrize .modal-content > div[style*="flex-wrap"] {
+    flex-wrap: nowrap !important; overflow-x: auto;
+  }
+}
+/* Tactile : pas de survol, les boutons flottants restent visibles */
+@media (hover: none) {
+  .step-card-preview .preview-expand-btn, .nav-arrow, .mv-btn-bar { opacity: 1; }
+}
+
+/* Barres d'outils 2D : separateur fin entre groupes (reglages | zoom | historique | reinitialiser) */
+.vz-sep { align-self: stretch; flex: 0 0 auto; width: 1px; min-height: 18px; margin: 0 4px; background: var(--border-strong, #3c3c5a); }
+
+/* Visionneuse 2D : barre de zoom (recentrer, taille reelle) au-dessus du nom de fichier */
+.lb-zoombar { display: flex; gap: 2px; background: rgba(0,0,0,0.7); border-radius: 8px; padding: 4px 6px; backdrop-filter: blur(4px); }
+#lightbox-2-img { transform-origin: 50% 50%; }

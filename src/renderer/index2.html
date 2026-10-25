@@ -1650,6 +1650,10 @@
       </div>
       <div id="lb-stages-bar" class="stages-bar hidden" style="bottom:60px;"></div>
       <div id="lightbox-2-bottom">
+        <div id="lightbox-2-zoombar" class="lb-zoombar">
+          <button id="lightbox-2-fit" class="mv-btn" title="Fit to view"><span>&#9678;</span><span>Fit</span></button>
+          <button id="lightbox-2-actual" class="mv-btn" title="Actual size (100%)"><span>1:1</span><span>100%</span></button>
+        </div>
         <div id="lightbox-2-filename"></div>
         <button id="lightbox-2-use-3d" class="primary-btn">Use this image for 3D &rarr;</button>
       </div>
@@ -3468,15 +3472,9 @@
          DRAW MASK MODAL (ported from legacy)
          ============================================================ -->
     <div id="mask-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
+      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
         <div class="fen-tete"><h2>Draw Mask (paint the area to replace or remove)</h2><button id="mask-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 13px; color: var(--text-muted);">
-          <strong>Click & drag</strong> to paint &nbsp;|&nbsp;
-          <strong>E</strong> / eraser button to erase &nbsp;|&nbsp;
-          <strong>B</strong> for brush &nbsp;|&nbsp;
-          <strong>Right-click drag</strong> also erases &nbsp;|&nbsp;
-          <strong>Z</strong> to undo
-        </div>
+        <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Left: paint - Right: erase - Wheel: zoom - Middle/Alt: pan</div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
             <span style="font-size:13px; white-space:nowrap;">Brush:</span>
@@ -3484,13 +3482,16 @@
             <span id="mask-brush-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <div style="display:flex; gap:4px; flex-shrink:0;">
-            <button id="mask-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
             <button id="mask-brush-mode" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint mode (B)">&#128396;&#65039;</button>
             <button id="mask-eraser-mode" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Eraser mode (E) — radius follows brush size">&#129529;</button>
-            <button id="mask-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
-            <button id="mask-undo" class="secondary-btn tool-btn" disabled title="Undo (Z)">&#8630;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="mask-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+            <button id="mask-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="mask-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
             <button id="mask-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <button id="mask-clear" class="secondary-btn tool-btn" title="Clear whole mask">&#8634;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="mask-clear" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
           </div>
         </div>
         <div id="mask-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px;">
@@ -3516,13 +3517,9 @@
          CLONE STAMP MODAL (ported from legacy)
          ============================================================ -->
     <div id="clone-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
+      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
         <div class="fen-tete"><h2>Clone Stamp</h2><button id="clone-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 13px; color: var(--text-muted);">
-          <strong>Ctrl+Click</strong> to set source point &nbsp;|&nbsp;
-          <strong>Click & drag</strong> to clone &nbsp;|&nbsp;
-          <strong>Z</strong> to undo
-        </div>
+        <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Ctrl+click: source - Left: clone - Right-drag: pan - Wheel: zoom</div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
             <span style="font-size:13px; white-space:nowrap;">Brush:</span>
@@ -3537,11 +3534,14 @@
           <div style="display:flex; gap:4px; flex-shrink:0;">
             <button id="clone-flip-toggle" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px;" title="Flip mode">Flip: Off</button>
             <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px;" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
+            <span class="vz-sep" aria-hidden="true"></span>
             <button id="clone-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-            <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
-            <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo (Z)">&#8630;</button>
+            <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
             <button id="clone-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <button id="clone-reset" class="secondary-btn tool-btn" title="Clear all paint">&#129529;&nbsp;Clear</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="clone-reset" class="secondary-btn tool-btn" title="Reset">&#8634;&nbsp;Clear</button>
           </div>
         </div>
         <div id="clone-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%;">
@@ -3566,7 +3566,7 @@
 
     <!-- Selection / Cut-Paste modal (manual: rectangle select → cut/copy → move → drop) -->
     <div id="select-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
+      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
         <div class="fen-tete"><h2>Selection — Cut / Copy / Paste</h2><button id="select-modal-close" class="settings-close-x">&#10005;</button></div>
         <div style="font-size: 13px; color: var(--text-muted);">
           <strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
@@ -3578,12 +3578,15 @@
           <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
           <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
           <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
-          <span style="flex:1;"></span>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:14px;" title="Rectangular selection">&#9647;&nbsp;Rect</button>
           <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Freehand lasso selection">&#10227;&nbsp;Lasso</button>
-          <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
-          <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
-          <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="select-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+          <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
         </div>
         <div id="select-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%; cursor: crosshair;">
           <canvas id="select-canvas" style="position: absolute; left: 0; top: 0;"></canvas>
@@ -3723,11 +3726,11 @@
   </div>
 
   <!-- Color Picker modal -->
-  <div id="modal-colorpick" class="modal-overlay hidden">
-    <div class="modal-card" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+  <div id="modal-colorpick" class="modal hidden">
+    <div class="modal-content" style="width:var(--vz-editeur-w); height:var(--vz-editeur-h); max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:min(600px, 100vw);">
       <div class="fen-tete"><h2>Color Picker</h2><button class="settings-close-x" id="cpick-close-x">&#10005;</button></div>
       <div style="font-size:13px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
-      <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
+      <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:var(--vz-editeur-zone-min); cursor:crosshair;">
         <canvas id="cpick-canvas" style="position:absolute; left:0; top:0;"></canvas>
         <div id="cpick-cursor" style="position:absolute; pointer-events:none; width:20px; height:20px; border:2px solid white; border-radius:50%; box-shadow:0 0 0 1px black; display:none; transform:translate(-50%,-50%);">
           <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
@@ -3752,7 +3755,7 @@
 
   <!-- Blur Brush modal -->
   <div id="modal-blur" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
       <div class="fen-tete"><h2>Blur / Sharpen Brush</h2><button id="blur-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
@@ -3768,12 +3771,17 @@
         <div style="display:flex; gap:4px; flex-shrink:0;">
           <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active" style="padding:4px 10px; font-size:13px;">Blur</button>
           <button id="blur-mode-sharpen" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:13px;">Sharpen</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="blur-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="blur-fit" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="blur-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="blur-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="blur-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
         </div>
       </div>
+      <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Left: blur or sharpen - Right-drag: pan - Wheel: zoom</div>
       <div id="blur-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
         <canvas id="blur-canvas" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
         <div id="blur-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid white; border-radius:50%; display:none; z-index:1000;">
@@ -3789,9 +3797,15 @@
 
   <!-- Crop modal -->
   <div id="modal-crop" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
       <div class="fen-tete"><h2>Crop</h2><button id="crop-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button id="crop-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+        <button id="crop-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+        <span class="vz-sep" aria-hidden="true"></span>
+        <button id="crop-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+        <button id="crop-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+        <span class="vz-sep" aria-hidden="true"></span>
         <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Free</button>
         <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:13px;">1:1</button>
         <button id="crop-preset-4-3" class="secondary-btn" style="padding:4px 10px; font-size:13px;">4:3</button>
@@ -3814,7 +3828,7 @@
 
   <!-- Symmetrize modal -->
   <div id="modal-symmetrize" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
       <div class="fen-tete"><h2>Symmetrize</h2><button id="sym-close" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
@@ -3837,9 +3851,11 @@
         <span style="flex:1;"></span>
         <div style="display:flex; gap:4px; flex-shrink:0;">
           <button id="sym-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="sym-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter view (fit)">&#9678;</button>
+          <button id="sym-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="sym-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="sym-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="sym-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
         </div>
       </div>
@@ -3862,15 +3878,18 @@
 
   <!-- Paint Tools modal -->
   <div id="modal-paint" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw); overflow:hidden;">
       <div class="fen-tete">
         <h2>Paint Tools</h2>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
-          <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
           <button id="paint-emissive-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161;&nbsp;Emissive</button>
-          <button id="paint-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="paint-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="paint-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="paint-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="paint-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
           <button id="paint-close-x" class="settings-close-x" style="margin-left:4px;">&#10005;</button>
         </div>
