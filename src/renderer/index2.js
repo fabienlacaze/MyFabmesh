@@ -2080,7 +2080,7 @@ const _NP_TYPES = [
   ['vehicle', 'car voiture truck camion tank moto motorcycle bike velo bus tractor tracteur van scooter train locomotive spaceship vaisseau kart jeep taxi ambulance excavator bulldozer'],
   ['building', 'house maison castle chateau tower tour temple church eglise cathedral cathedrale building batiment hut cabane barn grange lighthouse phare bridge pont skyscraper gratte-ciel shop boutique fort ruin ruine mosque mosquee pagoda pagode manoir villa cabin windmill moulin palace palais'],
   ['insect', 'insect insecte bug beetle scarabee spider araignee ant fourmi butterfly papillon bee abeille wasp guepe scorpion mantis mante fly mouche dragonfly libellule cricket grillon centipede'],
-  ['animal', 'dog chien cat chat horse cheval wolf loup bear ours lion tiger tigre bird oiseau fish poisson snake serpent rabbit lapin fox renard deer cerf cow vache pig cochon sheep mouton elephant monkey singe eagle aigle owl hibou chouette shark requin husky frog grenouille turtle tortue duck canard chicken poule'],
+  ['animal', 'dog chien cat chat horse cheval wolf loup bear ours lion tiger tigre bird oiseau fish poisson snake serpent rabbit lapin fox renard deer cerf cow vache pig cochon sheep mouton elephant monkey singe eagle aigle owl hibou chouette shark requin husky frog grenouille turtle tortue duck canard chicken poule cacatoes cockatoo perroquet parrot ara macaw perruche parakeet canari canary toucan colibri hummingbird flamant flamingo cygne swan oie goose dinde turkey paon peacock pigeon colombe dove corbeau crow raven vautour vulture faucon falcon hawk pelican pingouin penguin manchot albatros mouette seagull heron cigogne stork autruche ostrich emeu kiwi ane donkey mule mulet chevre goat lama llama alpaga alpaca chameau camel girafe giraffe zebre zebra hippopotame hippo rhinoceros rhino gorille gorilla chimpanze chimpanzee panda koala kangourou kangaroo ecureuil squirrel hamster souris mouse rat raton racoon raccoon loutre otter castor beaver herisson hedgehog taupe mole chauve-souris leopard jaguar panthere panther guepard cheetah lynx hyene hyena coyote dingo buffle buffalo bison yak antilope antelope gazelle chamois renne reindeer elan moose phoque seal otarie walrus morse dauphin dolphin baleine whale orque orca lezard lizard iguane iguana crocodile alligator gecko cameleon chameleon salamandre salamander crapaud toad dinosaure dinosaur raptor cobra python vipere viper saumon salmon thon tuna carpe carp truite trout poulpe octopus pieuvre calamar squid meduse jellyfish hippocampe seahorse crabe crab homard lobster'],
   ['creature', 'dragon monster monstre demon beast bete creature golem ghost fantome zombie slime troll ogre alien hydra griffin griffon kraken wyvern gargoyle'],
   ['character', 'knight chevalier warrior guerrier orc elf elfe dwarf nain wizard magicien mage witch sorciere soldier soldat girl fille boy garcon man homme woman femme hero heros princess princesse king roi queen reine robot character personnage pirate ninja samurai goblin gobelin archer paladin assassin villager villageois human humain astronaut astronaute cyborg android'],
   ['prop', 'chair chaise table lamp lampe sofa canape bed lit desk bureau shelf etagere vase barrel tonneau baril chest coffre box boite crate caisse bottle bouteille cup tasse mug book livre clock horloge furniture meuble mobilier candle bougie lantern lanterne potion key cle coin piece helmet casque hat chapeau bag sac backpack tool outil pot jar bocal mirror miroir armchair fauteuil stool tabouret bench banc door porte'],
@@ -2131,12 +2131,37 @@ function _npCompter(texte, liste) {
   for (const cle of liste.split(' ')) if (vus.has(cle) || vus.has(cle.replace(/(s|x)$/, ''))) n++;
   return n;
 }
+// 25/10 (user : « mets environ 2000 mots dans toutes les langues de l'appli ») : vocabulaire supplementaire de lib/mots-projet.js (fichier commun
+// web / bureau). `latin` = anglais / francais / espagnol, sans accents, ajoute aux listes de mots ; `unicode` = chinois (sous-chaine), hindi et arabe
+// (mots entiers), compte a part car _npNormaliser ne garde que a-z. Absent (fichier non charge) : comportement d'avant, a l'identique.
+const _NP_MOTS = (typeof window !== 'undefined' && window.__NP_MOTS) || null;
+const _NP_LATIN_PLUS = (() => {
+  const m = {};
+  if (_NP_MOTS && _NP_MOTS.latin) {
+    for (const [cle, v] of Object.entries(_NP_MOTS.latin)) {
+      const base = cle.replace(/(Fr|Es)$/, '');
+      m[base] = ((m[base] ? m[base] + ' ' : '') + _npNormaliser(v).replace(/\s+/g, ' ').trim()).trim();
+    }
+  }
+  return m;
+})();
+function _npCompterUnicode(texte, termes) {
+  if (!termes || !termes.length) return 0;
+  const t = String(texte || '').toLowerCase().normalize('NFC');
+  const mots = new Set(t.split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean));
+  let n = 0;
+  for (const m of termes) {
+    if (/[\u4e00-\u9fff]/.test(m) || /\s/.test(m)) { if (t.includes(m)) n++; }
+    else if (mots.has(m) || mots.has('\u0627\u0644' + m)) n++;
+  }
+  return n;
+}
 /** Deduit { type, style } (null = indetermine) d'un texte libre, par MOTS ENTIERS. */
 function detecterTypeEtStyle(texte) {
   const t = ' ' + _npNormaliser(texte).replace(/\s+/g, ' ').trim() + ' ';
   let type = null, meilleur = 0;
   for (const [id, liste] of _NP_TYPES) {           // ordre = priorite en cas d'egalite
-    const n = _npCompter(t.trim(), liste);
+    const n = _npCompter(t.trim(), _NP_LATIN_PLUS[id] ? liste + ' ' + _NP_LATIN_PLUS[id] : liste) + _npCompterUnicode(texte, _NP_MOTS && _NP_MOTS.unicode && _NP_MOTS.unicode[id]);
     if (n > meilleur) { meilleur = n; type = id; }
   }
   let style = null;
@@ -2168,6 +2193,8 @@ function _npAutoSync() {
   document.getElementById('np-auto-row')?.classList.toggle('on', actif);
   selT.disabled = actif; selS.disabled = actif;
   selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
+  // 25/10 (user : « grise aussi le prompt quand c'est en mode auto ») : la description est ecrite par l'IA, grisee et verrouillee ; decocher Auto pour la modifier.
+  if (desc) { desc.readOnly = actif; desc.style.opacity = actif ? '0.6' : ''; }
   if (!actif) { _npAutoInfo(_i18nT('Choose the type and style yourself')); return; }
   const nom = document.getElementById('np-name')?.value || '';
   const texteNp = ((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom).trim();
@@ -2233,7 +2260,7 @@ async function _npRediger() {
     desc.dataset.auto = '1';
     if (!_npTypeMotsCles && r.type) _npIaType = { nom, type: r.type };
     _npAutoSync();
-    _npAutoInfo(_npResume() + ' — ' + _i18nT('description written by the local AI, edit it freely'));
+    _npAutoInfo(_npResume() + ' — ' + _i18nT('description written by the local AI, turn Auto off to edit it'));
   } else {
     _npAutoSync();
     const raison = r && r.raison;
@@ -11631,7 +11658,7 @@ const _OP_LABEL = {
   fill_holes: 'hole filling', fix_normals: 'normals fix', center: 'recentering',
   set_pivot: 'pivot adjustment', watertight: 'watertight sealing', texture_var: 'texture variation',
   edited: 'editing', upscale: 'upscale', refine: 'refinement', augment: 'augmentation',
-  vc: 'vertex colors', segment: 'part segmentation',
+  vc: 'vertex colors', segment: 'part segmentation', reshape: 'Reshape a region',
 };
 const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment)(?:_\d{6,})?$/i;
 // MASQUAGE des noms d'IA internes (exigence produit) : les moteurs
@@ -11707,7 +11734,9 @@ const _IMG_SUFFIXE_OP = {
 async function buildLineageTimeline(startPath, p) {
   const steps = [];
   const norm = (s) => String(s || '').replace(/\\/g, '/').toLowerCase();
-  const findIn = (arr, pth) => (arr || []).find((x) => x && norm(x.path) === norm(pth));
+  // 25/10 : un chemin signe change de requete (?exp=&sig=) a chaque lecture : on compare aussi sans la requete.
+  const sansReq = (s) => norm(s).split('?')[0];
+  const findIn = (arr, pth) => (arr || []).find((x) => x && (norm(x.path) === norm(pth) || sansReq(x.path) === sansReq(pth)));
   const getMeta = async (rec, pth) => {
     if (rec && rec.meta) return rec.meta;
     try { return API.getLineageMeta ? await API.getLineageMeta(pth) : null; } catch (_) { return null; }
@@ -11761,13 +11790,17 @@ async function buildLineageTimeline(startPath, p) {
     const fname = (rec && rec.filename) || String(curPath).split(/[\\/]/).pop();
     const meta = await getMeta(rec, curPath);
     let kind, engine = meta && meta.engine, opKey = (meta && meta.op) || null;
-    let parentPath = (meta && meta.parent) || null;
+    // 25/10 (user : « pourquoi je n'ai pas l'historique d'avant (image, ...) ») : un maillage rendu par « Reshape » ou « Re-texture a region » porte
+    // son PARENT dans params.mesh_url_in (pas dans meta.parent) : la chronologie s'arretait sur lui, sans remonter au maillage ni a l'image d'origine.
+    const parentParam = (meta && meta.params && typeof meta.params.mesh_url_in === 'string' && meta.params.mesh_url_in) || null;
+    let parentPath = (meta && meta.parent) || parentParam || null;
     if (anim || /__/.test(fname) && /animated/i.test(String(curPath))) kind = 'anim';
     else if (rig || /_rigged_/i.test(fname)) kind = 'rig';
     else {
       const vinfo = _meshVersionInfo(fname);
-      kind = ((meta && meta.kind === 'op') || vinfo.isVersion) ? 'op' : 'mesh';
+      kind = ((meta && meta.kind === 'op') || vinfo.isVersion || !!parentParam) ? 'op' : 'mesh';
       if (!opKey && vinfo.isVersion) opKey = vinfo.opKey;
+      if (!opKey && parentParam) opKey = (meta.params.masque_3d || meta.params.masque) ? 'reshape' : 'edited';
     }
     if (kind === 'rig' && !engine) {
       const m2 = fname.match(/_rigged_([a-z0-9]+)_\d+/i); engine = m2 ? m2[1] : undefined;

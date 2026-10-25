@@ -205,7 +205,7 @@ for (const nom of ['bureau', 'web']) {
 
 // ------------------------------------------------------------------------------------------------ la table correspond au CODE
 const APPELS_TRADUCTION = new Set(['_traduirePourGeneration', 'translateUserPrompt', 'traduireTexteUtilisateur', '_texteUtilisateurPourGeneration',
-  '_indiceDosAnglais', 'fabmeshTraduirePourGeneration', '_npTraductions', 'detecterTypeEtStyle']);
+  '_indiceDosAnglais', 'fabmeshTraduirePourGeneration', '_npTraductions', 'detecterTypeEtStyle', '_NP_MOTS', '_NP_LATIN_PLUS', '_npCompterUnicode']);
 function fonctionsAvecLitteral(chemin, id, sourceType) {
   const src = lire(chemin);
   const ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType });

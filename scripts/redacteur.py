@@ -62,6 +62,9 @@ SYSTEME = (
     'Answer with ONE JSON object and nothing else: {"type": "...", "description": "..."}\n'
     'type: exactly one of these keys: ' + '; '.join(f'{k} = {v}' for k, v in TYPES.items()) + '.\n'
     'If a type is given in the request, keep it and describe that kind of subject.\n'
+    'The project name may be a common word in any language (a bird, a fish, an insect, a plant, an object): first work out what it really '
+    'is. A living animal (bird, mammal, reptile, fish, amphibian) is type animal, an insect is type insect, never character, and describe '
+    'that animal itself, not a person.\n'
     'description: ONE sentence of 12 to 30 words, written in the requested language, describing only the subject '
     'itself: its shape, materials, colors and distinctive details, faithful to the project name. No numbers or '
     'measurements. Never mention the background, the camera, the lighting, an art style or these rules, and never use '
@@ -72,6 +75,9 @@ EXEMPLES = [
     ('Project name: old_lighthouse_lantern\nLanguage: English',
      {'type': 'prop', 'description': 'A heavy brass lantern with a domed top, thick glass panes streaked with salt and '
                                      'a worn iron handle.'}),
+    ('Project name: kookaburra\nLanguage: French',
+     {'type': 'animal', 'description': "Un oiseau trapu au grand bec épais et pâle, au plumage brun et crème, "
+                                       "à la tête rayée et à la longue queue barrée."}),
     ('Project name: Gardien des marais\nLanguage: French',
      {'type': 'creature', 'description': "Une grande créature couverte de mousse et d'écorce humide, aux longs bras "
                                          "noueux et aux yeux jaunes luisants."}),

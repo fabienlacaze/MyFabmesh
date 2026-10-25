@@ -148,6 +148,7 @@ const FICHIERS = [
   { nom: 'align texture (pre-transformation)', source: 'scripts/mesh_pre_transform.py', copie: 'modal_app/texproj/mesh_pre_transform.py' },
   // moteur de marche procedural (2026-09-28) : MEME fichier sur le bureau et le web
   { nom: 'moteur de marche procedural', source: 'src/renderer/lib/locomotion-procedurale.js', copie: 'cloud/public/app/lib/locomotion-procedurale.js' },
+  { nom: 'vocabulaire de detection du type de projet', source: 'src/renderer/lib/mots-projet.js', copie: 'cloud/public/app/lib/mots-projet.js' },
   { nom: 'editeur des poids de peau', source: 'src/renderer/lib/editeur-poids.js', copie: 'cloud/public/app/lib/editeur-poids.js' },
   { nom: 'decalques (Paint Mesh)', source: 'src/renderer/lib/editeur-decals.js', copie: 'cloud/public/app/lib/editeur-decals.js' },
   { nom: 'generateur de version legere', source: 'src/main/gen_light_glb.mjs', copie: 'scripts/meshopt/gen_light_glb.mjs' },

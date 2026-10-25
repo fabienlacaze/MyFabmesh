@@ -63,7 +63,7 @@ const DECLARATIONS = [
   '_stripColorWords', '_RC_COLOR_WORDS', '_ageBuildPrompt', '_ageStrength', '_preremplirPrompt',
   // New project (mode Auto)
   '_npAutoSync', '_npTexteAnalyse', 'NP_TYPE_NON_DETECTE', '_npTraductions', '_npTradMinuteur', '_npDescAuto', '_npAutoInfo', '_npResume',
-  'detecterTypeEtStyle', '_npNormaliser', '_NP_TYPES', '_NP_STYLES', '_npCompter', '_i18nT', '_i18nTf',
+  'detecterTypeEtStyle', '_npNormaliser', '_NP_TYPES', '_NP_STYLES', '_npCompter', '_NP_MOTS', '_NP_LATIN_PLUS', '_npCompterUnicode', '_i18nT', '_i18nTf',
   // avertissements avant depense (24/10, chantier ingestion)
   '_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_bridageEquilibre', '_confirmerAvertissements', '_verifierAvantDepense',
 ];
@@ -198,7 +198,7 @@ function creerApi({ traduire, reponses, journal }) {
 const MINUTERIES = new Set();
 after(() => { for (const t of MINUTERIES) clearTimeout(t); MINUTERIES.clear(); });
 
-const DICO = { 'casco rojo': 'red helmet', 'castillo medieval': 'medieval castle' };
+const DICO = { 'casco rojo': 'red helmet', 'castillo medieval': 'medieval castle', 'castello medievale': 'medieval castle' };   // 25/10 : « castillo » est desormais un mot connu (lib/mots-projet.js) ; l'italien reste hors liste
 const traducteurOk = (a) => (a.prechauffer ? { ok: true } : { text: DICO[a.text] || ('EN:' + a.text), translated: true });
 const traducteurEnPanne = (a) => (a.prechauffer ? { ok: true } : { text: a.text, translated: false, raison: 'failed' });
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -513,7 +513,7 @@ for (const plateforme of ['bureau', 'web']) {
         'np-asset-type': { value: 'character', options: TYPES.map((v) => ({ value: v, textContent: v })), selectedIndex: 0 },
         'np-asset-style': { value: 'realistic', options: [{ value: 'realistic', textContent: 'Realistic' }], selectedIndex: 0 },
         'np-prompt': { value: '', dataset: {} },
-        'np-name': { value: 'castillo medieval' },
+        'np-name': { value: 'castello medievale' },   // 25/10 : plus « castillo » (detecte directement depuis lib/mots-projet.js)
       },
       doublures: { setTimeout: (f) => { minuteurs.push(f); return minuteurs.length; }, clearTimeout: () => {} },
     });
