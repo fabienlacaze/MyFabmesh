@@ -3098,6 +3098,7 @@ document.getElementById('btn-import-image')?.addEventListener('click', async () 
 // PAGE 2: PROJECT WORKSPACE
 // ============================================================
 async function openProject(p) {
+  if (_gnActive()) return;   // garde de navigation : pas de changement de projet automatique juste apres la fin d'un travail
   state.currentProject = p;
   // 2026-06-13: reset the Step 4 EDIT SELECTED viewer when switching
   // projects so the previously-selected animation (from another
@@ -11943,6 +11944,7 @@ async function renderMeshVersions(p) {
     }
   }
   meshes.forEach((m, i) => {
+   try {   // 25/10 : une version qui plante ne vide plus toute la bande des versions
     const t = document.createElement('div');
     t.className = 'version-thumb';
     if (m.path === p.previewMeshPath) t.classList.add('selected');
@@ -12035,6 +12037,7 @@ async function renderMeshVersions(p) {
       showGenerationHistory(m.path);
     });
     strip.appendChild(t);
+   } catch (e) { console.warn('[versions] maillage ignore :', m && (m.filename || m.path), e); }
   });
 }
 
@@ -21906,7 +21909,85 @@ function _choisirOngletJobs(onglet) {
   if (!enCours) renderJobsTermines();
 }
 
+// ============================================================
+// GARDE DE NAVIGATION (2026-10-25, retour du user : « quand une generation se finit ca m'envoie toujours automatiquement a cet endroit, on dirait que l'appli
+// bugge, c'est pas agreable » : la page defile toute seule, la nouvelle version est selectionnee, l'etape change d'etat (« Creer » se referme, « Editer la selection »
+// s'ouvre), voire le projet change).
+//
+// Une cinquantaine de fins de travail font chacune leur propre navigation (scrollIntoView, ouverture d'etape, selection du resultat, changement de projet).
+// Plutot que de reecrire chacune, une garde de VUE : elle memorise la vue CHOISIE PAR L'UTILISATEUR (projet, version selectionnee de l'image / du maillage / du rig,
+// etapes repliees, panneaux « Creer » / « Editer » ouverts) a chaque geste (clic, touche, molette), et pendant 8 s apres la fin d'un travail :
+//   - elle refuse tout defilement PROGRAMMATIQUE (scrollIntoView / scrollTo / scrollBy) et tout changement de projet automatique ;
+//   - elle REMET la vue de l'utilisateur apres chaque vague de mise a jour (0,25 / 0,9 / 2,2 / 4,5 / 7,5 s), sauf s'il a touche l'ecran entre-temps (1,5 s).
+// Le resultat reste visible dans la bande des versions et dans « Travaux finis » ; le message de fin garde son bouton « Aller a l'element genere » (un clic de
+// l'utilisateur est un geste : le defilement qu'il declenche passe). Desactivable : window.__gardeNavigation = false.
+// ============================================================
+var _GN = { dernierGeste: 0, jusqua: 0, vue: null, tPhoto: null, libre: false };   // var : openProject peut etre appele avant que le module n'atteigne cette ligne
+function _gnActive() { if (!_GN) return false; return window.__gardeNavigation !== false && !_GN.libre && Date.now() < _GN.jusqua && (Date.now() - _GN.dernierGeste) > 1500; }
+function _gnCle(s) { return String(s || '').replace(/[?#].*$/, '').replace(/\\/g, '/').toLowerCase(); }
+function _gnLireVue() {
+  const p = state.currentProject;
+  if (!p) return null;
+  return {
+    projet: p.name,
+    sel: { previewImagePath: p.previewImagePath, selectedImagePath: p.selectedImagePath, previewMeshPath: p.previewMeshPath, selectedMeshPath: p.selectedMeshPath, selectedRigPath: p.selectedRigPath },
+    cartes: ['step-card-image', 'step-card-mesh', 'step-card-rig', 'step-card-animation']
+      .map((id) => { const c = document.getElementById(id); return c ? { id, collapsed: c.classList.contains('collapsed') } : null; }).filter(Boolean),
+    stages: [...document.querySelectorAll('.step-card details.stage-create, .step-card details.stage-edit')]
+      .map((d) => ({ carte: d.closest('.step-card') && d.closest('.step-card').id, cls: d.classList.contains('stage-create') ? 'stage-create' : 'stage-edit', open: d.open })),
+  };
+}
+function _gnPhoto() { try { if (!_gnActive()) _GN.vue = _gnLireVue(); } catch (_) {} }
+function _gnRestaurer() {
+  const v = _GN.vue;
+  if (!v) return;
+  const p = state.currentProject;
+  if (!p || p.name !== v.projet) {                              // le projet a change tout seul : on revient au projet de l'utilisateur
+    const cible = (state.projects || []).find((x) => x && x.name === v.projet);
+    if (cible) { _GN.libre = true; Promise.resolve(openProject(cible)).catch(() => {}).finally(() => { _GN.libre = false; }); }
+    return;
+  }
+  const retrouver = (liste, ancien) => (liste || []).find((x) => x && _gnCle(x.path) === _gnCle(ancien));
+  let rendreImages = false, rendreMeshes = false;
+  for (const k of ['previewImagePath', 'selectedImagePath']) {
+    const e = v.sel[k] && retrouver(p.images, v.sel[k]);
+    if (e && _gnCle(p[k]) !== _gnCle(e.path)) { p[k] = e.path; rendreImages = true; }
+  }
+  for (const k of ['previewMeshPath', 'selectedMeshPath']) {
+    const e = v.sel[k] && retrouver(p.meshes, v.sel[k]);
+    if (e && _gnCle(p[k]) !== _gnCle(e.path)) { p[k] = e.path; rendreMeshes = true; }
+  }
+  { const e = v.sel.selectedRigPath && retrouver(p.rigs, v.sel.selectedRigPath); if (e && _gnCle(p.selectedRigPath) !== _gnCle(e.path)) p.selectedRigPath = e.path; }
+  try { if (rendreImages) { renderImageVersions(p); if (p.previewImagePath) showStep1Preview(p.previewImagePath); } } catch (_) {}
+  try { if (rendreMeshes) { renderMeshVersions(p); const m = retrouver(p.meshes, p.previewMeshPath); if (m) showStep2Preview(m); } } catch (_) {}
+  for (const c of v.cartes) { const el = document.getElementById(c.id); if (el && el.classList.contains('collapsed') !== c.collapsed) el.classList.toggle('collapsed', c.collapsed); }
+  for (const s of v.stages) {
+    const carte = s.carte && document.getElementById(s.carte);
+    const d = carte && carte.querySelector('details.' + s.cls);
+    if (d && d.open !== s.open) d.open = s.open;
+  }
+}
+function _gnArmer() {
+  if (window.__gardeNavigation === false) return;
+  _GN.jusqua = Date.now() + 8000;
+  [250, 900, 2200, 4500, 7500].forEach((t) => setTimeout(() => { if (_gnActive()) { try { _gnRestaurer(); } catch (_) {} } }, t));
+}
+(function _gnInstaller() {
+  if (window.__gnInstalle) return;
+  window.__gnInstalle = true;
+  const geste = () => { _GN.dernierGeste = Date.now(); clearTimeout(_GN.tPhoto); _GN.tPhoto = setTimeout(_gnPhoto, 450); };
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((ev) => window.addEventListener(ev, geste, { capture: true, passive: true }));
+  const siv = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (...a) { if (_gnActive()) return undefined; return siv.apply(this, a); };
+  for (const nom of ['scrollTo', 'scrollBy']) {
+    const o = window[nom].bind(window);
+    window[nom] = function (...a) { if (_gnActive()) return undefined; return o(...a); };
+  }
+  setTimeout(_gnPhoto, 1500);
+})();
+
 function completeJob(id, success, errorMessage) {
+  try { _gnArmer(); } catch (_) {}   // garde de navigation : la fin d'un travail ne deplace plus l'ecran de l'utilisateur
   const j = state.jobs.find(j => j.id === id);
   if (!j) return;
   if (j.tickTimer) { clearInterval(j.tickTimer); j.tickTimer = null; }
@@ -22983,8 +23064,19 @@ document.getElementById('jobs-termines-liste')?.addEventListener('click', (e) =>
   const b = e.target.closest('[data-fini-goto]');
   if (!b) return;
   e.stopPropagation();
-  const entree = (state.jobsTermines || []).find(x => x.finiId === b.dataset.finiGoto);
-  if (entree && typeof window._navigateToJobStep === 'function') window._navigateToJobStep(null, entree);
+  const id = b.dataset.finiGoto;
+  const termines = state.jobsTermines || [];
+  // 25/10 : entree retrouvee par identifiant serveur ou par nom si la liste a ete rechargee ; un echec n'est plus silencieux
+  const nomLigne = b.closest('.job-fini-2')?.querySelector('.job-fini-2-nom')?.textContent || '';
+  const entree = termines.find(x => x.finiId === id)
+    || termines.find(x => x.serverId && ('s_' + x.serverId) === id)
+    || termines.find(x => _displayJobName(x.name) === nomLigne);
+  if (!entree) { try { showToast(_i18nT('This job can no longer be located.'), 'error', 3500); } catch (_) {} return; }
+  if (typeof window._navigateToJobStep !== 'function') return;
+  Promise.resolve(window._navigateToJobStep(null, entree)).catch((err) => {
+    console.error('[aller-a]', err);
+    try { showToast(_i18nT('Could not open this step.') + ' ' + String(err && err.message || err).slice(0, 80), 'error', 4500); } catch (_) {}
+  });
 });
 // Premier rendu APRES l'evaluation du module : renderJobs lit `queuedJobs`,
 // declaree plus bas dans ce fichier — l'appeler ici leverait une erreur de

@@ -801,7 +801,8 @@ function detecterPattes(par, P0, racinePrincipale = null) {
   for (let j = 0; j < J; j++) if (!E[j].length) feuilles.push(j);
   const prof = par.map((_, j) => { let k = j, n = 0; while (par[k] >= 0) { k = par[k]; n++; } return n; });
   const chemin = (j) => { const c = []; while (j >= 0) { c.push(j); j = par[j]; } return c.reverse(); };
-  const ancetre = (a, b) => { const ca = chemin(a), cb = chemin(b); let k = 0; while (k < Math.min(ca.length, cb.length) && ca[k] === cb[k]) k++; return ca[k - 1]; };
+  // -1 : les deux joints sont dans des arbres SEPARES (squelette a plusieurs racines : jambes, queue, oreilles non reliees au tronc, rig du Pikachu du 25/10)
+  const ancetre = (a, b) => { const ca = chemin(a), cb = chemin(b); let k = 0; while (k < Math.min(ca.length, cb.length) && ca[k] === cb[k]) k++; return k === 0 ? -1 : ca[k - 1]; };
 
   let bas = feuilles.filter((j) => P0[j][1] - sol < 0.2 * H);
   // patte LEVÉE au repos (pattes arrière de l'araignée à 26-28 % de la hauteur)
@@ -817,7 +818,9 @@ function detecterPattes(par, P0, racinePrincipale = null) {
     // lui-meme AU SOL est une cheville — deux pattes differentes ne se rejoignent jamais au ras du sol
     const g = grappes.find((g_) => {
       const a = ancetre(j, g_[0]);
-      if (P0[a][1] - sol < 0.2 * H && norm(sub(P0[j], P0[g_[0]])) < 0.4 * ext) return true;   // meme seuil que « au sol »
+      if (a < 0) return false;                                  // racines separees : deux pieds de pattes differentes, jamais le meme pied
+      // (le bassin / la racine n'est JAMAIS une cheville : un personnage au bassin tres bas, le Pikachu a 18 % de sa hauteur, fusionnait ses deux pieds et ses mains en un seul « pied »)
+      if (a !== racine && P0[a][1] - sol < 0.2 * H && norm(sub(P0[j], P0[g_[0]])) < 0.4 * ext) return true;   // meme seuil que « au sol »
       return prof[j] - prof[a] <= 2 && prof[g_[0]] - prof[a] <= 2 && norm(sub(P0[j], P0[g_[0]])) < 0.12 * ext;
     });
     if (g) g.push(j); else grappes.push([j]);
