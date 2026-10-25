@@ -11797,6 +11797,7 @@ async function renderMeshVersions(p) {
     }
   }
   meshes.forEach((m, i) => {
+   try {   // 25/10 : une version qui plante ne vide plus toute la bande des versions
     const t = document.createElement('div');
     t.className = 'version-thumb';
     if (m.path === p.previewMeshPath) t.classList.add('selected');
@@ -11889,6 +11890,7 @@ async function renderMeshVersions(p) {
       showGenerationHistory(m.path);
     });
     strip.appendChild(t);
+   } catch (e) { console.warn('[versions] maillage ignore :', m && (m.filename || m.path), e); }
   });
 }
 
@@ -22915,8 +22917,19 @@ document.getElementById('jobs-termines-liste')?.addEventListener('click', (e) =>
   const b = e.target.closest('[data-fini-goto]');
   if (!b) return;
   e.stopPropagation();
-  const entree = (state.jobsTermines || []).find(x => x.finiId === b.dataset.finiGoto);
-  if (entree && typeof window._navigateToJobStep === 'function') window._navigateToJobStep(null, entree);
+  const id = b.dataset.finiGoto;
+  const termines = state.jobsTermines || [];
+  // 25/10 : entree retrouvee par identifiant serveur ou par nom si la liste a ete rechargee ; un echec n'est plus silencieux
+  const nomLigne = b.closest('.job-fini-2')?.querySelector('.job-fini-2-nom')?.textContent || '';
+  const entree = termines.find(x => x.finiId === id)
+    || termines.find(x => x.serverId && ('s_' + x.serverId) === id)
+    || termines.find(x => _displayJobName(x.name) === nomLigne);
+  if (!entree) { try { showToast(_i18nT('This job can no longer be located.'), 'error', 3500); } catch (_) {} return; }
+  if (typeof window._navigateToJobStep !== 'function') return;
+  Promise.resolve(window._navigateToJobStep(null, entree)).catch((err) => {
+    console.error('[aller-a]', err);
+    try { showToast(_i18nT('Could not open this step.') + ' ' + String(err && err.message || err).slice(0, 80), 'error', 4500); } catch (_) {}
+  });
 });
 // Premier rendu APRES l'evaluation du module : renderJobs lit `queuedJobs`,
 // declaree plus bas dans ce fichier — l'appeler ici leverait une erreur de

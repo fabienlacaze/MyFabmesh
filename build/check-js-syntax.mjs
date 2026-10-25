@@ -36,6 +36,7 @@ const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIVRES = [
   'src/renderer/index2.js',
   'src/renderer/index2-edit-tools.js',
+  'src/renderer/ajuste-boutons.js',
   'src/renderer/wizard.js',
   'src/renderer/canvas-utils.js',
   'src/renderer/lib/Viewer3D.js',
@@ -50,6 +51,7 @@ const LIVRES = [
   'src/main/desinstallation.js',
   'cloud/public/app/index2.js',
   'cloud/public/app/index2-edit-tools.js',
+  'cloud/public/app/ajuste-boutons.js',
   'cloud/public/app/meshyAPI-cloud.js',
   'cloud/public/app/cloud-overrides.js',
   'cloud/public/app/garde-traduction.js',
