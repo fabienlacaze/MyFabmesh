@@ -21,7 +21,8 @@ test('cas sans hote : relatif, vide, schema non https', () => {
   assert.equal(_hoteRefuse(undefined), 'empty URL');
   assert.match(_hoteRefuse('http://x.example/a.glb'), /http: \(not https\)/);
   assert.match(_hoteRefuse('blob:https://x.example/uuid'), /blob:/);
-  assert.equal(_hoteRefuse('pas une url'), 'invalid URL');
+  assert.match(_hoteRefuse('pas une url'), /^invalid URL \(starts with "pas une url"\)$/);
+  assert.doesNotMatch(_hoteRefuse('cle/sans/schema.glb?exp=1&sig=SECRET'), /SECRET/);
 });
 test('les refus d hote des maillages (meshUrl) nomment l hote refuse', () => {
   const n = (SRC.match(/host not allowed: ' \+ _hoteRefuse\(/g) || []).length;

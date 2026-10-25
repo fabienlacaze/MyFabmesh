@@ -306,7 +306,8 @@ function _hoteRefuse(u: unknown): string {
     if (p.protocol !== 'https:') return `${p.protocol} (not https)`;
     return p.hostname.toLowerCase();
   } catch {
-    return /^\//.test(s) ? 'relative URL (no host)' : 'invalid URL';
+    // 25/10 : « invalid URL » seul ne disait pas CE QUI avait ete envoye : on rend le debut de la valeur (sans requete ni signature)
+    return /^\//.test(s) ? 'relative URL (no host)' : `invalid URL (starts with "${s.split(/[?#]/)[0].slice(0, 60)}")`;
   }
 }
 
