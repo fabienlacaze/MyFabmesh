@@ -180,7 +180,7 @@ const CANAUX_SORTIE_GLB = {
   'image-to-3d': {}, 'image-to-3d-trellis': {}, 'generate-from-image': {}, 'generate-from-prompt': {},
   'refine-mesh': {}, 'generate-build-stages': {}, 'run-blender-script': {},
   // outils de maillage
-  'mesh-tool': {}, 'mesh-segment': {}, 'mesh-resize': {}, 'generate-explode-3d': {},
+  'mesh-tool': {}, 'mesh-segment': {}, 'mesh-resize': {}, 'mesh-symmetrize': {}, 'generate-explode-3d': {},
   'generate-construction-stages-3d': {}, 'material-adjust': {}, 'mesh-recolor': {}, 'mesh:align-texture': {},
   'mesh:region-retex': {}, 'mesh:reshape-region': {}, 'enhance-mesh-texture': {}, 'detail-synth': {},
   // rig

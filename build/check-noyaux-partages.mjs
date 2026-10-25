@@ -34,6 +34,7 @@ const PAIRES = [
   { nom: 'image TRELLIS-2', source: 'scripts/trellis2_native_full_pipeline.py', copie: 'modal_app/_mesh.py' },
   { nom: 're-texture (finitions)', source: 'scripts/trellis2_texturing_bridge.py', copie: 'modal_app/_retexture.py' },
   { nom: 'redimensionner / orienter', source: 'scripts/scale_mesh.py', copie: 'modal_app/_mesh_op.py' },
+  { nom: 'symetrie de maillage', source: 'scripts/symmetrize_mesh.py', copie: 'modal_app/_symetrie.py' },
   // Texte d'execution de la traduction de l'interface (2026-10-14, revue du lot interface multilingue) : les
   // dictionnaires different entre bureau et web, le code qui les applique doit rester le MEME (detection de la
   // langue, recherche des cles, isolation en arabe, menu accessible). Marqueurs en commentaire JS « // # --- … ».
@@ -155,6 +156,7 @@ const FICHIERS = [
   { nom: 'editeur des poids de peau', source: 'src/renderer/lib/editeur-poids.js', copie: 'cloud/public/app/lib/editeur-poids.js' },
   { nom: 'decalques (Paint Mesh)', source: 'src/renderer/lib/editeur-decals.js', copie: 'cloud/public/app/lib/editeur-decals.js' },
   { nom: 'generateur de version legere', source: 'src/main/gen_light_glb.mjs', copie: 'scripts/meshopt/gen_light_glb.mjs' },
+  { nom: 'symetrie de maillage (plan, zone peinte)', source: 'src/renderer/lib/symetrie-maillage.js', copie: 'cloud/public/app/lib/symetrie-maillage.js' },
   { nom: 'niveaux de detail (LOD)', source: 'src/renderer/lib/lod-maillage.js', copie: 'cloud/public/app/lib/lod-maillage.js' },
   { nom: 'worker LOD', source: 'src/renderer/lib/lod-worker.js', copie: 'cloud/public/app/lib/lod-worker.js' },
   { nom: 'meshoptimizer simplifier', source: 'src/renderer/lib/meshopt-simplifier.js', copie: 'cloud/public/app/lib/meshopt-simplifier.js' },
