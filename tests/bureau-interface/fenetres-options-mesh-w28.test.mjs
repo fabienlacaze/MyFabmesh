@@ -27,7 +27,9 @@ for (const [nom, h, c] of FICHIERS) {
       const b = bloc(html, modal);
       assert.match(b, /modal-card fen-3d/);
       assert.match(b, /class="fen-corps"/);
-      assert.match(b, /class="fen-apercu fen-apercu-pictos"/);
+      // LOT P1 (25/10) : explosion et etudes de construction ont un apercu 3D reel (canevas) au lieu de l'illustration
+      if (modal === 'modal-explode-options' || modal === 'modal-stages3d-options') assert.match(b, /class="fen-apercu"><canvas id="(ex3d|bs3d)-canvas"/);
+      else assert.match(b, /class="fen-apercu fen-apercu-pictos"/);
       assert.match(b, /class="fen-form"/);
       assert.ok(b.indexOf('fen-form') < b.indexOf('modal-actions'), 'pied apres le formulaire');
       for (const id of ids) assert.ok(b.includes('id="' + id + '"'), 'id perdu : ' + id);

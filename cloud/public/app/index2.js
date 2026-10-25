@@ -14313,6 +14313,7 @@ document.getElementById('ws-mesh-stages3d-btn')?.addEventListener('click', () =>
   const mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast('Generate or select a mesh first.', 'error'); return; }
   document.getElementById('modal-stages3d-options')?.classList.remove('hidden');
+  _apercuMaillageFenetre('bs3d');
 });
 document.getElementById('bs3d-count')?.addEventListener('input', (e) => {
   const el = document.getElementById('bs3d-count-val');
@@ -14482,6 +14483,7 @@ document.getElementById('ws-mesh-explode-btn')?.addEventListener('click', () => 
   const mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast('Generate or select a mesh first.', 'error'); return; }
   document.getElementById('modal-explode-options')?.classList.remove('hidden');
+  _apercuMaillageFenetre('ex3d');
 });
 document.getElementById('ex3d-frags')?.addEventListener('input', (e) => { const el = document.getElementById('ex3d-frags-val'); if (el) el.textContent = e.target.value; });
 document.getElementById('ex3d-cancel')?.addEventListener('click', () => { document.getElementById('modal-explode-options')?.classList.add('hidden'); });
@@ -17538,6 +17540,49 @@ async function openMaterialAdjust() {
     console.error('Material modal: GLTF parse error', err);
     showToast('Failed to load mesh in preview', 'error');
   });
+}
+
+// ===== LOT P1 (25/10) : APERCU 3D REEL des fenetres Explosion / destruction et Etudes de construction 3D =====
+// Meme mecanique que Material Adjust : un Viewer3D sur le canevas de la fenetre, le maillage AFFICHE du projet
+// (previewMeshPath, sinon selectedMeshPath) charge en version legere, barre de vues commune. Aucune logique metier.
+const _apercuMailleFen = {};
+async function _apercuMaillageFenetre(cle) {
+  const canvas = document.getElementById(cle + '-canvas');
+  const p = state.currentProject;
+  const mp = p && (p.previewMeshPath || p.selectedMeshPath);
+  if (!canvas || !mp) return;
+  let e = _apercuMailleFen[cle];
+  if (!e) {
+    e = _apercuMailleFen[cle] = { viewer: null, model: null, jeton: 0 };
+    e.viewer = new Viewer3D({ canvas, fov: 45, bgColor: 0x1b1b1b, cameraPos: [2, 2, 3], lighting: true });
+    e.viewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    e.viewer.renderer.toneMappingExposure = 1.0;
+    e.viewer.startTickLoop();
+    creerBarreVues3D(canvas.parentElement, e.viewer, { cible: () => e.model });
+  }
+  const jeton = ++e.jeton;
+  await new Promise(r => requestAnimationFrame(r));
+  e.viewer.renderer.setSize(canvas.clientWidth || 600, canvas.clientHeight || 520, false);
+  if (e.model) { e.viewer.scene.remove(e.model); e.model = null; }
+  let buffer = null;
+  try { buffer = _etapeAffiche(mp, true) ? new ArrayBuffer(8) : await API.readMeshFile(mp); } catch (_) { buffer = null; }
+  if (!buffer || jeton !== e.jeton) return;
+  const loader = _fauxChargeur(mp, { leger: true });
+  loader.parse(buffer, '', (gltf) => {
+    if (jeton !== e.jeton) return;
+    e.model = gltf.scene;
+    e.viewer.scene.add(e.model);
+    const box = new THREE.Box3().setFromObject(e.model);
+    const size = box.getSize(new THREE.Vector3()).length() || 1;
+    const center = box.getCenter(new THREE.Vector3());
+    e.model.position.sub(center);
+    e.viewer.camera.near = size / 100;
+    e.viewer.camera.far = size * 100;
+    e.viewer.camera.updateProjectionMatrix();
+    e.viewer.camera.position.set(size * 0.8, size * 0.5, size * 0.8);
+    e.viewer.controls?.target.set(0, 0, 0);
+    e.viewer.controls?.update();
+  }, (err) => { console.error('Fenetre outil : apercu 3D illisible', err); });
 }
 
 // Patches a Three.js material's shader to add brightness / saturation /
