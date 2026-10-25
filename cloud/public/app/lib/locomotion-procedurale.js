@@ -305,9 +305,9 @@ export const ESPECES = {
     // 25/10 : bond a 3 temps (accroupie / poussee / vol, voir « bond » dans animerAllure), museau qui monte au
     // decollage (Nauwelaerts & Aerts 2003 ; Zug 1972 : ~30-40 deg), temps de contact ~35 % du cycle (poussee
     // des pattes arriere ~0,1-0,15 s pour un vol de 0,2-0,3 s, Nauwelaerts & Aerts 2006)
-    walk: { saut: true, bond: { creux: 0.3, pitch: 0.4 }, beta: 0.38, T: 0.9, foulee: 1.4, h: 1.0, piedPlat: true, cycleEntier: true },
-    run: { saut: true, bond: { creux: 0.35, pitch: 0.55 }, beta: 0.3, T: 0.95, foulee: 2.2, h: 1.4, piedPlat: true, cycleEntier: true },
-    jump: { saut: true, bond: { creux: 0.4, pitch: 0.6 }, beta: 0.32, T: 0.9, foulee: 2.0, h: 1.4, piedPlat: true, cycleEntier: true },
+    walk: { saut: true, releveGenou: true, cuisseMobile: true, decalage: 0.07, bond: { creux: 0.3, pitch: 0.4 }, beta: 0.38, T: 0.9, foulee: 1.4, h: 1.0, piedPlat: true, cycleEntier: true },
+    run: { saut: true, releveGenou: true, cuisseMobile: true, decalage: 0.07, bond: { creux: 0.35, pitch: 0.55 }, beta: 0.3, T: 0.95, foulee: 2.2, h: 1.4, piedPlat: true, cycleEntier: true },
+    jump: { saut: true, releveGenou: true, cuisseMobile: true, decalage: 0.07, bond: { creux: 0.4, pitch: 0.6 }, beta: 0.32, T: 0.9, foulee: 2.0, h: 1.4, piedPlat: true, cycleEntier: true },
   },
   dragon: {        // quadrupede reptilien et lourd, le dos ondule
     walk: { motif: 'lateral', T: 1.2, h: 0.85, bob: 1.1, tendu: 0.92, ondulation: 0.12, hoche: 0.05 },
@@ -867,6 +867,25 @@ function resoudreForme(F, base, cible, poleMonde) {
 }
 
 // ------------------------------------------------------------------ animation d'une allure
+/** Fait tourner (en place) les articulations INTERMEDIAIRES de la chaine Q autour de l'axe Q[0] -> Q[fin], du plus petit angle qui les
+ *  met toutes a une hauteur >= ymin. Les deux extremites ne bougent pas. Sans effet si rien n'est sous ymin. */
+function relevePlan(Q, ymin) {
+  const bas = (q) => Math.min(...q.slice(1, -1).map((p) => p[1]));
+  if (bas(Q) >= ymin) return;
+  const a = Q[0], axe = sub(Q[Q.length - 1], a);
+  if (norm(axe) < 1e-9) return;
+  const tourne = (ang) => { const R = rotvec(axe, ang); return Q.map((p, k) => (k === 0 || k === Q.length - 1 ? p : add(a, mv(R, sub(p, a))))); };
+  let meilleur = null, bestAng = 0;
+  for (let n = 1; n <= 40 && !meilleur; n++) for (const sg of [1, -1]) {
+    const q = tourne(sg * n * 0.05 * Math.PI);
+    if (bas(q) >= ymin) { meilleur = q; bestAng = sg * n; break; }
+  }
+  if (!meilleur) {                                                // aucun angle ne suffit : prendre le plus haut
+    let best = -1e9;
+    for (let n = -40; n <= 40; n++) { const q = tourne(n * 0.05 * Math.PI); const b = bas(q); if (b > best) { best = b; meilleur = q; } }
+  }
+  for (let k = 1; k < Q.length - 1; k++) Q[k] = meilleur[k];
+}
 function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'generique', ampleurMax = 1) {
   const { joints, par, P0 } = sq;
   const det = detecterPattes(par, P0, sq.racine);
@@ -989,7 +1008,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     // Patte ÉTALÉE (araignée, insecte) : son premier os part du CENTRE du corps jusqu'à la base
     // de la patte (la coxa, dans le corps). Le faire pivoter faisait glisser la base de la patte
     // le long du corps et déchirait la peau autour (plaques étirées, 28/09) : il reste rigide.
-    if (!debout && ch.length >= 4) {
+    if (!debout && ch.length >= 4 && !Pr.cuisseMobile) {   // cuisseMobile (grenouille) : la cuisse plie aussi (patte en Z, 3 os qui travaillent)
       p.ik = p.ik.slice(1);
       if (p.ik.length < 3) { p.ik = ch.slice(1); piedCourt = false; }   // garder 2 os qui plient
     }
@@ -1221,8 +1240,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     // puis bas a la reception : Nauwelaerts & Aerts 2003 ; Zug 1972 ; l'angle du corps au decollage ~30-40 deg),
     // reception amortie. Le tangage est continu d'un saut a l'autre (fin de vol = debut d'appui).
     const { creux, pitch } = Pr.bond, lis = (x) => x * x * (3 - 2 * x);
+    const phArr = (pattes.find((q) => q.rang !== 0) || pattes[0]).phase;
     for (let i = 0; i < nT; i++) {
-      const b0 = pattes[0].beta, f = ((t[i] / T + pattes[0].phase) % 1 + 1) % 1;
+      const b0 = pattes[0].beta, f = ((t[i] / T + phArr) % 1 + 1) % 1;       // le corps suit les pattes ARRIERE (celles qui poussent)
       if (f < b0) {
         const u = f / b0;
         bob[i] = -creux * hanche * Math.sin(Math.PI * Math.min(1, u * 1.15));
@@ -1351,7 +1371,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         if (phi < b_) cible = appui(p, k);
         else {
           u = (phi - b_) / (1 - b_);
-          const X0 = appui(p, k), X1 = appui(p, k + 1), e = (1 - Math.cos(Math.PI * u)) / 2;
+          // grenouille (25/10, 2e tour) : en vol les pattes arriere restent ETENDUES derriere le corps, puis ne se replient qu'a la fin (Nauwelaerts & Aerts
+          // 2003 : extension complete au decollage, flexion avant la reception) : l'avance du pied est retardee (u ^ 1,6)
+          const X0 = appui(p, k), X1 = appui(p, k + 1), e = (1 - Math.cos(Math.PI * (Pr.releveGenou && p.rang !== 0 ? Math.pow(u, 1.6) : u))) / 2;
           cible = add(X0, mulS(sub(X1, X0), e));
           // profil de hauteur du pied. Marche humaine (levee) : la semelle monte vite en debut de balancier (pic ~30 % : le genou plie
           // a 60 deg, Perry 1992) puis redescend a ~1,5 cm au passage sous le corps (garde au sol minimale de mi-balancier : 1,3 a 1,6 cm,
@@ -1388,6 +1410,10 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       const dd = sub(cib, hanche_i);
       if (norm(dd) > PORTEE_MAX * Lik) cib = add(hanche_i, mulS(dd, PORTEE_MAX * Lik / norm(dd)));   // portée bornée
       const Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK));
+      // 25/10 (2e tour) : patte en Z (grenouille : cuisse en avant, jambe en arriere, tarse a plat) qui se replie sous le corps : la
+      // cheville passait 9 cm SOUS le sol a chaque poussee (44 % de la hauteur). On fait tourner le plan de la patte autour de l'axe
+      // hanche-pied (les deux extremites ne bougent pas) jusqu'a ce que tous les os intermediaires soient hors du sol.
+      if (Pr.releveGenou && Q.length >= 3) relevePlan(Q, sol + 0.004 * H);
       for (let a = 0; a < ch.length - 1; a++) {
         const repos = mv(Rb[i], sub(P0[ch[a + 1]], P0[ch[a]]));
         Dch[a][i] = mm(aligner(repos, sub(Q[a + 1], Q[a])), Rb[i]);
@@ -2057,13 +2083,21 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
 //  - sans aile (cochon volant) : le corps flotte et tangue au meme rythme, sans battement ;
 //  - pattes : repliees vers l'arriere (oiseau, insecte) avec un leger balancement ; queue : ondulation ; tete : stabilisee contre le tangage.
 // Frequences de battement reelles : petits oiseaux 8-20 Hz, rapaces 2-4 Hz, gros oiseaux 1-2 Hz (Tobalske 2007, Physiol Biochem Zool) ;
-// ici on vise le LISIBLE a 30 images/s : 1,4 a 2,2 Hz (un battement rapide sous-echantillonne donnerait un tremblement).
+// ici on vise le LISIBLE a 30 images/s : 1,05 a 1,5 Hz (2e tour : un peu plus lent qu'avant pour que la remontee plus courte et le repli n'augmentent pas les a-coups) (un battement rapide sous-echantillonne donnerait un tremblement).
+// 25/10 (2e tour, « realisme a l'oeil ») : le battement n'est plus une sinusoide symetrique.
+//  - abattement (descente de l'aile, la propulsion) plus LONG que la remontee : ~57-60 % du cycle en vol de croisiere
+//    (Tobalske 2007 ; Hedrick, Tobalske & Biewener 2002, J Exp Biol 205 : rapport abattement / cycle 0,5-0,6 selon la vitesse),
+//    ~52 % en vol stationnaire (battement quasi symetrique des colibris et des insectes : Ellington 1984) ;
+//  - a la remontee, l'aile se REPLIE (coude et poignet flechis, le bout de l'aile balaie vers l'arriere : Tobalske & Dial 1996,
+//    pigeon, J Exp Biol 199 ; Hedrick et al. 2002) : « fold » en rad, applique aux articulations distales ;
+//  - vol stationnaire : corps CABRE, tete en haut (angle du corps 30-50 deg chez les insectes qui font du sur-place, Ellington
+//    1984 ; ~20-30 deg chez les oiseaux), plan de battement horizontal : forte amplitude.
 const PROFILS_VOL = {
-  idle: { T: 0.8, amp: 0.45, lift: 0.10, avance: 0, tangage: 0.0, roulis: 0.03 },          // vol stationnaire : battement plus court
-  walk: { T: 0.7, amp: 0.65, lift: 0.14, avance: 1.2, tangage: 0.10, roulis: 0.04 },       // vol de croisiere
-  run: { T: 0.55, amp: 0.8, lift: 0.16, avance: 2.6, tangage: 0.24, roulis: 0.05 },        // vol rapide : battement ample, corps incline vers l'avant
-  turn_left: { T: 0.7, amp: 0.65, lift: 0.14, avance: 1.0, tangage: 0.10, roulis: 0.04 },
-  turn_right: { T: 0.7, amp: 0.65, lift: 0.14, avance: 1.0, tangage: 0.10, roulis: 0.04 },
+  idle: { T: 0.96, amp: 0.55, lift: 0.10, avance: 0, tangage: -0.45, roulis: 0.03, descente: 0.5, fold: 0.15 },    // vol stationnaire : corps cabre
+  walk: { T: 0.84, amp: 0.65, lift: 0.14, avance: 1.2, tangage: 0.10, roulis: 0.04, descente: 0.55, fold: 0.3 }, // vol de croisiere
+  run: { T: 0.66, amp: 0.8, lift: 0.16, avance: 2.6, tangage: 0.24, roulis: 0.05, descente: 0.58, fold: 0.3 },    // vol rapide : battement ample, corps incline vers l'avant
+  turn_left: { T: 0.84, amp: 0.65, lift: 0.14, avance: 1.0, tangage: 0.10, roulis: 0.04, descente: 0.55, fold: 0.3 },
+  turn_right: { T: 0.84, amp: 0.65, lift: 0.14, avance: 1.0, tangage: 0.10, roulis: 0.04, descente: 0.55, fold: 0.3 },
 };
 function animerVol(sq, allure, cycles, fps, variante, det) {
   const { par, P0 } = sq, J = par.length, E = enfantsDe(par);
@@ -2084,6 +2118,13 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
     return { c, cap };
   };
   const phi = (tt) => 2 * Math.PI * tt / T;                    // phase de battement : sin > 0 = aile en HAUT
+  // forme du battement : tau = 0 aile tout en haut, abattement jusqu'a tau = Dn (aile tout en bas), puis remontee. Onde en cosinus par
+  // morceaux, derivee nulle aux deux extremes (continue : aucun a-coup). onde = +1 en haut, -1 en bas.
+  const Dn = PV.descente ?? 0.5;
+  const tauDe = (ph) => ((((ph - Math.PI / 2) / (2 * Math.PI)) % 1) + 1) % 1;
+  const onde = (ph) => { const u = tauDe(ph); return u < Dn ? Math.cos(Math.PI * u / Dn) : -Math.cos(Math.PI * (u - Dn) / (1 - Dn)); };
+  const remontee = (ph) => { const u = tauDe(ph); return u < Dn ? 0 : Math.sin(Math.PI * (u - Dn) / (1 - Dn)); };   // cloche pendant la remontee
+  const abattement = (ph) => { const u = tauDe(ph); return u < Dn ? Math.sin(Math.PI * u / Dn) : 0; };
   // --- ailes : feuilles laterales hors pattes / queues / tetes (meme critere que le leger battement des quadrupedes a ailes)
   const xMid = median(P0.map((p) => p[0]));
   const pris = new Set([...pattes].flatMap((q) => sousArbre(E, q.chaine[0])));
@@ -2103,7 +2144,8 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
   for (const a of ailes) {
     a.chaine.slice(0, -1).forEach((j, k) => {
       const amp = ampAile * Math.pow(0.72, k), retard = 0.55 * k;     // l'extremite suit avec retard et moins d'amplitude
-      balance.set(j, t.map((tt) => Rz(a.cote * amp * Math.sin(phi(tt) - retard) + (k === 0 ? a.cote * 0.12 * ampAile : 0))));
+      const repli = k >= 1 ? (PV.fold ?? 0) * (V.repli_aile ?? 1) * (k === 1 ? 1 : 0.6) : 0;     // coude / poignet flechis a la remontee, aile qui balaie vers l'arriere
+      balance.set(j, t.map((tt) => mm(Ry(a.cote * repli * remontee(phi(tt) - retard)), Rz(a.cote * amp * onde(phi(tt) - retard) + (k === 0 ? a.cote * 0.12 * ampAile : 0)))));
     });
   }
   // --- queue : ondulation douce, en retard sur le battement ; tete : contre-tangage
@@ -2128,9 +2170,11 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
   // --- le corps : portance (monte a la descente de l'aile), tangage, roulis (penche dans les virages)
   const roulisVirage = Math.abs(w) > 1e-9 ? -Math.sign(w) * 0.35 : 0;
   const Rb = t.map((tt, i) => mm(Ry(cheminCorps(tt).cap), mm(Rz(roulisVirage + PV.roulis * Math.sin(phi(tt) + 1.2)), Rx(tangage[i]))));
-  const lift = (tt) => (PV.lift + 0.045 * PV.amp * Math.sin(phi(tt) - Math.PI / 2)) * H;
-  const racineMonde = t.map((tt) => add(add(P0[racine], cheminCorps(tt).c), [0, lift(tt), 0]));
-  const racinesSec = sq.racines.filter((r) => r !== racine).map((r) => ({ j: r, pos: t.map((tt) => add(add(P0[r], cheminCorps(tt).c), [0, lift(tt), 0])) }));
+  // le corps MONTE a l'abattement (portance), redescend un peu a la remontee (Tobalske 2007 : oscillation verticale du corps en phase avec les ailes)
+  const lift = (tt) => (PV.lift + 0.045 * PV.amp * (abattement(phi(tt) - 0.4) - 0.6 * remontee(phi(tt) - 0.4) - 0.2)) * H;
+  let altitude = 0;                                            // hauteur de vol AJOUTEE (calculee plus bas : les ailes ne doivent jamais toucher le sol)
+  let racineMonde = t.map((tt) => add(add(P0[racine], cheminCorps(tt).c), [0, lift(tt), 0]));
+  let racinesSec = sq.racines.filter((r) => r !== racine).map((r) => ({ j: r, pos: t.map((tt) => add(add(P0[r], cheminCorps(tt).c), [0, lift(tt), 0])) }));
   const ordre = [], file = [racine, ...sq.racines.filter((r) => r !== racine)];
   while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
   const D = Array.from({ length: nT }, () => new Array(J));
@@ -2142,6 +2186,22 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
     }
   }
   const R = D.map((Di) => Di.map((Dj, j) => (par[j] < 0 ? Dj : mm(tr(Di[par[j]]), Dj))));
+  // --- altitude : un oiseau, une chauve-souris, un dragon en vol sont EN L'AIR. L'abattement de l'aile ne doit pas traverser le sol (chauve-souris :
+  // bout d'aile a 185 % de sa hauteur sous le sol, le corps ne montait que de 0,14 H). On releve le tout d'une constante (la boucle reste fermee) pour que
+  // le point le plus bas de tout le cycle reste a 3 % de la hauteur au-dessus du sol.
+  {
+    let basRel = Infinity;
+    const Pr_ = new Array(J);
+    for (let i = 0; i < nT; i++) {
+      for (const j of ordre) Pr_[j] = par[j] < 0 ? P0[j] : add(Pr_[par[j]], mv(D[i][par[j]], sub(P0[j], P0[par[j]])));
+      for (let j = 0; j < J; j++) basRel = Math.min(basRel, Pr_[j][1] + lift(t[i]));
+    }
+    altitude = Math.max(0, det.sol + 0.03 * H - basRel);
+    if (altitude > 0) {
+      racineMonde = racineMonde.map((q) => add(q, [0, altitude, 0]));
+      racinesSec = racinesSec.map((r) => ({ j: r.j, pos: r.pos.map((q) => add(q, [0, altitude, 0])) }));
+    }
+  }
   // --- controles : positions reconstruites, os sous le sol, a-coups des articulations d'aile
   const sol = det.sol, Pw = D.map(() => new Array(J));
   for (let i = 0; i < nT; i++) for (const j of ordre) {
