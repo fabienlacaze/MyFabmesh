@@ -261,6 +261,7 @@
     "Detail refine": ["Affinage des détails", "Refinar detalles", "细节精修", "विवरण सुधार", "تحسين التفاصيل"],
     "Auto-rectify": ["Redressement auto", "Enderezado automático", "自动校正", "ऑटो-सुधार", "تقويم تلقائي"],
     "Stays close to your image": ["Reste proche de votre image", "Se mantiene fiel a tu imagen", "贴近你的图像", "आपकी छवि के करीब रहता है", "يبقى قريبًا من صورتك"],
+    "Loose": ["Libre", "Libre", "自由", "मुक्त", "حر"],
     "Turns the subject more": ["Tourne davantage le sujet", "Gira más el sujeto", "更多地转动主体", "विषय को ज़्यादा घुमाता है", "يدوّر الموضوع أكثر"],
     "Sharp edges": [null, "Aristas nítidas", "锐利边缘", "तीखे किनारे", "حواف حادة"],
     "Face fix": ["Visage", "Corregir cara", "面部修复", "चेहरा सुधार", "إصلاح الوجه"],
