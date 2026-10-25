@@ -15,6 +15,8 @@
   if (!window.FabI18n || !window.FabI18n.register) return;
   var L = ['fr', 'es', 'zh', 'hi', 'ar'];
   var T = {
+    /* LOT W17 */
+    "Enlarge the image or make it lighter.": ["Agrandissez l'image ou allégez-la.", "Amplía la imagen o hazla más ligera.", "放大图像，或让它更轻量。", "छवि को बड़ा करें या उसे हल्का बनाएँ।", "كبّر الصورة أو اجعلها أخف."],
     "Aluminium": ["Aluminium", "Aluminio", "铝", "एल्युमिनियम", "ألومنيوم"],
     "Auto": [null, "Auto", "自动", "ऑटो", "تلقائي"],
     "Wood": [null, "Madera", "木材", "लकड़ी", "خشب"],
