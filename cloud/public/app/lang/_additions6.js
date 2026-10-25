@@ -1555,11 +1555,16 @@
 })();
 
 /* LOT P2 : fenetres Recolor (3D) et lancement des outils de maillage, avec le modele reel en apercu */
+/* LOT P3 : cles des fenetres Segment parts / Name the zones (gabarit .fen-3d) */
 (function () {
   if (!window.FabI18n || !window.FabI18n.register) return;
   var L = ['fr', 'es', 'zh', 'hi', 'ar'];
   var T = {
     "Pick what to recolor, then the colour. The lighting is kept.": ["Choisissez ce qu'il faut recolorier, puis la couleur. L'éclairage est conservé.", "Elige qué recolorear y luego el color. La iluminación se conserva.", "选择要重新着色的内容，然后选择颜色。光照保持不变。", "चुनें कि क्या रंगना है, फिर रंग चुनें। प्रकाश व्यवस्था बनी रहती है।", "اختر ما تريد إعادة تلوينه ثم اللون. تبقى الإضاءة كما هي."]
+    "Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). Adds a new colored, separable mesh version.": ["Découpe le maillage en parties logiques (tête / torse / bras / jambes — roue / châssis / tourelle / canon). Ajoute une nouvelle version colorée, aux parties séparables.", "Divide la malla en partes lógicas (cabeza / torso / brazos / piernas — rueda / chasis / torreta / cañón). Añade una nueva versión coloreada con partes separables.", "将网格拆分为语义部件（头 / 躯干 / 手臂 / 腿 — 车轮 / 底盘 / 炮塔 / 炮管）。会新增一个带颜色、可分离部件的网格版本。", "मेष को अर्थपूर्ण हिस्सों में बाँटता है (सिर / धड़ / बाँहें / टाँगें — पहिया / चेसिस / बुर्ज / नली)। रंगीन, अलग किए जा सकने वाले हिस्सों वाला नया मेष संस्करण जुड़ता है।", "يقسم المجسم إلى أجزاء ذات معنى (رأس / جذع / ذراعان / ساقان — عجلة / هيكل / برج / مدفع). تتم إضافة نسخة جديدة ملوّنة بأجزاء قابلة للفصل."],
+    "Runs in the MyFabmesh cloud.": ["S'exécute dans le cloud MyFabmesh.", "Se ejecuta en la nube de MyFabmesh.", "在 MyFabmesh 云端运行。", "MyFabmesh क्लाउड में चलता है।", "يعمل في سحابة MyFabmesh."],
+    "Runs locally on your GPU, about 1 minute.": ["S'exécute en local sur votre carte graphique, environ 1 minute.", "Se ejecuta en local en su GPU, aproximadamente 1 minuto.", "在本机 GPU 上运行，约 1 分钟。", "आपके GPU पर स्थानीय रूप से चलता है, लगभग 1 मिनट।", "يعمل محليًا على بطاقتك الرسومية، حوالي دقيقة واحدة."],
+    "Object type": ["Type d'objet", "Tipo de objeto", "对象类型", "वस्तु का प्रकार", "نوع الكائن"]
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
