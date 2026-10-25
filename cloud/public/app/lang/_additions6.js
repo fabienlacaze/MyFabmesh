@@ -1501,6 +1501,10 @@
     "Zoom out": ["Zoom arrière", "Alejar", "缩小", "ज़ूम आउट", "تصغير"],
     "Fullscreen": ["Plein écran", "Pantalla completa", "全屏", "पूर्ण स्क्रीन", "ملء الشاشة"],
     "Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom": ["Glisser gauche = peindre · glisser droit = déplacer · glisser molette = tourner · molette = zoom", "Arrastre izquierdo = pintar · derecho = mover · rueda pulsada = girar · rueda = zoom", "左键拖动 = 绘制 · 右键拖动 = 平移 · 中键拖动 = 旋转 · 滚轮 = 缩放", "बायाँ-खींचें = पेंट · दायाँ-खींचें = खिसकाएँ · बीच का बटन खींचें = घुमाएँ · व्हील = ज़ूम", "سحب أيسر = رسم · سحب أيمن = تحريك · سحب العجلة = تدوير · العجلة = تكبير"],
+    /* LOT W03 */
+    "Aspect ratio": ["Format", "Proporción", "宽高比", "आस्पेक्ट अनुपात", "نسبة الأبعاد"],
+    "History": ["Historique", "Historial", "历史", "इतिहास", "السجل"],
+    "View": ["Vue", "Vista", "视图", "दृश्य", "عرض"],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
