@@ -5161,3 +5161,19 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ============================================================
+ * LOT W24 (25/10) : Paint Mesh / Decalques = gabarit .fen-3d (apercu a gauche, colonne d'outils a droite, pied
+ * Annuler + action sur toute la largeur restante). Memes regles bureau et site.
+ * ============================================================ */
+#modal-paint-mesh .modal-card.fen-3d { max-height: none; overflow: hidden; }
+#modal-paint-mesh .modal-card.fen-3d > .fen-tete,
+#modal-paint-mesh .modal-card.fen-3d > .modal-actions { position: static; margin-top: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; }
+#modal-paint-mesh .modal-card.fen-3d > .modal-actions { margin-top: 16px; }
+#modal-paint-mesh .modal-card.fen-3d .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+#modal-paint-mesh .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-paint-mesh .pm-colonne { padding: 0; }
+#modal-paint-mesh .pm-colonne .pm-outils { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+#modal-paint-mesh .pm-colonne .pm-outils > span { grid-column: 1 / -1; }
+#modal-paint-mesh .pm-colonne .pm-outils > button { text-align: center !important; padding: 6px 4px !important; }
+#modal-paint-mesh .modal-card.fen-3d { width: min(1700px, 97vw); max-width: 97vw; height: min(94vh, 1000px); }
