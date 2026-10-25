@@ -157,10 +157,95 @@ def _epurer_demande(texte: str) -> str:
     return t if len(t) >= 3 else brut.strip()
 
 
+# NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence « l'image doit correspondre EXACTEMENT au prompt »).
+# SDXL ne comprend pas la negation : dans « an orc, no helmet » il voit « helmet » et le dessine (CLAUDE.md §14). La locution quitte donc le POSITIF
+# (separer_negations) et le terme part au NEGATIF (_realvis.build_prompts pour text2image, _tpose.generate pour la T-pose). Le tri est fait par
+# extraire_negations() de composeur_intention (= scripts/composeur_intention.py, jumeau JavaScript lib/composeur-intention.js) : les negations de
+# garde-robe / nudite (« without clothes ») n'y sont JAMAIS extraites, elles restent dans le positif sous les yeux du filtre de moderation.
+# DEUX SOURCES de termes, reunies par negatifs_utilisateur() : le TEXTE brut (anciens clients, qui envoient « no helmet » tel quel) et le champ
+# `negative_extra` de la requete (clients a jour : le texte arrive DEJA sans ses negations, les termes viennent a part, via le worker).
+# Interrupteur d'urgence FABMESH_COMPOSEUR=0 : rien n'est extrait, rien n'est ajoute (ancien comportement).
+
+
+def separer_negations(texte):
+    """-> (positif, termes) : le texte SANS ses locutions negatives (« an orc, no helmet, holding a club » -> « an orc, holding a club ») et les termes de
+    negatif trouves. Meme resultat que negationsEtPositif du client (lib/composeur-intention.js) : un texte de plus de 2 000 caracteres n'est PAS analyse
+    (on ne coupe jamais le texte de l'utilisateur), un texte ENTIEREMENT negatif (« no helmet ») garde son positif tel quel (un prompt vide ne vaut rien)
+    mais ses termes partent quand meme au negatif. Sans negation : le texte, a l'octet, et []. Jamais d'exception."""
+    t = str(texte if texte is not None else '')
+    try:
+        from modal_app import composeur_intention as _ci
+        if not _ci.actif() or len(t) > _ci.MAX_TEXTE_NEGATIONS:
+            return t, []
+        r = _ci.extraire_negations(t)
+    except Exception as _e:   # le tri des negations ne doit jamais empecher une generation
+        print(f"[prompt] negations ignorees ({type(_e).__name__}: {_e})", flush=True)
+        return t, []
+    if not r['negatifs']:
+        return t, []
+    if not r['positif'].strip():
+        return t, list(r['negatifs'])
+    return r['positif'], list(r['negatifs'])
+
+
+def termes_negatifs_valides(liste):
+    """Nettoyage STRICT des termes de negatif d'une requete (champ `negative_extra`) : 8 au plus, 40 caracteres au plus, lettres ASCII / espaces / tirets,
+    minuscules, sans doublon ; un element invalide est ECARTE, jamais corrige ; n'importe quelle entree (jamais d'exception). Les termes de garde-robe
+    et de nudite (« clothes », « shirt »...) sont ecartes aussi, morceaux a tiret compris : meme liste que l'extraction (composeur_intention._NEG_SENSIBLES) ;
+    en NEGATIF ils pousseraient le modele vers la nudite sans que le texte, donc le filtre de moderation, en garde la trace. [] si le composeur est coupe.
+
+    POURQUOI CE CHAMP NE PEUT RIEN CASSER. Il n'AJOUTE qu'au negatif, derriere les pieces de securite, d'ombres et d'armes (voir _realvis.build_prompts) ; les
+    caracteres admis ne contiennent ni virgule, ni parenthese, ni deux-points, ni crochet, ni chiffre : un terme ne peut ni ouvrir une autre piece du
+    prompt ni fabriquer une ponderation « (nude:0) » qui annulerait une piece de securite. Meme nettoyage cote worker (_nettoyerNegativeExtra)."""
+    if not isinstance(liste, (list, tuple)):
+        return []
+    try:
+        from modal_app import composeur_intention as _ci
+        if not _ci.actif():
+            return []
+        sensibles = _ci._NEG_SENSIBLES
+        sortie = []
+        for x in liste[:64]:                       # jamais plus de 64 elements lus, quelle que soit la taille de la liste recue
+            for t in _ci.assainir_negatifs([x]):
+                if t in sortie or any(m in sensibles for m in t.replace('-', ' ').split()):
+                    continue
+                sortie.append(t)
+            if len(sortie) >= _ci.MAX_TERMES_NEGATIFS:
+                break
+        return sortie
+    except Exception as _e:   # un nettoyage qui plante vaut « aucun terme », jamais une generation perdue
+        print(f"[prompt] termes de negatif ignores ({type(_e).__name__}: {_e})", flush=True)
+        return []
+
+
+def negatifs_utilisateur(texte_brut, extra=None):
+    """Tous les termes de negatif d'UNE demande, nettoyes, sans doublon, 8 au plus : d'abord ceux du champ `negative_extra` (clients a jour), puis ceux que
+    l'extraction trouve dans le TEXTE brut (anciens clients ; apres _epurer_demande, comme le client). [] si le composeur est coupe."""
+    brut = list(extra) if isinstance(extra, (list, tuple)) else []
+    brut += separer_negations(_epurer_demande(texte_brut))[1]
+    return termes_negatifs_valides(brut)
+
+
+def texte_pour_plancher(texte, extra=None):
+    """Le texte que le PLANCHER DUR de moderation (app.py, _prompt_hard_floor) doit examiner : le texte recu, plus les negations que le client en a SORTIES
+    (champ `negative_extra`), rendues sous les deux formes que les listes du filtre connaissent (« no X », « without X »). Meme regle que
+    _texteDeModerationNegations du worker et _texteDeModeration du bureau : « a child, no whip » arrive ici comme « a child » + le terme « whip », et le
+    plancher doit la juger comme avant. Le worker, premiere ligne, l'a deja fait ; cette seconde ligne ne doit pas se relacher en silence. Les termes sont
+    nettoyes comme pour le negatif (seuls les termes REELLEMENT appliques sont examines) ; sans terme, ou composeur coupe : le texte lui-meme, a l'octet."""
+    base = str(texte if texte is not None else '')
+    termes = termes_negatifs_valides(extra)
+    if not termes:
+        return base
+    return base + ', ' + ', '.join('no %s, without %s' % (t, t) for t in termes)
+
+
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, pose_libre: bool = False) -> str:
     """Ajoute style + gabarit autour du texte de l'utilisateur, SANS doublon.
 
     `pose_libre` (2026-10-03, case « T-pose » DECOCHEE) : le gabarit des unites perd ses consignes de T-pose (pose libre selon le texte).
+
+    NEGATIONS (2026-10-03) : les locutions negatives du texte (« no helmet », « without a beard ») quittent le positif, pour TOUS les types d'asset ;
+    leurs termes partent au negatif (negatifs_utilisateur, _realvis.build_prompts). Sans negation, rien ne change.
 
     2026-09-23 : ce concatenait sans rien verifier. Or le client enrichit
     deja de son cote, et envoie le resultat : le gabarit arrivait donc DEUX
@@ -185,6 +270,9 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, p
     transmet le texte BRUT de l'utilisateur.
     """
     user_prompt = _epurer_demande(user_prompt)
+    # NEGATIONS DE L'UTILISATEUR : « an orc, no helmet » -> « an orc » (le terme part au negatif). La detection du vol / de la reptation et le composeur
+    # d'intention lisent donc le texte SANS ses negations (« a bird, not flying » ne choisit pas le gabarit « en vol »), comme buildFullPrompt du client.
+    user_prompt = separer_negations(user_prompt)[0]
     style_prefix = ASSET_STYLE_PROMPTS.get(asset_style, '')
     type_prefix = ASSET_TYPE_PREFIXES.get(asset_type, '')
     type_suffix = ASSET_TYPE_PROMPTS.get(asset_type, '')

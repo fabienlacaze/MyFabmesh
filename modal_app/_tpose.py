@@ -97,6 +97,7 @@ def generate(
     steps: int = 30,
     guidance: float = 7.0,
     size: int = 1024,
+    negatif_extra=None,              # termes de negatif tires des negations de l'utilisateur (2026-10-03), voir plus bas
 ) -> Image.Image:
     """Run RealVisXL + ControlNet OpenPose T-pose generation. Returns
     the post-processed PIL image (rembg + center). `pipe` must already
@@ -123,6 +124,19 @@ def generate(
                 negatif = _ci.ajouter_jetons(_ci.retirer_jetons(NEG, ['holding objects']), _ajout, en_tete=False)
     except Exception as _e:   # le composeur ne doit jamais empecher une generation
         print(f"[tpose] composeur d'intention ignore ({type(_e).__name__}: {_e})", flush=True)
+    # NEGATIONS DE L'UTILISATEUR (2026-10-03) : le prompt ENRICHI du client arrive ici sans ses negations (« no helmet » est sorti du texte), elles
+    # voyagent a part (worker : champ `negative_extra`). Les termes sont nettoyes ICI aussi (termes_negatifs_valides : derniere porte) puis ajoutes A LA
+    # FIN du negatif, apres les ajustements du composeur : rien de ce qui precede n'est retire ni deplace. Aucun terme : negatif identique a l'octet.
+    if negatif_extra:
+        try:
+            from modal_app import composeur_intention as _ci
+            from modal_app._prompts import termes_negatifs_valides
+            _termes = termes_negatifs_valides(negatif_extra)
+            if _termes:
+                negatif = _ci.ajouter_jetons(negatif, _termes, en_tete=False)
+                print(f"[tpose] negations de l'utilisateur au negatif : {', '.join(_termes)}", flush=True)
+        except Exception as _e:   # une negation perdue vaut mieux qu'une generation perdue
+            print(f"[tpose] negations de l'utilisateur ignorees ({type(_e).__name__}: {_e})", flush=True)
     base_kwargs = {
         'image': skel_img,
         'controlnet_conditioning_scale': cn_scale,
