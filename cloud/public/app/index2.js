@@ -20,6 +20,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { creerBarreVues3D } from './lib/barre-vues-3d.js';   // barre commune des visualiseurs des fenetres d'outils (25/10)
+import { normaleDepuis, anglesDepuis, matriceMiroir, centresDesFaces, appliquerTampon, regionFaces, coteDesFaces, ecrireFaces } from './lib/symetrie-maillage.js';   // outil Symmetrize mesh (25/10)
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
   positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
@@ -14356,6 +14357,623 @@ document.getElementById('ws-mesh-stages3d-btn')?.addEventListener('click', () =>
   document.getElementById('modal-stages3d-options')?.classList.remove('hidden');
   _apercuMaillageFenetre('bs3d');
 });
+// ============================================================
+// SYMMETRIZE MESH (25/10, demande du user : « comme pour les images, un outil manuel qui permette de faire la symetrie
+// d'un mesh, avec le meme type de reglages que Symmetriser des images »).
+//
+// Un PLAN vert, deplacable le long de sa normale et inclinable (gizmo ou curseurs), partage le maillage en deux. Le cote
+// CONSERVE (Direction) est recopie en miroir de l'autre cote ; les sommets du plan sont soudes, les UV du cote source
+// reprises (la texture est partagee et apparait en miroir). Mode Full : tout le maillage. Mode Mask : on PEINT au
+// pinceau, sur le modele, la zone a refleter ; sa copie remplace ce qui est de l'autre cote sous la zone miroir.
+//
+// APERCU EN DIRECT sans recalculer la geometrie : le maillage est affiche decoupe par le plan (clippingPlanes) et son
+// image miroir (matrice de reflexion, l'ordre des faces s'inverse tout seul) est ajoutee de l'autre cote. Le resultat
+// reel est calcule par scripts/symmetrize_mesh.py (bureau) / modal_app/_symetrie.py (site, /api/mesh-op 'symmetrize') :
+// UNE seule implementation de la coupe, donc l'apercu ne peut pas diverger du fichier. Seul le choix des faces de la
+// zone peinte est refait ici (lib/symetrie-maillage.js, memes regles que region_faces en Python).
+// Espace du modele : celui du GLB, noeuds cuits (c'est aussi celui que le serveur lit) ; le plan et les tampons du
+// pinceau y sont exprimes.
+// ============================================================
+const smState = {
+  renderer: null, scene: null, camera: null, controls: null, gizmo: null, ro: null, raf: null,
+  holder: null, model: null, mirrorGroup: null, plane: null, planeFleche: null, curseur: null,
+  clipSrc: new THREE.Plane(), clipMir: new THREE.Plane(),
+  parts: [], meshPath: null, centre: new THREE.Vector3(), diag: 1, riggee: false, pret: false, jeton: 0,
+  axis: 'x', tiltA: 0, tiltB: 0, P: new THREE.Vector3(), keep: 'pos', mode: 'full', gizmoMode: 'translate',
+  brush: 6, effacer: false, stamps: [], peint: false, limiteDite: false,
+  hist: [], histI: -1, zoneSale: false, zoneComplete: false, zoneTimer: null, survol: null,
+};
+const SM3_MAX_TAMPONS = 1200;
+const _sm3El = (id) => document.getElementById(id);
+const _sm3Url = (chemin) => ((typeof chemin === 'string' && /^[a-z][a-z0-9+.-]+:/i.test(chemin)) ? chemin : _toFileUrl(chemin));
+
+function _sm3Normale() {
+  const n = normaleDepuis(smState.axis, smState.tiltA, smState.tiltB);
+  return new THREE.Vector3(n[0], n[1], n[2]).normalize();
+}
+/** Normale du cote CONSERVE (celle qui pointe vers la matiere gardee). */
+function _sm3NormaleEff() { const n = _sm3Normale(); return smState.keep === 'neg' ? n.negate() : n; }
+function _sm3Decalage() { return smState.P.clone().sub(smState.centre).dot(_sm3Normale()); }
+const _sm3Arr = (v) => [Number(v.x.toFixed(6)), Number(v.y.toFixed(6)), Number(v.z.toFixed(6))];
+
+/** Positions d'une geometrie sous forme de Float32Array (3 par sommet), meme pour un attribut entrelace ou quantifie. */
+function _sm3Positions(geo) {
+  const a = geo.attributes.position;
+  if (!a.isInterleavedBufferAttribute && !a.normalized && a.array instanceof Float32Array && a.itemSize === 3) return a.array;
+  const out = new Float32Array(a.count * 3);
+  for (let i = 0; i < a.count; i++) { out[i * 3] = a.getX(i); out[i * 3 + 1] = a.getY(i); out[i * 3 + 2] = a.getZ(i); }
+  return out;
+}
+const _sm3LigneParLigne = (m4) => { const e = m4.elements, o = new Array(16); for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) o[r * 4 + c] = e[c * 4 + r]; return o; };
+
+function _sm3Snapshot() {
+  return { axis: smState.axis, tiltA: smState.tiltA, tiltB: smState.tiltB, P: smState.P.toArray(), keep: smState.keep,
+    mode: smState.mode, stamps: smState.stamps.map((s) => s.slice()) };
+}
+function _sm3HistPush() {
+  const s = _sm3Snapshot();
+  const cle = JSON.stringify(s);
+  const cur = smState.hist[smState.histI];
+  if (cur && JSON.stringify(cur) === cle) return;
+  smState.hist.length = smState.histI + 1;
+  smState.hist.push(s);
+  if (smState.hist.length > 60) smState.hist.shift();
+  smState.histI = smState.hist.length - 1;
+  _sm3MajBoutonsHist();
+}
+function _sm3MajBoutonsHist() {
+  const u = _sm3El('sm3-undo'), r = _sm3El('sm3-redo');
+  if (u) u.disabled = smState.histI <= 0;
+  if (r) r.disabled = smState.histI >= smState.hist.length - 1;
+}
+function _sm3Restaurer(s) {
+  const modeAvant = smState.mode;
+  smState.axis = s.axis; smState.tiltA = s.tiltA; smState.tiltB = s.tiltB; smState.P.fromArray(s.P);
+  smState.keep = s.keep; smState.mode = s.mode; smState.stamps = s.stamps.map((t) => t.slice());
+  if (s.mode === 'mask') _sm3PreparerPeinture();
+  _sm3RecalculerSelections();
+  if (modeAvant === 'mask' && s.mode !== 'mask') _sm3QuitterZone();
+  _sm3PoserPlan();
+  smState.zoneComplete = true;
+  _sm3Refresh();
+}
+function _sm3Annuler() { if (smState.histI > 0) { smState.histI--; _sm3Restaurer(smState.hist[smState.histI]); _sm3MajBoutonsHist(); } }
+function _sm3Refaire() { if (smState.histI < smState.hist.length - 1) { smState.histI++; _sm3Restaurer(smState.hist[smState.histI]); _sm3MajBoutonsHist(); } }
+
+/** Remet le plan au centre du maillage, de face, cote « + » conserve, mode Full, zone vide. */
+function _sm3ReglagesInitiaux() {
+  smState.axis = 'x'; smState.tiltA = 0; smState.tiltB = 0; smState.P.copy(smState.centre);
+  smState.keep = 'pos'; smState.mode = 'full'; smState.stamps = [];
+}
+
+/** Pose l'objet plan (position + orientation) sur l'etat : appele quand l'etat change AUTREMENT que par le gizmo. */
+function _sm3PoserPlan() {
+  const g = smState.plane;
+  if (!g) return;
+  const n = _sm3Normale();
+  g.position.copy(smState.P);
+  g.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), n);
+  g.updateMatrixWorld(true);
+}
+
+/** Etat -> tout ce qui se voit : plan, fleche, plans de coupe, miroir, curseurs de l'interface, apercu de la zone. */
+function _sm3Refresh() {
+  if (!smState.holder) return;
+  const n = _sm3Normale(), nEff = _sm3NormaleEff();
+  // fleche : du cote conserve vers le cote recopie
+  if (smState.planeFleche) {
+    const dir = smState.keep === 'neg' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
+    smState.planeFleche.setDirection(dir);
+    smState.planeFleche.position.copy(dir).multiplyScalar(-0.14 * smState.diag);
+  }
+  // plans de coupe (espace MONDE : le holder n'a qu'une translation)
+  smState.holder.updateMatrixWorld(true);
+  const Pw = smState.holder.localToWorld(smState.P.clone());
+  smState.clipSrc.setFromNormalAndCoplanarPoint(nEff, Pw);
+  smState.clipMir.setFromNormalAndCoplanarPoint(nEff.clone().negate(), Pw);
+  // miroir
+  if (smState.mirrorGroup) {
+    const m = matriceMiroir(smState.P.toArray(), [n.x, n.y, n.z]);
+    smState.mirrorGroup.matrix.set(...m);
+    smState.mirrorGroup.matrixWorldNeedsUpdate = true;
+  }
+  // interface
+  const A = smState.axis.toUpperCase();
+  const set = (id, v) => { const el = _sm3El(id); if (el && document.activeElement !== el) el.value = String(v); };
+  const lim = smState.diag * 0.6;
+  const off = _sm3Decalage();
+  const rOff = _sm3El('sm3-offset');
+  if (rOff) { rOff.min = String(-lim); rOff.max = String(lim); rOff.step = String(Math.max(smState.diag / 2000, 1e-5)); }
+  set('sm3-offset', off); set('sm3-offset-num', Number(off.toFixed(4)));
+  set('sm3-tilt-a', Math.round(smState.tiltA)); set('sm3-tilt-a-num', Math.round(smState.tiltA));
+  set('sm3-tilt-b', Math.round(smState.tiltB)); set('sm3-tilt-b-num', Math.round(smState.tiltB));
+  const on = (id, v) => { const el = _sm3El(id); if (el) el.classList.toggle('tool-active', !!v); };
+  on('sm3-axis-x', smState.axis === 'x'); on('sm3-axis-y', smState.axis === 'y'); on('sm3-axis-z', smState.axis === 'z');
+  on('sm3-gz-move', smState.gizmoMode === 'translate'); on('sm3-gz-rot', smState.gizmoMode === 'rotate');
+  on('sm3-dir-pos', smState.keep === 'pos'); on('sm3-dir-neg', smState.keep === 'neg');
+  on('sm3-mode-full', smState.mode === 'full'); on('sm3-mode-mask', smState.mode === 'mask');
+  on('sm3-paint-mode', !smState.effacer); on('sm3-erase-mode', smState.effacer);
+  const bp = _sm3El('sm3-dir-pos'), bn = _sm3El('sm3-dir-neg');
+  if (bp) bp.textContent = '+' + A + ' → −' + A;
+  if (bn) bn.textContent = '−' + A + ' → +' + A;
+  const bb = _sm3El('sm3-brush-bloc'); if (bb) bb.style.display = smState.mode === 'mask' ? '' : 'none';
+  const bv = _sm3El('sm3-brush-val'); if (bv) bv.textContent = String(smState.brush);
+  const ap = _sm3El('sm3-apply'); if (ap) ap.disabled = !smState.pret || smState.riggee;
+  _sm3MajAide();
+  // le gizmo : seulement les poignees qui servent (la normale en translation, les deux inclinaisons en rotation)
+  const gz = smState.gizmo;
+  if (gz) {
+    const t = smState.gizmoMode === 'translate';
+    gz.setMode(t ? 'translate' : 'rotate'); gz.setSpace('local');
+    gz.showX = t; gz.showY = !t; gz.showZ = !t;
+    gz.setRotationSnap(t ? null : THREE.MathUtils.degToRad(5));
+  }
+  if (smState.curseur) smState.curseur.visible = smState.mode === 'mask' && !!smState.survol;
+  if (smState.mode === 'mask') _sm3PlanifierZone();
+}
+function _sm3MajAide() {
+  const h = _sm3El('sm3-hint');
+  if (!h || smState.preparation) return;
+  let t;
+  if (smState.riggee) t = 'This mesh is rigged or animated: symmetrize it before rigging.';
+  else if (smState.mode === 'mask') t = 'Left-drag paints the area to mirror · right-drag: pan · middle-drag: rotate · wheel: zoom';
+  else t = 'Drag the gizmo to move or rotate the plane · right-drag: pan · middle-drag: rotate · wheel: zoom';
+  h.textContent = _i18nT(t);
+}
+
+// ---- zone peinte ---------------------------------------------------------------------------------------------------
+function _sm3Rayon() { return Math.max(smState.diag * 0.005, (smState.brush / 100) * smState.diag * 0.5); }
+
+/** Prepare (une fois) ce qu'il faut pour peindre : centres des faces, selection, BVH de lancer de rayon. */
+function _sm3PreparerPeinture() {
+  for (const pt of smState.parts) {
+    if (pt.cen) continue;
+    const pos = _sm3Positions(pt.geo);
+    pt.cen = centresDesFaces(pos, pt.idx, pt.rel);
+    pt.sel = new Uint8Array(pt.nTri);
+    try { if (!pt.geo.boundsTree && pt.geo.computeBoundsTree) pt.geo.computeBoundsTree(); } catch (_) {}
+  }
+}
+function _sm3RecalculerSelections() {
+  for (const pt of smState.parts) {
+    if (!pt.cen) continue;
+    pt.sel = regionFaces(pt.cen, smState.stamps, null);
+    pt.selSale = true;
+  }
+  smState.zoneSale = true;
+}
+function _sm3GeoDerivee(pt, cle) {
+  if (pt[cle]) return pt[cle];
+  const g = new THREE.BufferGeometry();
+  for (const k of Object.keys(pt.geo.attributes)) g.setAttribute(k, pt.geo.attributes[k]);
+  const idx = new THREE.BufferAttribute(new Uint32Array(pt.nTri * 3), 1);
+  idx.setUsage(THREE.DynamicDrawUsage);
+  g.setIndex(idx);
+  g.setDrawRange(0, 0);
+  pt[cle] = g;
+  return g;
+}
+function _sm3PoserFaces(g, idxSource, masque) {
+  const n = ecrireFaces(g.index.array, idxSource, masque);
+  g.index.needsUpdate = true;
+  g.setDrawRange(0, n * 3);
+  return n;
+}
+/** Surcouche rouge des faces peintes. */
+function _sm3MajSurcouches() {
+  for (const pt of smState.parts) {
+    if (!pt.selSale) continue;
+    pt.selSale = false;
+    if (!pt.cen) continue;
+    if (!pt.surcouche) {
+      const g = _sm3GeoDerivee(pt, 'gSurcouche');
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      const m = new THREE.Mesh(g, mat);
+      m.renderOrder = 5; m.raycast = () => {}; m.frustumCulled = false;
+      pt.mesh.add(m); pt.surcouche = m;
+    }
+    const n = _sm3PoserFaces(pt.gSurcouche, pt.idx, pt.sel);
+    pt.surcouche.visible = n > 0 && smState.mode === 'mask';
+  }
+}
+function _sm3PlanifierZone() {
+  smState.zoneSale = true;
+  clearTimeout(smState.zoneTimer);
+  smState.zoneTimer = setTimeout(() => { smState.zoneComplete = true; smState.zoneSale = true; }, 220);
+}
+/** Apercu de la zone : copie miroir des faces peintes du cote conserve ; une fois le geste fini (`complete`), les faces
+ *  de l'autre cote qui tombent sous la zone miroir sont retirees de l'original, comme le fera le calcul. */
+function _sm3MajApercuZone(complete) {
+  const n = _sm3NormaleEff(), P = smState.P.toArray(), nn = [n.x, n.y, n.z];
+  const eps = smState.diag * 1e-6;
+  for (const pt of smState.parts) {
+    if (!pt.cen) continue;
+    const cote = coteDesFaces(pt.cen, P, nn, eps);
+    const src = new Uint8Array(pt.nTri);
+    for (let i = 0; i < pt.nTri; i++) src[i] = pt.sel[i] && cote[i] > 0 ? 1 : 0;
+    pt.mir.geometry = _sm3GeoDerivee(pt, 'gMir');
+    _sm3PoserFaces(pt.gMir, pt.idx, src);
+    if (!complete) continue;
+    let retire = null, nr = 0;
+    if (smState.stamps.length) {
+      retire = regionFaces(pt.cen, smState.stamps, { P, n: nn });
+      for (let i = 0; i < pt.nTri; i++) { if (retire[i] && cote[i] < 0) nr++; else retire[i] = 0; }
+    }
+    if (nr) {
+      const garde = new Uint8Array(pt.nTri);
+      for (let i = 0; i < pt.nTri; i++) garde[i] = retire[i] ? 0 : 1;
+      pt.mesh.geometry = _sm3GeoDerivee(pt, 'gOrig');
+      _sm3PoserFaces(pt.gOrig, pt.idx, garde);
+    } else pt.mesh.geometry = pt.geo;
+  }
+}
+/** Retour au mode Full : maillage entier, copie miroir complete, surcouche cachee. */
+function _sm3QuitterZone() {
+  for (const pt of smState.parts) {
+    pt.mesh.geometry = pt.geo; pt.mir.geometry = pt.geo;
+    if (pt.surcouche) pt.surcouche.visible = false;
+  }
+  if (smState.curseur) smState.curseur.visible = false;
+}
+
+// ---- peinture au pinceau -------------------------------------------------------------------------------------------
+const _sm3Rc = new THREE.Raycaster();
+function _sm3Toucher(ev) {
+  const cv = _sm3El('sm3-canvas');
+  if (!cv || !smState.camera || !smState.holder) return null;
+  const r = cv.getBoundingClientRect();
+  const nd = new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  _sm3Rc.setFromCamera(nd, smState.camera);
+  const cibles = smState.parts.map((p) => p.ray).filter(Boolean);
+  const hits = _sm3Rc.intersectObjects(cibles, false);
+  if (!hits.length) return null;
+  return smState.holder.worldToLocal(hits[0].point.clone());
+}
+function _sm3Tampon(ev) {
+  const pt = _sm3Toucher(ev);
+  if (!pt) return;
+  const r = Number(_sm3Rayon().toFixed(6));
+  const s = [Number(pt.x.toFixed(5)), Number(pt.y.toFixed(5)), Number(pt.z.toFixed(5)), r, smState.effacer ? 0 : 1];
+  const d = smState.stamps[smState.stamps.length - 1];
+  if (d && d[4] === s[4] && d[3] === s[3] && Math.hypot(d[0] - s[0], d[1] - s[1], d[2] - s[2]) < r * 0.3) return;
+  if (smState.stamps.length >= SM3_MAX_TAMPONS) {
+    if (!smState.limiteDite) { smState.limiteDite = true; showToast(_i18nT('Brush limit reached: apply, or erase part of the area.'), 'info', 2600); }
+    return;
+  }
+  smState.stamps.push(s);
+  for (const p of smState.parts) { if (p.sel) { appliquerTampon(p.sel, p.cen, s, null); p.selSale = true; } }
+  smState.zoneSale = true;
+}
+function _sm3SurvolCurseur(ev) {
+  if (smState.mode !== 'mask' || !smState.curseur) return;
+  const pt = _sm3Toucher(ev);
+  smState.survol = pt;
+  if (pt) { smState.curseur.position.copy(pt); smState.curseur.scale.setScalar(_sm3Rayon()); }
+  smState.curseur.visible = !!pt;
+}
+
+// ---- ouverture / fermeture -----------------------------------------------------------------------------------------
+function _sm3Cleanup() {
+  smState.jeton++;
+  if (smState.raf) cancelAnimationFrame(smState.raf);
+  smState.raf = null;
+  clearTimeout(smState.zoneTimer);
+  try { smState.ro?.disconnect?.(); } catch (_) {}
+  smState.ro = null;
+  try { smState.controls?.dispose?.(); } catch (_) {}
+  try { if (smState.gizmo) { smState.gizmo.detach(); smState.gizmo.dispose?.(); } } catch (_) {}
+  for (const pt of smState.parts) {
+    for (const k of ['gMir', 'gOrig', 'gSurcouche']) { try { pt[k]?.dispose?.(); } catch (_) {} }
+    try { pt.surcouche?.material?.dispose?.(); } catch (_) {}
+    try { pt.ray?.material?.dispose?.(); } catch (_) {}
+  }
+  if (smState.scene) {
+    try {
+      smState.scene.traverse((n) => {
+        if (n.userData && n.userData.sm3Geo) n.geometry?.dispose?.();
+        if (n.material && !n.userData?.sm3Partage && n !== smState.curseur) (Array.isArray(n.material) ? n.material : [n.material]).forEach((m) => m.dispose?.());
+      });
+    } catch (_) {}
+  }
+  try { smState.renderer?.dispose?.(); } catch (_) {}
+  smState.renderer = smState.scene = smState.camera = smState.controls = smState.gizmo = null;
+  smState.holder = smState.model = smState.mirrorGroup = smState.plane = smState.planeFleche = smState.curseur = null;
+  smState.parts = []; smState.pret = false; smState.riggee = false; smState.survol = null; smState.peint = false;
+  smState.zoneSale = false; smState.zoneComplete = false; smState.preparation = false;
+}
+function _sm3Fermer() {
+  _sm3El('modal-symmetrize-mesh')?.classList.add('hidden');
+  _sm3Cleanup();
+}
+
+function _sm3Materiaux(m, plans) {
+  const un = (x) => { const c = x.clone(); c.clippingPlanes = plans; c.clipIntersection = false; c.needsUpdate = true; return c; };
+  return Array.isArray(m) ? m.map(un) : un(m);
+}
+
+function _sm3Installer(model) {
+  const s = smState;
+  model.position.set(0, 0, 0); model.quaternion.identity(); model.scale.set(1, 1, 1);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  if (box.isEmpty()) { showToast(_i18nT('Could not load the mesh:'), 'error'); return; }
+  const size = box.getSize(new THREE.Vector3());
+  s.centre.copy(box.getCenter(new THREE.Vector3()));
+  s.diag = size.length() || 1;
+  const holder = new THREE.Group();
+  holder.position.copy(s.centre).multiplyScalar(-1);
+  holder.add(model);
+  s.holder = holder; s.model = model;
+  model.traverse((o) => { if (o.isSkinnedMesh) s.riggee = true; });
+  // Materiaux propres a cette fenetre : l'original (les vues de l'etape Maillage) n'est jamais touche
+  model.traverse((o) => { if (o.isMesh && o.material) o.material = _sm3Materiaux(o.material, [s.clipSrc]); });
+  const mirror = model.clone(true);
+  mirror.traverse((o) => { if (o.isMesh && o.material) o.material = _sm3Materiaux(o.material, [s.clipMir]); });
+  const mg = new THREE.Group();
+  mg.matrixAutoUpdate = false;
+  mg.add(mirror);
+  holder.add(mg);
+  s.mirrorGroup = mg;
+  // une paire (maillage, copie miroir) par morceau
+  const A = [], B = [];
+  model.traverse((o) => { if (o.isMesh && o.geometry) A.push(o); });
+  mirror.traverse((o) => { if (o.isMesh && o.geometry) B.push(o); });
+  const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
+  s.parts = A.map((mesh, i) => {
+    const geo = mesh.geometry;
+    const nTri = geo.index ? Math.floor(geo.index.count / 3) : Math.floor(geo.attributes.position.count / 3);
+    const idx = geo.index ? geo.index.array : null;
+    // maillage de lancer de rayon : meme geometrie (donc le meme BVH), invisible, touche les deux faces
+    const ray = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    ray.visible = false; ray.userData.sm3Partage = true;
+    mesh.add(ray);
+    return { mesh, mir: B[i], geo, nTri, idx, rel: _sm3LigneParLigne(new THREE.Matrix4().multiplyMatrices(inv, mesh.matrixWorld)),
+      cen: null, sel: null, ray };
+  });
+  s.scene.add(holder);
+
+  // le plan : un carre vert translucide + contour, visibles a travers le maillage, et une fleche du cote conserve vers la copie
+  const cote = s.diag * 0.9;
+  const g = new THREE.Group();
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.16,
+    side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
+  quad.rotation.y = Math.PI / 2; quad.scale.setScalar(cote); quad.renderOrder = 998; quad.userData.sm3Geo = true; quad.raycast = () => {};
+  const bord = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1)), new THREE.LineBasicMaterial({ color: 0x22c55e, depthTest: false }));
+  bord.rotation.y = Math.PI / 2; bord.scale.setScalar(cote); bord.renderOrder = 999; bord.userData.sm3Geo = true; bord.raycast = () => {};
+  g.add(quad); g.add(bord);
+  const fleche = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 0.28 * s.diag, 0x22c55e, 0.08 * s.diag, 0.05 * s.diag);
+  fleche.line.material.depthTest = false; fleche.cone.material.depthTest = false;
+  fleche.line.renderOrder = 999; fleche.cone.renderOrder = 999;
+  fleche.line.raycast = () => {}; fleche.cone.raycast = () => {};
+  g.add(fleche);
+  holder.add(g);
+  s.plane = g; s.planeFleche = fleche;
+  // curseur du pinceau : sphere filaire de la taille reelle du pinceau
+  const cur = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff3b30, wireframe: true, transparent: true, opacity: 0.5, depthTest: false }));
+  cur.visible = false; cur.raycast = () => {}; cur.renderOrder = 997; cur.userData.sm3Geo = true;
+  holder.add(cur);
+  s.curseur = cur;
+
+  // camera
+  const cam = s.camera;
+  cam.position.set(s.diag * 0.9, s.diag * 0.7, s.diag * 1.4);
+  cam.near = s.diag / 1000; cam.far = s.diag * 100; cam.updateProjectionMatrix();
+  s.controls.target.set(0, 0, 0); s.controls.update();
+
+  // gizmo : sur le plan, translation le long de la normale ou inclinaison
+  const gizmo = new TransformControls(cam, s.renderer.domElement);
+  gizmo.setSize(0.9);
+  gizmo.attach(g);
+  gizmo.addEventListener('dragging-changed', (e) => {
+    s.controls.enabled = !e.value;
+    if (!e.value) { _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush(); }   // fin du geste : on retire le roulis, on date l'etat
+  });
+  gizmo.addEventListener('objectChange', () => {
+    if (s.gizmoMode === 'translate') s.P.copy(g.position);
+    else {
+      const n = new THREE.Vector3(1, 0, 0).applyQuaternion(g.quaternion);
+      const t = anglesDepuis(s.axis, [n.x, n.y, n.z]);
+      s.tiltA = t.a; s.tiltB = THREE.MathUtils.clamp(t.b, -90, 90);
+    }
+    _sm3Refresh();
+  });
+  s.scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
+  s.gizmo = gizmo;
+
+  _sm3ReglagesInitiaux();
+  s.pret = true;
+  _sm3PoserPlan();
+  s.hist = []; s.histI = -1;
+  _sm3HistPush();
+  _sm3Refresh();
+}
+
+function openSymmetrizeMeshTool() {
+  const p = state.currentProject;
+  const mp = p && (p.previewMeshPath || p.selectedMeshPath);
+  if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
+  const modal = _sm3El('modal-symmetrize-mesh'), canvas = _sm3El('sm3-canvas'), vp = _sm3El('sm3-viewport');
+  if (!modal || !canvas || !vp) return;
+  _sm3Cleanup();
+  smState.meshPath = String(mp);
+  smState.limiteDite = false; smState.effacer = false; smState.gizmoMode = 'translate'; smState.brush = 6;
+  modal.classList.remove('hidden');
+
+  const renderer = _mkRenderer({ canvas, antialias: true, alpha: false }, vp);
+  if (!renderer) return;   // modale ouverte + encart : pas de crash au clic
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.localClippingEnabled = true;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b0b14);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 5000);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.15));
+  const dl = new THREE.DirectionalLight(0xffffff, 1.4); dl.position.set(3, 5, 4); scene.add(dl);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  _sourisVisualiseur(controls, renderer.domElement);
+  controls.enableDamping = true;
+  Object.assign(smState, { renderer, scene, camera, controls });
+  creerBarreVues3D(vp, smState, { zoom: false });   // barre commune : vues + reset
+
+  const resize = () => {
+    const w = vp.clientWidth || 640, h = vp.clientHeight || 420;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  };
+  resize();
+  smState.ro = new ResizeObserver(resize); smState.ro.observe(vp);
+  _sm3MajAide();
+
+  const jeton = ++smState.jeton;
+  _fauxChargeur(smState.meshPath, { leger: true }).load(_sm3Url(smState.meshPath), (gltf) => {
+    if (jeton !== smState.jeton || !smState.scene) return;
+    _sm3Installer(gltf.scene || gltf.scenes[0]);
+  }, undefined, (err) => {
+    showToast(_i18nT('Could not load the mesh:') + ' ' + (err?.message || err), 'error');
+  });
+
+  let dernierMaj = 0;
+  const loop = () => {
+    smState.raf = requestAnimationFrame(loop);
+    controls.update();
+    if (smState.zoneSale && smState.mode === 'mask' && !smState.preparation) {
+      const t = performance.now();
+      if (t - dernierMaj > 60) {
+        dernierMaj = t;
+        const complete = !!smState.zoneComplete && !smState.peint;
+        smState.zoneSale = false; if (complete) smState.zoneComplete = false;
+        _sm3MajSurcouches();
+        _sm3MajApercuZone(complete);
+      }
+    }
+    renderer.render(scene, camera);
+  };
+  loop();
+}
+
+// ---- reglages de la fenetre ------------------------------------------------------------------------------------------
+function _sm3ChoisirAxe(a) {
+  if (!smState.pret) return;
+  smState.axis = a; smState.tiltA = 0; smState.tiltB = 0; smState.P.copy(smState.centre);
+  _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush();
+}
+function _sm3ChoisirMode(m) {
+  if (!smState.pret || smState.mode === m) return;
+  smState.mode = m;
+  if (m === 'mask') {
+    smState.survol = null;
+    smState.preparation = true;
+    const h = _sm3El('sm3-hint'); if (h) h.textContent = _i18nT('Preparing the mesh for painting…');
+    // un tour de peinture pour que le message s'affiche avant le calcul des centres de faces
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!smState.pret) return;
+      _sm3PreparerPeinture();
+      _sm3RecalculerSelections();
+      smState.preparation = false;
+      smState.zoneComplete = true; smState.zoneSale = true;
+      _sm3Refresh();
+    }));
+  } else {
+    _sm3QuitterZone();
+  }
+  _sm3Refresh(); _sm3HistPush();
+}
+// boutons
+for (const a of ['x', 'y', 'z']) _sm3El('sm3-axis-' + a)?.addEventListener('click', () => _sm3ChoisirAxe(a));
+_sm3El('sm3-gz-move')?.addEventListener('click', () => { smState.gizmoMode = 'translate'; _sm3PoserPlan(); _sm3Refresh(); });
+_sm3El('sm3-gz-rot')?.addEventListener('click', () => { smState.gizmoMode = 'rotate'; _sm3PoserPlan(); _sm3Refresh(); });
+_sm3El('sm3-dir-pos')?.addEventListener('click', () => { if (smState.pret) { smState.keep = 'pos'; _sm3Refresh(); _sm3HistPush(); } });
+_sm3El('sm3-dir-neg')?.addEventListener('click', () => { if (smState.pret) { smState.keep = 'neg'; _sm3Refresh(); _sm3HistPush(); } });
+_sm3El('sm3-mode-full')?.addEventListener('click', () => _sm3ChoisirMode('full'));
+_sm3El('sm3-mode-mask')?.addEventListener('click', () => _sm3ChoisirMode('mask'));
+_sm3El('sm3-paint-mode')?.addEventListener('click', () => { smState.effacer = false; _sm3Refresh(); });
+_sm3El('sm3-erase-mode')?.addEventListener('click', () => { smState.effacer = true; _sm3Refresh(); });
+_sm3El('sm3-undo')?.addEventListener('click', _sm3Annuler);
+_sm3El('sm3-redo')?.addEventListener('click', _sm3Refaire);
+_sm3El('sm3-reset')?.addEventListener('click', () => {
+  if (!smState.pret) return;
+  const modeAvant = smState.mode;
+  _sm3ReglagesInitiaux(); _sm3RecalculerSelections();
+  if (modeAvant === 'mask') _sm3QuitterZone();
+  _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush();
+});
+_sm3El('sm3-recenter')?.addEventListener('click', () => {
+  if (!smState.camera || !smState.pret) return;
+  smState.camera.position.set(smState.diag * 0.9, smState.diag * 0.7, smState.diag * 1.4);
+  smState.controls.target.set(0, 0, 0); smState.controls.update();
+});
+// curseurs + zones de saisie : la position se lit le long de la normale, les inclinaisons en degres
+function _sm3LierChamp(idRange, idNum, appliquer) {
+  const r = _sm3El(idRange), n = _sm3El(idNum);
+  const poser = (v) => { if (!smState.pret || !Number.isFinite(v)) return; appliquer(v); _sm3PoserPlan(); _sm3Refresh(); };
+  r?.addEventListener('input', () => poser(Number(r.value)));
+  r?.addEventListener('change', () => { if (smState.pret) _sm3HistPush(); });
+  n?.addEventListener('input', () => poser(Number(n.value)));
+  n?.addEventListener('change', () => { if (smState.pret) _sm3HistPush(); });
+  n?.addEventListener('keydown', (ev) => ev.stopPropagation());
+}
+_sm3LierChamp('sm3-offset', 'sm3-offset-num', (v) => { const cur = _sm3Decalage(); smState.P.addScaledVector(_sm3Normale(), v - cur); });
+_sm3LierChamp('sm3-tilt-a', 'sm3-tilt-a-num', (v) => { smState.tiltA = Math.max(-180, Math.min(180, v)); });
+_sm3LierChamp('sm3-tilt-b', 'sm3-tilt-b-num', (v) => { smState.tiltB = Math.max(-90, Math.min(90, v)); });
+_sm3El('sm3-brush-size')?.addEventListener('input', (e) => { smState.brush = Number(e.target.value) || 6; const bv = _sm3El('sm3-brush-val'); if (bv) bv.textContent = String(smState.brush); });
+// peinture : bouton gauche sur le modele (le gizmo garde la priorite quand le pointeur est sur une poignee)
+(() => {
+  const cv = _sm3El('sm3-canvas');
+  if (!cv) return;
+  cv.addEventListener('pointerdown', (ev) => {
+    if (smState.mode !== 'mask' || ev.button !== 0 || !smState.pret || smState.riggee || smState.preparation) return;
+    if (smState.gizmo && (smState.gizmo.axis || smState.gizmo.dragging)) return;
+    if (!smState.parts.length || !smState.parts[0].cen) return;
+    smState.peint = true;
+    try { cv.setPointerCapture(ev.pointerId); } catch (_) {}
+    _sm3Tampon(ev);
+  });
+  cv.addEventListener('pointermove', (ev) => {
+    if (smState.mode !== 'mask' || !smState.pret || smState.preparation) return;
+    _sm3SurvolCurseur(ev);
+    if (smState.peint) _sm3Tampon(ev);
+  });
+  const fin = () => {
+    if (!smState.peint) return;
+    smState.peint = false; smState.zoneComplete = true; smState.zoneSale = true;
+    _sm3HistPush();
+  };
+  cv.addEventListener('pointerup', fin);
+  cv.addEventListener('pointercancel', fin);
+  cv.addEventListener('pointerleave', () => { if (smState.curseur && !smState.peint) smState.curseur.visible = false; smState.survol = null; });
+})();
+_sm3El('ws-mesh-symmetrize-btn')?.addEventListener('click', openSymmetrizeMeshTool);
+_sm3El('sm3-cancel')?.addEventListener('click', _sm3Fermer);
+_sm3El('sm3-close')?.addEventListener('click', _sm3Fermer);
+_sm3El('sm3-apply')?.addEventListener('click', () => {
+  if (!smState.pret || !smState.model || !smState.meshPath) return;
+  if (smState.riggee) { showToast(_i18nT('This mesh is rigged or animated: symmetrize it before rigging.'), 'error'); return; }
+  if (smState.mode === 'mask' && !smState.stamps.length) { showToast(_i18nT('Paint the area to mirror first.'), 'info'); return; }
+  const args = { meshPath: smState.meshPath, point: _sm3Arr(smState.P), normal: _sm3Arr(_sm3Normale()), keep: smState.keep, mode: smState.mode,
+    ...(smState.mode === 'mask' ? { stamps: smState.stamps.map((s) => s.slice()) } : {}) };
+  _sm3Fermer();
+  const p = state.currentProject;
+  const job = pushJob(`Symmetrize mesh: ${p?.name || ''}`, null, { [_i18nT('Mode')]: _i18nT(args.mode === 'mask' ? 'Mask' : 'Full') }, 4000, { projectName: p?.name });
+  (async () => {
+    try {
+      const r = await API.symmetrizeMesh({ ...args, projectName: p?.name });
+      if (r && r.success && r.newPath) {
+        completeJob(job.id, true);
+        await reloadCurrentProject();
+        const np = state.currentProject;
+        // Projet change PENDANT l'operation : le nouveau fichier appartient au projet du lancement (p), pas a celui
+        // qui est ouvert maintenant (meme regle que Resize).
+        if (np && p && np.name === p.name) { np.previewMeshPath = r.newPath; try { showStep2Preview({ path: r.newPath, filename: r.filename }); } catch (_) {} }
+        showToast(_i18nT('New symmetrical version created.'), 'success', 2500);
+      } else {
+        completeJob(job.id, false);
+        customError((r && r.error) || 'unknown', _i18nT('Symmetrize failed'));
+      }
+    } catch (e) {
+      completeJob(job.id, false);
+      customError(e?.message || String(e), 'Symmetrize mesh — error');
+    }
+  })();
+});
+
 document.getElementById('bs3d-count')?.addEventListener('input', (e) => {
   const el = document.getElementById('bs3d-count-val');
   if (el) el.textContent = e.target.value;
@@ -24301,7 +24919,7 @@ function _jobStepIndex(j) {
   // image keyword, so the anchored test above missed them and they never
   // showed in the Image step's GENERATING widget (only in the global
   // running-jobs panel). Match them anywhere in the name.
-  if (/(mask inpaint|auto[- ]?inpaint|manual (mask|inpaint|paint|crop)|clone stamp|draw mask|brightness|symmetri[sz]e|color pick|blur brush|\bcrop\b|\bpaint\b|recolor|recolorier|habits|outfit|back photo|downscale|style transfer|export image|remove background|\bage\b|variant)/i.test(n)) return 1;
+  if (/(mask inpaint|auto[- ]?inpaint|manual (mask|inpaint|paint|crop)|clone stamp|draw mask|brightness|symmetri[sz]e(?! mesh)|color pick|blur brush|\bcrop\b|\bpaint\b|recolor|recolorier|habits|outfit|back photo|downscale|style transfer|export image|remove background|\bage\b|variant)/i.test(n)) return 1;
   if (/^(generate 3d|mesh op|fill[- ]?holes|smooth|material[- ]?adjust|generate mesh|texture|pbr|enhance texture)/i.test(n)) return 2;
   // Mesh texture ops can carry a prefix (e.g. "trellis2 retex: …", "Region re-texture: …")
   // so the anchored test above misses them — match the texture keywords anywhere.
@@ -24314,6 +24932,7 @@ function _jobStepIndex(j) {
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
   if (/(mesh edit|save mesh|sculpt|watertight|decimate|subdivid|^center|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
+  if (/symmetri[sz]e mesh/i.test(n)) return 2;   // symetrie de MAILLAGE (l'image, plus haut, exclut « mesh »)
   if (/(rig|skeleton|re-?skin)/i.test(n)) return 3;
   if (/(^animate|animation)/i.test(n)) return 4;
   return 0;

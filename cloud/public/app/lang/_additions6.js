@@ -1700,3 +1700,43 @@
   }
   if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
 })();
+
+/* SYMETRIE DE MAILLAGE (25/10) : fenetre « Symmetrize mesh » (plan de symetrie 3D, zone peinte), bureau et site */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
+    "Symmetrize mesh": ["Symétriser le maillage", "Simetrizar la malla", "网格对称", "मेश को सममित करें", "تناظر الشبكة"],
+    "Place the green plane with the gizmo or the sliders. The kept side is copied as a mirror image onto the other side. In Mask mode, paint the area to mirror. Apply creates a new version.": ["Placez le plan vert avec le manipulateur ou les curseurs. Le côté conservé est recopié en miroir sur l'autre côté. En mode Masque, peignez la zone à refléter. Appliquer crée une nouvelle version.", "Coloca el plano verde con el manipulador o los controles deslizantes. El lado conservado se copia como imagen especular en el otro lado. En modo Máscara, pinta la zona que quieres reflejar. Aplicar crea una versión nueva.", "用控件或滑块放置绿色平面。保留的一侧会以镜像方式复制到另一侧。在遮罩模式下，请涂抹要镜像的区域。应用会创建新版本。", "गिज़्मो या स्लाइडर से हरा समतल रखें। रखी गई तरफ़ की दूसरी तरफ़ दर्पण-प्रतिबिंब के रूप में प्रतिलिपि बनती है। मास्क मोड में, प्रतिबिंबित करने वाला क्षेत्र रंगें। लागू करने से नया संस्करण बनता है।", "ضع المستوى الأخضر بالمقبض أو بالمنزلقات. يُنسخ الجانب المحتفظ به كصورة مرآة على الجانب الآخر. في وضع القناع، ارسم المنطقة المراد عكسها. يؤدي التطبيق إلى إنشاء نسخة جديدة."],
+    "Drag the gizmo to move or rotate the plane · right-drag: pan · middle-drag: rotate · wheel: zoom": ["Glissez le manipulateur pour déplacer ou incliner le plan · clic droit maintenu : déplacer · molette enfoncée : tourner · molette : zoom", "Arrastra el manipulador para mover o inclinar el plano · derecho: mover · rueda pulsada: girar · rueda: zoom", "拖动控件以移动或倾斜平面 · 右键拖动：平移 · 中键拖动：旋转 · 滚轮：缩放", "समतल को हिलाने या झुकाने के लिए गिज़्मो खींचें · दायाँ-खींचें: खिसकाएँ · बीच का बटन: घुमाएँ · व्हील: ज़ूम", "اسحب المقبض لتحريك المستوى أو إمالته · سحب بالأيمن: تحريك · سحب بالعجلة: تدوير · العجلة: تكبير"],
+    "Left-drag paints the area to mirror · right-drag: pan · middle-drag: rotate · wheel: zoom": ["Clic gauche maintenu : peindre la zone à refléter · clic droit maintenu : déplacer · molette enfoncée : tourner · molette : zoom", "Arrastra con el izquierdo para pintar la zona a reflejar · derecho: mover · rueda pulsada: girar · rueda: zoom", "左键拖动：涂抹要镜像的区域 · 右键拖动：平移 · 中键拖动：旋转 · 滚轮：缩放", "बायाँ-खींचें: प्रतिबिंबित करने वाला क्षेत्र रंगें · दायाँ-खींचें: खिसकाएँ · बीच का बटन: घुमाएँ · व्हील: ज़ूम", "سحب بالأيسر: رسم المنطقة المراد عكسها · سحب بالأيمن: تحريك · سحب بالعجلة: تدوير · العجلة: تكبير"],
+    "Plane axis:": ["Axe du plan :", "Eje del plano:", "平面轴：", "समतल की धुरी:", "محور المستوى:"],
+    "Plane facing the X axis": ["Plan face à l'axe X", "Plano orientado al eje X", "平面朝向 X 轴", "X अक्ष की ओर मुख वाला समतल", "مستوى باتجاه المحور X"],
+    "Plane facing the Y axis": ["Plan face à l'axe Y", "Plano orientado al eje Y", "平面朝向 Y 轴", "Y अक्ष की ओर मुख वाला समतल", "مستوى باتجاه المحور Y"],
+    "Plane facing the Z axis": ["Plan face à l'axe Z", "Plano orientado al eje Z", "平面朝向 Z 轴", "Z अक्ष की ओर मुख वाला समतल", "مستوى باتجاه المحور Z"],
+    "Plane position": ["Position du plan", "Posición del plano", "平面位置", "समतल की स्थिति", "موضع المستوى"],
+    "Tilt A (°)": ["Inclinaison A (°)", "Inclinación A (°)", "倾斜 A (°)", "झुकाव A (°)", "الميل A (°)"],
+    "Tilt B (°)": ["Inclinaison B (°)", "Inclinación B (°)", "倾斜 B (°)", "झुकाव B (°)", "الميل B (°)"],
+    "Gizmo:": ["Manipulateur :", "Manipulador:", "控件：", "गिज़्मो:", "المقبض:"],
+    "Move the plane along its normal": ["Déplacer le plan le long de sa normale", "Mover el plano a lo largo de su normal", "沿法线移动平面", "समतल को उसके अभिलंब की दिशा में हिलाएँ", "تحريك المستوى على طول ناظمه"],
+    "Tilt the plane (5° steps)": ["Incliner le plan (par pas de 5°)", "Inclinar el plano (pasos de 5°)", "倾斜平面（5° 步进）", "समतल को झुकाएँ (5° के चरणों में)", "إمالة المستوى (بخطوات 5°)"],
+    "Keep the side the plane faces, mirror it onto the other": ["Garder le côté vers lequel le plan est tourné et le recopier en miroir sur l'autre", "Conservar el lado al que mira el plano y reflejarlo en el otro", "保留平面朝向的一侧，并将其镜像到另一侧", "समतल जिस ओर मुख करता है उस तरफ़ को रखें और दूसरी तरफ़ उसका प्रतिबिंब बनाएँ", "احتفظ بالجانب الذي يواجهه المستوى وانسخه كمرآة على الجانب الآخر"],
+    "Keep the side opposite the plane normal, mirror it onto the other": ["Garder le côté opposé à la normale du plan et le recopier en miroir sur l'autre", "Conservar el lado opuesto a la normal del plano y reflejarlo en el otro", "保留与平面法线相反的一侧，并将其镜像到另一侧", "समतल के अभिलंब के विपरीत तरफ़ को रखें और दूसरी तरफ़ उसका प्रतिबिंब बनाएँ", "احتفظ بالجانب المعاكس لناظم المستوى وانسخه كمرآة على الجانب الآخر"],
+    "Apply symmetry": ["Appliquer la symétrie", "Aplicar simetría", "应用对称", "सममिति लागू करें", "تطبيق التناظر"],
+    "Mirror one side of the mesh onto the other with a plane you place by hand. Bakes a new version.": ["Recopie en miroir un côté du maillage sur l'autre, avec un plan placé à la main. Crée une nouvelle version.", "Refleja un lado de la malla en el otro con un plano que colocas a mano. Crea una versión nueva.", "用手动放置的平面把网格的一侧镜像到另一侧。生成新版本。", "हाथ से रखे गए समतल से मेश की एक तरफ़ को दूसरी तरफ़ प्रतिबिंबित करें। नया संस्करण बनता है।", "انسخ أحد جانبي الشبكة كمرآة على الجانب الآخر بمستوى تضعه يدوياً. يُنشئ نسخة جديدة."],
+    "Symmetrize mesh: {x}": ["Symétrie du maillage : {x}", "Simetría de la malla: {x}", "网格对称：{x}", "मेश सममिति: {x}", "تناظر الشبكة: {x}"],
+    "Symmetrize mesh — error": ["Symétrie du maillage — erreur", "Simetría de la malla — error", "网格对称 — 错误", "मेश सममिति — त्रुटि", "تناظر الشبكة — خطأ"],
+    "Symmetrize failed": ["Échec de la symétrie", "Falló la simetría", "对称失败", "सममिति विफल रही", "فشل التناظر"],
+    "Paint the area to mirror first.": ["Peignez d'abord la zone à refléter.", "Primero pinta la zona que quieres reflejar.", "请先涂抹要镜像的区域。", "पहले प्रतिबिंबित करने वाला क्षेत्र रंगें।", "ارسم المنطقة المراد عكسها أولاً."],
+    "New symmetrical version created.": ["Nouvelle version symétrique créée.", "Se creó una nueva versión simétrica.", "已创建新的对称版本。", "नया सममित संस्करण बन गया।", "تم إنشاء نسخة متناظرة جديدة."],
+    "Preparing the mesh for painting…": ["Préparation du maillage pour la peinture…", "Preparando la malla para pintar…", "正在准备网格以便涂抹…", "पेंटिंग के लिए मेश तैयार हो रहा है…", "جارٍ تجهيز الشبكة للرسم…"],
+    "Brush limit reached: apply, or erase part of the area.": ["Limite du pinceau atteinte : appliquez, ou effacez une partie de la zone.", "Límite del pincel alcanzado: aplica o borra parte de la zona.", "已达到画笔上限：请应用，或擦除部分区域。", "ब्रश की सीमा पूरी हुई: लागू करें, या क्षेत्र का कुछ हिस्सा मिटाएँ।", "تم بلوغ حد الفرشاة: طبّق أو امسح جزءاً من المنطقة."],
+    "This mesh is rigged or animated: symmetrize it before rigging.": ["Ce maillage est riggé ou animé : symétrisez-le avant de le riguer.", "Esta malla tiene rig o animación: simetrízala antes de hacer el rig.", "此网格已绑定骨骼或带动画：请在绑定骨骼之前进行对称。", "इस मेश में रिग या एनिमेशन है: रिग करने से पहले इसे सममित करें।", "هذه الشبكة مزوّدة بهيكل عظمي أو حركة: طبّق التناظر قبل إنشاء الهيكل."]
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();

@@ -864,6 +864,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-retexture-btn':    'mesh_op_simple',     // retex_swap
     'ws-mesh-explode-btn':      'mesh_op_simple',
     'ws-mesh-resize-btn':       'mesh_op_simple',
+    'ws-mesh-symmetrize-btn':   'mesh_op_simple',     // Symmetrize mesh : /api/mesh-op 'symmetrize'
     'ws-mesh-aligntex-btn':     'manual_tool',        // Decals = Paint Mesh, debite a l'enregistrement
     'ws-mesh-texvar-btn':       'texture_var',        // /api/mesh-texvar
     'ws-mesh-trellis2-btn':     'retex_fast',         // palier par defaut ; la fenetre annonce celui choisi
@@ -882,6 +883,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'bs3d-start':               'construction3d',
     'mat-apply-btn':            'mesh_op_simple',
     'rz-apply':                 'mesh_op_simple',
+    'sm3-apply':                'mesh_op_simple',
     'ex3d-start':               'mesh_op_simple',
     'rrx-detect':               'segment',            // Reshape : detection de la piece (/api/segment-preview)
     // Outils manuels : manual_tool, debite a l'enregistrement du resultat

@@ -969,6 +969,7 @@
                         <button id="ws-mesh-reshape-draw-btn" class="ghost-btn tool-btn" title="Paint the part to rebuild straight on the 3D model, then describe what should replace it. Runs on your graphics card.">&#128396;&nbsp;Reshape (draw)</button>
                         <button id="ws-mesh-stages3d-btn" class="ghost-btn tool-btn" title="Fabricate the 3D meshes of the construction stages (sliced building + frame + scaffolding), navigable and exportable">&#127959;&#65039; 3D construction stages</button>
                         <button id="ws-mesh-resize-btn" class="ghost-btn tool-btn" title="Resize, dimension or re-orient the mesh with a gizmo and on-screen rulers. Bakes a new version.">&#128207;&nbsp;Resize / dimension</button>
+                        <button id="ws-mesh-symmetrize-btn" class="ghost-btn tool-btn" title="Mirror one side of the mesh onto the other with a plane you place by hand. Bakes a new version.">&#8651;&nbsp;Symmetrize</button>
                         <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Stick images (logos, patches, labels) onto the mesh">&#127919;&nbsp;Decals</button>
                         <button id="ws-mesh-paint-mesh-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh — toggle 💡 Emissive inside for the glow layer">&#127912;&nbsp;Paint Mesh</button>
                         <button id="ws-mesh-material-btn" class="ghost-btn tool-btn" title="Adjust material brightness, saturation, contrast, emissive, metallic, roughness">&#10024;&nbsp;Material adjust</button>
@@ -2184,6 +2185,81 @@
         <div class="modal-actions">
           <button class="ghost-btn" id="rz-cancel">Cancel</button>
           <button class="primary-btn" id="rz-apply">Apply</button>
+        </div>
+      </div>
+    </div>
+    <div id="modal-symmetrize-mesh" class="modal-overlay hidden">
+      <div class="modal-card fen-3d fen-sym3d">
+        <div class="fen-tete"><h2>Symmetrize mesh</h2><button type="button" class="settings-close-x" id="sm3-close" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Place the green plane with the gizmo or the sliders. The kept side is copied as a mirror image onto the other side. In Mask mode, paint the area to mirror. Apply creates a new version.</p>
+        <div class="fen-corps">
+          <div id="sm3-viewport" class="fen-apercu">
+            <canvas id="sm3-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="sm3-hint" class="fen-apercu-etat">Drag the gizmo to move or rotate the plane · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
+          </div>
+          <div class="fen-form">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Plane axis:</span></div>
+              <div class="fen-groupe-btn">
+                <button id="sm3-axis-x" class="secondary-btn tool-active" title="Plane facing the X axis">X</button>
+                <button id="sm3-axis-y" class="secondary-btn" title="Plane facing the Y axis">Y</button>
+                <button id="sm3-axis-z" class="secondary-btn" title="Plane facing the Z axis">Z</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Plane position</span><input type="number" id="sm3-offset-num" class="fen-valeur" step="0.001" value="0" /></div>
+              <input type="range" id="sm3-offset" min="-1" max="1" step="0.001" value="0" />
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Tilt A (°)</span><input type="number" id="sm3-tilt-a-num" class="fen-valeur" min="-180" max="180" step="1" value="0" /></div>
+              <input type="range" id="sm3-tilt-a" min="-180" max="180" step="1" value="0" />
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Tilt B (°)</span><input type="number" id="sm3-tilt-b-num" class="fen-valeur" min="-90" max="90" step="1" value="0" /></div>
+              <input type="range" id="sm3-tilt-b" min="-90" max="90" step="1" value="0" />
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Gizmo:</span></div>
+              <div class="fen-groupe-btn">
+                <button id="sm3-gz-move" class="secondary-btn tool-active" title="Move the plane along its normal">Move</button>
+                <button id="sm3-gz-rot" class="secondary-btn" title="Tilt the plane (5° steps)">Rotate</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Direction:</span></div>
+              <div class="fen-groupe-btn">
+                <button id="sm3-dir-pos" class="secondary-btn tool-active" title="Keep the side the plane faces, mirror it onto the other">+ &#8594; &#8722;</button>
+                <button id="sm3-dir-neg" class="secondary-btn" title="Keep the side opposite the plane normal, mirror it onto the other">&#8722; &#8594; +</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Mode:</span></div>
+              <div class="fen-groupe-btn">
+                <button id="sm3-mode-full" class="secondary-btn tool-active">Full</button>
+                <button id="sm3-mode-mask" class="secondary-btn">Mask</button>
+              </div>
+            </div>
+            <div id="sm3-brush-bloc" class="fen-champ" style="display:none;">
+              <div class="fen-champ-tete"><span class="fen-label">Brush:</span><span id="sm3-brush-val" class="fen-valeur">6</span></div>
+              <input type="range" id="sm3-brush-size" min="1" max="40" value="6" />
+              <div class="fen-groupe-btn">
+                <button id="sm3-paint-mode" class="secondary-btn tool-active">Paint</button>
+                <button id="sm3-erase-mode" class="secondary-btn">Erase</button>
+              </div>
+            </div>
+            <div class="fen-groupe-btn fen-outils-rangee">
+              <button id="sm3-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+              <span class="vz-sep" aria-hidden="true"></span>
+              <button id="sm3-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+              <button id="sm3-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+              <span class="vz-sep" aria-hidden="true"></span>
+              <button id="sm3-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="sm3-cancel">Cancel</button>
+          <button class="primary-btn" id="sm3-apply">Apply symmetry</button>
         </div>
       </div>
     </div>
