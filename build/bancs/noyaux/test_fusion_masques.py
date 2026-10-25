@@ -1,0 +1,666 @@
+"""Tests du noyau partage scripts/fusion_masques.py (= modal_app/fusion_masques.py) : UNION des masques de detourage u2net + Lucida
+(2026-10-03).
+
+Aucun torch, aucun poids, aucun reseau : numpy seul (PIL n'est importe que pour verifier qu'une image PIL est refusee).
+
+Ce que les tests prouvent :
+  - fusionner_alphas : alpha = max(Lucida, u2net la ou u2net >= seuil, sinon 0) ; seuil 127 INCLUS ; Lucida garde son alpha doux ;
+    resultat neuf, uint8, meme forme ; entrees intactes (meme en lecture seule) ; entrees invalides -> ValueError claire ;
+    formes minuscules (1x1, 3x7) et vides ; proprietes sur des tirages aleatoires ;
+  - diagnostic_masques : les 7 cles, des valeurs Python natives ; les trois cas de la MESURE du 2026-10-03 (orc, ane, mille-pattes)
+    reconstruits au pixel pres a partir des chiffres du banc Modal (l'union vaut 1,03 x Lucida sur l'orc, 5,4 x Lucida = 1,00 x u2net
+    sur l'ane) ; bornes exactes (< strict) des deux « defaillant » ; roles symetriques ; images vides ;
+  - mode_detourage : la table complete, jamais d'exception ;
+  - refus_lucida / plus_grande_composante (2026-10-14, regle d'alpha aberrant commune au bureau et a Modal) : bornes exactes
+    (1 % et 95 % inclus, 0,5 % pour la plus grande composante), raisons au texte stable, confettis, plusieurs morceaux, tailles
+    minuscules et non carrees, entrees intactes, reference naive (composantes au pixel pres sur de petites images) ;
+  - contrat du module : uniquement numpy, copie identique, pas de lettre accentuee (style du depot).
+
+Lancer :  <python de l'appli> build/bancs/noyaux/test_fusion_masques.py -v
+Autre copie du noyau (preuve d'echec sur un mutant ou l'ancien code) : variable NOYAU_FUSION_MASQUES.
+Numpy 1.26 (celui de Modal) : <python-rig de l'appli> build/bancs/noyaux/test_fusion_masques.py -v
+"""
+import ast
+import importlib.util
+import json
+import os
+import re
+import subprocess
+import sys
+import unittest
+
+import numpy as np
+
+RACINE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+SOURCE = os.environ.get('NOYAU_FUSION_MASQUES') or os.path.join(RACINE, 'scripts', 'fusion_masques.py')
+COPIE = os.path.join(RACINE, 'modal_app', 'fusion_masques.py')
+
+
+def lire(chemin, **options):
+    with open(chemin, encoding='utf-8', **options) as f:
+        return f.read()
+
+
+def charger(chemin, nom='fusion_masques_sous_test'):
+    spec = importlib.util.spec_from_file_location(nom, chemin)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+F = charger(SOURCE)
+
+
+def u8(*lignes):
+    return np.array(lignes, dtype=np.uint8)
+
+
+def depuis_comptes(h, w, n_u2, n_lucida, n_commun):
+    """Deux masques 0 / 255 de h x w pixels avec EXACTEMENT ces comptes : u2net = les n_u2 premiers pixels, Lucida = n_commun
+    pixels pris dans u2net + (n_lucida - n_commun) pixels hors de u2net."""
+    assert n_commun <= min(n_u2, n_lucida) and n_u2 + n_lucida - n_commun <= h * w
+    u2 = np.zeros(h * w, dtype=np.uint8)
+    lu = np.zeros(h * w, dtype=np.uint8)
+    u2[:n_u2] = 255
+    lu[:n_commun] = 255
+    lu[n_u2:n_u2 + n_lucida - n_commun] = 255
+    return u2.reshape(h, w), lu.reshape(h, w)
+
+
+class FusionnerAlphas(unittest.TestCase):
+
+    def test_union_simple(self):
+        u2 = u8([0, 255, 255, 0],
+                [0, 255, 255, 0])
+        lu = u8([255, 255, 0, 0],
+                [255, 0, 0, 255])
+        attendu = u8([255, 255, 255, 0],
+                     [255, 255, 255, 255])
+        res = F.fusionner_alphas(u2, lu)
+        self.assertEqual(res.dtype, np.uint8)
+        self.assertTrue(np.array_equal(res, attendu), res)
+
+    def test_seuil_127_est_inclus_par_defaut(self):
+        u2 = u8([0, 1, 126, 127, 128, 200, 255])
+        lu = np.zeros_like(u2)
+        res = F.fusionner_alphas(u2, lu)
+        self.assertEqual(res.tolist(), [[0, 0, 0, 127, 128, 200, 255]])      # 126 ignore, 127 garde : comparaison >=
+
+    def test_lucida_garde_son_alpha_doux(self):
+        lu = u8([0, 10, 126, 127, 200, 255])
+        u2 = np.zeros_like(lu)
+        self.assertTrue(np.array_equal(F.fusionner_alphas(u2, lu), lu))        # bords doux de Lucida conserves tels quels
+
+    def test_maximum_des_deux(self):
+        #        u2 sur et fort   u2 sur et faible   u2 PAS sur (ignore)   u2 PAS sur, Lucida nul   les deux forts
+        u2 = u8([200,              130,               100,                  100,                     255])
+        lu = u8([100,              20,                50,                   0,                       200])
+        self.assertEqual(F.fusionner_alphas(u2, lu).tolist(), [[200, 130, 50, 0, 255]])
+
+    def test_seuil_personnalise(self):
+        u2 = u8([0, 100, 199, 200, 255])
+        lu = np.zeros_like(u2)
+        self.assertEqual(F.fusionner_alphas(u2, lu, seuil_u2=200).tolist(), [[0, 0, 0, 200, 255]])
+        self.assertEqual(F.fusionner_alphas(u2, lu, 0).tolist(), [[0, 100, 199, 200, 255]])      # 0 : tout u2net est sur
+        self.assertEqual(F.fusionner_alphas(u2, lu, 255).tolist(), [[0, 0, 0, 0, 255]])
+        self.assertEqual(F.fusionner_alphas(u2, lu, seuil_u2=np.uint8(200)).tolist(), [[0, 0, 0, 200, 255]])
+        self.assertEqual(F.fusionner_alphas(u2, lu, seuil_u2=np.int64(200)).tolist(), [[0, 0, 0, 200, 255]])
+
+    def test_resultat_neuf_uint8_de_meme_forme(self):
+        u2 = np.full((5, 7), 255, dtype=np.uint8)
+        lu = np.zeros((5, 7), dtype=np.uint8)
+        for res in (F.fusionner_alphas(u2, lu), F.fusionner_alphas(lu, u2), F.fusionner_alphas(u2, u2)):
+            self.assertEqual(res.dtype, np.uint8)
+            self.assertEqual(res.shape, (5, 7))
+            self.assertTrue(res.flags.writeable)
+            self.assertFalse(np.shares_memory(res, u2))
+            self.assertFalse(np.shares_memory(res, lu))
+        res = F.fusionner_alphas(u2, lu)
+        res[0, 0] = 0                       # ecrire dans le resultat ne doit jamais toucher une entree
+        self.assertEqual(int(u2[0, 0]), 255)
+
+    def test_entrees_non_modifiees_meme_en_lecture_seule(self):
+        rng = np.random.default_rng(3)
+        u2 = rng.integers(0, 256, (16, 24), dtype=np.uint8)
+        lu = rng.integers(0, 256, (16, 24), dtype=np.uint8)
+        u2_avant, lu_avant = u2.copy(), lu.copy()
+        F.fusionner_alphas(u2, lu)
+        F.diagnostic_masques(u2, lu)
+        self.assertTrue(np.array_equal(u2, u2_avant) and np.array_equal(lu, lu_avant))
+        u2.setflags(write=False)            # np.asarray(image PIL) rend des tableaux en lecture seule
+        lu.setflags(write=False)
+        self.assertTrue(np.array_equal(F.fusionner_alphas(u2, lu), F.fusionner_alphas(u2_avant, lu_avant)))
+        self.assertEqual(F.diagnostic_masques(u2, lu), F.diagnostic_masques(u2_avant, lu_avant))
+
+    def test_entrees_non_contigues_ou_fortran(self):
+        rng = np.random.default_rng(4)
+        gros_u2 = rng.integers(0, 256, (20, 30), dtype=np.uint8)
+        gros_lu = rng.integers(0, 256, (20, 30), dtype=np.uint8)
+        u2, lu = gros_u2[::2, ::3], gros_lu[::2, ::3]                       # tranches non contigues
+        ref = F.fusionner_alphas(np.ascontiguousarray(u2), np.ascontiguousarray(lu))
+        self.assertTrue(np.array_equal(F.fusionner_alphas(u2, lu), ref))
+        self.assertTrue(np.array_equal(F.fusionner_alphas(np.asfortranarray(u2), np.asfortranarray(lu)), ref))
+        self.assertEqual(F.diagnostic_masques(u2, lu), F.diagnostic_masques(np.ascontiguousarray(u2), np.ascontiguousarray(lu)))
+
+    def test_formes_minuscules_et_vides(self):
+        for forme in ((1, 1), (1, 7), (7, 1), (3, 7)):
+            u2 = np.full(forme, 200, dtype=np.uint8)
+            lu = np.zeros(forme, dtype=np.uint8)
+            res = F.fusionner_alphas(u2, lu)
+            self.assertEqual(res.shape, forme)
+            self.assertTrue((res == 200).all())
+            d = F.diagnostic_masques(u2, lu)
+            self.assertEqual(d['aire_u2'], 1.0)
+            self.assertTrue(d['lucida_defaillant'])
+        for forme in ((0, 5), (5, 0), (0, 0)):
+            vide = np.zeros(forme, dtype=np.uint8)
+            res = F.fusionner_alphas(vide, vide)
+            self.assertEqual((res.shape, res.dtype), (forme, np.uint8))
+            d = F.diagnostic_masques(vide, vide)                            # aucune division par zero
+            self.assertEqual((d['aire_u2'], d['aire_lucida'], d['aire_union']), (0.0, 0.0, 0.0))
+            self.assertFalse(d['lucida_defaillant'] or d['u2net_defaillant'])
+
+    def test_proprietes_sur_tirages_aleatoires(self):
+        rng = np.random.default_rng(12345)
+        for k in range(120):
+            forme = (int(rng.integers(1, 40)), int(rng.integers(1, 40)))
+            u2 = rng.integers(0, 256, forme, dtype=np.uint8)
+            lu = rng.integers(0, 256, forme, dtype=np.uint8)
+            if k % 3 == 0:
+                lu[rng.random(forme) < 0.7] = 0              # beaucoup de fond, comme un vrai masque
+            seuil = int(rng.integers(0, 256)) if k % 2 else 127
+            res = F.fusionner_alphas(u2, lu, seuil)
+            self.assertTrue((res >= lu).all())                                   # jamais moins que Lucida
+            self.assertTrue((res[u2 >= seuil] >= u2[u2 >= seuil]).all())         # jamais moins que u2net quand il est sur
+            self.assertTrue((res <= np.maximum(u2, lu)).all())                   # rien d'invente
+            self.assertTrue((res[(u2 < seuil)] == lu[(u2 < seuil)]).all())       # u2net ignore la ou il n'est pas sur
+            # le masque binaire de l'union = union des masques binaires (ce que mesure le diagnostic au seuil 127)
+            if seuil == 127:
+                self.assertTrue(np.array_equal(res >= 127, (u2 >= 127) | (lu >= 127)))
+                d = F.diagnostic_masques(u2, lu)
+                self.assertAlmostEqual(d['aire_union'], float(np.mean(res >= 127)), places=12)
+
+    def test_refuse_proprement_les_masques_invalides(self):
+        bon = np.zeros((4, 4), dtype=np.uint8)
+        mauvais = [
+            ('liste', [[0] * 4] * 4), ('tuple', ((0,) * 4,) * 4), ('None', None), ('entier', 7), ('chaine', 'masque'),
+            ('float32', np.zeros((4, 4), dtype=np.float32)), ('float64', np.zeros((4, 4))),
+            ('int32', np.zeros((4, 4), dtype=np.int32)), ('int64', np.zeros((4, 4), dtype=np.int64)),
+            ('bool', np.zeros((4, 4), dtype=bool)), ('uint16', np.zeros((4, 4), dtype=np.uint16)),
+            ('1D', np.zeros(16, dtype=np.uint8)), ('3D (h, w, 1)', np.zeros((4, 4, 1), dtype=np.uint8)),
+            ('3D (h, w, 3)', np.zeros((4, 4, 3), dtype=np.uint8)), ('0D', np.zeros((), dtype=np.uint8)),
+        ]
+        try:
+            from PIL import Image
+            mauvais.append(('image PIL', Image.new('L', (4, 4))))
+        except ImportError:
+            pass
+        for nom, valeur in mauvais:
+            with self.subTest(nom=nom, place='a_u2'):
+                with self.assertRaises(ValueError) as c:
+                    F.fusionner_alphas(valeur, bon)
+                self.assertIn('a_u2', str(c.exception))
+                with self.assertRaises(ValueError):
+                    F.diagnostic_masques(valeur, bon)
+            with self.subTest(nom=nom, place='a_lucida'):
+                with self.assertRaises(ValueError) as c:
+                    F.fusionner_alphas(bon, valeur)
+                self.assertIn('a_lucida', str(c.exception))
+                with self.assertRaises(ValueError):
+                    F.diagnostic_masques(bon, valeur)
+
+    def test_refuse_les_masques_qui_ne_sont_pas_2d_meme_quand_les_deux_se_ressemblent(self):
+        # deux tableaux de MEME forme mais pas (hauteur, largeur) : seul le controle des dimensions les refuse (pas celui des formes)
+        for forme in ((16,), (4, 4, 1), (2, 2, 3), (), (2, 3, 4, 5)):
+            a = np.zeros(forme, dtype=np.uint8)
+            for fonction in (F.fusionner_alphas, F.diagnostic_masques):
+                with self.subTest(forme=forme, fonction=fonction.__name__):
+                    with self.assertRaises(ValueError) as c:
+                        fonction(a, a.copy())
+                    self.assertIn('2 dimensions', str(c.exception))
+
+    def test_refuse_les_formes_differentes(self):
+        for forme_a, forme_b in (((4, 4), (4, 5)), ((4, 4), (5, 4)), ((4, 6), (6, 4)), ((1, 1), (1, 2))):
+            a, b = np.zeros(forme_a, dtype=np.uint8), np.zeros(forme_b, dtype=np.uint8)
+            for fonction in (F.fusionner_alphas, F.diagnostic_masques):
+                with self.subTest(formes=(forme_a, forme_b), fonction=fonction.__name__):
+                    with self.assertRaises(ValueError) as c:
+                        fonction(a, b)
+                    self.assertIn('forme', str(c.exception))
+
+    def test_refuse_un_seuil_invalide(self):
+        a = np.zeros((2, 2), dtype=np.uint8)
+        for seuil in (-1, 256, 1000, 127.0, 1.5, '127', None, True, False, [127], np.float32(127)):
+            with self.subTest(seuil=seuil):
+                with self.assertRaises(ValueError) as c:
+                    F.fusionner_alphas(a, a, seuil)
+                self.assertIn('seuil_u2', str(c.exception))
+
+
+class DiagnosticMasques(unittest.TestCase):
+    CLES = {'aire_u2', 'aire_lucida', 'aire_union', 'u2net_manque', 'lucida_manque', 'lucida_defaillant', 'u2net_defaillant'}
+
+    def test_cles_et_types_natifs(self):
+        u2, lu = depuis_comptes(10, 10, 30, 40, 10)
+        d = F.diagnostic_masques(u2, lu)
+        self.assertEqual(set(d), self.CLES)
+        for cle in ('aire_u2', 'aire_lucida', 'aire_union', 'u2net_manque', 'lucida_manque'):
+            self.assertIs(type(d[cle]), float, cle)
+        for cle in ('lucida_defaillant', 'u2net_defaillant'):
+            self.assertIs(type(d[cle]), bool, cle)
+        json.dumps(d)                                                            # serialisable tel quel (journaux, banc Modal)
+        self.assertEqual((d['aire_u2'], d['aire_lucida'], d['aire_union']), (0.30, 0.40, 0.60))
+        self.assertAlmostEqual(d['u2net_manque'], 30 / 40.0)                      # 30 pixels de Lucida hors u2net sur 40
+        self.assertAlmostEqual(d['lucida_manque'], 20 / 30.0)                     # 20 pixels de u2net hors Lucida sur 30
+
+    def test_cas_orc_la_mesure_du_banc(self):
+        # orc_verif_t80 : u2net 16,3 % de l'image, Lucida 24,4 %, u2net manque 36,1 %, Lucida manque 4,5 % (planche_1.png)
+        # image de 100 x 100 : u2net 1630 px, Lucida 2440 px, dont 1557 communs (donc 73 px que Lucida perd = 4,5 % de u2net)
+        u2, lu = depuis_comptes(100, 100, 1630, 2440, 1557)
+        d = F.diagnostic_masques(u2, lu)
+        self.assertAlmostEqual(d['aire_u2'], 0.163)
+        self.assertAlmostEqual(d['aire_lucida'], 0.244)
+        self.assertAlmostEqual(d['u2net_manque'], 0.361, delta=0.002)
+        self.assertAlmostEqual(d['lucida_manque'], 0.045, delta=0.002)
+        self.assertTrue(d['u2net_defaillant'])                                    # 0,163 < 0,8 x 0,244 = 0,195
+        self.assertFalse(d['lucida_defaillant'])
+        self.assertAlmostEqual(d['aire_union'] / d['aire_lucida'], 1.03, places=2)  # « l'union vaut 1,03 x Lucida »
+        res = F.fusionner_alphas(u2, lu)
+        self.assertEqual(int((res >= 127).sum()), 2513)
+        self.assertTrue((res[lu >= 127] == 255).all() and (res[u2 >= 127] == 255).all())   # l'arme (Lucida) ET le corps (u2net)
+
+    def test_cas_ane_la_mesure_du_banc(self):
+        # paire_04_ne : u2net 31,7 %, Lucida 5,9 %, Lucida manque 81,4 %, u2net manque ~0 (planche_3.png, ligne 1)
+        u2, lu = depuis_comptes(100, 100, 3170, 590, 590)
+        d = F.diagnostic_masques(u2, lu)
+        self.assertAlmostEqual(d['lucida_manque'], 0.814, delta=0.002)
+        self.assertEqual(d['u2net_manque'], 0.0)
+        self.assertTrue(d['lucida_defaillant'])                                   # 0,059 < 0,5 x 0,317
+        self.assertFalse(d['u2net_defaillant'])
+        self.assertAlmostEqual(d['aire_union'] / d['aire_u2'], 1.00)              # « 1,00 x u2net »
+        self.assertAlmostEqual(d['aire_union'] / d['aire_lucida'], 5.4, places=1)  # « 5,4 x Lucida »
+        res = F.fusionner_alphas(u2, lu)
+        self.assertTrue(np.array_equal(res >= 127, u2 >= 127))                    # le corps de l'ane est COMPLET : u2net seul
+
+    def test_cas_mille_pattes_la_mesure_du_banc(self):
+        # paire_27_centipade : u2net 16,7 %, Lucida 13,9 %, Lucida manque 16,5 % (un bout du corps)
+        u2, lu = depuis_comptes(100, 100, 1670, 1395, 1395)
+        d = F.diagnostic_masques(u2, lu)
+        self.assertAlmostEqual(d['lucida_manque'], 0.165, delta=0.002)
+        self.assertFalse(d['lucida_defaillant'])                                  # 0,1395 > 0,5 x 0,167 : pas « defaillant »
+        self.assertFalse(d['u2net_defaillant'])
+        self.assertAlmostEqual(d['aire_union'] / d['aire_u2'], 1.00)
+        self.assertTrue(np.array_equal(F.fusionner_alphas(u2, lu) >= 127, u2 >= 127))   # le bout du corps vient de u2net
+
+    def test_drapeaux_sur_les_aires_mesurees(self):
+        # (nom, aire u2net, aire Lucida, u2net defaillant ?, Lucida defaillant ?) : chiffres de metriques.json du 03/10/2026
+        mesures = [
+            ('orc_verif_t80', 0.163, 0.244, True, False), ('ab_A_avant_2', 0.158, 0.249, True, False),
+            # u2net y perd 21,7 % de ce que Lucida garde mais son AIRE reste a 81 % de celle de Lucida : pas « defaillant »
+            # (le drapeau ne sert qu'au journal ; l'union, elle, recupere tout)
+            ('ab_A_avant_1', 0.176, 0.217, False, False), ('ab_B_apres_0', 0.279, 0.291, False, False),
+            ('ab_C_libre_0', 0.386, 0.383, False, False), ('paire_00_cochon', 0.306, 0.307, False, False),
+            ('paire_02_truck', 0.555, 0.551, False, False), ('paire_04_ne', 0.317, 0.059, False, True),
+            ('paire_27_centipade', 0.167, 0.139, False, False), ('paire_14_Rat', 0.123, 0.122, False, False),
+        ]
+        for nom, a_u2, a_lu, u2_def, lu_def in mesures:
+            with self.subTest(image=nom):
+                n_u2, n_lu = int(round(a_u2 * 10000)), int(round(a_lu * 10000))
+                commun = min(n_u2, n_lu) // 2
+                u2, lu = depuis_comptes(100, 100, n_u2, n_lu, commun)
+                d = F.diagnostic_masques(u2, lu)
+                self.assertEqual(d['u2net_defaillant'], u2_def)
+                self.assertEqual(d['lucida_defaillant'], lu_def)
+
+    def test_bornes_exactes_inegalite_stricte(self):
+        # Lucida exactement a la moitie de u2net : PAS defaillant ; un pixel de moins : defaillant
+        d = F.diagnostic_masques(*depuis_comptes(10, 10, 40, 20, 20))
+        self.assertFalse(d['lucida_defaillant'])
+        d = F.diagnostic_masques(*depuis_comptes(10, 10, 40, 19, 19))
+        self.assertTrue(d['lucida_defaillant'])
+        d = F.diagnostic_masques(*depuis_comptes(10, 10, 40, 21, 21))
+        self.assertFalse(d['lucida_defaillant'])
+        # u2net exactement a 80 % de Lucida : PAS defaillant ; un pixel de moins : defaillant
+        d = F.diagnostic_masques(*depuis_comptes(10, 10, 40, 50, 40))
+        self.assertFalse(d['u2net_defaillant'])
+        d = F.diagnostic_masques(*depuis_comptes(10, 10, 39, 50, 39))
+        self.assertTrue(d['u2net_defaillant'])
+        d = F.diagnostic_masques(*depuis_comptes(10, 10, 41, 50, 41))
+        self.assertFalse(d['u2net_defaillant'])
+
+    def test_roles_symetriques(self):
+        u2, lu = depuis_comptes(100, 100, 1630, 2440, 1557)
+        d, inv = F.diagnostic_masques(u2, lu), F.diagnostic_masques(lu, u2)
+        self.assertEqual(d['aire_u2'], inv['aire_lucida'])
+        self.assertEqual(d['aire_lucida'], inv['aire_u2'])
+        self.assertEqual(d['aire_union'], inv['aire_union'])
+        self.assertEqual(d['u2net_manque'], inv['lucida_manque'])
+        self.assertEqual(d['lucida_manque'], inv['u2net_manque'])
+
+    def test_masques_identiques_ou_vides(self):
+        u2, _ = depuis_comptes(10, 10, 30, 30, 30)
+        d = F.diagnostic_masques(u2, u2.copy())
+        self.assertEqual((d['u2net_manque'], d['lucida_manque']), (0.0, 0.0))
+        self.assertFalse(d['lucida_defaillant'] or d['u2net_defaillant'])
+        vide = np.zeros((10, 10), dtype=np.uint8)
+        d = F.diagnostic_masques(vide, vide)
+        self.assertEqual((d['aire_union'], d['u2net_manque'], d['lucida_manque']), (0.0, 0.0, 0.0))
+        self.assertFalse(d['lucida_defaillant'] or d['u2net_defaillant'])
+        d = F.diagnostic_masques(u2, vide)                                        # Lucida ne voit rien
+        self.assertTrue(d['lucida_defaillant'])
+        self.assertFalse(d['u2net_defaillant'])
+        self.assertEqual((d['lucida_manque'], d['u2net_manque']), (1.0, 0.0))
+        d = F.diagnostic_masques(vide, u2)                                        # u2net ne voit rien
+        self.assertTrue(d['u2net_defaillant'])
+        self.assertFalse(d['lucida_defaillant'])
+        self.assertEqual((d['u2net_manque'], d['lucida_manque']), (1.0, 0.0))
+
+    def test_le_seuil_de_mesure_est_127_inclus(self):
+        u2 = np.full((2, 5), 126, dtype=np.uint8)
+        lu = np.full((2, 5), 127, dtype=np.uint8)
+        d = F.diagnostic_masques(u2, lu)
+        self.assertEqual((d['aire_u2'], d['aire_lucida'], d['aire_union']), (0.0, 1.0, 1.0))
+        self.assertEqual(F.SEUIL_SUJET, 127)
+        self.assertEqual(F.SEUIL_U2_DEFAUT, 127)
+
+
+class ModeDetourage(unittest.TestCase):
+
+    def test_table_complete(self):
+        table = [
+            (None, 'union'), ('', 'union'), ('   ', 'union'), ('auto', 'union'), ('AUTO', 'union'), ('union', 'union'),
+            ('Union', 'union'), (' union ', 'union'),
+            ('u2net', 'u2net'), ('U2NET', 'u2net'), ('  U2Net ', 'u2net'), ('u2net\n', 'u2net'),
+            ('lucida', 'lucida'), ('Lucida', 'lucida'), ('\tlucida ', 'lucida'),
+            ('rembg', 'union'), ('u2', 'union'), ('lucida,u2net', 'union'), ('u2net lucida', 'union'), ('0', 'union'),
+            ('1', 'union'), ('false', 'union'), ('none', 'union'), ('bizarre', 'union'),
+        ]
+        for valeur, attendu in table:
+            with self.subTest(valeur=valeur):
+                self.assertEqual(F.mode_detourage(valeur), attendu)
+
+    def test_jamais_d_exception_et_toujours_un_mode_connu(self):
+        class Piege(object):
+            def __str__(self):
+                raise RuntimeError('ne pas appeler')
+            __repr__ = __str__
+
+            def strip(self):
+                raise RuntimeError('ne pas appeler')
+
+        class ChaineHostile(str):
+            def strip(self, *a):
+                raise RuntimeError('strip hostile')
+
+        for valeur in (3, 0, 1.5, True, False, b'u2net', bytearray(b'lucida'), ['u2net'], ('lucida',), {'u2net': 1}, object(),
+                       Piege(), ChaineHostile('u2net'), float('nan'), np.uint8(3), np.array(['u2net'])):
+            with self.subTest(valeur=type(valeur).__name__):
+                r = F.mode_detourage(valeur)
+                self.assertEqual(r, 'union')                                      # pas une chaine : le mode sur
+                self.assertIn(r, F.MODES)
+
+    def test_le_resultat_est_toujours_dans_modes(self):
+        self.assertEqual(F.MODES, ('union', 'u2net', 'lucida'))
+        for valeur in (None, '', 'auto', 'union', 'u2net', 'lucida', 'x', 'U2NET'):
+            self.assertIn(F.mode_detourage(valeur), F.MODES)
+            self.assertIs(type(F.mode_detourage(valeur)), str)
+
+
+def composante_naive(sujet):
+    """Plus grande composante 4-connexe, au PIXEL pres (aucune grille), en part de l'image : reference des petites images."""
+    h, w = sujet.shape
+    vus = np.zeros_like(sujet, dtype=bool)
+    meilleur = 0
+    for y0 in range(h):
+        for x0 in range(w):
+            if sujet[y0, x0] and not vus[y0, x0]:
+                vus[y0, x0] = True
+                pile, n = [(y0, x0)], 0
+                while pile:
+                    y, x = pile.pop()
+                    n += 1
+                    for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                        if 0 <= yy < h and 0 <= xx < w and sujet[yy, xx] and not vus[yy, xx]:
+                            vus[yy, xx] = True
+                            pile.append((yy, xx))
+                meilleur = max(meilleur, n)
+    return meilleur / float(h * w) if h * w else 0.0
+
+
+def bande(h, w, lignes, valeur=255):
+    a = np.zeros((h, w), dtype=np.uint8)
+    a[:lignes, :] = valeur
+    return a
+
+
+class RefusLucida(unittest.TestCase):
+
+    def test_masque_plausible_accepte(self):
+        a = np.zeros((200, 160), dtype=np.uint8)
+        a[20:190, 50:110] = 255                                   # un corps
+        a[20:60, 5:50] = 255                                      # une arme, attachee
+        self.assertIsNone(F.refus_lucida(a))
+
+    def test_vide_et_alpha_doux_sous_le_seuil(self):
+        self.assertEqual(F.refus_lucida(np.zeros((10, 10), np.uint8)), 'alpha vide (aucune composante)')
+        self.assertEqual(F.refus_lucida(np.full((10, 10), 126, np.uint8)), 'alpha vide (aucune composante)')
+
+    def test_bornes_de_surface_exactes(self):
+        # 100 x 100 = 10 000 pixels : 1 % = 100 pixels = 1 ligne ; 95 % = 95 lignes
+        self.assertIsNone(F.refus_lucida(bande(100, 100, 1)))                  # 1,0 % : accepte (inegalite stricte)
+        self.assertIsNone(F.refus_lucida(bande(100, 100, 95)))                 # 95,0 % : accepte
+        r = F.refus_lucida(bande(100, 100, 96))
+        self.assertEqual(r, "alpha aberrant : sujet = 96.0% de l'image (rien n'a ete retire)")
+        self.assertEqual(F.refus_lucida(np.full((7, 3), 255, np.uint8)),
+                         "alpha aberrant : sujet = 100.0% de l'image (rien n'a ete retire)")
+        a = np.zeros((100, 100), np.uint8)
+        a[0, :99] = 255                                                        # 0,99 %
+        self.assertEqual(F.refus_lucida(a), "alpha aberrant : sujet trop petit (1.0% de l'image)")
+        a = np.zeros((1000, 1000), np.uint8)
+        a[:5, :] = 255                                                         # 0,5 %
+        self.assertEqual(F.refus_lucida(a), "alpha aberrant : sujet trop petit (0.5% de l'image)")
+
+    def test_seuil_de_sujet_127_inclus(self):
+        self.assertIsNone(F.refus_lucida(bande(100, 100, 50, valeur=127)))
+        self.assertEqual(F.refus_lucida(bande(100, 100, 50, valeur=126)), 'alpha vide (aucune composante)')
+
+    def test_confettis_ecartes(self):
+        a = np.zeros((320, 240), np.uint8)
+        for y in range(0, 317, 8):
+            for x in range(0, 237, 8):
+                a[y:y + 3, x:x + 3] = 255                     # ~14 % de la surface, aucune composante notable
+        r = F.refus_lucida(a)
+        self.assertIsNotNone(r)
+        self.assertTrue(r.startswith('alpha aberrant : aucune composante significative (la plus grande : '), r)
+
+    def test_plusieurs_morceaux_dont_un_assez_grand(self):
+        a = np.zeros((320, 240), np.uint8)
+        a[100:200, 40:120] = 255                               # ~10 %
+        a[10:20, 200:210] = 255                                # un detache
+        self.assertIsNone(F.refus_lucida(a))
+
+    def test_composante_juste_au_dessus_et_au_dessous_de_0_5_pour_cent(self):
+        # image de 128 x 128 = une case par pixel : 0,5 % = 81,92 cases ; des colonnes de 1 pixel espacees de 2 (non connexes)
+        def colonnes(longueur):
+            a = np.zeros((128, 128), np.uint8)
+            a[:, ::2] = 0
+            for x in range(0, 128, 2):
+                a[:longueur, x] = 255
+            return a
+        # chaque colonne = `longueur` cases ; 64 colonnes ; part totale = 64 * longueur / 16384 >= 1 % des que longueur >= 3
+        self.assertIsNotNone(F.refus_lucida(colonnes(81)))     # 81 / 16384 = 0,494 % < 0,5 %
+        self.assertIsNone(F.refus_lucida(colonnes(82)))        # 82 / 16384 = 0,500 % : accepte
+
+    def test_composante_exactement_au_seuil_est_acceptee_et_une_seule_case_isolee_est_refusee(self):
+        # 20 x 20 = 400 cases (une par pixel, l'image est plus petite que la grille) : 0,5 % = 2 cases EXACTEMENT. Une composante de 2 cases plus
+        # deux pixels isoles = 4 pixels = 1 % de l'image (l'aire passe) : la regle est une inegalite STRICTE, comme les bornes de surface.
+        a = np.zeros((20, 20), np.uint8)
+        a[0, 0:2] = 255
+        a[5, 5] = 255
+        a[10, 10] = 255
+        self.assertEqual(F.plus_grande_composante(a >= 127), 2 / 400.0)
+        self.assertIsNone(F.refus_lucida(a), 'plus grande composante = 0,5 % pile : acceptee')
+        b = np.zeros((20, 20), np.uint8)
+        for y, x in ((0, 0), (5, 5), (10, 10), (15, 15)):
+            b[y, x] = 255                                       # quatre pixels isoles : meme aire (1 %), plus grande composante 0,25 %
+        r = F.refus_lucida(b)
+        self.assertIsNotNone(r)
+        self.assertTrue(r.startswith('alpha aberrant : aucune composante significative (la plus grande : 0.25%'), r)
+
+    def test_entree_non_modifiee_et_lecture_seule(self):
+        a = bande(50, 40, 20)
+        a.setflags(write=False)
+        avant = a.copy()
+        F.refus_lucida(a)
+        F.plus_grande_composante(a >= 127)
+        self.assertTrue(np.array_equal(a, avant))
+
+    def test_refuse_les_entrees_invalides(self):
+        for mauvais in (np.zeros((4, 4), np.float32), np.zeros((4, 4, 1), np.uint8), [[0, 255]], None):
+            with self.assertRaises(ValueError):
+                F.refus_lucida(mauvais)
+        with self.assertRaises(ValueError):
+            F.plus_grande_composante(np.zeros((2, 2, 2), bool))
+
+
+class PlusGrandeComposante(unittest.TestCase):
+
+    def test_egale_la_reference_au_pixel_sur_les_petites_images(self):
+        rng = np.random.default_rng(7)
+        for (h, w) in ((1, 1), (3, 7), (7, 3), (16, 16), (40, 25), (128, 128), (5, 128), (128, 9)):
+            for densite in (0.2, 0.5, 0.7):
+                with self.subTest(h=h, w=w, densite=densite):
+                    sujet = rng.random((h, w)) < densite
+                    self.assertAlmostEqual(F.plus_grande_composante(sujet), composante_naive(sujet), places=12)
+
+    def test_vide_et_plein(self):
+        self.assertEqual(F.plus_grande_composante(np.zeros((300, 200), bool)), 0.0)
+        self.assertEqual(F.plus_grande_composante(np.ones((300, 200), bool)), 1.0)
+        self.assertEqual(F.plus_grande_composante(np.zeros((0, 5), bool)), 0.0)
+
+    def test_grande_image_mesuree_sur_la_grille(self):
+        sujet = np.zeros((1024, 768), bool)
+        sujet[100:612, 100:484] = True                          # 512 x 384 = 25 % de l'image
+        self.assertAlmostEqual(F.plus_grande_composante(sujet), 0.25, delta=0.01)
+        # deux carres separes par un couloir de 16 pixels (plus de deux cases) : deux composantes de ~25 % (pas une de ~49 %)
+        deux = np.zeros((1024, 1024), bool)
+        deux[:512, :496] = True
+        deux[:512, 512:] = True
+        self.assertAlmostEqual(F.plus_grande_composante(deux), 0.25, delta=0.01)
+
+    def test_une_case_a_moitie_pleine_compte_comme_pleine(self):
+        # image de 256 x 256 : grille de 128 x 128 cases de 2 x 2 pixels ; deux pixels sur quatre = LA MOITIE = case pleine (>=), un seul = case vide
+        deux = np.zeros((256, 256), bool)
+        deux[10, 20:22] = True
+        self.assertEqual(F.plus_grande_composante(deux), 1 / (128 * 128.0))
+        un = np.zeros((256, 256), bool)
+        un[10, 20] = True
+        self.assertEqual(F.plus_grande_composante(un), 0.0)
+
+    def test_diagonale_n_est_pas_connexe(self):
+        self.assertAlmostEqual(F.plus_grande_composante(np.eye(4, dtype=bool)), 1 / 16.0)
+
+
+class ContratDuModule(unittest.TestCase):
+
+    def test_uniquement_numpy(self):
+        arbre = ast.parse(lire(SOURCE))
+        modules = set()
+        for n in ast.walk(arbre):
+            if isinstance(n, ast.Import):
+                modules |= {a.name.split('.')[0] for a in n.names}
+            elif isinstance(n, ast.ImportFrom):
+                modules.add((n.module or '').split('.')[0])
+        self.assertEqual(modules, {'numpy'}, 'le noyau partage ne doit dependre que de numpy : %s' % sorted(modules))
+
+    def test_pas_d_etat_global_modifiable(self):
+        # aucune affectation `global` : le module est une bibliotheque de fonctions pures
+        arbre = ast.parse(lire(SOURCE))
+        self.assertFalse([n for n in ast.walk(arbre) if isinstance(n, ast.Global)])
+
+    def test_api_publique(self):
+        self.assertEqual(set(F.__all__), {'SEUIL_SUJET', 'SEUIL_U2_DEFAUT', 'MODES', 'fusionner_alphas', 'diagnostic_masques',
+                                          'mode_detourage', 'PART_MIN_LUCIDA', 'PART_MAX_LUCIDA', 'COMPOSANTE_MIN_LUCIDA',
+                                          'plus_grande_composante', 'refus_lucida'})
+        for nom in F.__all__:
+            self.assertTrue(hasattr(F, nom), nom)
+
+    def test_les_deux_copies_sont_identiques(self):
+        # le garde build/check-noyaux-partages.mjs le verifie aussi ; ce test donne le message le plus direct
+        a = lire(os.path.join(RACINE, 'scripts', 'fusion_masques.py'), newline='').replace('\r\n', '\n')
+        b = lire(COPIE, newline='').replace('\r\n', '\n')
+        self.assertEqual(a, b, 'modal_app/fusion_masques.py a diverge de scripts/fusion_masques.py : '
+                               'node build/check-noyaux-partages.mjs --sync')
+
+    def test_aucune_lettre_accentuee_dans_le_code(self):
+        # style du depot : commentaires en francais SANS accents dans les .py
+        for chemin in (SOURCE, COPIE):
+            texte = lire(chemin)
+            accentuees = sorted({c for c in texte if 0xC0 <= ord(c) <= 0xFF and ord(c) not in (0xD7, 0xF7)})   # hors signes multiplier / diviser
+            self.assertEqual(accentuees, [], chemin)
+
+
+class UnionSurMesure(unittest.TestCase):
+    """build/bancs/fidelite/union_sur_mesure_modal.py : les regles du noyau appliquees a des MESURES (ici synthetiques, calquees sur le banc Modal)."""
+
+    def charger_analyse(self):
+        chemin = os.path.join(RACINE, 'build', 'bancs', 'fidelite', 'union_sur_mesure_modal.py')
+        chemin_avant, present = list(sys.path), 'fusion_masques' in sys.modules
+        try:
+            spec = importlib.util.spec_from_file_location('union_sur_mesure_sous_test', chemin)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        finally:
+            sys.path[:] = chemin_avant
+            if not present:
+                sys.modules.pop('fusion_masques', None)
+        return mod
+
+    def test_les_regles_du_noyau_sont_appliquees_aux_mesures(self):
+        mod = self.charger_analyse()
+        donnees = {'images': [
+            {'nom': 'orc', 'aire_u2net': 0.1633, 'aire_lucida': 0.2442, 'u2net_manque': 0.3613, 'lucida_manque': 0.0447},
+            {'nom': 'ane', 'aire_u2net': 0.317, 'aire_lucida': 0.059, 'u2net_manque': 0.001, 'lucida_manque': 0.814},
+            {'nom': 'vide', 'aire_u2net': 0.2, 'aire_lucida': 0.005, 'u2net_manque': 0.0, 'lucida_manque': 1.0},
+            {'nom': 'plein', 'aire_u2net': 0.2, 'aire_lucida': 0.96, 'u2net_manque': 1.0, 'lucida_manque': 0.0}]}
+        lignes = {x['nom']: x for x in mod.analyser(donnees)}
+        # l'orc de la mesure du 03/10 : l'union vaut 1,03 x Lucida (la valeur de la memoire du projet)
+        self.assertAlmostEqual(lignes['orc']['union_sur_lucida'], 1.03, delta=0.005)
+        self.assertIsNone(lignes['orc']['refus_aire'])
+        self.assertTrue(lignes['orc']['u2net_defaillant'])
+        self.assertFalse(lignes['orc']['lucida_defaillant'])
+        # l'ane : Lucida defaillant, l'union = u2net (+ 0,1 % de 5,9 %)
+        self.assertTrue(lignes['ane']['lucida_defaillant'])
+        self.assertAlmostEqual(lignes['ane']['aire_union'], 0.317 + 0.001 * 0.059, places=9)
+        self.assertIsNone(lignes['ane']['refus_aire'])
+        # les regles d'aire du noyau (memes seuils, lus dans le noyau)
+        self.assertEqual(lignes['vide']['refus_aire'], 'sujet trop petit')
+        self.assertTrue(lignes['plein']['refus_aire'])
+        self.assertEqual((mod.FM.PART_MIN_LUCIDA, mod.FM.PART_MAX_LUCIDA), (F.PART_MIN_LUCIDA, F.PART_MAX_LUCIDA))
+
+    def test_sans_fichier_de_mesure_code_1(self):
+        mod = self.charger_analyse()
+        self.assertEqual(mod.main(['x', os.path.join(RACINE, 'absent.json')]), 1)
+
+
+@unittest.skipIf(os.environ.get('MUTANTS_LUCIDA_EN_COURS') == '1', 'rejoue par le pilote de mutations lui-meme (sinon recursion sans fin)')
+class PreuveParMutation(unittest.TestCase):
+
+    def test_le_noyau_tue_tous_ses_mutants(self):
+        # build/bancs/noyaux/mutants_lucida.py : chaque mutant change UNE chose dans une COPIE du noyau (seuil >= devenu >, minimum a la place du maximum,
+        # borne exclue...) ; les tests de ce fichier doivent alors ECHOUER. Un mutant qui survit = un comportement sans test. Le pilote s'arrete aussi
+        # quand un extrait n'existe plus (modification voulue du noyau) : mettre sa liste a jour.
+        pilote = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mutants_lucida.py')
+        r = subprocess.run([sys.executable, pilote, 'fusion'], stdin=subprocess.DEVNULL, capture_output=True, text=True, errors='replace', timeout=300)
+        self.assertEqual(r.returncode, 0, r.stdout[-1800:] + r.stderr[-800:])
+        self.assertRegex(r.stdout, r'(\d+) mutant\(s\), \1 tue\(s\), 0 survivant\(s\)')      # tous tues (le nombre de mutants peut evoluer)
+        self.assertGreaterEqual(int(re.search(r'(\d+) mutant\(s\)', r.stdout).group(1)), 15, 'le noyau garde au moins ses quinze mutants')
+
+
+if __name__ == '__main__':
+    for flux in (sys.stdout, sys.stderr):
+        try:
+            flux.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+    unittest.main()

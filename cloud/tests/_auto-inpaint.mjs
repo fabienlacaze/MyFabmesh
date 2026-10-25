@@ -18,12 +18,10 @@ export const NU = F('na', 'ked');
 export const GRILLE = { modify: 3, auto_inpaint: 6 };
 /** Declarations du refus « personne mineure nommee » de handleAutoInpaint (2026-10-22). */
 export const NOMS_REFUS_MINEUR = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE',
-  '_RM_PERSONNE_SEULE',
-  // alerte exploitant d'un retrait refuse (deuxieme relecture du 2026-10-22) : absente d'un worker plus ancien (WORKER_SRC)
-  ...(lireSource().includes('\nasync function _alerterTextesRetrait(') ? ['_alerterTextesRetrait'] : [])];
+  '_RM_PERSONNE_SEULE'];
 export const AVEC_REFUS_MINEUR = lireSource().includes('\nfunction refusRetraitMineur(');
 
-export function monter({ grille = GRILLE, resultat = { url: 'https://r2.example/front/out.png' }, echec = false, credits = 100 } = {}) {
+export function monter({ grille = GRILLE, resultat = { url: 'https://r2.example/front/out.png' }, echec = false, credits = 100, traduire = null, etranger = false } = {}) {
   const j = { depenses: [], remboursements: [], modal: [], journal: [], prixLus: [], verifies: [], budget: [], appels: [], alertes: [] };
   const reponse = (o, init) => new Response(JSON.stringify(o), { status: (init && init.status) || 200, headers: { 'content-type': 'application/json' } });
   const dbl = {
@@ -34,6 +32,10 @@ export function monter({ grille = GRILLE, resultat = { url: 'https://r2.example/
     _checkPromptSafetyAlerte: async (_e, _u, texte, unrestricted) => { j.verifies.push(texte); return filtre.checkPromptSafety(texte, unrestricted); },
     getPrice: async (_env, k) => { j.prixLus.push(k); return grille[k]; },
     isTrustedAssetHost: () => true,
+    // lot langue de deploy-2510 : longueur sans limite ici ; filet de langue configurable (`traduire` : textes -> textes traduits)
+    _refusLongueur: () => null,
+    LangueTexte: { morceauxEtrangers: () => (etranger ? ['x'] : []) },
+    _filetLangue: async (_e, _u, textes) => { j.filet = (j.filet || 0) + 1; return traduire ? { textes: traduire(textes), traduit: true } : { textes, traduit: false }; },
     checkAndIncrementModalSpend: async (_e, montant) => { j.budget.push(montant); return 100; },
     _spendRefusalMessage: async () => 'refus',
     checkAndIncrementUserCalls: async () => { j.appels.push(1); return 10; },

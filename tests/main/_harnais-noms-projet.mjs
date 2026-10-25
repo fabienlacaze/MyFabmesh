@@ -114,7 +114,10 @@ export const EXPRESSIONS_PAGE = {
 };
 
 // Aides de premier niveau de main.js utilisees par les gestionnaires (celles que la copie declare), evaluees dans UNE portee commune.
-const AIDES_MAIN = ['_memoriserNomProjet', '_nomsSaisisDesMarqueurs', '_nomsSaisisPourLeSite', '_nomPourLeSiteDuProjet', '_cheminProjetVide', '_meshProjectBackend'];
+const AIDES_MAIN = ['_memoriserNomProjet', '_nomsSaisisDesMarqueurs', '_nomsSaisisPourLeSite', '_nomPourLeSiteDuProjet', '_cheminProjetVide', '_meshProjectBackend',
+  // negations de l'utilisateur (piste N, fusionnee le 20/10) : generate-images nettoie `negativeExtra` et le rend au filtre ; sans elles le gestionnaire
+  // leve un ReferenceError que son propre catch transforme en erreur sur _manqueMemoireDansSortie
+  '_assainirNegativeExtra', '_texteDeModeration'];
 // Fonctions de cloud_fallback.js exercees ici (et l'aide de nom, si la copie la declare).
 const FONCTIONS_CF = ['_nomProjetPourLeSite', 'shareAsset', 'downloadItem'];
 // Aides de nom des pages (presentes ou non selon la copie : sur l'ancien code les tests echouent par COMPORTEMENT).

@@ -80,7 +80,7 @@ test("une consigne identique a l'autre ou au texte joint n'est verifiee qu'une f
   assert.deepEqual(m.j.verifies, ['wings']);
   const seul = monter();
   await seul.inpaint({ targetText: 'wings', prompt: 'a hat' });
-  assert.deepEqual(seul.j.verifies, ['wings. a hat', 'wings', 'a hat']);   // le texte joint, PUIS chaque champ seul (2026-10-22)
+  assert.deepEqual(seul.j.verifies, ['wings. a hat', 'wings', 'a hat', 'wings a hat']);   // + plancher seul sur cible+remplacement (deploy-2510) ; le texte joint, PUIS chaque champ seul (2026-10-22)
 });
 
 test('une consigne demesuree : 400 net, sans debit ; une valeur non textuelle est ignoree sans planter', async () => {

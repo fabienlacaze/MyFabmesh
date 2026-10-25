@@ -103,8 +103,74 @@ ASSET_STYLE_PROMPTS = {
 # Animal SANS PATTES (serpent, ver) ou POISSON (28/09/2026) : le gabarit « animal » (« all four feet on
 # ground ») faisait dessiner un serpent ENROULE sur lui-meme, inanimable. Mots = copie EXACTE de
 # MOTS_NAGE / MOTS_REPTATION du moteur de marche (src/renderer/lib/locomotion-procedurale.js).
-_MOTS_NAGE = set('fish fishes tuna shark sharks whale whales dolphin dolphins orca salmon trout carp cod eel ray manta stingray piranha goldfish koi marlin swordfish sardine herring mackerel pike perch catfish barracuda seahorse narwhal beluga porpoise bass tilapia sturgeon poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon pez peces atun tiburon ballena delfin salmon trucha anguila fisch thunfisch hai wal delfin lachs forelle karpfen aal pesce tonno squalo balena delfino salmone trota peixe atum tubarao baleia golfinho'.split())
+_MOTS_NAGE = set('fish fishes tuna shark sharks whale whales dolphin dolphins orca salmon trout carp cod eel ray manta stingray piranha goldfish koi marlin swordfish sardine herring mackerel pike perch catfish barracuda seahorse narwhal beluga porpoise bass tilapia sturgeon poisson poissons thon requin requins baleine baleines dauphin dauphins saumon truite carpe morue anguille raie espadon hareng maquereau brochet perche silure hippocampe narval marsouin esturgeon pez peces atun tiburon ballena delfin salmon trucha anguila fisch thunfisch delfin lachs forelle karpfen aal pesce tonno squalo balena delfino salmone trota peixe atum tubarao baleia golfinho'.split())
 _MOTS_REPTATION = set('snake snakes serpent serpents python cobra viper boa anaconda mamba rattlesnake adder worm worms earthworm larva larvae maggot caterpillar slug leech couleuvre vipere ver vers lombric chenille limace sangsue asticot larve serpiente culebra gusano oruga babosa schlange wurm raupe schnecke serpente verme bruco lumaca cobra minhoca lagarta lesma'.split())
+# FAUX AMIS ET MOTS A DOUBLE SENS (2026-10-13, audit de la langue SERVEUR-06 / MANQUE-SERV-04) — MEME regle que modeDepuisTexte
+# (src/renderer/lib/locomotion-procedurale.js ; build/bancs/noyaux/test_faux_amis_gabarit.py compare les listes) : un chat qui court
+# « vers » la maison recevait le gabarit SERPENT et l'interdiction des pattes, « a parrot on a wooden perch » le gabarit POISSON.
+#  - « hai » (it : « tu as ») et « wal » (nl : « quai ») sont retires des listes : un texte allemand (Hai, Wal) arrive traduit ;
+#  - « ver » / « vers » (fr : « vers la maison », es / pt : « ver el mar ») ne comptent pas devant un article ou un determinant ;
+#  - les mots AMBIGUS ne comptent pas quand le texte nomme une AUTRE espece (_MOTS_AUTRES_ESPECES = MOTS_ESPECES + AUTRES_ANIMAUX du
+#    moteur de marche).
+_MOTS_AMBIGUS = set('perch bass pike ray cod carp boa python adder slug ver vers'.split())
+_DETERMINANTS = set(('le la les l un une des du au aux sa son ses ce cet cette ces mon ma mes ton ta tes notre nos votre vos '
+                     'leur leurs el los las lo una unos unas o os as um uma uns umas il gli the').split())
+_MOTS_AUTRES_ESPECES = set((
+    'horse horses pony stallion mare foal donkey mule zebra deer stag doe elk moose reindeer caribou antelope gazelle '
+    'cheval chevaux poney etalon jument poulain ane anes mulet zebre cerf biche daim elan orignal renne antilope caballo '
+    'burro mula cebra ciervo reno pferd esel maultier hirsch elch cavallo asino mulo cervo renna cavalo lion lions lioness '
+    'tiger tigers cat cats kitten leopard panther jaguar cheetah lynx puma cougar lionne tigre chat chats chaton panthere '
+    'guepard leon gato pantera guepardo lowe katze gepard luchs leone gatto leao onca dog dogs puppy wolf wolves fox husky '
+    'coyote jackal hyena chien chiens chiot loup loups renard chacal hyene perro lobo zorro hund fuchs cane lupo volpe '
+    'cachorro cao raposa cow cows cattle ox oxen bull bison buffalo yak goat goats sheep ram lamb pig pigs boar hog vache '
+    'vaches boeuf boeufs taureau buffle yack chevre mouton belier agneau cochon porc sanglier vaca buey toro cabra oveja '
+    'cerdo jabali kuh ochse stier ziege schaf schwein wildschwein mucca bue capra pecora maiale cinghiale boi touro ovelha '
+    'porco javali rabbit rabbits bunny hare squirrel rat rats mouse mice hamster lapin lapins lievre ecureuil souris conejo '
+    'liebre ardilla raton hase kaninchen ratte maus coniglio lepre scoiattolo ratto topo coelho lebre esquilo rato bear '
+    'bears panda badger wolverine raccoon ours blaireau glouton oso orso urso dachs elephant elephants mammoth rhino '
+    'rhinoceros hippo hippopotamus mammouth hippopotame elefante elefant nashorn nilpferd camel camels dromedary llama '
+    'alpaca giraffe chameau dromadaire lama alpaga girafe camello jirafa kamel cammello giraffa camelo girafa lizard '
+    'lizards gecko iguana crocodile alligator caiman komodo salamander newt monitor lezard iguane salamandre triton varan '
+    'lagarto cocodrilo eidechse krokodil lucertola coccodrillo crocodilo turtle turtles tortoise terrapin tortue tortues '
+    'tortuga schildkrote tartaruga bird birds chicken hen rooster chick duck goose geese ostrich emu turkey pigeon crow '
+    'vulture eagle hawk oiseau oiseaux poule coq poussin canard oie autruche emeu dinde corbeau vautour aigle pajaro ave '
+    'gallina gallo pato ganso avestruz pavo vogel huhn hahn ente gans uccello anatra oca struzzo passaro galinha galo human '
+    'humans man men woman women boy girl person people character warrior knight soldier guard orc orcs goblin troll elf '
+    'dwarf zombie wizard mage witch ninja samurai pirate viking king queen prince princess hero villain humain homme femme '
+    'garcon fille personnage guerrier chevalier soldat garde gobelin elfe nain sorcier sorciere hombre mujer guerrero '
+    'caballero mensch mann frau krieger ritter uomo donna guerriero cavaliere homem mulher guerreiro monkey monkeys ape '
+    'apes gorilla chimp chimpanzee orangutan baboon singe singes gorille chimpanze orang babouin mono gorila affe scimmia '
+    'macaco dinosaur dinosaurs trex rex tyrannosaurus raptor velociraptor allosaurus dinosaure dinosaures tyrannosaure '
+    'dinosaurio kangaroo kangaroos wallaby kangourou canguro kanguru penguin penguins manchot manchots pingouin pingouins '
+    'pinguino pinguin frog frogs toad toads grenouille grenouilles crapaud rana sapo frosch krote dragon dragons wyvern '
+    'drake drache drago dragao insect insects ant ants beetle bug bugs cockroach mantis wasp bee fly flies grasshopper '
+    'cricket insecte insectes fourmi fourmis scarabee cafard mante guepe abeille sauterelle criquet hormiga escarabajo '
+    'ameise kafer formica spider spiders tarantula scorpion scorpions araignee araignees tarentule arana spinne ragno '
+    'aranha crab crabs lobster crayfish crabe crabes homard ecrevisse cangrejo krabbe granchio caranguejo '
+    # AUTRES_ANIMAUX du moteur de marche (absents des profils d'allure, servent seulement a lever l'ambiguite)
+    'parrot parrots owl owls swan swans dove doves peacock flamingo falcon raven sparrow seagull '
+    'perroquet hibou chouette cygne colombe paon flamant faucon moineau mouette loro buho lechuza cisne paloma halcon gaviota '
+    'papagei schwan taube pfau falke mowe pappagallo gufo civetta cigno colomba pavone falco gabbiano papagaio coruja pomba '
+    'pavao falcao gaivota'
+).split())
+
+
+# SUJET SEULEMENT (2026-10-24, audit des prompts M10) : jumeau de FIN_SUJET / APRES_NON_SUJET de lib/locomotion-procedurale.js (listes comparees par test_faux_amis_gabarit.py)
+_FIN_SUJET = set(('with without chasing chases chase eating eats eat holding holds hold carrying carries carry catching catches catch hunting hunts hunt wearing wears wear playing plays play watching watches watch near beside next by on in at from for and or while that which who under over behind using uses riding rides feeding feeds attacking attacks fighting fights stalking stalks biting bites pursuing pursues swallowing swallows devouring devours tossing throwing throws avec qui tient tenant mange mangeant chasse poursuit sur dans pres contre et ou con que sobre sostiene come caza mit und oder auf sopra com onde').split())
+_APRES_NON_SUJET = set(('bowl bowls tank tanks aquarium market stall tattoo tattoos pattern print prints shirt costume mask toy toys lamp sculpture statue stew soup dish curry fillet fillets bait hook hooks net nets cake sandwich skin leather shaped like themed food pond').split())
+
+
+def _compte_mode(mots, i, liste, autre_espece, fin):
+    m = mots[i]
+    if m not in liste:
+        return False
+    if i >= fin or (mots[i + 1] if i + 1 < len(mots) else '') in _APRES_NON_SUJET:
+        return False
+    if m not in _MOTS_AMBIGUS:
+        return True
+    if autre_espece:
+        return False
+    return not (m in ('ver', 'vers') and i + 1 < len(mots) and mots[i + 1] in _DETERMINANTS)
 
 
 def mode_depuis_texte(texte: str):
@@ -113,10 +179,12 @@ def mode_depuis_texte(texte: str):
     import unicodedata as _ud
     t = _ud.normalize('NFD', str(texte or '').lower().replace('œ', 'oe').replace('æ', 'ae'))
     t = ''.join(c for c in t if _ud.category(c) != 'Mn')
-    m = set(_re.split(r'[^a-z0-9]+', t))
-    if m & _MOTS_NAGE:
+    mots = [m for m in _re.split(r'[^a-z0-9]+', t) if m]
+    autre_espece = any(m in _MOTS_AUTRES_ESPECES for m in mots)
+    fin = next((i for i, m in enumerate(mots) if m in _FIN_SUJET), len(mots))
+    if any(_compte_mode(mots, i, _MOTS_NAGE, autre_espece, fin) for i in range(len(mots))):
         return 'nage'
-    if m & _MOTS_REPTATION:
+    if any(_compte_mode(mots, i, _MOTS_REPTATION, autre_espece, fin) for i in range(len(mots))):
         return 'reptation'
     return None
 
@@ -137,6 +205,86 @@ def _parle_de_vol(texte: str) -> bool:
     return any(m in _MOTS_VOL for m in _re.split(r'[^a-z0-9]+', t))
 
 
+# NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence « l'image doit correspondre EXACTEMENT au prompt »).
+# SDXL ne comprend pas la negation : dans « an orc, no helmet » il voit « helmet » et le dessine (CLAUDE.md §14). La locution quitte donc le POSITIF
+# (separer_negations) et le terme part au NEGATIF (_realvis.build_prompts pour text2image, _tpose.generate pour la T-pose). Le tri est fait par
+# extraire_negations() de composeur_intention (= scripts/composeur_intention.py, jumeau JavaScript lib/composeur-intention.js) : les negations de
+# garde-robe / nudite (« without clothes ») n'y sont JAMAIS extraites, elles restent dans le positif sous les yeux du filtre de moderation.
+# DEUX SOURCES de termes, reunies par negatifs_utilisateur() : le TEXTE brut (anciens clients, qui envoient « no helmet » tel quel) et le champ
+# `negative_extra` de la requete (clients a jour : le texte arrive DEJA sans ses negations, les termes viennent a part, via le worker).
+# Interrupteur d'urgence FABMESH_COMPOSEUR=0 : rien n'est extrait, rien n'est ajoute (ancien comportement).
+
+
+def separer_negations(texte):
+    """-> (positif, termes) : le texte SANS ses locutions negatives (« an orc, no helmet, holding a club » -> « an orc, holding a club ») et les termes de
+    negatif trouves. Meme resultat que negationsEtPositif du client (lib/composeur-intention.js) : un texte de plus de 2 000 caracteres n'est PAS analyse
+    (on ne coupe jamais le texte de l'utilisateur), un texte ENTIEREMENT negatif (« no helmet ») garde son positif tel quel (un prompt vide ne vaut rien)
+    mais ses termes partent quand meme au negatif. Sans negation : le texte, a l'octet, et []. Jamais d'exception."""
+    t = str(texte if texte is not None else '')
+    try:
+        from modal_app import composeur_intention as _ci
+        if not _ci.actif():
+            return t, []
+        r = _ci.negations_et_positif(t, None, _ci.NEG_MAX_LONG)     # route a encodeur long : 20 termes ; les deux garde-fous (texte trop long, texte entierement negatif) : meme fonction que le pont, jumelle du client
+    except Exception as _e:   # le tri des negations ne doit jamais empecher une generation
+        print(f"[prompt] negations ignorees ({type(_e).__name__}: {_e})", flush=True)
+        return t, []
+    return r['positif'], list(r['negatifs'])
+
+
+def termes_negatifs_valides(liste):
+    """Nettoyage STRICT des termes de negatif d'une requete (champ `negative_extra`) : 20 au plus (NEG_MAX_LONG : routes a encodeur long), 40 caracteres au plus, lettres ASCII / espaces / tirets,
+    minuscules, sans doublon ; un element invalide est ECARTE, jamais corrige ; n'importe quelle entree (jamais d'exception). Les termes de garde-robe
+    et de nudite (« clothes », « shirt »...) sont ecartes aussi, morceaux a tiret compris : meme liste que l'extraction (composeur_intention._NEG_SENSIBLES) ;
+    en NEGATIF ils pousseraient le modele vers la nudite sans que le texte, donc le filtre de moderation, en garde la trace. [] si le composeur est coupe.
+
+    POURQUOI CE CHAMP NE PEUT RIEN CASSER. Il n'AJOUTE qu'au negatif, derriere les pieces de securite, d'ombres et d'armes (voir _realvis.build_prompts) ; les
+    caracteres admis ne contiennent ni virgule, ni parenthese, ni deux-points, ni crochet, ni chiffre : un terme ne peut ni ouvrir une autre piece du
+    prompt ni fabriquer une ponderation « (nude:0) » qui annulerait une piece de securite. Meme nettoyage cote worker (_nettoyerNegativeExtra)."""
+    if not isinstance(liste, (list, tuple)):
+        return []
+    try:
+        from modal_app import composeur_intention as _ci
+        if not _ci.actif():
+            return []
+        sensibles = _ci._NEG_SENSIBLES
+        sortie = []
+        for x in liste[:64]:                       # jamais plus de 64 elements lus, quelle que soit la taille de la liste recue
+            for t in _ci.assainir_negatifs([x]):
+                if t in sortie or any(m in sensibles for m in t.replace('-', ' ').split()):
+                    continue
+                sortie.append(t)
+            if len(sortie) >= _ci.NEG_MAX_LONG:
+                break
+        return sortie
+    except Exception as _e:   # un nettoyage qui plante vaut « aucun terme », jamais une generation perdue
+        print(f"[prompt] termes de negatif ignores ({type(_e).__name__}: {_e})", flush=True)
+        return []
+
+
+def negatifs_utilisateur(texte_brut, extra=None):
+    """Tous les termes de negatif d'UNE demande, nettoyes, sans doublon, 20 au plus : d'abord ceux du champ `negative_extra` (clients a jour), puis ceux que
+    l'extraction trouve dans le TEXTE brut (anciens clients ; apres _epurer_demande, comme le client). [] si le composeur est coupe."""
+    brut = list(extra) if isinstance(extra, (list, tuple)) else []
+    t = str(texte_brut if texte_brut is not None else '')
+    if len(t) <= 4000:        # un texte de plus de 2 000 caracteres n'est pas analyse (negations_et_positif) : marge pour la phrase d'intention que _epurer_demande retire, au-dela on ne l'epure meme pas
+        brut += separer_negations(_epurer_demande(t))[1]
+    return termes_negatifs_valides(brut)
+
+
+def texte_pour_plancher(texte, extra=None):
+    """Le texte que le PLANCHER DUR de moderation (app.py, _prompt_hard_floor) doit examiner : le texte recu, plus les negations que le client en a SORTIES
+    (champ `negative_extra`), rendues sous les deux formes que les listes du filtre connaissent (« no X », « without X »). Meme regle que
+    _texteDeModerationNegations du worker et _texteDeModeration du bureau : « a child, no whip » arrive ici comme « a child » + le terme « whip », et le
+    plancher doit la juger comme avant. Le worker, premiere ligne, l'a deja fait ; cette seconde ligne ne doit pas se relacher en silence. Les termes sont
+    nettoyes comme pour le negatif (seuls les termes REELLEMENT appliques sont examines) ; sans terme, ou composeur coupe : le texte lui-meme, a l'octet."""
+    base = str(texte if texte is not None else '')
+    termes = termes_negatifs_valides(extra)
+    if not termes:
+        return base
+    return base + ', ' + ', '.join('no %s, without %s' % (t, t) for t in termes)
+
+
 def _epurer_demande(texte: str) -> str:
     """Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide."""
     import re as _re
@@ -146,21 +294,56 @@ def _epurer_demande(texte: str) -> str:
             r"^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?"
             r"|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
             r"|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?"
-            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
+            r"|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me\b|(?=\s+(?:an?|the|some|one)\b)))\s+(?:an?\s+|the\s+|some\s+|one\s+)?", _re.I)
         _DEMANDE_FR = _re.compile(
             r"^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais"
             r"|(?:fais|cr[eé]e|g[eé]n[èe]re|dessine|fabrique)(?:-moi)?)\s+"
             r"(?:(?:faire|cr[eé]er|g[eé]n[eé]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?", _re.I)
     brut = str(texte if texte is not None else '')
     t = _DEMANDE_FR.sub('', _DEMANDE_EN.sub('', brut, count=1), count=1)
-    t = _re.sub(r"[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$", '', t, flags=_re.I).strip()
+    t = _retirer_politesse_fin(t).strip()
     return t if len(t) >= 3 else brut.strip()
+
+
+_POLITESSE_FIN = None
+
+
+_MOTS_AVANT_TEXTE = set('saying says said reading reads read text words word written writes titled named called label labeled quote quoting spelling spells sign banner'.split())
+
+
+def _retirer_politesse_fin(t: str) -> str:
+    """« un dragon, please! » -> « un dragon » : meme effet que l'ancienne expression
+    [\\s,;.!]*\\b(?:please|thanks|thank you|merci)\\b[\\s.!]*$ appliquee par re.sub, SANS son cout quadratique sur une longue
+    suite de blancs ou de virgules (audit du 11/10, MODERATION-07 : 32 000 blancs = 12,6 s, sous le verrou GPU). Lineaire :
+    on retire la fin [\\s.!]*, on cherche le mot de politesse au bout, puis on remonte les separateurs [\\s,;.!] qui le
+    precedent."""
+    import re as _re
+    global _POLITESSE_FIN
+    if _POLITESSE_FIN is None:
+        _POLITESSE_FIN = _re.compile(r"\b(?:please|thanks|thank you|merci)\Z", _re.I)
+    fin = len(t)
+    while fin > 0 and (t[fin - 1].isspace() or t[fin - 1] in '.!'):
+        fin -= 1
+    m = _POLITESSE_FIN.search(t, 0, fin)
+    if not m:
+        return t
+    debut = m.start()
+    # « a card saying thank you », « a sign that reads please » (24/10, m16b) : le mot fait partie du SUJET quand il suit un mot qui annonce un texte ecrit
+    av = _re.search(r"([a-z]+)[\s,;:'\"-]*$", t[max(0, debut - 30):debut], _re.I)
+    if av and av.group(1).lower() in _MOTS_AVANT_TEXTE:
+        return t
+    while debut > 0 and (t[debut - 1].isspace() or t[debut - 1] in ',;.!'):
+        debut -= 1
+    return t[:debut]
 
 
 def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, pose_libre: bool = False) -> str:
     """Ajoute style + gabarit autour du texte de l'utilisateur, SANS doublon.
 
     `pose_libre` (2026-10-03, case « T-pose » DECOCHEE) : le gabarit des unites perd ses consignes de T-pose (pose libre selon le texte).
+
+    NEGATIONS (2026-10-03) : les locutions negatives du texte (« no helmet », « without a beard ») quittent le positif, pour TOUS les types d'asset ;
+    leurs termes partent au negatif (negatifs_utilisateur, _realvis.build_prompts). Sans negation, rien ne change.
 
     2026-09-23 : ce concatenait sans rien verifier. Or le client enrichit
     deja de son cote, et envoie le resultat : le gabarit arrivait donc DEUX
@@ -185,6 +368,9 @@ def build_enriched_prompt(user_prompt: str, asset_type: str, asset_style: str, p
     transmet le texte BRUT de l'utilisateur.
     """
     user_prompt = _epurer_demande(user_prompt)
+    # NEGATIONS DE L'UTILISATEUR : « an orc, no helmet » -> « an orc » (le terme part au negatif). La detection du vol / de la reptation et le composeur
+    # d'intention lisent donc le texte SANS ses negations (« a bird, not flying » ne choisit pas le gabarit « en vol »), comme buildFullPrompt du client.
+    user_prompt = separer_negations(user_prompt)[0]
     style_prefix = ASSET_STYLE_PROMPTS.get(asset_style, '')
     type_prefix = ASSET_TYPE_PREFIXES.get(asset_type, '')
     type_suffix = ASSET_TYPE_PROMPTS.get(asset_type, '')

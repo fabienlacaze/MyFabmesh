@@ -166,6 +166,8 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   cloudDownloadItem: (opts) => ipcRenderer.invoke('cloud-download-item', opts),
   hidreamAvailable: () => ipcRenderer.invoke('hidream-available'),
   translatePrompt: (opts) => ipcRenderer.invoke('translate-prompt', opts),
+  // traducteur joignable ? { local, cloud } — l'aide de langue dit quand la traduction est indisponible (2026-10-13)
+  translateStatus: () => ipcRenderer.invoke('translate-status'),
   // Redacteur local de la fenetre New project (2026-09-30) : description + type, sur le processeur.
   redacteurPrechauffer: () => ipcRenderer.invoke('redacteur:prechauffer'),
   redacteurDecrire: (opts) => ipcRenderer.invoke('redacteur:decrire', opts),
@@ -332,6 +334,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   checkProjectNsfw: (opts) => ipcRenderer.invoke('check-project-nsfw', opts),
   checkImagesNsfwTags: (opts) => ipcRenderer.invoke('check-images-nsfw-tags', opts),
   getNsfwKeywords: () => ipcRenderer.invoke('get-nsfw-keywords'),
+  checkPromptText: (opts) => ipcRenderer.invoke('check-prompt-text', opts),
   checkImageNsfw: (opts) => ipcRenderer.invoke('check-image-nsfw', opts),
   batchCheckNsfw: (opts) => ipcRenderer.invoke('batch-check-nsfw', opts),
   img2img: (opts) => ipcRenderer.invoke('img2img', opts),

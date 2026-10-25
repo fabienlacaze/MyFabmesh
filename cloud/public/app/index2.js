@@ -18,8 +18,10 @@ import { Viewer3D } from './lib/Viewer3D.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
-import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif } from './lib/composeur-intention.js';
+import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
+  positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
+import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
 // tampon de clonage 3D, qui lance des centaines de raycasts par coup de
@@ -359,7 +361,8 @@ async function uploadClientMeshResult(bytes, opType, extra = {}) {
 const ENGINE_LABELS = {
   // Image engines
   'img_balanced':     'Balanced (quality/speed)',
-  'local-lightning':'Fast (Turbo ⚡ · ~4 steps)',
+  'local-lightning':'Fast (Turbo ⚡)',
+  'qwen-best':      'Best (highest quality)',
   // 3D engines — sf3d / local legacy IDs are silently rerouted to
   // the native engine at dispatch.
   'sf3d':           'MyFabmesh.AI 3D Native (rerouted)',
@@ -657,51 +660,383 @@ function promptBuyCredits(message) {
  *
  * La signature reste identique au bureau (async, meme nom, meme retour) :
  * le jour ou une route de traduction existe, seul ce corps change. */
-async function translateUserPrompt(text, opts) {
-  // opts.silencieux (2026-10-20) : traduction faite en TAPANT (analyse de « Modify image ») — ne pas allumer le « Translating… » des zones de prompt.
-  const silencieux = !!(opts && opts.silencieux);
-  // 2026-09-29 (user : « on doit taper dans la langue de l'appli ») : meme regle que le bureau — la langue de
-  // l'INTERFACE est la langue source, traduite en anglais par /api/translate (Workers AI). en / echec : inchange.
-  // Plafond dur de 8 s : une traduction lente ne doit jamais figer l'interface.
-  if (!text || !String(text).trim()) return (text && String(text)) || '';
+// --- TRADUCTION COMMUNE : DEBUT ---
+/* TRADUCTION DU TEXTE DE L'UTILISATEUR — BLOC IDENTIQUE bureau / web (2026-10-13, lot 2 de l'audit de la langue du 11/10 ;
+ * tests/bureau-interface/traduction-client.test.mjs compare les deux exemplaires et les execute).
+ *  - Langue SOURCE = langue du TEXTE (lib/langue-texte.js) ; l'interface ne sert que sans indice. Avant : la langue de l'interface seule
+ *    (un texte allemand sous une interface anglaise partait brut ; un prompt anglais sur trois repartait au traducteur « depuis le
+ *    francais » : TRADUCTION-01/06/07, CHAMPS-04).
+ *  - traduireTexteUtilisateur rend { texte, traduit, echec, langue, raison } : un ECHEC n'est plus confondu avec « rien a traduire »
+ *    (TRADUCTION-03, CHAMPS-05, SERVEUR-03 : delai, quota, session, modele absent... rendaient le texte d'origine EN SILENCE).
+ *  - _traduirePourGeneration : une generation PAYANTE ne part jamais avec un texte non traduit sans l'accord de l'utilisateur (fenetre
+ *    « Reessayer / Envoyer tel quel », Echap = annuler : rien n'est lance ni debite). « Tel quel » est transmis au serveur
+ *    (langueVerifiee), dont le filet de langue respecte le choix.
+ *  - Cache des traductions reussies : un meme texte n'est traduit qu'une fois par session.
+ * Plafond dur de 8 s : une traduction lente ne fige jamais l'interface ; au-dela c'est un ECHEC, plus un succes silencieux. */
+const _cacheTraductions = new Map();
+let _etatTraduction = 'ok';   // 'ok' | 'echec' (dernier essai rate) | 'indisponible' (bureau : aucun traducteur) ; l'aide de langue le dit
+/** Langue de l'INTERFACE, lue a UN seul endroit (avant : l'aide lisait le selecteur, la traduction localStorage seul : TRADUCTION-17). */
+function _langueInterface() {
   let lang = 'en';
-  try { lang = (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
-  if (lang === 'en') return String(text);
-  if (_ressembleAnglais(text)) return String(text);  // deja de l'anglais (champ modifie a la main) : ne pas le repasser par le francais
-  if (!silencieux) { try { _setPromptBusy(TRANSLATING_MSG); } catch (_) {} }
-  try {
-    const r = await Promise.race([
-      API.translatePrompt({ text: String(text), from: lang }),
-      new Promise((res) => setTimeout(() => res(null), 8000)),
-    ]);
-    return (r && r.text) ? _corrigerFauxAmis(text, r.text, lang) : String(text);
-  } catch (_) { return String(text); }
-  finally { if (!silencieux) { try { _clearPromptBusy(); } catch (_) {} } }
+  try { lang = document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || 'en'; } catch (_) {}
+  return normaliserCodeLangue(lang) || 'en';
 }
+function _majEtatTraduction(etat) {
+  if (_etatTraduction === etat) return;
+  _etatTraduction = etat;
+  try { _updatePromptLangHint(); } catch (_) {}
+}
+function _occupationTraduction(active) {
+  try { if (active) _setPromptBusy(TRANSLATING_MSG); else _clearPromptBusy(); } catch (_) {}
+}
+/** Vrai si le texte est deja de l'anglais (detection commune lib/langue-texte.js ; ancien nom garde pour les appelants). */
+function _ressembleAnglais(texte) { return ressembleAnglais(texte); }
+/** Traduit le texte de l'utilisateur vers l'anglais : { texte, traduit, echec, langue, raison }. Jamais d'exception. */
+async function traduireTexteUtilisateur(text, { plafondMs = 8000, silencieux = false } = {}) {
+  const brut = text == null ? '' : String(text);
+  if (!brut.trim()) return { texte: brut, traduit: false, langue: null };
+  const de = langueSource(brut, _langueInterface());
+  if (!de) return { texte: brut, traduit: false, langue: 'en' };
+  const cle = de + '|' + brut;
+  if (_cacheTraductions.has(cle)) return { texte: _cacheTraductions.get(cle), traduit: true, langue: de };
+  let r = null;
+  let raison = 'failed';
+  if (!silencieux) _occupationTraduction(true);   // silencieux : traduction faite en TAPANT (analyse de Modify image), sans allumer le Translating... des zones de prompt
+  try {
+    r = await Promise.race([
+      Promise.resolve(window.meshyAPI?.translatePrompt?.({ text: brut, from: de })),
+      new Promise((res) => setTimeout(() => res({ __delai: true }), plafondMs)),
+    ]);
+  } catch (_) { r = null; raison = 'error'; }
+  finally { if (!silencieux) _occupationTraduction(false); }
+  if (r && r.raison === 'already-english') return { texte: brut, traduit: false, langue: 'en' };
+  const sortie = (r && typeof r.text === 'string') ? r.text.trim() : '';
+  const ok = !!sortie && (r.translated === true || (r.translated === undefined && !r.__delai && sortie !== brut.trim()));
+  if (!ok) {
+    if (r && r.__delai) raison = 'timeout';
+    else if (r && typeof r.raison === 'string' && r.raison) raison = r.raison;
+    else if (r && r.pending) raison = 'model-downloading';
+    else if (r && r.status === 429) raison = 'rate-limited';
+    else if (r && (r.status === 401 || r.needsCloudLogin)) raison = 'signed-out';
+    _majEtatTraduction('echec');
+    // portee du plafond atteint ('heure' | 'jour' | 'jour-compte') : le message dit LEQUEL (avant : « cette heure-ci » meme au plafond du JOUR)
+    const portee = (raison === 'rate-limited' && r && typeof r.portee === 'string') ? r.portee : undefined;
+    return { texte: brut, traduit: false, echec: true, langue: de, raison, ...(portee ? { portee } : {}) };
+  }
+  const final = _corrigerFauxAmis(brut, sortie, de);
+  if (_cacheTraductions.size > 300) _cacheTraductions.clear();
+  _cacheTraductions.set(cle, final);
+  _majEtatTraduction('ok');
+  return { texte: final, traduit: true, langue: de };
+}
+/** Ancienne signature (texte -> texte), pour les usages SANS generation payante (apercus, detection du type) : texte d'origine si echec. */
+async function translateUserPrompt(text) { return (await traduireTexteUtilisateur(text)).texte; }
+/** Texte ANGLAIS pour une generation PAYANTE : { texte, telQuel } ; null si la traduction a echoue et que l'utilisateur a annule. */
+async function _traduirePourGeneration(text) {
+  for (;;) {
+    const r = await traduireTexteUtilisateur(text);
+    if (!r.echec) return { texte: r.texte, telQuel: false };
+    const choix = await _choixTraductionEchouee(r);
+    if (choix === 'tel-quel') return { texte: r.texte, telQuel: true };
+    if (choix !== 'reessayer') return null;
+  }
+}
+const MSG_TRADUCTION = {
+  fr: { titre: "Traduction impossible", reessayer: "Réessayer", telQuel: "Envoyer tel quel",
+    message: "Ta description n'a pas pu être traduite en anglais ({raison}). Le moteur d'image ne comprend bien que l'anglais : envoyée telle quelle, l'image risque de ne pas lui correspondre. Échap pour annuler (rien n'est lancé ni débité).",
+    enhance: "Traduction impossible ({raison}) : ta description est restée telle quelle. Réessaie, ou écris-la en anglais.",
+    aide: "⚠️ traduction indisponible pour l'instant : écris en anglais ou réessaie",
+    aideAucun: "⚠️ aucun traducteur (moteur IA local absent, compte MyFabmesh non connecté) : écris en anglais",
+    raisons: { timeout: "délai dépassé", failed: "traducteur indisponible", error: "traducteur indisponible", unavailable: "traducteur indisponible",
+      "model-downloading": "modèle de langue en cours de téléchargement, réessaie dans un instant", "rate-limited": "trop de traductions cette heure-ci",
+      "rate-limited-jour": "limite quotidienne de traductions du service atteinte, réessaie demain ou écris en anglais", "rate-limited-jour-compte": "ton compte a atteint sa limite quotidienne de traductions",
+      "too-long": "texte trop long", "signed-out": "session expirée, reconnecte-toi", "no-engine": "aucun traducteur : moteur IA local absent et compte MyFabmesh non connecté",
+      unsupported: "langue non prise en charge", "unknown-language": "langue non reconnue" } },
+  en: { titre: "Translation failed", reessayer: "Retry", telQuel: "Send as is",
+    message: "Your description could not be translated into English ({raison}). The image engine only really understands English: sent as is, the image may not match it. Press Escape to cancel (nothing is started or charged).",
+    enhance: "Translation failed ({raison}): your description was left as is. Retry, or write it in English.",
+    aide: "⚠️ translation unavailable right now: write in English or retry",
+    aideAucun: "⚠️ no translator (local AI engine missing, not signed in to MyFabmesh): write in English",
+    raisons: { timeout: "timed out", failed: "translator unavailable", error: "translator unavailable", unavailable: "translator unavailable",
+      "model-downloading": "language model still downloading, retry in a moment", "rate-limited": "too many translations this hour",
+      "rate-limited-jour": "the service's daily translation limit has been reached, try again tomorrow or write in English", "rate-limited-jour-compte": "your account has reached its daily translation limit",
+      "too-long": "text too long", "signed-out": "session expired, sign in again", "no-engine": "no translator: local AI engine missing and not signed in to MyFabmesh",
+      unsupported: "language not supported", "unknown-language": "language not recognised" } },
+  es: { titre: "Traducción imposible", reessayer: "Reintentar", telQuel: "Enviar tal cual",
+    message: "Tu descripción no se pudo traducir al inglés ({raison}). El motor de imágenes solo entiende bien el inglés: enviada tal cual, la imagen puede no corresponder. Pulsa Esc para cancelar (no se lanza ni se cobra nada).",
+    enhance: "Traducción imposible ({raison}): tu descripción se quedó tal cual. Reintenta o escríbela en inglés.",
+    aide: "⚠️ traducción no disponible ahora: escribe en inglés o reintenta",
+    aideAucun: "⚠️ sin traductor (motor de IA local ausente, sin sesión en MyFabmesh): escribe en inglés",
+    raisons: { timeout: "tiempo agotado", failed: "traductor no disponible", error: "traductor no disponible", unavailable: "traductor no disponible",
+      "model-downloading": "modelo de idioma descargándose, reintenta en un momento", "rate-limited": "demasiadas traducciones esta hora",
+      "rate-limited-jour": "se alcanzó el límite diario de traducciones del servicio, reintenta mañana o escribe en inglés", "rate-limited-jour-compte": "tu cuenta alcanzó su límite diario de traducciones",
+      "too-long": "texto demasiado largo", "signed-out": "sesión caducada, vuelve a iniciar sesión", "no-engine": "sin traductor: motor de IA local ausente y sin sesión en MyFabmesh",
+      unsupported: "idioma no admitido", "unknown-language": "idioma no reconocido" } },
+  zh: { titre: "无法翻译", reessayer: "重试", telQuel: "按原样发送",
+    message: "您的描述无法翻译成英文（{raison}）。图像引擎只能很好地理解英文：按原样发送，图像可能与描述不符。按 Esc 取消（不会启动或扣费）。",
+    enhance: "无法翻译（{raison}）：您的描述保持不变。请重试，或用英文书写。",
+    aide: "⚠️ 暂时无法翻译：请用英文书写或重试",
+    aideAucun: "⚠️ 没有翻译器（本地 AI 引擎缺失，未登录 MyFabmesh）：请用英文书写",
+    raisons: { timeout: "超时", failed: "翻译器不可用", error: "翻译器不可用", unavailable: "翻译器不可用",
+      "model-downloading": "语言模型正在下载，请稍后重试", "rate-limited": "本小时翻译次数过多",
+      "rate-limited-jour": "服务的每日翻译额度已用完，请明天再试或用英文书写", "rate-limited-jour-compte": "您的账户已达到每日翻译上限",
+      "too-long": "文本过长", "signed-out": "会话已过期，请重新登录", "no-engine": "没有翻译器：本地 AI 引擎缺失且未登录 MyFabmesh",
+      unsupported: "不支持该语言", "unknown-language": "无法识别语言" } },
+  hi: { titre: "अनुवाद नहीं हो सका", reessayer: "फिर से कोशिश करें", telQuel: "जैसा है वैसा भेजें",
+    message: "आपका विवरण अंग्रेज़ी में अनुवादित नहीं हो सका ({raison})। इमेज इंजन ठीक से केवल अंग्रेज़ी समझता है: जैसा है वैसा भेजने पर छवि मेल न खाए। रद्द करने के लिए Esc दबाएँ (कुछ भी शुरू या चार्ज नहीं होगा)।",
+    enhance: "अनुवाद नहीं हो सका ({raison}): आपका विवरण जैसा था वैसा ही है। फिर से कोशिश करें, या अंग्रेज़ी में लिखें।",
+    aide: "⚠️ अभी अनुवाद उपलब्ध नहीं: अंग्रेज़ी में लिखें या फिर से कोशिश करें",
+    aideAucun: "⚠️ कोई अनुवादक नहीं (स्थानीय AI इंजन नहीं, MyFabmesh में लॉग इन नहीं): अंग्रेज़ी में लिखें",
+    raisons: { timeout: "समय समाप्त", failed: "अनुवादक उपलब्ध नहीं", error: "अनुवादक उपलब्ध नहीं", unavailable: "अनुवादक उपलब्ध नहीं",
+      "model-downloading": "भाषा मॉडल डाउनलोड हो रहा है, थोड़ी देर में फिर कोशिश करें", "rate-limited": "इस घंटे बहुत अधिक अनुवाद",
+      "rate-limited-jour": "सेवा की दैनिक अनुवाद सीमा पूरी हो गई है, कल फिर कोशिश करें या अंग्रेज़ी में लिखें", "rate-limited-jour-compte": "आपके खाते की दैनिक अनुवाद सीमा पूरी हो गई है",
+      "too-long": "पाठ बहुत लंबा है", "signed-out": "सत्र समाप्त, फिर से लॉग इन करें", "no-engine": "कोई अनुवादक नहीं: स्थानीय AI इंजन नहीं और MyFabmesh में लॉग इन नहीं",
+      unsupported: "भाषा समर्थित नहीं", "unknown-language": "भाषा पहचानी नहीं गई" } },
+  ar: { titre: "تعذّرت الترجمة", reessayer: "إعادة المحاولة", telQuel: "إرسال كما هو",
+    message: "تعذّرت ترجمة وصفك إلى الإنجليزية ({raison}). محرك الصور لا يفهم جيدًا إلا الإنجليزية: إذا أُرسل كما هو فقد لا تطابقه الصورة. اضغط Esc للإلغاء (لن يبدأ شيء ولن يُخصم شيء).",
+    enhance: "تعذّرت الترجمة ({raison}): بقي وصفك كما هو. أعد المحاولة أو اكتبه بالإنجليزية.",
+    aide: "⚠️ الترجمة غير متاحة حاليًا: اكتب بالإنجليزية أو أعد المحاولة",
+    aideAucun: "⚠️ لا يوجد مترجم (محرك الذكاء الاصطناعي المحلي غير موجود، وغير مسجّل في MyFabmesh): اكتب بالإنجليزية",
+    raisons: { timeout: "انتهت المهلة", failed: "المترجم غير متاح", error: "المترجم غير متاح", unavailable: "المترجم غير متاح",
+      "model-downloading": "نموذج اللغة قيد التنزيل، أعد المحاولة بعد قليل", "rate-limited": "ترجمات كثيرة جدًا في هذه الساعة",
+      "rate-limited-jour": "تم بلوغ الحد اليومي للترجمة في الخدمة، أعد المحاولة غدًا أو اكتب بالإنجليزية", "rate-limited-jour-compte": "بلغ حسابك حده اليومي من الترجمات",
+      "too-long": "النص طويل جدًا", "signed-out": "انتهت الجلسة، سجّل الدخول من جديد", "no-engine": "لا يوجد مترجم: محرك الذكاء الاصطناعي المحلي غير موجود وغير مسجّل في MyFabmesh",
+      unsupported: "اللغة غير مدعومة", "unknown-language": "لم يتم التعرف على اللغة" } },
+};
+/** Message de traduction dans la langue de l'interface : _messageTraduction('enhance', r) ; {raison} remplace par la raison traduite. */
+function _messageTraduction(cle, r) {
+  const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
+  const raison = (r && r.portee && M.raisons[r.raison + '-' + r.portee]) || (r && M.raisons[r.raison]) || M.raisons.failed;
+  return String(M[cle] || MSG_TRADUCTION.en[cle] || '').replace('{raison}', raison);
+}
+/** Fenetre « traduction impossible » : 'reessayer' | 'tel-quel' | 'annuler' (Echap, clic a cote). Reprend la fenetre de confirmation. */
+function _choixTraductionEchouee(r) {
+  const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
+  const modal = document.getElementById('modal-confirm');
+  const titre = document.getElementById('confirm-title');
+  const msg = document.getElementById('confirm-message');
+  const ok = document.getElementById('confirm-ok');
+  const annuler = document.getElementById('confirm-cancel');
+  if (!modal || !titre || !msg || !ok || !annuler) {
+    return Promise.resolve(window.confirm(_messageTraduction('message', r) + '\n\n' + M.telQuel + ' ?') ? 'tel-quel' : 'annuler');
+  }
+  titre.textContent = M.titre;
+  msg.textContent = _messageTraduction('message', r);
+  const okAvant = ok.textContent, annulerAvant = annuler.textContent, dangerAvant = ok.classList.contains('danger'), zAvant = modal.style.zIndex;
+  ok.textContent = M.reessayer;
+  ok.classList.remove('danger');
+  annuler.textContent = M.telQuel;
+  annuler.style.display = '';
+  modal.style.zIndex = '10200';
+  modal.classList.remove('hidden');
+  return new Promise((resolve) => {
+    const fin = (choix) => {
+      modal.classList.add('hidden');
+      modal.style.zIndex = zAvant;
+      ok.textContent = okAvant;
+      annuler.textContent = annulerAvant;
+      if (dangerAvant) ok.classList.add('danger');
+      ok.removeEventListener('click', surOk);
+      annuler.removeEventListener('click', surTelQuel);
+      modal.removeEventListener('click', surFond);
+      document.removeEventListener('keydown', surTouche);
+      resolve(choix);
+    };
+    const surOk = () => fin('reessayer');
+    const surTelQuel = () => fin('tel-quel');
+    const surFond = (e) => { if (e.target === modal) fin('annuler'); };
+    const surTouche = (e) => { if (e.key === 'Escape') fin('annuler'); };
+    ok.addEventListener('click', surOk);
+    annuler.addEventListener('click', surTelQuel);
+    modal.addEventListener('click', surFond);
+    document.addEventListener('keydown', surTouche);
+    setTimeout(() => { try { ok.focus(); } catch (_) {} }, 50);
+  });
+}
+/* AVERTISSEMENTS AVANT DEPENSE (24/10, audit des prompts m5 / M12). Rien n'est modifie, rien n'est lance ni debite tant que l'utilisateur n'a pas choisi :
+ *  - texte de 55 mots ou plus (saisi OU traduit) : le moteur lit tout, mais la fin pese moins et le cadrage / la pose / le fond du gabarit sont repousses tres loin ;
+ *  - texte de plus de 2 000 caracteres : le serveur le refuse (seul « Modifier mon texte » est propose) ;
+ *  - la demande contredit le gabarit (pose assise avec la case T-pose cochee, plusieurs personnages, vue particuliere, buste) : continuer tel quel, ou decocher T-pose.
+ * Les regles eteintes du composeur ne sont PAS allumees : le prompt envoye reste identique a l'octet. Detecteur : lib/composeur-intention.js detecterAvertissements. */
+const _TEXTES_AVERTISSEMENT = {
+  'texte-long': 'Your description is {x} words long. The image engine reads it in blocks: the end counts less, and the framing, pose and background instructions the app adds after your text are pushed far down and are often ignored. Shorten it to stay faithful, or continue as it is.',
+  'texte-long-bride': 'Your description is {x} words long: the Balanced engine reads about 55 words well (the end counts less and the framing instructions get ignored). Shorten it, or switch to the Fast engine, which reads the whole text.',
+  'texte-trop-long': 'Your description is longer than 2,000 characters. The server will refuse it: shorten it before generating.',
+  'pose-incompatible-avec-tpose': 'You describe a pose (sitting, riding, crossed arms...) but the T-pose box is checked: the template forces a standing T-pose with open hands.',
+  'quantite-deux-personnages-gabarit-un-seul': 'You describe several characters, but the template draws one single character.',
+  'vue-demandee-gabarit-de-face': 'You ask for a particular view, but the template asks for a front view.',
+  'buste-gabarit-corps-entier': 'You ask for a portrait or a bust, but the template asks for a full body.',
+  'negations-en-trop': "You list more than {x} things to avoid (no X, without X). Only the first {y} are applied as exclusions; the others are removed from your description and may still appear. Shorten the list.",
+};
+function _nbMotsAvertissement(...textes) {
+  let n = 0;
+  for (const t of textes) n = Math.max(n, String(t || '').split(/\s+/).filter(Boolean).length);
+  return n;
+}
+/** Bridage du moteur Equilibre (decision du user, 25/10) : un texte de plus de ~55 mots ne peut plus etre lance tel quel avec ce moteur (il lit par blocs, la fin compte moins) ;
+ *  il faut le raccourcir ou passer sur Rapide / Meilleur, qui lisent tout. Seulement sur le SITE (l'option « Meilleur » existe) : le bureau n'a pas de moteur qui lit tout le texte. */
+function _bridageEquilibre(codes) {
+  const sel = document.getElementById('ws-engine');
+  return !!(codes.includes('texte-long') && sel && [...sel.options].some((o) => o.value === 'qwen-best') && sel.value !== 'local-lightning' && sel.value !== 'qwen-best');
+}
+/** Fenetre « Verifier avant de generer » : 'continuer' | 'decocher' | 'annuler' (Echap, clic a cote, « Modifier mon texte »). Le focus est sur « Modifier mon texte » :
+ *  Entree ne depense jamais de credits par megarde. */
+function _confirmerAvertissements(codes, textes) {
+  const nbMots = _nbMotsAvertissement(...(textes || []));
+  const bride = _bridageEquilibre(codes);
+  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[bride ? 'texte-long-bride' : c], nbMots) : (c === 'negations-en-trop' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], NEG_MAX_LONG, NEG_MAX_LONG) : _i18nT(_TEXTES_AVERTISSEMENT[c])))).filter(Boolean);
+  return new Promise((resolve) => {
+    const fond = document.createElement('div');
+    fond.className = 'modal-overlay';
+    fond.id = 'modal-avertissement-prompt';
+    fond.style.zIndex = '10200';
+    const carte = document.createElement('div');
+    carte.className = 'modal-card';
+    carte.style.cssText = 'width:480px; max-width:92vw; padding:0;';
+    const tete = document.createElement('div');
+    tete.style.cssText = 'padding:14px 18px; border-bottom:1px solid var(--border); background:var(--bg-1);';
+    const titre = document.createElement('h3');
+    titre.style.cssText = 'margin:0; font-size:14px;';
+    titre.textContent = '\u26A0\uFE0F ' + _i18nT('Check before generating');
+    tete.appendChild(titre);
+    const corps = document.createElement('div');
+    corps.style.cssText = 'padding:16px 18px;';
+    const liste = document.createElement('ul');
+    liste.style.cssText = 'margin:0; padding-left:18px; line-height:1.5; color:var(--text-1);';
+    for (const l of lignes) { const li = document.createElement('li'); li.style.marginBottom = '6px'; li.textContent = l; liste.appendChild(li); }
+    corps.appendChild(liste);
+    const pied = document.createElement('div');
+    pied.style.cssText = 'padding:12px 18px; border-top:1px solid var(--border); background:var(--bg-1); display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;';
+    const bouton = (texte, classe, choix) => {
+      const b = document.createElement('button');
+      b.className = classe;
+      b.style.padding = '6px 16px';
+      b.textContent = _i18nT(texte);
+      b.addEventListener('click', () => fin(choix));
+      pied.appendChild(b);
+      return b;
+    };
+    const modifier = bouton('Edit my text', 'ghost-btn', 'annuler');
+    if (codes.includes('pose-incompatible-avec-tpose')) bouton('Uncheck T-pose and continue', 'ghost-btn', 'decocher');
+    // Texte long : le moteur « Fast » lit TOUT le texte (pas de blocs de 75 mots-cles) ; proposition en un clic quand ce moteur existe et n'est pas deja choisi (25/10)
+    const _selMoteur = document.getElementById('ws-engine');
+    if (codes.includes('texte-long') && _selMoteur && _selMoteur.value !== 'local-lightning' && _selMoteur.value !== 'qwen-best'
+        && [..._selMoteur.options].some((o) => o.value === 'qwen-best')) bouton('Use the Fast engine (reads the whole text)', bride ? 'primary-btn' : 'ghost-btn', 'moteur-rapide');
+    if (!codes.includes('texte-trop-long') && !bride) bouton('Continue anyway', 'primary-btn', 'continuer');
+    carte.append(tete, corps, pied);
+    fond.appendChild(carte);
+    const surFond = (e) => { if (e.target === fond) fin('annuler'); };
+    const surTouche = (e) => { if (e.key === 'Escape') fin('annuler'); };
+    function fin(choix) {
+      fond.removeEventListener('click', surFond);
+      document.removeEventListener('keydown', surTouche);
+      try { fond.remove(); } catch (_) {}
+      resolve(choix);
+    }
+    fond.addEventListener('click', surFond);
+    document.addEventListener('keydown', surTouche);
+    document.body.appendChild(fond);
+    setTimeout(() => { try { modifier.focus(); } catch (_) {} }, 50);
+  });
+}
+/** Etape commune a « Generate » (bureau et site) : false = l'utilisateur annule, rien n'est lance. Decocher T-pose se fait AVANT la fabrication du prompt. */
+async function _verifierAvantDepense(p, texteSaisi, texteAnglais, assetType) {
+  try {
+    if (!composeurActif()) return true;
+    let avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
+    // Moteurs « Rapide » (Z-Image Turbo) et « Meilleur » (Qwen) : encodeur de TEXTE complet, pas de lecture par blocs de 75 jetons : l'avertissement
+    // « description trop longue » (specifique a SDXL) n'a pas lieu d'etre. Le refus serveur des textes de plus de 2 000 caracteres reste signale.
+    const _selMenu = document.getElementById('ws-engine'), _moteurMenu = _selMenu?.value;
+    // (SITE seulement : sur le bureau, « local-lightning » est un autre moteur, qui lit par blocs comme les autres)
+    if (_selMenu && _selMenu.querySelector('option[value="qwen-best"]') && (_moteurMenu === 'local-lightning' || _moteurMenu === 'qwen-best')) avert = avert.filter((c) => c !== 'texte-long');
+    if (!avert.length) return true;
+    const choix = await _confirmerAvertissements(avert, [texteSaisi, texteAnglais]);
+    if (choix === 'annuler') return false;
+    if (choix === 'moteur-rapide') {
+      const sel = document.getElementById('ws-engine');
+      if (sel) { sel.value = 'local-lightning'; try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
+    }
+    if (choix === 'decocher') {
+      const cb = document.getElementById('ws-tpose');
+      if (cb) { cb.checked = false; try { cb.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
+      try { _saveProjectMeta(p.name, { tpose: false }); } catch (_) {}
+    }
+    return true;
+  } catch (e) { console.warn('[avertissements] ignore :', e && e.message); return true; }
+}
+/** Indice texte de la VUE DE DOS, en anglais (audit TRADUCTION-05 / CHAMPS-08 : on envoyait le texte d'ORIGINE de l'utilisateur). */
+async function _indiceDosAnglais(brut) {
+  const base = stripKnownPromptSuffixes(String(brut || ''));
+  if (!base.trim()) return { texte: '', telQuel: false };
+  const tr = await _traduirePourGeneration(base);
+  // NEGATIONS de l'utilisateur (« no helmet ») : la vue de dos n'a pas de canal negatif, le modele dessinerait « helmet » -> texte sans les locutions
+  // (apres la traduction : c'est sur l'anglais que _sansNegations reconnait les locutions).
+  return tr ? Object.assign({}, tr, { texte: _sansNegations(tr.texte) }) : tr;
+}
+/** Texte de l'utilisateur EN ANGLAIS depuis le champ « Describe your asset » (Generate) : gabarit retire, reste traduit s'il n'est pas
+ *  deja anglais. La decision se prend sur le CONTENU, plus sur la presence d'un mot du gabarit (MANQUE-01, CHAMPS-06/23). null = annule. */
+async function _texteUtilisateurPourGeneration(champ) {
+  return _traduirePourGeneration(stripKnownPromptSuffixes(String(champ || '').trim()));
+}
+// pour index2-edit-tools.js (script classique, hors du module) : « Replace with » du Paint-mask
+try { window.fabmeshTraduirePourGeneration = (t) => _traduirePourGeneration(t); } catch (_) {}
+// --- TRADUCTION COMMUNE : FIN ---
 
 // Aide de langue sous « Generation prompt » / « Description » (portee du bureau, 2026-10-01) : sans elle, le texte tape en francais
 // devenait de l'anglais SANS explication (user : « le prompt automatique a l'air de se melanger avec la traduction »).
-const PROMPT_LANG_HINT = {
-  fr: "✍️ écris dans ta langue (traduit auto en anglais)",
-  es: "✍️ escribe en tu idioma (traducido auto)",
-  zh: "✍️ 用你的语言（自动翻译成英文）",
-  hi: "✍️ अपनी भाषा में (स्वतः अनुवादित)",
-  ar: "✍️ بلغتك (تُترجم تلقائيًا)",
-  en: "",
+// 2026-10-13 (lot 2 de l'audit de la langue) : la langue du TEXTE est detectee, donc l'interface anglaise accepte aussi une autre langue ;
+// l'aide dit enfin quand la traduction est indisponible (TRADUCTION-01/03, CHAMPS-16) au lieu de promettre « traduit auto » en toutes
+// circonstances.
+// --- AIDE DE LANGUE : DEBUT ---
+// 2026-10-24 (correction des prompts, chantier B « aide de langue ») : UNE aide sous CHAQUE champ ou l'utilisateur ecrit un prompt
+// (<div class="prompt-lang-hint" data-pour="<id du champ>">), qui dit ce qui est VRAI pour CET outil sur CETTE plateforme. Avant : 2 champs
+// sur 14, une promesse figee « traduit auto » meme quand la traduction etait absente, une aide COUPEE par une ellipse (nowrap), et le meme
+// texte dans les cinq langues avec trois formulations (« vers l'anglais » absent en es, hi, ar).
+//  - traduction active pour ce champ  -> « ecris dans ta langue ; on traduit vers l'anglais pour l'IA (l'anglais passe tel quel) » ;
+//  - champ NON traduit sur cette plateforme (CHAMPS_PROMPT_SANS_TRADUCTION) -> « ecris en anglais pour de meilleurs resultats » ;
+//  - traducteur absent / dernier essai rate (etat reel de traduireTexteUtilisateur) -> le message d'etat, pour les champs traduits.
+// Les textes sont les cles prompt.aide.* des dictionnaires (lang/_additions6.js) ; la version anglaise ci-dessous est celle de l'interface en anglais.
+const AIDE_PROMPT_EN = {
+  trad: "Write in any language: we translate it to English for the AI (English is kept as is).",
+  // Interface en anglais (24/10, tour 2, bloquant B-b) : la langue du texte n'est alors PAS connue d'avance, et un texte etranger de 1 a 3
+  // mots sans article (« gato negro ») n'est pas reconnu avec assez de certitude pour etre traduit sans risquer un prompt anglais.
+  // L'aide ne promet donc pas « n'importe quelle langue » : elle dit ce qui est vrai.
+  tradEn: "Best written in English. Other languages are translated for the AI when the text is long enough to be recognised; a word or two may go through as typed.",
+  angl: "Write in English for the best results: this field is not translated.",
 };
+/** Champs de prompt dont le texte n'est PAS traduit avant d'atteindre l'IA sur cette plateforme (l'aide le dit au lieu de promettre). */
+const CHAMPS_PROMPT_SANS_TRADUCTION = new Set([]);
+/** Vrai si le texte saisi dans ce champ passe par la traduction vers l'anglais (meme fonction que la traduction : traduireTexteUtilisateur). */
+function _traductionActivePour(idChamp) { return !(idChamp && CHAMPS_PROMPT_SANS_TRADUCTION.has(idChamp)); }
+/** Texte de l'aide d'un champ, dans la langue de l'interface. Sans id (anciens appelants), le champ est suppose traduit. */
+function _texteAideLangue(idChamp) {
+  const M = MSG_TRADUCTION[_langueInterface()] || MSG_TRADUCTION.en;
+  const dico = (cle, repli) => {
+    let v = '';
+    try { if (typeof _i18nT === 'function') v = _i18nT(cle); } catch (_) {}
+    return (v && v !== cle) ? v : repli;
+  };
+  if (!_traductionActivePour(idChamp)) return '\u270D\uFE0F ' + dico('prompt.aide.angl', AIDE_PROMPT_EN.angl);
+  if (_etatTraduction === 'indisponible') return M.aideAucun;
+  if (_etatTraduction === 'echec') return M.aide;
+  if (_langueInterface() === 'en') return '\u270D\uFE0F ' + AIDE_PROMPT_EN.tradEn;
+  return '\u270D\uFE0F ' + dico('prompt.aide.trad', AIDE_PROMPT_EN.trad);
+}
+function _updatePromptLangHint() {
+  document.querySelectorAll('.prompt-lang-hint').forEach((el) => {
+    const txt = _texteAideLangue(el.dataset && el.dataset.pour);
+    el.textContent = txt;
+    el.style.display = txt ? '' : 'none';
+  });
+}
+// La langue de l'interface change : les aides se recalculent (l'evenement part APRES le changement de dictionnaire).
+try { window.addEventListener('fabmesh:langue', () => { try { _updatePromptLangHint(); } catch (_) {} }); } catch (_) {}
+// --- AIDE DE LANGUE : FIN ---
 const TRANSLATING_MSG = {
   fr: "Traduction de ta description…", es: "Traduciendo tu descripción…", zh: "正在翻译您的描述…",
   hi: "आपके विवरण का अनुवाद हो रहा है…", ar: "جارٍ ترجمة وصفك…", en: "Translating your description…",
 };
-function _langPrompt() {
-  let lang = 'en';
-  try { lang = (document.getElementById('lang-select')?.value || localStorage.getItem('fabmesh.lang') || 'en').toLowerCase(); } catch (_) {}
-  return lang;
-}
-function _updatePromptLangHint() {
-  const txt = PROMPT_LANG_HINT[_langPrompt()] || '';
-  document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = txt; el.style.display = txt ? '' : 'none'; });
-}
+function _langPrompt() { return _langueInterface(); }
 function _setPromptBusy(msgMap) {
   const msg = (msgMap && (msgMap[_langPrompt()] || msgMap.en)) || '';
   document.querySelectorAll('.prompt-lang-hint').forEach((el) => { el.textContent = '⏳ ' + msg; el.style.display = ''; });
@@ -757,6 +1092,54 @@ function showToast(message, type = 'info', durationMs = 3000) {
     setTimeout(() => toast.remove(), 300);
   }, durationMs);
 }
+
+// FEATURE B — toast de complétion NON-bloquant avec un bouton d'action. Remplace
+// l'ancien "saut auto" (scrollIntoView) à la fin d'une génération/import : la vue
+// ne saute plus toute seule — l'utilisateur clique le bouton pour scroller vers
+// (et faire pulser) l'élément fraîchement généré. Se ferme au clic ou après ~15s.
+// Réutilise #toast-container pour rester cohérent avec showToast.
+function showGoToToast(targetEl, message, label, onGo) {
+  if (!targetEl) return;
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none;';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.style.cssText = 'background:rgba(22,163,74,0.95); color:white; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; pointer-events:auto; box-shadow:0 4px 12px rgba(0,0,0,0.3); transition:opacity 0.3s; max-width:520px; display:flex; align-items:center; gap:12px;';
+  const span = document.createElement('span');
+  span.textContent = message || (_i18nT('Item generated') + ' ✅');
+  const btn = document.createElement('button');
+  btn.textContent = label || _i18nT('Go to the generated item');
+  btn.style.cssText = 'background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.55); border-radius:6px; padding:5px 12px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; flex:none;';
+  let hideTimer = null, removeTimer = null;
+  const dismiss = () => {
+    clearTimeout(hideTimer); clearTimeout(removeTimer);
+    toast.style.opacity = '0';
+    removeTimer = setTimeout(() => { try { toast.remove(); } catch (_) {} }, 300);
+  };
+  btn.addEventListener('click', () => {
+    try {
+      if (typeof onGo === 'function') {
+        onGo();
+      } else {
+        // Comportement d'origine du scrollIntoView remplacé, différé au clic.
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        targetEl.classList.add('pulse-highlight');
+        setTimeout(() => { try { targetEl.classList.remove('pulse-highlight'); } catch (_) {} }, 1500);
+      }
+    } catch (_) {}
+    dismiss();
+  });
+  toast.appendChild(span);
+  toast.appendChild(btn);
+  container.appendChild(toast);
+  hideTimer = setTimeout(dismiss, 15000);
+  return toast;
+}
+
 // expose for cloud-overrides.js (classic script, no module scope)
 window.showToast = showToast;
 window.customError = customError;   // pour index2-edit-tools.js (script classique)
@@ -1520,7 +1903,7 @@ async function renderProjectsGrid() {
       <button class="card-delete-btn" title="Delete project">&#10005;</button>
       <div class="project-card-thumb">
         ${p.thumb
-          ? `<img src="${_toFileUrl(p.thumb)}" alt="${p.name}">`
+          ? `<img src="${_toFileUrl(p.thumb)}" alt="${escapeHtml(p.displayName || p.name)}">`
           : `<span class="project-card-thumb-empty">No image</span>`}
       </div>
       <div class="project-card-body">
@@ -1804,14 +2187,46 @@ function _npAutoSync() {
   selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
   if (!actif) { _npAutoInfo(_i18nT('Choose the type and style yourself')); return; }
   const nom = document.getElementById('np-name')?.value || '';
-  const r = detecterTypeEtStyle((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom);
+  const texteNp = ((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom).trim();
+  let r = detecterTypeEtStyle(texteNp);
+  if (!r.type) {   // listes fr + en : un texte dans une autre langue est analyse sur sa TRADUCTION (voir _npTexteAnalyse)
+    const anglais = _npTexteAnalyse(texteNp);
+    if (anglais !== texteNp) { const r2 = detecterTypeEtStyle(anglais); r = { type: r2.type, style: r.style || r2.style }; }
+  }
   _npTypeMotsCles = r.type;
   const typeIa = (_npIaType && _npIaType.nom === nom.trim()) ? _npIaType.type : null;
   const type = r.type || typeIa;
   if (type && [...selT.options].some((o) => o.value === type)) selT.value = type;
   selS.value = (r.style && [...selS.options].some((o) => o.value === r.style)) ? r.style : 'realistic';
-  _npAutoInfo(nom.trim() || (desc && desc.value.trim()) ? _npResume()
-    : _i18nT('Type a name: the type, the style and the description are filled in for you'));
+  const saisi = !!(nom.trim() || (desc && desc.value.trim()));
+  // RIEN DE DETECTE (2026-10-13, MANQUE-02) : le menu du type reste LIBRE et l'info le dit. Avant : « Detected: Character » et le menu
+  // verrouille sur le personnage (gabarit T-pose) pour un « castillo medieval » ou un « 中世纪城堡 ».
+  if (!type && saisi) { selT.disabled = false; selT.style.opacity = ''; }
+  _npAutoInfo(!saisi ? _i18nT('Type a name: the type, the style and the description are filled in for you')
+    : (type ? _npResume() : (NP_TYPE_NON_DETECTE[_langueInterface()] || NP_TYPE_NON_DETECTE.en)));
+}
+/* Detection du type et du style dans la langue de l'utilisateur (2026-10-13, lot 2 de l'audit de la langue, MANQUE-02 / CHAMPS-10) :
+ * les listes de mots ne connaissent que le francais et l'anglais. Un texte dans une autre langue est TRADUIT (differe pendant la frappe,
+ * cache), puis analyse ; en attendant, le texte d'origine. */
+const NP_TYPE_NON_DETECTE = {
+  fr: "Type non détecté : choisis-le dans la liste", en: "Type not detected: pick it in the list",
+  es: "Tipo no detectado: elígelo en la lista", zh: "未检测到类型：请在列表中选择",
+  hi: "प्रकार पहचाना नहीं गया: सूची में से चुनें", ar: "لم يُكتشف النوع: اختره من القائمة",
+};
+const _npTraductions = new Map();
+let _npTradMinuteur = null;
+function _npTexteAnalyse(texte) {
+  if (!texte || !langueSource(texte, _langueInterface())) return texte;
+  if (_npTraductions.has(texte)) return (_npTraductions.get(texte) || '') + ' ' + texte;
+  clearTimeout(_npTradMinuteur);
+  _npTradMinuteur = setTimeout(async () => {
+    let r = null;
+    try { r = await traduireTexteUtilisateur(texte); } catch (_) { r = null; }
+    if (_npTraductions.size > 50) _npTraductions.clear();
+    _npTraductions.set(texte, r && !r.echec ? r.texte : '');
+    try { _npAutoSync(); } catch (_) {}
+  }, 700);
+  return texte;
 }
 function _npPlanifierRedaction() {
   clearTimeout(_npIaMinuteur);
@@ -1972,11 +2387,27 @@ document.getElementById('np-create').addEventListener('click', async () => {
       const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       return new RegExp('\\b' + escaped + '\\b').test(text);
     });
-    if (blocked) {
+    // 24/10 (audit des prompts, N3) : la liste de mots est ANGLAISE et le texte etait lu brut — un texte dans une autre langue passait. Le texte est
+    // aussi lu TRADUIT, et passe par le filtre complet du bureau (multilingue, memes regles que les outils), avec le nom du projet. Le serveur reste
+    // l'autorite a la generation ; ceci n'est qu'un controle d'ouverture. Echec de traduction : le texte brut est controle seul.
+    let refusFiltre = false;
+    if (!blocked && (name || prompt)) {
+      let traduit = '';
+      try { const tr = await traduireTexteUtilisateur(prompt); if (!tr.echec && tr.traduit) traduit = tr.texte; } catch (_) {}
+      try {
+        if (API.checkPromptText) {
+          const rf = await API.checkPromptText({ texts: [name, prompt, traduit].filter(Boolean) });
+          refusFiltre = !!(rf && rf.safe === false);
+        }
+      } catch (_) {}
+    }
+    if (blocked || refusFiltre) {
       // Show the block INSIDE the popup (not a toast) + an Unlock shortcut.
       const _msg = document.getElementById('np-block-msg');
       if (_msg) {
-        _msg.textContent = `Blocked: "${blocked}" is not allowed with parental control active. Unlock to disable the content filter.`;
+        _msg.textContent = blocked
+          ? _i18nTf('Blocked: "{x}" is not allowed with parental control active. Unlock to disable the content filter.', blocked)
+          : _i18nT('This description is not allowed with parental control active. Unlock to disable the content filter.');
         _msg.classList.remove('hidden');
       }
       const _ub = document.getElementById('np-unlock');
@@ -2941,10 +3372,13 @@ async function _preremplirPrompt(brut, assetType, assetStyle) {
   const jeton = (_preremplirPrompt._n = (_preremplirPrompt._n || 0) + 1);
   ta.dataset.rawPrompt = brut;
   ta.value = brut;
-  let anglais = brut;
-  try { anglais = (await translateUserPrompt(brut)) || brut; } catch (_) { /* texte d'origine */ }
+  let r = { texte: brut, echec: false };
+  try { r = await traduireTexteUtilisateur(brut); } catch (_) { r = { texte: brut, echec: true }; }
   if (jeton !== _preremplirPrompt._n || ta.value !== brut) return;
-  ta.value = buildFullPrompt(anglais, assetType, assetStyle);
+  // ECHEC de traduction (2026-10-13, audit TRADUCTION-03 / CHAMPS-21) : le texte reste BRUT, sans gabarit. Enrichi, il passait pour
+  // « deja traduit » et la generation ne le retraduisait jamais ; l'aide de langue dit l'echec et Generate retentera (et demandera).
+  if (r.echec) return;
+  ta.value = buildFullPrompt(r.texte || brut, assetType, assetStyle, { garderNegations: true });
 }
 
 function populateWorkspace(p) {
@@ -3225,6 +3659,7 @@ async function renderImageVersions(p) {
       <span class="v-used-badge" title="Used for next step">&#10003;</span>
       <span class="v-label">v${images.length - 1 - i}</span>
       <button class="version-delete-btn" title="Delete this version">&#10005;</button>
+      <button class="version-history-btn" title="${escapeHtml(_i18nT('View generation history'))}">&#9201;</button>
       ${emissiveBadge}
     `;
     t.addEventListener('click', () => {
@@ -3244,6 +3679,10 @@ async function renderImageVersions(p) {
       // bar stayed hidden even though the _multiview/ folder existed). Fires
       // after a short delay to let the DOM settle.
       setTimeout(() => { _checkMultiviewForCurrentImage(); }, 30);
+    });
+    t.querySelector('.version-history-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showGenerationHistory(img.path);   // 25/10 : historique d'une IMAGE (chaine generee <- modifiee <- rectifiee)
     });
     t.querySelector('.version-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -4156,8 +4595,17 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   const rawGuide = (document.getElementById('var-tex-prompt')?.value || '').trim();
   _varClose();
   const variantSource = p.selectedImagePath;
-  const prompt = (p.prompt || p.initialPrompt) || 'variation';
-  const guide = rawGuide ? await translateUserPrompt(rawGuide) : '';
+  // Guide ET texte du projet TRADUITS (2026-10-13, lot 2 de l'audit de la langue) : sans image generee, le texte du projet est la
+  // description d'ORIGINE (initialPrompt), dans la langue de l'utilisateur. Echec : l'utilisateur choisit, annule = rien n'est lance.
+  const _trGuide = rawGuide ? await _traduirePourGeneration(rawGuide) : { texte: '', telQuel: false };
+  if (!_trGuide) return;
+  const guide = _trGuide.texte;
+  // (le mot par defaut « variation » est le notre, deja anglais : jamais traduit, jamais de fenetre)
+  const _texteProjet = String(p.prompt || p.initialPrompt || '').trim();
+  const _trBase = _texteProjet ? await _traduirePourGeneration(_texteProjet) : { texte: 'variation', telQuel: false };
+  if (!_trBase) return;
+  const prompt = _sansNegations(_trBase.texte) || 'variation';   // le prompt du projet garde les negations de l'utilisateur : pas dans un prompt positif
+  const _langueVariante = (_trGuide.telQuel || _trBase.telQuel) || undefined;
   showToast(count > 1 ? _i18nTf('Generating {x} variants…', count) : _i18nT('Generating 1 variant…'), 'info', 2000);
   // UNE TUILE PAR VARIANTE, comme sur le bureau. La tuile unique precedente
   // restait a 0 % jusqu'a la derniere image : sur huit variantes, l'ecran
@@ -4173,10 +4621,10 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
       : null;
     try {
       const rv = _reglagesVarianteForme(strength, seed, guide,
-        p.assetType || document.getElementById('ws-asset-type')?.value, p.prompt || p.initialPrompt);
+        p.assetType || document.getElementById('ws-asset-type')?.value, prompt);
       const r = texMode
-        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs })
-        : await window.meshyAPI?.img2img({ imagePath: variantSource, prompt: (guide || prompt), strength, seed });
+        ? await window.meshyAPI?.texVariant({ imagePath: variantSource, prompt: rv.prompt, strength, seed, cnScale: rv.cnScale, gris: rv.gris, negPrompt: rv.neg, motifs: rv.motifs, langueVerifiee: _langueVariante })
+        : await window.meshyAPI?.img2img({ imagePath: variantSource, prompt: (guide || prompt), strength, seed, langueVerifiee: _langueVariante });
       if (!r?.success) throw new Error(r?.error || 'variant failed');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
     } catch (e) {
@@ -4214,6 +4662,14 @@ document.getElementById('mv-opt-start')?.addEventListener('click', async () => {
   const mode = document.getElementById('mv-opt-mode')?.value || '6view';
   const harmonize = document.getElementById('mv-opt-harmonize')?.checked ?? true;
   const upscale   = document.getElementById('mv-opt-upscale')?.checked ?? false;
+  // Indice texte de la vue de dos, TRADUIT avant toute action (2026-10-13, lot 2 : le texte d'origine partait au moteur, TRADUCTION-05) ;
+  // traduction impossible et annulee par l'utilisateur : rien n'est duplique ni lance.
+  let _indiceDos = { texte: '', telQuel: false };
+  if (mode === '2view') {
+    _indiceDos = await _indiceDosAnglais(document.getElementById('ws-prompt')?.dataset.rawPrompt
+                                         || document.getElementById('ws-prompt')?.value || '');
+    if (!_indiceDos) return;
+  }
 
   // Step 1: duplicate the image into a new version. The new version
   // will host the multi-view dir / back photo; the original image stays
@@ -4243,11 +4699,10 @@ document.getElementById('mv-opt-start')?.addEventListener('click', async () => {
     }, expectedMs, undefined, { sourceImageUrl: mvImagePath, projectName: p.name });
     showToast('Generating back photo...', 'info', 5000);
     try {
-      const rawPrompt = document.getElementById('ws-prompt')?.dataset.rawPrompt
-                        || document.getElementById('ws-prompt')?.value || '';
       const bv = await window.meshyAPI.generateBackView({
-        frontImage: mvImagePath, promptHint: rawPrompt, numImages: 1,
+        frontImage: mvImagePath, promptHint: _indiceDos.texte, numImages: 1,
         assetType: document.getElementById('ws-asset-type')?.value || 'character',
+        langueVerifiee: _indiceDos.telQuel || undefined,
       });
       if (bv?.success && bv.paths?.length) {
         showToast('Back photo ready', 'success');
@@ -5905,30 +6360,44 @@ function _parleDeVol(texte) {
   const t = String(texte || "").toLowerCase().replace(/œ/g, "oe").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return t.split(/[^a-z0-9]+/).some((m) => _MOTS_VOL.has(m));
 }
-const _DEMANDE_EN = /^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?)\s+(?:an?\s+|the\s+|some\s+|one\s+)?/i;
+const _DEMANDE_EN = /^\s*(?:(?:please|pls|hey|hello|hi)\b[ ,!.]*)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me)?|(?:i|we)\s+(?:really\s+|just\s+)?(?:want|need|wish|would\s+like)(?:\s+you)?(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:i|we)['’]d\s+like(?:\s+to)?(?:\s+(?:make|create|generate|draw|build|have|get))?|(?:please\s+)?(?:make|create|generate|draw|build)(?:\s+me\b|(?=\s+(?:an?|the|some|one)\b)))\s+(?:an?\s+|the\s+|some\s+|one\s+)?/i;
 const _DEMANDE_FR = /^\s*(?:s['’]il\s+(?:vous|te)\s+pla[iî]t[ ,]*)?(?:je\s+(?:veux|voudrais|souhaite|aimerais|voudrai)|on\s+veut|j['’]aimerais|(?:fais|cr[ée]e|g[ée]n[èe]re|dessine|fabrique)(?:-moi)?)\s+(?:(?:faire|cr[ée]er|g[ée]n[ée]rer|avoir|dessiner|fabriquer|obtenir)\s+)?(?:(?:un|une|des|le|la|les)\s+|l['’]\s*)?/i;
+/** Retire « please / thanks / thank you / merci » de la FIN du texte, avec la ponctuation qui l'entoure. MEME resultat que l'ancienne regle de _epurerDemande
+ *  (une regex ancree en fin de chaine) mais en temps lineaire : celle-ci etait quadratique sur de longues suites de blancs (4 s pour 100 000 blancs, mesure du
+ *  2026-10-03), et buildFullPrompt comme _negativeExtraDe passent par _epurerDemande. */
+function _retirerPolitesseFin(s) {
+  let b = s.length;
+  while (b > 0 && /[\s.!]/.test(s[b - 1])) b--;
+  const fin = s.slice(Math.max(0, b - 9), b).toLowerCase();
+  for (const mot of ['please', 'thanks', 'thank you', 'merci']) {
+    if (!fin.endsWith(mot)) continue;
+    const debut = b - mot.length;
+    if (debut > 0 && /\w/.test(s[debut - 1])) continue;       // \b : pas au milieu d'un mot
+    // « a card saying thank you », « a sign that reads please » (24/10, m16b) : le mot fait partie du SUJET quand il suit un mot qui annonce un texte ecrit
+    const _av = /([a-z]+)[\s,;:'"-]*$/i.exec(s.slice(Math.max(0, debut - 30), debut));
+    if (_av && (_retirerPolitesseFin._avant || (_retirerPolitesseFin._avant = new Set('saying says said reading reads read text words word written writes titled named called label labeled quote quoting spelling spells sign banner'.split(' ')))).has(_av[1].toLowerCase())) continue;
+    let a = debut;
+    while (a > 0 && /[\s,;.!]/.test(s[a - 1])) a--;
+    return s.slice(0, a);
+  }
+  return s;
+}
 /** Retire la phrase d'intention du debut (« I want to make a », « je veux faire un ») et la politesse de fin. Jamais vide. */
 function _epurerDemande(texte) {
   const brut = String(texte == null ? "" : texte);
-  const t = brut.replace(_DEMANDE_EN, "").replace(_DEMANDE_FR, "")
-    .replace(/[\s,;.!]*\b(?:please|thanks|thank you|merci)\b[\s.!]*$/i, "").trim();
+  const t = _retirerPolitesseFin(brut.replace(_DEMANDE_EN, "").replace(_DEMANDE_FR, "")).trim();
   return t.length >= 3 ? t : brut.trim();
 }
-/** Vrai si le texte est deja de l'anglais (aucune lettre accentuee ni ecriture non latine, des mots outils anglais, aucun mot outil fr / es / de). */
-function _ressembleAnglais(texte) {
-  const t = String(texte || "");
-  if (/[^\u0000-\u024f]/.test(t) || /[àâäãçéèêëîïôöõùûüÿñœæ¿¡ß]/i.test(t)) return false;
-  const EN = new Set("the a an and with of at to for is are has have his her its that who wearing holding from into while must stand standing".split(" "));
-  const AUTRE = new Set("le la les un une des du de et avec sur sous dans pour qui est au aux sans tres son sa ses il elle el los las y con por para que muy del al und mit der die das ein eine".split(" "));
-  let en = 0, autre = 0;
-  for (const m of (t.toLowerCase().match(/[a-z']+/g) || [])) { if (EN.has(m)) en++; if (AUTRE.has(m)) autre++; }
-  return en >= 2 && autre === 0;
-}
+/* _ressembleAnglais : remplacee le 2026-10-13 par la detection commune lib/langue-texte.js (bloc « TRADUCTION COMMUNE ») ; l'ancienne
+ * exigeait deux mots outils anglais et manquait 21 des 64 prompts anglais du proprietaire (« a red dragon », « A stone golem »...). */
 /** Faux amis connus apres traduction : « short » (le vetement) traduit par l'adjectif. */
 function _corrigerFauxAmis(source, traduit, lang) {
   let t = String(traduit || "");
-  if (lang === "fr" && /\bshorts?\b/i.test(String(source || ""))) {
-    t = t.replace(/\bshort\b(?!\s+(?:hair|tail|legs?|neck|snout|nose|fur|beard|ears?|arms?|sleeves?|horns?|beak|wings?|body|mane|time))/gi, "shorts");
+  if (lang === "fr" && /\bshorts?\b/i.test(String(source || "")) && !/\bshorts\b/i.test(t)) {
+    // « short » (le vetement) rendu au singulier : remplace SEULEMENT quand il est seul (fin de groupe, ou suivi d'une conjonction / preposition) ;
+    // jamais « short sword », « short hair », « short story » (24/10, audit m16a : « une epee courte et un short » donnait « a shorts sword »)
+    t = t.replace(/(\bthe\s+)?(?:\b(?:a|an|one)\s+)?\bshort\b(?=\s*(?:$|[,.;:!?)]|\b(?:and|with|in|on|that|which|made|of|for|to|at|from|under|over|but)\b))/gi,
+      (m, le) => (le || "") + "shorts");
   }
   return t;
 }
@@ -5940,8 +6409,37 @@ function _optionsPose(assetType) {
   return (cb && assetType === 'character' && !cb.checked) ? { tpose: false } : {};
 }
 
+/* NEGATIONS DE L'UTILISATEUR (2026-10-03, exigence numero 1 : « l'image doit correspondre EXACTEMENT au prompt »). Le modele d'image ne comprend pas la negation :
+ * dans « an orc, no helmet, holding a club » il voit « helmet » et le dessine. Avant, stripKnownPromptSuffixes SUPPRIMAIT en silence tout segment « no ... » du texte
+ * de l'utilisateur ; maintenant le texte garde sa negation, et c'est la GENERATION qui la sort du positif :
+ *   - buildFullPrompt (envoi) retire la locution du prompt envoye ; le terme (« helmet ») part au NEGATIF (champ `negativeExtra`, voir _negativeExtraDe) ;
+ *   - buildFullPrompt avec { garderNegations: true } (Enhance, pre-rempli, nouveau projet) GARDE la locution dans le texte AFFICHE : au « Generate » suivant, tout
+ *     est recalcule depuis la zone de texte, la negation y est donc encore. Le texte affiche n'est plus tout a fait ce que le moteur recoit (la negation est passee
+ *     au negatif), c'est le moindre mal : l'autre choix (la retirer de l'affichage) la perdait des l'etape Enhance.
+ * Interrupteur d'urgence : window.__composeurIntention = false -> ancien comportement (suppression par stripKnownPromptSuffixes, rien d'envoye au negatif). */
+/** Reglages d'AFFICHAGE du prompt (Enhance, pre-rempli) : comme _optionsPose, et les negations de l'utilisateur RESTENT dans le texte affiche. */
+function _optionsAffichage(assetType) {
+  return Object.assign({}, _optionsPose(assetType), { garderNegations: true });
+}
+
+/** Le texte sans ses locutions negatives (« an orc, no helmet » -> « an orc »), pour les generateurs qui n'ont PAS de canal negatif (vue de dos) : le modele d'image
+ *  voit « helmet » dans « no helmet » et le dessine. Interrupteur d'urgence coupe : texte tel quel. */
+function _sansNegations(texte) {
+  try { return composeurActif() ? positifSansNegations(texte) : texte; } catch (e) { return texte; }
+}
+
+/** Termes de negatif a envoyer au serveur (champ `negativeExtra` : 20 au plus, 40 caracteres, lettres / espaces / tirets) : les negations du texte, sans la locution.
+ *  [] si le composeur est coupe. Calcule sur le MEME texte que buildFullPrompt (apres _epurerDemande). */
+function _negativeExtraDe(texte) {
+  try { return composeurActif() ? assainirNegatifs(negationsDe(_epurerDemande(texte), undefined, NEG_MAX_LONG), NEG_MAX_LONG) : []; } catch (e) { return []; }
+}
+
 function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
   userPrompt = _epurerDemande(userPrompt);
+  // NEGATIONS (voir _negativeExtraDe) : la detection (vol, reptation) et le composeur d'intention travaillent sur le texte SANS ses locutions negatives (« a bird, not flying »
+  // ne doit pas choisir le gabarit « en vol ») ; seul le texte ECRIT dans le prompt differe : avec { garderNegations: true } il garde ses locutions.
+  const texteAvecNegations = userPrompt;
+  userPrompt = _sansNegations(userPrompt);
   const typePrefix = ASSET_TYPE_PREFIXES[assetType] || '';
   let typeSuffix = ASSET_TYPE_PROMPTS[assetType] || '';
   // Animal SANS PATTES (serpent, ver) ou POISSON : gabarit dedie (corps etire / de profil), d'apres les
@@ -5969,9 +6467,17 @@ function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
       clauseTenue = clauseObjetTenu(intention, regles) || '';
     } catch (e) { console.warn('[composeur] ignore :', e && e.message); }
   }
-  const parts = _TYPES_UNITE.includes(assetType)
-    ? [typePrefix, ..._epoqueUnite(userPrompt), clauseTenue, stylePrefix, typeSuffix]
-    : [stylePrefix, typePrefix, userPrompt, typeSuffix];
+  const texteEcrit = (options && options.garderNegations) ? texteAvecNegations : userPrompt;
+  // Tenue et poids d'EPOQUE : toujours d'apres le texte SANS negations, comme a l'envoi. Dans le texte AFFICHE avec ses negations, le texte reste TEL QU'ECRIT : un poids
+  // insere dans une negation (« no (medieval:1.4) armor ») la rendrait illisible au « Generate » suivant, et l'objet nie serait dessine.
+  let epoque = null;
+  if (_TYPES_UNITE.includes(assetType)) {
+    epoque = _epoqueUnite(userPrompt);
+    if (texteEcrit !== userPrompt) epoque = [texteEcrit, epoque[1]];
+  }
+  const parts = epoque
+    ? [typePrefix, ...epoque, clauseTenue, stylePrefix, typeSuffix]
+    : [stylePrefix, typePrefix, texteEcrit, typeSuffix];
   return parts.filter(Boolean).join(', ');
 }
 
@@ -5983,142 +6489,192 @@ function buildFullPrompt(userPrompt, assetType, assetStyle, options) {
 function stripKnownPromptSuffixes(raw) {
   if (!raw || typeof raw !== 'string') return raw || '';
   let txt = raw;
-  const allSuffixes = [
-    ...Object.values(ASSET_TYPE_PROMPTS),
-    ...Object.values(ASSET_TYPE_PREFIXES),
-    ...ASSET_TYPE_PREFIXES_ANCIENS,
-    ...Object.values(ASSET_STYLE_PROMPTS),
-  ].filter(s => s && s.length > 10);
-  // Multi-pass removal: each suffix may appear several times in legacy data.
-  let changed = true;
-  let safety = 20;
-  while (changed && safety-- > 0) {
-    changed = false;
-    for (const s of allSuffixes) {
-      const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Allow an optional leading ", " so we can eat the separator we inserted.
-      const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'g');
-      const next = txt.replace(re, (_, sep) => (sep === ',' || sep === ', ' ? '' : ''));
-      if (next !== txt) { txt = next; changed = true; }
+  /* GABARITS EXACTS SEULEMENT (2026-10-14, troisieme relecture du lot 2 de la langue, B4 bis). Ce nettoyage tourne au clic « Generate »
+   * (_texteUtilisateurPourGeneration, puis buildFullPrompt recolle le gabarit) et a l'ouverture d'un projet. Ses versions precedentes
+   * reconnaissaient un gabarit a un MARQUEUR (« full body », « isolated », « flat icon »...) suivi de propositions « de gabarit » prises une
+   * a une, et retiraient en plus des JETONS isoles partout dans le texte (« side view », « full body », « photorealistic »...). Un texte
+   * d'utilisateur qui en contenait perdait des propositions, sans un mot, juste avant une generation facturee : « a red dragon, full body,
+   * both wings visible » -> « a red dragon », « a lighthouse on a cliff, isolated, long shot » -> « a lighthouse on a cliff », « a red
+   * car, side view » -> « a red car ». Desormais on ne retire QUE des gabarits EXACTS connus, jamais une proposition prise seule :
+   *  1. un gabarit de TYPE ou de STYLE ENTIER — tables courantes, variantes exactes du composeur d'intention (pose libre, objet tenu :
+   *     lib/composeur-intention.js composerGabarit) et GABARITS_HISTORIQUES (tous ceux qui ont existe, releves dans l'historique git de
+   *     index2.js et de l'ancienne index.html) —, c'est-a-dire une suite de propositions identiques (casse, blancs et point final ignores),
+   *     ou qu'il soit (une ancienne generation recollait gabarit sur gabarit, et un texte ajoute APRES un gabarit reste) ;
+   *  2. EN TETE seulement, et seulement si le sujet suit : un prefixe de type (courant ou ancien) ou une ouverture des anciennes fiches
+   *     (« 3D game asset reference sheet », « full body character sheet ») ;
+   *  3. la clause d'objet tenu generee par le composeur (retirerClauseFinale) et les negations, comme avant.
+   * Un gabarit MODIFIE a la main n'est plus reconnu : il reste dans le texte (rien n'est detruit) et Generate recolle le gabarit courant.
+   * NE JAMAIS RETIRER un gabarit de GABARITS_HISTORIQUES, et y AJOUTER l'ancienne version de tout gabarit de type ou de style qu'on modifie
+   * (tests/bureau-interface/gabarits-historiques-releve-complet.json et nettoyage-gabarits-historiques.test.mjs) : sans elle, les projets
+   * crees avec elle ne seraient plus nettoyes. Fonction identique a l'octet sur le bureau et sur le site (test de parite). */
+  const cle = (p) => String(p).trim().replace(/\.+$/, '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const propositions = (g) => String(g || '').split(',').map(cle).filter(Boolean);
+  // Gabarits connus, construits UNE fois (appel a chaque frappe pour la coloration du champ) ; la signature suit les tables du module.
+  const signature = Object.values(ASSET_TYPE_PROMPTS).join('\n') + '\n\n' + Object.values(ASSET_STYLE_PROMPTS).join('\n');
+  let connus = stripKnownPromptSuffixes._gabaritsConnus;
+  if (!connus || connus.signature !== signature) {
+    const GABARITS_HISTORIQUES = [
+      '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
+      '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
+      '3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, ONE creature only, single instance, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot',
+      '3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no second insect, no duplicate, no text, no UI',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, six legs, segmented body, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, top and side of the thorax and abdomen visible, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, exactly six legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no extra limbs, no humanoid posture, NOT a front head-on view, NOT a symmetric front view, NOT a portrait, NOT a close-up, NOT a headshot, no second insect, no duplicate, no text, no UI',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, ONE insect only, single arthropod, isolated, six legs, segmented body, hard exoskeleton, antennae, full body view, plain white background, even studio lighting, no shadows, exactly six legs, NO tail, no fur, NOT a mammal, NOT a quadruped, NOT a cat, NOT a dog, no extra limbs, no humanoid posture, no second insect, no duplicate, no text, no UI, NOT a portrait, NOT a close-up, NOT a headshot',
+      '3D game asset reference sheet, full body reference, long shot, full figure shot, distant camera, entire insect visible, body fills 60 percent of frame, isolated, exactly six legs in total, three legs on the left side and three legs on the right side, six legs and no more, anatomically correct insect leg count, segmented body with distinct head thorax and abdomen, hard exoskeleton, antennae, 3/4 isometric view, high three-quarter angle seen from above and to the side, all six legs clearly visible and separated, plain white background, even studio lighting, no shadows, NOT eight legs, NOT a spider, NOT an arachnid, no extra legs, no doubled legs, no duplicated legs, no overlapping duplicate limbs, no mirrored extra legs, NO tail, no fur, NOT a mammal, NOT a quadruped, no humanoid posture, NOT a front head-on view, NOT a portrait, NOT a close-up, NOT a headshot, no text, no UI',
+      'A detailed aircraft, full body, side angle, isolated on a neutral background, photorealistic, even lighting.',
+      'A detailed animal, full body, side angle, T-pose-equivalent legs apart, isolated on a neutral background, photorealistic, even lighting.',
+      'A detailed ship or boat, full body, side angle, isolated on a neutral background, photorealistic, even lighting.',
+      'ONE animal only, single creature, only one instance, isolated, full body, all four legs on the ground, natural quadruped standing pose, side angle profile view, plain white background, even studio lighting, no shadows, no human stance, no T-pose, no upright posture, centered, clean silhouette, no text, no UI, no duplicate, no second animal',
+      'ONE animal only, single instance, isolated, FULL BODY shown, complete animal from head to tail, all four legs visible, standing on all fours, full creature visible in frame, wide shot, animal photography full body, wildlife full-body photograph, plain white background, even studio lighting, no shadows, no humans, centered, side profile, clean silhouette, no text, no UI, no duplicate, NO close-up, NO portrait, NO headshot, NOT cropped, NOT zoomed on face, body and limbs clearly visible',
+      'ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI, no duplicate, no second building',
+      'ONE building only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second building, not a village, not a town',
+      'ONE car only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second car, no twin, no rear view inset',
+      'ONE complete boat only, single vessel, only one instance, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI, no duplicate, no second boat',
+      'ONE complete passenger aircraft only, single plane, only one instance, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI, no duplicate, no second plane, no formation',
+      'ONE creature only, single creature, one subject only, full body, isolated, plain white background, even studio lighting, no shadows, no other creatures, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second creature',
+      'ONE creature only, single instance, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate',
+      'ONE environment piece only, single instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate',
+      'ONE item only, single item, only one instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second item',
+      'ONE prop only, single instance, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate',
+      'ONE structure only, single structure, only one instance, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI, no duplicate, no second structure',
+      'ONE subject only, single instance, isolated, complete object, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second instance',
+      'ONE vehicle only, single vehicle, only one instance, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no duplicate, no second vehicle, no twin',
+      'ONE weapon only, single instance, isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI, no duplicate',
+      'architectural building exterior, complete edifice, entire building visible from base to roof, wide establishing shot, long shot, distant camera, the whole structure fits inside the frame with clear margin on every side, building fills about 70 percent of frame, nothing cropped, not touching the frame edges, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+      'architectural building exterior, complete edifice, isolated, full structure, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+      'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, nothing cropped, plain white background, even studio lighting, no shadows, centered, strict front view, clean silhouette',
+      'blocky low-fi voxel, cubic geometry, pixelated 16x16 texture, voxel inspired',
+      'blocky voxel low-fi style, cubic geometry, pixelated 16x16 texture, voxel inspired',
+      'claymation, plasticine model, soft stop-motion surface, British stop-motion clay style, handmade charm',
+      'claymation, plasticine model, soft stop-motion surface, handmade clay-animation style, handmade charm',
+      'complete boat, isolated, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, even studio lighting, no shadows, no water, no wake, no horizon, centered, clean silhouette, no text, no UI',
+      'complete passenger aircraft, isolated, 3/4 isometric view, full body visible from nose to tail, both wings visible, tail fin visible, plain white background, even studio lighting, no shadows, no clouds, no horizon, no contrail, centered, clean silhouette, no text, no UI',
+      'complete vehicle, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI',
+      'flat icon, app icon, UI icon, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no extra elements',
+      'full body animal, lateral profile, entire animal visible from nose to tail, all four feet on the ground, fills 60 percent of frame, plain white background, centered',
+      'full body creature, wide establishing shot, entire creature visible from head to tail, body fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
+      'full body shot from head to tail, entire creature visible head to feet, wide shot showing whole body, ONE creature only, single instance, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NO portrait, NO headshot, NO close-up, NO head only, NO face only',
+      'full body shot from nose to tail, entire animal visible head to feet, whole body in frame, wildlife photography of ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, wide shot, distant camera, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NO portrait, NO headshot, NO close-up, NO head only, NO face only, NO bust shot, NO head and shoulders',
+      'full body, isolated, plain white background, even studio lighting, no shadows, centered, strict front view, facing camera, clean silhouette, no text, no UI',
+      'full structure, isolated, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+      'hand-painted texture, painterly stylized fantasy MMO style, painterly diffuse, no realistic PBR maps, vibrant',
+      'hand-painted texture, stylized MMORPG fantasy, painterly diffuse, no realistic PBR maps, vibrant',
+      'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
+      'isolated 3D character, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, centered, clean silhouette, no text, no UI',
+      'isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, no rear view inset',
+      'isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+      'isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, clean silhouette, no text, no UI',
+      'isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, strict front view, facing camera, clean silhouette, no text, no UI, not a village, not a town',
+      'isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
+      'modern 3D animated movie style, clean stylized 3D, family-friendly polish, expressive characters',
+      'one single building, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric angle, clean silhouette, no text, no UI',
+      'one single creature, isolated, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI',
+      'one single environment piece, isolated, full structure, plain white background, even studio lighting, no shadows, no characters, centered, angled view, clean silhouette, no text, no UI',
+      'one single prop, isolated, full item, plain white background, even studio lighting, no shadows, no characters, centered, angled view, clean silhouette, no text, no UI',
+      'one single vehicle, isolated, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, angled side view, clean silhouette, no text, no UI',
+      'one single weapon, isolated, full weapon, plain white background, even studio lighting, no shadows, centered, side profile, clean silhouette, no text, no UI',
+      'polished 3D animated-film style, clean stylized 3D, family-friendly polish, expressive characters',
+      'single flat icon, app icon, UI icon, ONE element only, isolated subject centered in square frame, transparent or pure white background, soft rim light, vibrant colors, clean silhouette, slight isometric 3/4 angle, glossy material, mobile / desktop application icon style, no text, no logo, no duplicate, no extra elements',
+      'single isolated 3D building, full structure, plain white background, even studio lighting, no shadows, no characters, centered, isometric three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D character, full body, T-pose neutral stance, RTS unit game asset, Unreal Engine ready, plain white background, even studio lighting, no shadows, no other characters, centered, isometric three-quarter view, clean silhouette, low-poly to mid-poly stylized, vibrant colors, no text, no UI',
+      'single isolated 3D character, full body, T-pose neutral stance, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, isometric three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D character, full body, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI',
+      'single isolated 3D character, one character only, full body, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI',
+      'single isolated 3D character, one character only, full body, fully clothed, wearing a complete outfit, dressed in appropriate clothing, T-pose neutral stance, arms extended horizontally, legs apart, strict front view, facing camera, symmetric, RTS unit game asset, plain white background, even studio lighting, no shadows, no other characters, centered, clean silhouette, no text, no UI',
+      'single isolated 3D creature, full body, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI',
+      'single isolated 3D creature, full body, neutral stance, plain white background, even studio lighting, no shadows, no other creatures, centered, isometric three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D environment piece, full structure, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D prop, full item, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D vehicle, complete vehicle, plain white background, even studio lighting, no shadows, no characters, centered, three-quarter view, clean silhouette, no text, no UI',
+      'single isolated 3D weapon, full weapon, plain white background, even studio lighting, no shadows, centered, side view, clean silhouette, no text, no UI',
+      'soft hand-drawn anime style, gentle warm palette, hand-drawn animation, expressive nature',
+      'stylized PBR, hero-shooter stylized game style, hand-painted shading on PBR maps, clean game asset',
+      'stylized PBR, stylized hero-shooter game art style, hand-painted shading on PBR maps, clean game asset',
+      'voxel art, blocky voxel 3D style, cubic geometry, clean voxels',
+      'voxel art, blocky voxel-style 3D, cubic geometry, clean voxels',
+      'wildlife photography of ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, low camera angle eye-level with the animal, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI',
+      'wildlife photography of ONE animal only, single creature, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, head and tail at the same low height as the spine, tail extending behind, four legs supporting the body from below, low camera angle eye-level with the animal, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI',
+    ];
+    // lib/composeur-intention.js : CONSIGNES_TPOSE (case « T-pose » decochee) et CADRAGE_TENU (objet tenu)
+    const CONSIGNES_TPOSE = ['T-pose', 'arms extended horizontally', 'legs apart', 'symmetric', 'empty open hands'];
+    const CADRAGE_TENU = 'entire figure and held item fully visible, generous empty margins';
+    const sauf = (liste, noms) => { const bas = noms.map(cle); return liste.filter((p) => !bas.includes(p)); };
+    // Variantes EXACTES de composerGabarit pour un gabarit d'unite : objet tenu (mains vides, symetrie, centrage et silhouette retires,
+    // cadrage de l'objet ajoute), pose libre (consignes de T-pose retirees), et les deux. Sans effet sur un gabarit qui n'a pas ces mots.
+    const objetTenu = (g) => {
+      const a = sauf(g, ['empty open hands', 'symmetric']);
+      const b = sauf(a, ['centered', 'clean silhouette']);
+      return b.length !== a.length ? b.concat(propositions(CADRAGE_TENU)) : a;
+    };
+    const gabarits = new Map();   // premiere proposition -> gabarits (listes de propositions), du plus long au plus court
+    const ajouter = (g) => {
+      if (g.length < 2) return;   // un gabarit fait toujours plusieurs propositions : jamais une proposition seule
+      const k = g.join(',');
+      const deja = gabarits.get(g[0]) || [];
+      if (!deja.some((x) => x.join(',') === k)) gabarits.set(g[0], deja.concat([g]).sort((x, y) => y.length - x.length));
+    };
+    for (const brut of [...Object.values(ASSET_TYPE_PROMPTS), ...Object.values(ASSET_STYLE_PROMPTS), ...GABARITS_HISTORIQUES]) {
+      const g = propositions(brut);
+      const libre = sauf(g, CONSIGNES_TPOSE);
+      for (const v of [g, objetTenu(g), libre, objetTenu(libre)]) ajouter(v);
+    }
+    const ouvertures = [...Object.values(ASSET_TYPE_PREFIXES), ...ASSET_TYPE_PREFIXES_ANCIENS,
+      '3D game asset reference sheet', 'full body character sheet'].map(propositions).filter((o) => o.length).sort((x, y) => y.length - x.length);
+    connus = { signature, gabarits, ouvertures };
+    stripKnownPromptSuffixes._gabaritsConnus = connus;
+  }
+  // Correspondance d'un gabarit a partir du morceau i (les morceaux vides d'un ancien collage « ,, » sont sautes) : fin (exclue) ou -1.
+  const correspond = (cles, i, g) => {
+    let k = i, n = 0;
+    while (n < g.length && k < cles.length) {
+      if (!cles[k]) { k++; continue; }
+      if (cles[k] !== g[n]) return -1;
+      k++; n++;
+    }
+    return n === g.length ? k : -1;
+  };
+  const morceaux = txt.split(',');
+  const cles = morceaux.map(cle);
+  // 1) gabarits de type et de style ENTIERS, ou qu'ils soient
+  for (let encore = true, garde = 0; encore && garde < 50; garde++) {
+    encore = false;
+    for (let i = 0; i < cles.length && !encore; i++) {
+      for (const g of (cles[i] && connus.gabarits.get(cles[i])) || []) {
+        const fin = correspond(cles, i, g);
+        if (fin < 0) continue;
+        morceaux.splice(i, fin - i); cles.splice(i, fin - i); encore = true;
+        break;
+      }
     }
   }
-  // Token-level pass: kill any leftover canonical tokens from previous
-  // template versions (legacy projects don't match the exact current
-  // template strings, but the individual tokens still pollute the user
-  // textarea and end up doubled with the new template at gen time).
-  const KNOWN_TOKENS = [
-    // angle keywords (any version)
-    'three-quarter view', 'three quarter view', '3/4 view',
-    'angled side view', 'angled view', 'isometric three-quarter view',
-    'isometric three-quarter', 'isometric angle', 'isometric view',
-    'side view', 'side profile', 'strict front view', 'front view',
-    'facing camera',
-    // isolation / dedup tokens
-    'single isolated 3D character', 'single isolated 3D building',
-    'single isolated 3D vehicle', 'single isolated 3D weapon',
-    'single isolated 3D prop', 'single isolated 3D creature',
-    'single isolated 3D environment piece',
-    'one single character', 'one single building', 'one single vehicle',
-    'one single weapon', 'one single prop', 'one single creature',
-    'one single environment piece',
-    'ONE car only', 'ONE building only', 'ONE weapon only',
-    'ONE prop only', 'ONE creature only', 'ONE environment piece only',
-    'one character only', 'single vehicle', 'only one instance',
-    'single instance', 'isolated', 'complete vehicle',
-    // staging / lighting / framing
-    'plain white background', 'even studio lighting', 'no shadows',
-    'no characters', 'no other characters', 'no other creatures',
-    'centered', 'clean silhouette', 'no text', 'no UI',
-    'full body', 'full structure', 'full weapon', 'full item',
-    // dedup negatives (sometimes leak into positive)
-    'no duplicate', 'no second car', 'no second building',
-    'no twin', 'no rear view inset',
-    // T-pose tokens (legacy character)
-    'T-pose neutral stance', 'arms extended horizontally', 'legs apart',
-    'symmetric', 'RTS unit game asset', 'neutral stance',
-    // style tokens (any version)
-    'realistic style', 'photorealistic', 'sharp details',
-    'detailed materials',
-  ];
-  for (const tok of KNOWN_TOKENS) {
-    const esc = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp('(^|,\\s*)' + esc + '(?=$|,\\s*)', 'gi');
-    txt = txt.replace(re, (_, sep) => '');
-  }
-  /* COUPE PAR MARQUEUR -- ajoute le 2026-09-23.
-   *
-   * Les passes ci-dessus effacent le gabarit MOT POUR MOT. Un projet cree avec
-   * une version ANTERIEURE du gabarit n'est donc pas reconnu : son texte reste,
-   * et la generation lui recolle le gabarit courant. Mesure sur un projet reel
-   * (« medieval townhall ») : 193 jetons CLIP pour une limite de 77 -- 60 % du
-   * prompt ignore, en plein milieu des consignes de cadrage. D'ou des batiments
-   * coupes malgre « nothing cropped ».
-   *
-   * Le gabarit est TOUJOURS ajoute en fin de chaine. Il suffit donc de reperer
-   * son DEBUT (quelques mots stables, insensibles aux revisions) et de couper
-   * jusqu'a la fin. Insensible aux versions, present et futur. */
-  /* MARQUEURS HISTORIQUES -- ajoutes le 2026-09-23.
-   *
-   * La coupe ci-dessous se fonde sur le PREMIER segment des gabarits COURANTS.
-   * En reecrivant les gabarits ce jour-la, j'ai rendu le nettoyeur aveugle aux
-   * projets crees avant : leur texte commencait par « 3D game asset reference
-   * sheet » ou « ONE item only », phrases qui n'existent plus nulle part. Ces
-   * ouvertures sont donc gravees ici, definitivement. NE JAMAIS EN RETIRER :
-   * un projet cree en 2026 doit rester nettoyable en 2030. */
-  const MARQUEURS_HISTORIQUES = [
-    'architectural building exterior',
-    'isolated 3D character',
-    '3D game asset reference sheet',
-    'full body character sheet',
-    'ONE item only',
-    'complete passenger aircraft',
-    'complete boat',
-    'flat icon, app icon',
-    'isolated, full item',
-    'isolated, complete vehicle',
-    'isolated, full weapon',
-    'isolated, full structure',
-  ];
-  const MARQUEURS_GABARIT = [
-    ...Object.values(ASSET_TYPE_PROMPTS),
-    ...Object.values(ASSET_TYPE_PREFIXES),
-    ...ASSET_TYPE_PREFIXES_ANCIENS,
-  ].filter(s => s && s.length > 20)
-   /* Le marqueur est le PREMIER segment, pas les deux premiers : en trimant le
-    * gabarit « batiment » j'ai casse ma propre coupe, parce que le 2e segment
-    * avait change (« complete edifice » -> « wide establishing shot ») alors que
-    * les projets existants portent l'ancien. Le 1er segment, lui, ne bouge pas.
-    * On garde aussi la paire, qui attrape des cas que le seul 1er segment rate. */
-   .flatMap(s => [s.split(',')[0], s.split(',').slice(0, 2).join(',')])
-   .map(m => m.trim())
-   .filter((m, i, a) => m.length > 12 && a.indexOf(m) === i);
-  for (const m of MARQUEURS_GABARIT.concat(MARQUEURS_HISTORIQUES)) {
-    const i = txt.toLowerCase().indexOf(m.toLowerCase());
-    if (i > 0) {
-      // Cas normal : le gabarit est colle APRES le texte de l'utilisateur.
-      txt = txt.slice(0, i);
-    } else if (i === 0) {
-      /* Cas des vieux projets : le gabarit ouvre la chaine et le sujet est au
-       * MILIEU (« 3D game asset reference sheet, full body character sheet,
-       * long shot, a winged dragon, NOT a portrait »). Couper a 0 effacerait
-       * tout ; on retire donc le seul marqueur et on laisse les passes
-       * suivantes nettoyer le reste. */
-      txt = txt.slice(m.length).replace(/^\s*,\s*/, '');
+  // 2) EN TETE, si le sujet suit : prefixe de type (courant ou ancien) ou ouverture d'une ancienne fiche
+  for (let encore = true; encore;) {
+    encore = false;
+    const i = cles.findIndex((c) => c);
+    if (i < 0) break;
+    for (const o of connus.ouvertures) {
+      const fin = correspond(cles, i, o);
+      if (fin < 0 || !cles.slice(fin).some((c) => c)) continue;
+      morceaux.splice(0, fin); cles.splice(0, fin); encore = true;
+      break;
     }
   }
+  txt = morceaux.join(',');
   /* La clause d'objet tenu posee par buildFullPrompt (composeur d'intention) reste en queue du texte une fois le style et le gabarit
    * coupes : on la retire, sinon chaque regeneration en ajouterait une de plus. Retiree seulement si le texte restant la regenere. */
   txt = retirerClauseFinale(txt);
-  /* Les negations n'ont aucun effet dans un prompt POSITIF -- SDXL dessine
-   * volontiers ce qu'on lui demande d'eviter, et elles mangent des jetons.
-   * Elles vivent dans _ANATOMY_NEG (modal_app/_realvis.py). On retire donc
-   * tout segment qui commence par « not » ou « never », quelle que soit la
-   * casse : c'est du gabarit, jamais une intention d'utilisateur utile. */
-  txt = txt.split(',')
-           .filter(seg => !/^\s*(not|never|no)\b/i.test(seg))
-           .join(',');
-  // Collapse any resulting double commas / leading comma / extra whitespace.
-  txt = txt.replace(/\s*,\s*,\s*/g, ', ').replace(/^\s*,\s*/, '').replace(/\s*,\s*$/, '').trim();
+  /* Les negations n'ont aucun effet dans un prompt POSITIF -- SDXL dessine volontiers ce qu'on lui demande d'eviter. Avant le 2026-10-03 on retirait ici tout segment
+   * qui commence par « not », « never » ou « no » (ancien comportement, garde quand l'interrupteur d'urgence est coupe). Maintenant : les gabarits connus ne sont retires
+   * qu'ENTIERS et EXACTS (plus haut, lot traduction) ; les negations de l'utilisateur restent, et buildFullPrompt les envoie au negatif. Integration 20/10 : les anciens
+   * residus negatifs (NEGATIONS_GABARIT_HISTORIQUES) partent avec leur gabarit exact, plus besoin de les reconnaitre un par un. */
+  if (!composeurActif()) {
+    txt = txt.split(',')
+             .filter(seg => !/^\s*(not|never|no)\b/i.test(seg))
+             .join(',');
+  }
+  // Collapse any resulting double commas / leading comma / extra whitespace (par boucles : les regex d'origine etaient quadratiques sur de longues suites de blancs).
+  txt = nettoyerVirgules(txt);
   return txt;
 }
 
@@ -6140,13 +6696,14 @@ document.getElementById('np-enhance-prompt')?.addEventListener('click', async ()
   if (!raw) { showToast('Type a description first.', 'error'); return; }
   const assetType = document.getElementById('np-asset-type')?.value || 'character';
   const assetStyle = document.getElementById('np-asset-style')?.value || 'realistic';
-  const alreadyEnhanced = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(raw);
-  if (alreadyEnhanced) {
-    showToast('Prompt already enhanced. Edit manually or clear it.', 'info');
-    return;
-  }
-  // traduit depuis la langue de l'interface avant les gabarits anglais (comme le bureau)
-  textarea.value = buildFullPrompt(await translateUserPrompt(raw), assetType, assetStyle);
+  // 2026-10-13 (lot 2 de l'audit de la langue) : comme le bureau, un texte deja enrichi est REPRIS (gabarit retire puis remis) au lieu
+  // d'etre refuse, et la partie de l'utilisateur est traduite si elle n'est pas deja anglaise. Avant : « Prompt already enhanced » des
+  // qu'un mot du gabarit apparaissait, meme « photorealistic » tape dans un texte francais (CHAMPS-23). Echec de traduction : dit, et
+  // le texte reste tel quel (plus de gabarit anglais autour d'un texte non traduit).
+  const base = stripKnownPromptSuffixes(raw);
+  const tr = await traduireTexteUtilisateur(base);
+  if (tr.echec) { showToast(_messageTraduction('enhance', tr), 'error', 7000); return; }
+  textarea.value = buildFullPrompt(tr.texte, assetType, assetStyle, { garderNegations: true });
   const btn = document.getElementById('np-enhance-prompt');
   if (btn) {
     const orig = btn.innerHTML;
@@ -6162,17 +6719,15 @@ document.getElementById('ws-enhance-prompt')?.addEventListener('click', async ()
   if (!raw) { showToast('Type a description first.', 'error'); return; }
   const assetType = document.getElementById('ws-asset-type')?.value || 'character';
   const assetStyle = document.getElementById('ws-asset-style')?.value || 'realistic';
-  // Check if the prompt already looks enhanced (contains known suffix keywords)
-  const alreadyEnhanced = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(raw);
-  if (alreadyEnhanced) {
-    showToast('Prompt already enhanced. Edit manually or clear it.', 'info');
-    return;
-  }
+  // 2026-10-13 (lot 2) : texte deja enrichi REPRIS comme sur le bureau (plus de refus « Prompt already enhanced ») ; partie de
+  // l'utilisateur traduite si besoin ; echec de traduction dit, texte laisse tel quel (voir np-enhance-prompt).
+  const base = stripKnownPromptSuffixes(raw);
   // Stash the original raw prompt so the back-view generator can use it
   // (clean subject description, no asset-style pollution).
-  textarea.dataset.rawPrompt = raw;
-  // traduit depuis la langue de l'interface avant les gabarits anglais (comme le bureau)
-  const enhanced = buildFullPrompt(await translateUserPrompt(raw), assetType, assetStyle, _optionsPose(assetType));
+  textarea.dataset.rawPrompt = base;
+  const tr = await traduireTexteUtilisateur(base);
+  if (tr.echec) { showToast(_messageTraduction('enhance', tr), 'error', 7000); return; }
+  const enhanced = buildFullPrompt(tr.texte, assetType, assetStyle, _optionsAffichage(assetType));
   textarea.value = enhanced;
   // Persist to localStorage
   if (state.currentProject) {
@@ -6199,11 +6754,14 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   // "angled side view" from an earlier session — without this strip,
   // the next gen would receive both that AND the new "strict front
   // view", triggering RealVis's 2-cars hallucination).
-  // Texte deja enrichi = deja en anglais (Enhance et le pre-rempli traduisent) ; sinon traduit depuis la
-  // langue de l'interface, comme le bureau.
-  const _dejaEnrichi = /single isolated 3D|plain white background|sharp details|photorealistic/i.test(rawTextarea);
-  const userPrompt = _dejaEnrichi ? stripKnownPromptSuffixes(rawTextarea)
-    : await translateUserPrompt(stripKnownPromptSuffixes(rawTextarea));
+  // TRADUCTION decidee sur le CONTENU (2026-10-13, lot 2 de l'audit de la langue : MANQUE-01, CHAMPS-06/21/23). Avant : un champ
+  // contenant un mot du gabarit (« photorealistic », « plain white background »...) etait cru « deja anglais » et partait SANS
+  // traduction, ajout en francais compris. Desormais : gabarit retire, la partie de l'utilisateur est traduite si elle n'est pas deja
+  // anglaise (detection locale + cache : un champ enrichi anglais ne coute aucun appel). Echec : l'utilisateur choisit (Reessayer /
+  // Envoyer tel quel) ; annule = rien n'est lance ni debite.
+  const _tr = await _texteUtilisateurPourGeneration(rawTextarea);
+  if (!_tr) return;
+  const userPrompt = _tr.texte;
   const assetType = document.getElementById('ws-asset-type')?.value || 'character';
   const assetStyle = document.getElementById('ws-asset-style')?.value || 'realistic';
   // Persist per-project so the next visit to this project pre-fills the
@@ -6211,6 +6769,13 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
   // silently falling back to Character on a follow-up gen).
   _saveProjectMeta(p.name, { assetType, assetStyle,
     tpose: document.getElementById('ws-tpose') ? !!document.getElementById('ws-tpose').checked : undefined });
+  // AVERTISSEMENTS AVANT DEPENSE (24/10, m5 / M12) : texte long, demande en conflit avec le gabarit. Annule = rien n'est lance ni debite.
+  if (!(await _verifierAvantDepense(p, rawTextarea, userPrompt, assetType))) return;
+  // NEGATIONS (voir _negativeExtraDe) : « an orc, no helmet » part SANS la locution (prompt ET texte brut que le serveur recompose) et le terme « helmet » part au negatif.
+  const negativeExtra = _negativeExtraDe(userPrompt);
+  // texte brut ENVOYE (le serveur recompose le prompt depuis lui) : calcule sur le MEME texte que negativeExtra (apres _epurerDemande), pour que la locution sortie
+  // du texte soit exactement celle dont les termes partent au negatif ; sans negation, le texte tel quel (requete identique a celle d'avant).
+  const userPromptEnvoye = negativeExtra.length ? _sansNegations(_epurerDemande(userPrompt)) : userPrompt;
   const prompt = buildFullPrompt(userPrompt, assetType, assetStyle, _optionsPose(assetType));
   const engine = document.getElementById('ws-engine').value;
   const count = parseInt(document.getElementById('ws-count').value) || 4;
@@ -6272,7 +6837,8 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       Prompt: userPrompt,
     }, expectedMs);
     try {
-      const r = await API.generateImages({ prompt, userPrompt, engine, numImages: count, projectName: p.name, steps, multiView, buildStages, jobId: job.id, vramFraction: (gpuLimits?.vram || 90) / 100 });
+      const r = await API.generateImages({ prompt, userPrompt, userPromptEnvoye, negativeExtra, engine, numImages: count, projectName: p.name, steps, multiView, buildStages, jobId: job.id, vramFraction: (gpuLimits?.vram || 90) / 100,
+        langueVerifiee: _tr.telQuel || undefined });
       if (r?.success) {
         // Save the creation style for each generated image so the Style
         // dropdown shows the correct style when selecting any of them.
@@ -6319,8 +6885,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
             // for the back view. The enhanced prompt's 'RTS unit, T-pose
             // neutral stance, plain white background' tokens hurt IPAdapter
             // because they fight the photo reference style.
-            const rawPrompt = document.getElementById('ws-prompt')?.dataset.rawPrompt
-                              || userPrompt || '';
+            // 2026-10-13 (lot 2) : userPrompt = le texte de l'utilisateur DEJA TRADUIT (ou envoye tel quel avec son accord) ; avant,
+            // dataset.rawPrompt (texte d'ORIGINE, non traduit) passait en premier (TRADUCTION-05, CHAMPS-08).
+            const rawPrompt = _sansNegations(userPrompt || '');   // la vue de dos n'a pas de canal negatif (voir _sansNegations)
             for (const imgPath of r.images) {
               // STEP 1: BLIP-caption the front photo to extract outfit
               // description. This is added to the prompt so the back has
@@ -6348,6 +6915,7 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
                 // sides + bottom". Forwarded to multiview_sheet_gen.py
                 // via env so the SDXL prompt asks for the right grid.
                 sheetViews: mvForceFull ? 6 : 2,
+                langueVerifiee: _tr.telQuel || undefined,
               });
               if (bvResult?.success && bvResult.paths?.length) {
                 if (!p._backPhotos) p._backPhotos = {};
@@ -6436,11 +7004,8 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
           const editStage = imgCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            imgCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            imgCard.classList.add('pulse-highlight');
-            setTimeout(() => imgCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(imgCard, _i18nT('Image generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
@@ -6519,6 +7084,9 @@ function _offerMultiviewRegenerate() {
       showToast('No front image to regenerate from.', 'error');
       return;
     }
+    // Indice TRADUIT (2026-10-13, lot 2 : le texte d'origine partait au moteur) ; annule par l'utilisateur : rien n'est lance.
+    const _indiceDos = await _indiceDosAnglais(document.getElementById('ws-prompt')?.dataset.rawPrompt || (p.prompt || ''));
+    if (!_indiceDos) return;
     showToast('Regenerating back view...', 'info', 5000);
     try {
       // Optional outfit captioning (same as the auto pipeline)
@@ -6527,14 +7095,14 @@ function _offerMultiviewRegenerate() {
         const cap = await window.meshyAPI.captionImage({ imagePath: frontImg });
         if (cap?.success && cap.caption) outfitDesc = cap.caption;
       } catch (_) {}
-      const rawPrompt = document.getElementById('ws-prompt')?.dataset.rawPrompt
-                        || (p.prompt || '');
+      const rawPrompt = _indiceDos.texte;
       const enrichedHint = outfitDesc ? `${rawPrompt}, ${outfitDesc}` : rawPrompt;
       const r = await window.meshyAPI.generateBackView({
         frontImage: frontImg,
         promptHint: enrichedHint,
         numImages: 1,
         assetType: document.getElementById('ws-asset-type')?.value || 'character',
+        langueVerifiee: _indiceDos.telQuel || undefined,
       });
       if (r?.success && r.paths?.length) {
         if (!p._backPhotos) p._backPhotos = {};
@@ -6617,11 +7185,16 @@ function _modPrix(cle) { return typeof window._prixDe === 'function' ? window._p
 function _modRetraitActif() {
   return !!(_modRetrait.analyse && estRoute(_modRetrait.analyse) && modPromptEl && modPromptEl.value.trim() === _modRetrait.texte);
 }
-/** Texte tape -> anglais (cache : une meme saisie n'est traduite qu'une fois). Un echec de traduction rend le texte tel quel, sans le garder. */
+/** Texte tape -> anglais (cache : une meme saisie n'est traduite qu'une fois). ANALYSE seulement (aide et prix pendant la frappe) : rien n'est
+ *  envoye au moteur d'ici. Un echec de traduction rend le texte tel quel, sans le garder ; l'envoi, lui, passe par _traduirePourGeneration
+ *  (fenetre « Reessayer / Envoyer tel quel »), jamais par cette fonction. */
 async function _modAnglais(brut) {
   if (_modCacheTrad.has(brut)) return _modCacheTrad.get(brut);
   let anglais = brut;
-  try { anglais = (await translateUserPrompt(brut, { silencieux: true })) || brut; } catch (_) { anglais = brut; }
+  try {
+    const r = await traduireTexteUtilisateur(brut, { silencieux: true });
+    if (r && !r.echec && r.texte) anglais = r.texte;
+  } catch (_) { anglais = brut; }
   if (anglais !== brut) { if (_modCacheTrad.size > 30) _modCacheTrad.clear(); _modCacheTrad.set(brut, anglais); }
   return anglais;
 }
@@ -6711,7 +7284,7 @@ function _modLancerRetrait(p, target, rawPrompt, etat) {
     try {
       // consigne et consigneOriginale : la consigne COMPLETE (traduite, puis telle que tapee), verifiee par le serveur comme Modify la verifie, jamais envoyee au moteur
       const r = await API.autoInpaint({ imagePath: target, targetText: analyse.cible, prompt: remplace ? analyse.remplacement : '', dilate, jobId: job.id,
-        consigne: etat.anglais, consigneOriginale: rawPrompt });
+        consigne: etat.anglais, consigneOriginale: rawPrompt, langueVerifiee: etat.telQuel || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -6747,8 +7320,8 @@ async function _modAppliquer() {
   const p = state.currentProject;
   const target = modifyModal.dataset.targetPath || editTarget(p);
   if (!target) return;
-  const prompt = document.getElementById('mod-prompt').value.trim();
-  if (!prompt) { showToast('Type a modification first.', 'error'); return; }
+  const rawPrompt = document.getElementById('mod-prompt').value.trim();
+  if (!rawPrompt) { showToast('Type a modification first.', 'error'); return; }
   const engine = document.getElementById('mod-engine').value;
   const strength = parseInt(modStrength.value) / 100;
   // RETRAIT / REMPLACEMENT : confie a Auto Inpaint (voir plus haut). Le bouton est inactif le temps de l'analyse (instantanee en anglais).
@@ -6757,16 +7330,31 @@ async function _modAppliquer() {
   let decision;
   const clic = ++_modClic;
   if (bouton) bouton.disabled = true;
-  try { decision = await _modDecision(prompt); } finally { if (bouton) bouton.disabled = false; }
-  if (!_modClicValide(clic, prompt)) return;   // Cancel (ou texte change) pendant l'analyse : rien ne part, rien n'est facture
+  try { decision = await _modDecision(rawPrompt); } finally { if (bouton) bouton.disabled = false; }
+  if (!_modClicValide(clic, rawPrompt)) return;   // Cancel (ou texte change) pendant l'analyse : rien ne part, rien n'est facture
   if (estRoute(decision.etat.analyse)) {
     if (!(await _modConfirmerPrix(decision.etat.analyse, decision.dejaAffiche))) return;
-    if (!_modClicValide(clic, prompt)) return;
+    if (!_modClicValide(clic, rawPrompt)) return;
     modifyModal.classList.add('hidden');
-    _modLancerRetrait(p, target, prompt, decision.etat);
+    _modLancerRetrait(p, target, rawPrompt, decision.etat);
     return;
   }
   modifyModal.classList.add('hidden');
+  // Consigne TRADUITE comme sur le bureau (2026-10-13, lot 2 de l'audit de la langue, TRADUCTION-04 : le site l'envoyait brute au
+  // moteur d'image) ; echec : l'utilisateur choisit, annule = rien n'est lance ni debite.
+  const _tr = await _traduirePourGeneration(rawPrompt);
+  if (!_tr) return;
+  // L'ANALYSE de la frappe a pu echouer (traducteur indisponible) : un retrait demande dans une autre langue n'etait alors pas reconnu. Apres la
+  // fenetre « Reessayer / Envoyer tel quel », le texte definitif est analyse a nouveau : « enleve les ailes » traduit reste un RETRAIT.
+  {
+    const analyse2 = analyserRetrait(_tr.texte);
+    if (estRoute(analyse2)) {
+      if (!(await _modConfirmerPrix(analyse2, false))) return;
+      _modLancerRetrait(p, target, rawPrompt, { texte: rawPrompt, anglais: _tr.texte, analyse: analyse2, telQuel: _tr.telQuel });
+      return;
+    }
+  }
+  const prompt = _tr.texte;
   // img2img is fast: ~5s on SDXL Turbo, ~20s on cloud
   const modifyExpected = engine === 'pollinations' ? 30000 : 15000;
   const modifySource = target;
@@ -6775,10 +7363,10 @@ async function _modAppliquer() {
     const job = pushJob(`Modify image: ${p.name}`, null, {
       Engine: engineLabel(engine),
       Strength: `${Math.round(strength * 100)}%`,
-      Prompt: prompt,
+      Prompt: rawPrompt,
     }, modifyExpected, undefined, { sourceImageUrl: modifySource, projectName: modifyProject });
     try {
-      const r = await API.img2img({ imagePath: target, prompt, strength, engine, jobId: job.id });
+      const r = await API.img2img({ imagePath: target, prompt, strength, engine, jobId: job.id, langueVerifiee: _tr.telQuel || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -9515,7 +10103,7 @@ const _OP_LABEL = {
 };
 const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment)(?:_\d{6,})?$/i;
 // MASQUAGE des noms d'IA internes à l'affichage (exigence produit) — miroir desktop.
-const _AI_NAME_RE = /(native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
+const _AI_NAME_RE = /(qwen|z-image|zimage|native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
 function _maskAiNames(s) {
   if (!s) return s;
   return String(s)
@@ -9569,7 +10157,9 @@ async function buildLineageTimeline(startPath, p) {
     if (rec) { const t = new Date(rec.created || rec.mtime || 0).getTime(); if (Number.isFinite(t) && t) return t; }
     return 0;
   };
-  let curPath = startPath;
+  // Depart sur une IMAGE de la bande des versions (25/10) : pas de maillage a remonter, on affiche directement la chaine de l'image.
+  const depuisImage = !!findIn(p.images, startPath);
+  let curPath = depuisImage ? null : startPath;
   let guard = 0;
   while (curPath && guard++ < 20) {
     const anim = findIn(p.animations, curPath);
@@ -9626,7 +10216,7 @@ async function buildLineageTimeline(startPath, p) {
     if (parentPath && norm(parentPath) === norm(curPath)) break;
     curPath = parentPath;
   }
-  const srcImg = (steps.find((s) => s.sourceImage) || {}).sourceImage;
+  const srcImg = depuisImage ? startPath : (steps.find((s) => s.sourceImage) || {}).sourceImage;
   if (srcImg) {
     const projPrompt = (p && typeof p.prompt === 'string' && p.prompt.trim()) ? p.prompt.trim() : null;
     // CHAINE DE L'IMAGE (2026-09-29, user : « on a plus de parametres pour les images que ce qu'il y a dans
@@ -9682,7 +10272,7 @@ async function showGenerationHistory(startPath) {
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
     skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
-    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode',
+    moteur: 'Engine', prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
   };
   const fmtVal = (k, v) => {
     if (v === true) return '✓';
@@ -9702,7 +10292,11 @@ async function showGenerationHistory(startPath) {
       // seulement les choix UTILISES (user 29/09) : un reglage desactive n'est pas liste
       if (v === undefined || v === null || v === '' || v === false || v === 0) continue;
       const lib = GH_LIBELLES[k] ? _i18nT(GH_LIBELLES[k]) : k;
-      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(_maskAiNames(fmtVal(k, v)))}</span></div>`);
+      // le moteur du menu s'affiche par son NIVEAU (Rapide / Meilleur), jamais par le nom du modele (les anciennes lignes portent encore 'zimage' / 'qwen')
+      const valeur = k === 'moteur'
+        ? _i18nT({ fast: 'Fast (Turbo ⚡)', zimage: 'Fast (Turbo ⚡)', best: 'Best (highest quality)', qwen: 'Best (highest quality)' }[String(v).toLowerCase()] || 'Auto')
+        : _maskAiNames(fmtVal(k, v));
+      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k === 'moteur' ? 'engine' : k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(valeur)}</span></div>`);
     }
     if (!rows.length) return '';
     return `<details class="gh-details"><summary>${escapeHtml(_i18nT('Parameters'))} (${rows.length})</summary><div class="gh-params">${rows.join('')}</div></details>`;
@@ -10208,6 +10802,9 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   if (trellis2FaceFix) expectedMs += 60000;  // ~60s for SDXL face inpaint
   const trellis2UltraHD = document.getElementById('ws-trellis2-ultra-hd')?.checked || false;
   if (trellis2UltraHD) expectedMs += 280000;  // ~280s for Real-ESRGAN x2 atlas 4k→8k
+  // OPTION « relief pour moteur de jeu » (2026-10-15) : carte de normales plafonnee a 2048 px, GRATUITE, decochee par defaut, lue par le
+  // serveur (worker -> Modal) ou par le pipeline du bureau. Booleen STRICT (=== true) : jamais une valeur ambigue vers le serveur.
+  const trellis2NormalMap = document.getElementById('ws-trellis2-normal-map')?.checked === true;
   const TRELLIS2_PRESETS = {
     fast:     { steps: 12, texSize: 2048, imgRes: 1024 },
     balanced: { steps: 24, texSize: 2048, imgRes: 1024 },
@@ -10254,6 +10851,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     quality_plus: trellis2QualityPlus,
     ultra_q:      trellis2UltraQ,
     face_fix:     trellis2FaceFix,
+    normal_map:   trellis2NormalMap,   // nom lu par le worker (FormData) : option gratuite « relief pour moteur de jeu »
     ultra_hd:     effectiveUltraHD,
     preset:       trellis2Preset,
     // Keep the legacy keys around in case the desktop main process or
@@ -10265,6 +10863,7 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     trellis2QualityPlus,
     trellis2UltraQ,
     trellis2FaceFix,
+    trellis2NormalMap,
     trellis2UltraHD: effectiveUltraHD,
     trellis2Preset,
     // Network-boundary key: the Worker (/api/generate) reads `asset_type`.
@@ -10280,7 +10879,8 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
   const _fmtTris = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}K`;
   const _optsActives = [trellis2MultiRef && 'Multi-reference', trellis2RectifySource && 'Auto-rectify',
     trellis2Smooth && 'Texture smooth', trellis2QualityPlus && 'Sharp edges',
-    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px'].filter(Boolean);
+    trellis2UltraQ && 'Fine geometry', effectiveUltraHD && 'Sharpened 8192px',
+    trellis2NormalMap && 'Game-engine relief'].filter(Boolean);
   const _nomSource = p.selectedImagePath ? p.selectedImagePath.split('?')[0].split(/[/\\]/).pop() : '--';
   const jobParams = engine === 'native_3d' ? {
     Engine: engineLabel(engine),
@@ -10429,8 +11029,13 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
   const p = state.currentProject;
   const m = getCurrentMeshObj();
   if (!p || !m) return;
-  const modification = document.getElementById('rfn-prompt').value.trim();
-  if (!modification) { showToast('Type a modification first.', 'error'); return; }
+  const rawModification = document.getElementById('rfn-prompt').value.trim();
+  if (!rawModification) { showToast('Type a modification first.', 'error'); return; }
+  // user's language → EN ; echec : l'utilisateur choisit (Reessayer / Envoyer tel quel), annule = rien n'est lance (24/10, audit M6 :
+  // ce champ n'etait traduit nulle part sur le site)
+  const _trModif = await _traduirePourGeneration(rawModification);
+  if (!_trModif) return;
+  const modification = _trModif.texte;
   const format = document.getElementById('rfn-format').value;
   const model = document.getElementById('rfn-model').value;
   document.getElementById('modal-refine-mesh').classList.add('hidden');
@@ -10444,7 +11049,7 @@ document.getElementById('rfn-go')?.addEventListener('click', async () => {
       'Source mesh': m.filename,
     });
     try {
-      const r = await API.refineMesh({ projectName: p.name, modification, format, model, jobId: job.id });
+      const r = await API.refineMesh({ projectName: p.name, modification, format, model, jobId: job.id, langueVerifiee: _trModif.telQuel || undefined });
       if (r?.success || r?.meshPath) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -10485,7 +11090,7 @@ function _meshJobThumb(meshPath) {
   return t ? _toFileUrl(t) : null;
 }
 
-async function runMeshTool(operation, params = []) {
+async function runMeshTool(operation, params = [], options = undefined) {
   const p = state.currentProject;
   // La version AFFICHEE (previewMeshPath), pas la derniere generee ni celle
   // choisie pour le rig. Correctif du bureau jamais reporte ici : un outil
@@ -10517,7 +11122,8 @@ async function runMeshTool(operation, params = []) {
       }, expectedMs)
     : null;
   try {
-    const result = await API.meshTool({ operation, meshPath, imagePath: meshImagePath, params, projectName: p?.name || null });
+    const result = await API.meshTool({ operation, meshPath, imagePath: meshImagePath, params, projectName: p?.name || null,
+      langueVerifiee: (options && options.langueVerifiee) || undefined });
     // Ultra 8K : la re-texture cuit en 4096, puis « Sharpen texture » x2 ->
     // 8192, comme au bureau (un bake 8K sature la memoire du GPU).
     if (result && result.success && operation === 'trellis2_retex' && params[1] === 'ultra_8k'
@@ -11402,6 +12008,8 @@ const MESH_TOOL_SCHEMAS = {
       { id: 'seed', label: 'Variation (seed)', type: 'number', min: 0, max: 999999, step: 1, default: 42, randomize: true },
       { id: 'style', label: 'Style (optional)', type: 'text', default: '', placeholder: 'rusty, golden, camouflage…' },
     ],
+    // Champ de texte libre TRADUIT avant l'envoi (2026-10-13, lot 2 de l'audit de la langue, CHAMPS-03 : il partait brut).
+    texteLibre: 'style',
     // Meme ordre que le bureau : [force 0-1, graine, style]. Le pont web
     // (meshyAPI-cloud.js, meshTool) les relit dans cet ordre.
     build: (vals) => [String((Number(vals.strength) || 40) / 100), String(vals.seed), vals.style || ''],
@@ -12202,6 +12810,17 @@ function openMeshToolModal(toolName) {
       }
       input.addEventListener('change', () => _mtSchedulePreview());
       if (!input.__dejaPlace) wrap.appendChild(input);
+      // Champ de texte libre TRADUIT avant l'envoi (schema.texteLibre) : son aide de langue, comme sous les champs de la page.
+      if (spec.type === 'text' && schema.texteLibre === spec.id) {
+        const aide = document.createElement('div');
+        aide.className = 'prompt-lang-hint';
+        aide.dataset.pour = 'mt-' + spec.id;
+        aide.setAttribute('translate', 'no');
+        aide.setAttribute('data-i18n-skip', '');
+        aide.setAttribute('dir', 'auto');
+        aide.textContent = _texteAideLangue(aide.dataset.pour);
+        wrap.appendChild(aide);
+      }
       // « ↺ Current » : revenir au nombre de triangles du maillage (parite bureau, 2026-09-29)
       if (spec.resetToCurrent) {
         const rb = document.createElement('button');
@@ -12325,10 +12944,19 @@ function openMeshToolModal(toolName) {
   applyBtn.onclick = async () => {
     const vals = _mtCollectVals(body);
     if (schema.confirm && !(await customConfirm(schema.confirm, schema.title || 'Confirm', 'Continue'))) return;
+    // Texte libre de l'outil (ex. Style des variantes de texture) TRADUIT avant l'envoi (2026-10-13, lot 2) ; echec et annulation :
+    // la fenetre reste ouverte, rien n'est lance.
+    let langueVerifiee;
+    if (schema.texteLibre && String(vals[schema.texteLibre] || '').trim()) {
+      const tr = await _traduirePourGeneration(String(vals[schema.texteLibre]).trim());
+      if (!tr) return;
+      vals[schema.texteLibre] = tr.texte;
+      langueVerifiee = tr.telQuel || undefined;
+    }
     const ctx = { imagePath: p.selectedImagePath, meshPath: p.previewMeshPath || p.selectedMeshPath };
     const params = schema.build(vals, ctx);
     close();
-    runMeshTool(toolName, params);
+    runMeshTool(toolName, params, langueVerifiee ? { langueVerifiee: true } : undefined);
   };
   if (deviceBtn) {
     deviceBtn.onclick = async () => {
@@ -14793,11 +15421,14 @@ async function _peApplyMaskRetex() {
   }
   mctx.putImageData(out, 0, 0);
   const maskDataUrl = mc.toDataURL('image/png');
-  const prompt = await translateUserPrompt(rawPrompt);
+  // Traduction avec accord en cas d'echec (2026-10-13, lot 2 de l'audit de la langue) : rien n'est lance si l'utilisateur annule.
+  const _tr = await _traduirePourGeneration(rawPrompt);
+  if (!_tr) throw new Error(_messageTraduction('titre'));
+  const prompt = _tr.texte;
   const strength = parseFloat(document.getElementById('pe-mask-strength')?.value) || 0.8;
   const job = (typeof pushJob === 'function')
     ? pushJob('AI region re-texture', null, { 'Source mesh': String(meshPath).split(/[/\\]/).pop() }, 60000) : null;
-  const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true });
+  const r = await window.meshyAPI.regionRetex?.({ meshPath, maskDataUrl, prompt, strength, uvMask: true, langueVerifiee: _tr.telQuel || undefined });
   if (r && r.ok && r.path) {
     if (job) completeJob(job.id, true);
     showToast(_i18nT('Region re-textured') + ' ✅', 'success');
@@ -14998,9 +15629,12 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
     const part = ($('rrx-part')?.value || '').trim();
     if (!part) { showToast(_i18nT('Type which part to detect (or paint it).'), 'error'); return false; }
     if (!vueUrl) { showToast(_i18nT('The mesh render is not ready yet.'), 'error'); return false; }
+    // detection payante (1 credit) : traduction avec accord en cas d'echec (2026-10-13, lot 2)
+    const _trPartie = await _traduirePourGeneration(part);
+    if (!_trPartie) return false;
     chargement(_i18nT('Detecting the part…'));
     try {
-      const r = await API.segmentMask({ imagePath: vueUrl, targetText: await translateUserPrompt(part), dilate: 8 });
+      const r = await API.segmentMask({ imagePath: vueUrl, targetText: _trPartie.texte, dilate: 8, langueVerifiee: _trPartie.telQuel || undefined });
       if (!(r?.success && r.maskUrl)) { showToast(_i18nT('Could not detect this part. Try another word, or paint it.'), 'error'); return false; }
       await new Promise((ok) => {
         const img = new Image();
@@ -15045,11 +15679,13 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
     }
     mctx.putImageData(out, 0, 0);
     const maskDataUrl = mc.toDataURL('image/png');
-    const prompt = await translateUserPrompt(brut);
+    const _tr = await _traduirePourGeneration(brut);   // echec + annulation : la fenetre reste ouverte, rien n'est lance
+    if (!_tr) return;
+    const prompt = _tr.texte;
     const p = state.currentProject;
     const vue = vueUrl;
     fermer();
-    _lancerReshape({ meshPath: mp, frontPath: vue, maskDataUrl, prompt, brut, projet: p });
+    _lancerReshape({ meshPath: mp, frontPath: vue, maskDataUrl, prompt, brut, projet: p, langueVerifiee: _tr.telQuel || undefined });
   });
   document.getElementById('ws-mesh-reshape-btn')?.addEventListener('click', ouvrir);
   document.getElementById('ws-mesh-reshape-draw-btn')?.addEventListener('click', () => {
@@ -15060,12 +15696,12 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
 })();
 
 /** Lance le travail (plusieurs minutes) en tache de fond : tuile « Reshape region », nouvelle version. */
-function _lancerReshape({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, brut, projet }) {
+function _lancerReshape({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, brut, projet, langueVerifiee }) {
   const job = (typeof pushJob === 'function')
     ? pushJob(`Reshape region: ${projet?.name || ''}`, null,
         { 'Source mesh': _nomLisible(meshPath), Prompt: brut }, 300000, { projectName: projet?.name })
     : null;
-  API.reshapeRegion({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName: projet?.name }).then(async (r) => {
+  API.reshapeRegion({ meshPath, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName: projet?.name, langueVerifiee }).then(async (r) => {
     if (r?.ok && r.path) {
       if (job) completeJob(job.id, true);
       showToast(_i18nT('Region rebuilt: new 3D version added.'), 'success');
@@ -15104,8 +15740,10 @@ async function _peApplyReshape() {
     if (src[i] > 40 || src[i + 1] > 40 || src[i + 2] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = out.data[i + 3] = 255; }
   }
   mctx.putImageData(out, 0, 0);
-  const prompt = await translateUserPrompt(brut);
-  _lancerReshape({ meshPath, uvMaskDataUrl: mc.toDataURL('image/png'), prompt, brut, projet: state.currentProject });
+  const _tr = await _traduirePourGeneration(brut);   // traduction avec accord en cas d'echec (2026-10-13, lot 2)
+  if (!_tr) throw new Error(_messageTraduction('titre'));
+  _lancerReshape({ meshPath, uvMaskDataUrl: mc.toDataURL('image/png'), prompt: _tr.texte, brut, projet: state.currentProject,
+    langueVerifiee: _tr.telQuel || undefined });
 }
 document.getElementById('ws-mesh-region-retex-btn')?.addEventListener('click', () => {
   const mp = _peMeshCourant();
@@ -18446,7 +19084,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (t) params['Max triangles'] = t >= 1e6 ? `${+(t / 1e6).toFixed(1)}M` : `${Math.round(t / 1000)}K`;
         const choisies = [o.back_view && 'Multi-reference', o.rectify && 'Auto-rectify',
           o.smooth && 'Texture smooth', o.quality_plus && !o.ultra_q && 'Sharp edges',
-          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Sharpened 8192px'].filter(Boolean);
+          o.ultra_q && 'Fine geometry', o.ultra_hd && 'Sharpened 8192px', o.normal_map === true && 'Game-engine relief'].filter(Boolean);
         params.Options = choisies.join(', ') || 'None';
       }
       const opts = { projectName: project || null };
@@ -19620,11 +20258,8 @@ document.getElementById('ws-generate-rig')?.addEventListener('click', async () =
           const editStage = rigCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            rigCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            rigCard.classList.add('pulse-highlight');
-            setTimeout(() => rigCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(rigCard, _i18nT('Rig generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false);
@@ -19713,11 +20348,8 @@ async function lancerRigIA(options = {}) {
           const editStage = rigCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            rigCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            rigCard.classList.add('pulse-highlight');
-            setTimeout(() => rigCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(rigCard, _i18nT('Rig generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
@@ -20165,6 +20797,7 @@ var _apercuAnim = null;
 var LIBELLES_MODE = {
   nage: { idle: '🐟 Idle (hover)', walk: '🐟 Swim', run: '🐟 Swim fast', turn_left: '↰ Swim left', turn_right: '↱ Swim right' },
   reptation: { idle: '🐍 Idle', walk: '🐍 Slither', run: '🐍 Slither fast', turn_left: '↰ Slither left', turn_right: '↱ Slither right' },
+  vol: { idle: '🦅 Hover', walk: '🦅 Fly', run: '💨 Fly fast', turn_left: '↰ Bank left', turn_right: '↱ Bank right' },
 };
 var VARIANTES_MODE = {
   nage: { idle: ['normal'], walk: ['normal', 'slow', 'brisk', 'crawl'], run: ['normal', 'sprint'], turn_left: ['normal', 'tight', 'wide'], turn_right: ['normal', 'tight', 'wide'] },
@@ -20185,8 +20818,15 @@ var DESCRIPTIONS_MODE = {
     turn_left: 'Slithers while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
     turn_right: 'Slithers while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
   },
+  vol: {
+    idle: 'Hovers in place, wings beating.', walk: 'Flies forward, wings beating steadily.', walk__slow: 'Slow, relaxed flight.',
+    walk__brisk: 'Quick, lively flight.', walk__crawl: 'Flies forward, wings beating steadily.',
+    run: 'Fast flight, deep wing beats, body leaning forward.', run__sprint: 'Full speed, the wings beat hard.',
+    turn_left: 'Flies while banking to the left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
+    turn_right: 'Flies while banking to the right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+  },
 };
-Object.assign(NOMS_ALLURES, { swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
+Object.assign(NOMS_ALLURES, { flight: 'Fly', flight_fast: 'Fly fast', flight_left: 'Bank left', flight_right: 'Bank right', swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
   slither: 'Slither', slither_fast: 'Slither fast', slither_left: 'Slither left', slither_right: 'Slither right' });
 var _modeMenus = null;                         // mode avec lequel les menus ont ete construits
 function _cleModeAnim() { return 'fabmesh.modeAnim.' + (state.currentProject?.name || ''); }
@@ -20194,7 +20834,7 @@ function _modeImpose() { try { return localStorage.getItem(_cleModeAnim()) || 'a
 /** Mode detecte : mots du projet d'abord, puis squelette du rig charge dans l'apercu. */
 function _modeDetecte() {
   const p = state.currentProject || {};
-  const parMots = modeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
+  const parMots = modeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType].filter(Boolean).join(' '));   // « a dragon, not flying » n'est pas un vol
   if (parMots) return parMots;
   const parSquelette = _apercuAnim?.modeSquelette?.();
   return parSquelette || 'pattes';
@@ -20216,7 +20856,7 @@ function _cleEspeceAnim() { return 'fabmesh.especeAnim.' + (state.currentProject
 function _especeImposee() { try { return localStorage.getItem(_cleEspeceAnim()) || 'auto'; } catch (_) { return 'auto'; } }
 function _especeDetectee() {
   const p = state.currentProject || {};
-  return especeDepuisTexte([p.name, p.prompt, p.assetType].filter(Boolean).join(' '));
+  return especeDepuisTexte([p.name, _sansNegations(p.prompt), p.assetType].filter(Boolean).join(' '));
 }
 function _especeAnim() { const e = _especeImposee(); return e !== 'auto' ? e : _especeDetectee(); }
 /** Types d'animation proposes : ceux de l'espece ; en generique, selon le nombre de pattes du rig. */
@@ -20244,9 +20884,9 @@ function _remplirMenuTypes() {
   const selMode = document.getElementById('ws-anim-mode');
   const m = _modeAnim();
   if (selMode) {
-    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍' }[_modeDetecte()] || '';
+    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍', vol: '🦅' }[_modeDetecte()] || '';
     const auto = selMode.querySelector('option[value="auto"]');
-    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers' }[_modeDetecte()]) + ')';
+    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers', vol: 'Flies' }[_modeDetecte()]) + ')';
     selMode.value = _modeImpose();
   }
   if (!choix) return;
@@ -21459,9 +22099,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       animCard.classList.remove('collapsed', 'disabled');
       const editStage = animCard.querySelector('.stage-edit');
       if (editStage) editStage.open = true;
-      animCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      animCard.classList.add('pulse-highlight');
-      setTimeout(() => animCard.classList.remove('pulse-highlight'), 1500);
+      // plus de saut auto (comme le bureau) : message + bouton
+      showGoToToast(animCard, _i18nT('Item generated') + ' ✅', _i18nT('Go to the generated item'));
     }
   });
 });
@@ -23231,6 +23870,10 @@ document.getElementById('ai-preview-btn')?.addEventListener('click', async () =>
     return;
   }
   const dilate = parseInt(document.getElementById('ai-dilate').value) || 15;
+  // Cible TRADUITE (2026-10-13, lot 2 : CLIPSeg ne comprend que l'anglais et le site envoyait « chapeau » tel quel) ; l'apercu coute un
+  // credit : echec de traduction = l'utilisateur choisit, annule = rien n'est lance.
+  const _trCible = await _traduirePourGeneration(target);
+  if (!_trCible) return;
   const spinner = document.getElementById('ai-detect-spinner');
   const label = document.getElementById('ai-detect-label');
   const btn = document.getElementById('ai-preview-btn');
@@ -23241,7 +23884,7 @@ document.getElementById('ai-preview-btn')?.addEventListener('click', async () =>
   if (spinner) spinner.style.display = 'flex';
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Detecting…'; }
   try {
-    const r = await window.meshyAPI.segmentMask({ imagePath, targetText: target, dilate });
+    const r = await window.meshyAPI.segmentMask({ imagePath, targetText: _trCible.texte, dilate, langueVerifiee: _trCible.telQuel || undefined });
     _aiFirstDetectDone = true;
     const ov = document.getElementById('ai-mask-overlay');
     if (r?.success && r.maskUrl && ov) {
@@ -23401,7 +24044,15 @@ document.getElementById('rc-go')?.addEventListener('click', async () => {
   const mode = document.getElementById('rc-mode')?.value || 'general';
   const recolorAll = (mode === 'general' || mode === 'whole-style');
   const stylePrompt = (document.getElementById('rc-all-prompt')?.value || '').trim();
-  const fieldRaw = (document.getElementById('rc-prompt').value || '').trim();
+  const fieldSaisi = (document.getElementById('rc-prompt').value || '').trim();
+  // Zone : le texte est TRADUIT avant d'y chercher la couleur (2026-10-13, lot 2 de l'audit de la langue, MANQUE-06 / CHAMPS-10) :
+  // la liste des couleurs ne connait que l'anglais et le francais, « casco rojo » ou « 红色头盔 » donnait « Pick a colour » a tort.
+  let _trZone = { texte: fieldSaisi, telQuel: false };
+  if (mode === 'zone' && fieldSaisi) {
+    _trZone = await _traduirePourGeneration(fieldSaisi);
+    if (!_trZone) return;
+  }
+  const fieldRaw = _trZone.texte;
   const part = _stripColorWords(fieldRaw).trim();
   const fieldHasColor = fieldRaw !== part;
   // Per-mode validation.
@@ -23435,7 +24086,12 @@ document.getElementById('rc-go')?.addEventListener('click', async () => {
   const strength = (parseInt(document.getElementById('rc-strength').value) || 100) / 100;
   const dilate = parseInt(document.getElementById('rc-dilate').value) || 15;
   document.getElementById('modal-recolor').classList.add('hidden');
-  const prompt = await translateUserPrompt(rawPrompt);  // -> EN so CLIPSeg detects the part
+  // -> EN so CLIPSeg detects the part. Seul le style libre (whole-style) reste a traduire ici (2026-10-13, lot 2) : la ZONE l'est deja
+  // ci-dessus (ou acceptee telle quelle par l'utilisateur : pas de seconde fenetre), la couleur du nuancier est un mot ANGLAIS de
+  // l'interface (« gold », « orange » sous une interface francaise partaient au traducteur). Echec : l'utilisateur choisit.
+  const _trRc = mode === 'whole-style' ? await _traduirePourGeneration(rawPrompt) : { texte: rawPrompt, telQuel: _trZone.telQuel };
+  if (!_trRc) return;
+  const prompt = _trRc.texte;
   gatedRun('img2img', `Recolor: ${p.name}`, async () => {
     const job = pushJob(`Recolor: ${p.name}`, null, {
       Prompt: recolorAll ? (rawPrompt + ' (whole image)') : rawPrompt,
@@ -23443,7 +24099,8 @@ document.getElementById('rc-go')?.addEventListener('click', async () => {
       Padding: recolorAll ? '—' : dilate + 'px',
     }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
     try {
-      const r = await API.recolor({ imagePath, prompt, strength, dilate, rel: _rcRel(), recolorAll, jobId: job.id });
+      const r = await API.recolor({ imagePath, prompt, strength, dilate, rel: _rcRel(), recolorAll, jobId: job.id,
+        langueVerifiee: (_trRc.telQuel || _trZone.telQuel) || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -23538,7 +24195,10 @@ document.getElementById('age-go')?.addEventListener('click', async () => {
   const assetType = document.getElementById('ws-asset-type')?.value || 'character';
   const isChar = ['character', 'creature', 'animal', 'humanoid', 'dragon'].includes(assetType);
   let prompt = _ageBuildPrompt(v, assetType);
-  if (guide) prompt = prompt + ', ' + (await translateUserPrompt(guide));
+  // guide traduit, avec accord en cas d'echec (2026-10-13, lot 2) : annule = rien n'est lance ni debite
+  const _trGuide = guide ? await _traduirePourGeneration(guide) : { texte: '', telQuel: false };
+  if (!_trGuide) return;
+  if (guide) prompt = prompt + ', ' + _trGuide.texte;
   const strength = _ageStrength(v);
   // Variable structure lock: for CHARACTERS a small age change keeps the
   // silhouette (high cn), a strong one frees the PROPORTIONS (cub/baby). For
@@ -23563,7 +24223,7 @@ document.getElementById('age-go')?.addEventListener('click', async () => {
       Amount: Math.abs(v) + '%',
     }, 20000, { sourceImageUrl: imagePath, projectName: p.name });
     try {
-      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt });
+      const r = await API.texVariant({ imagePath, prompt, strength, seed: 0, cnScale, negPrompt, langueVerifiee: _trGuide.telQuel || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -23656,15 +24316,23 @@ document.getElementById('ai-go')?.addEventListener('click', async () => {
   const p = state.currentProject;
   const imagePath = editTarget(p);
   if (!imagePath) return;
-  const target = document.getElementById('ai-target').value.trim();
-  if (!target) {
+  const rawTarget = document.getElementById('ai-target').value.trim();
+  if (!rawTarget) {
     showToast('Type what to find first (e.g. "hat", "background")', 'error');
     document.getElementById('ai-target')?.focus();
     return;
   }
-  const replace = document.getElementById('ai-replace').value.trim();
+  const rawReplace = document.getElementById('ai-replace').value.trim();
   const dilate = parseInt(document.getElementById('ai-dilate').value) || 15;
   document.getElementById('modal-auto-inpaint').classList.add('hidden');
+  // Cible ET remplacement TRADUITS comme sur le bureau (2026-10-13, lot 2 de l'audit de la langue, TRADUCTION-04 : CLIPSeg et le
+  // moteur d'image recevaient le texte brut) ; echec : l'utilisateur choisit, annule = rien n'est lance ni debite.
+  const _trCible = await _traduirePourGeneration(rawTarget);
+  if (!_trCible) return;
+  const _trRempl = rawReplace ? await _traduirePourGeneration(rawReplace) : { texte: '', telQuel: false };
+  if (!_trRempl) return;
+  const target = _trCible.texte;
+  const replace = _trRempl.texte;
   // Auto-inpaint: CLIPSeg detection + SDXL inpaint, ~3 min on RTX 5080
   const inpaintSource = imagePath;
   const inpaintProject = p.name;
@@ -23675,7 +24343,8 @@ document.getElementById('ai-go')?.addEventListener('click', async () => {
       Padding: dilate + 'px',
     }, 180000, undefined, { sourceImageUrl: inpaintSource, projectName: inpaintProject });
     try {
-      const r = await API.autoInpaint({ imagePath, targetText: target, prompt: replace, dilate, jobId: job.id });
+      const r = await API.autoInpaint({ imagePath, targetText: target, prompt: replace, dilate, jobId: job.id,
+        langueVerifiee: (_trCible.telQuel || _trRempl.telQuel) || undefined });
       if (r?.success) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -26020,11 +26689,8 @@ window.addEventListener('drop', async (e) => {
           const editStage = imgCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            imgCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            imgCard.classList.add('pulse-highlight');
-            setTimeout(() => imgCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(imgCard, _i18nT('Image generated') + ' ✅', _i18nT('Go to the imported item'));
         }
         try { showToast('✓ Imported as new image version', 'success'); } catch (_) {}
       } else if (kind === 'mesh') {

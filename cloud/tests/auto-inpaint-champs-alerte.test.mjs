@@ -46,7 +46,8 @@ test('textes verifies : le texte joint, puis la cible, puis le remplacement, pui
   const m = monter();
   const r = await m.inpaint({ targetText: 'wings', prompt: 'a hat', consigne: 'replace the wings with a hat', consigneOriginale: 'remplace les ailes par un chapeau' });
   assert.equal(r.status, 200, await r.clone().text());
-  assert.deepEqual(m.j.verifies, ['wings. a hat', 'wings', 'a hat', 'replace the wings with a hat', 'remplace les ailes par un chapeau']);
+  assert.deepEqual(m.j.verifies, ['wings. a hat', 'wings', 'a hat', 'replace the wings with a hat', 'remplace les ailes par un chapeau',
+    'wings a hat']);   // + le PLANCHER seul sur cible + remplacement ensemble (deploy-2510, MODERATION-04)
   assert.deepEqual([m.j.modal[0].targetText, m.j.modal[0].prompt], ['wings', 'a hat']);
 });
 

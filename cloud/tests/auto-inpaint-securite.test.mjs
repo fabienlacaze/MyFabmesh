@@ -48,7 +48,7 @@ test('securite : Modify refusait deja ce texte ; Auto Inpaint le refuse maintena
 test('la chaine VERIFIEE est la chaine ENVOYEE a Modal : texte rogne une seule fois, cible et remplacement', async () => {
   const m = monter();
   await m.inpaint({ targetText: '  wings  ', prompt: '  a hat \n' });
-  assert.deepEqual(m.j.verifies, ['wings. a hat', 'wings', 'a hat']);   // le texte joint, PUIS chaque champ seul (2026-10-22)
+  assert.deepEqual(m.j.verifies, ['wings. a hat', 'wings', 'a hat', 'wings a hat']);   // + plancher seul sur cible+remplacement (deploy-2510) ; le texte joint, PUIS chaque champ seul (2026-10-22)
   assert.equal(m.j.modal[0].targetText, 'wings');
   assert.equal(m.j.modal[0].prompt, 'a hat');
   const retrait = monter();
@@ -94,7 +94,7 @@ test('credits insuffisants : 402 et budget rendu, pas d\'appel Modal', async () 
   const w = chargerFonctions(['handleAutoInpaint', ...(AVEC_REFUS_MINEUR ? NOMS_REFUS_MINEUR : [])], {
     getSessionUser: async () => ({ id: 'u1' }), err: (s, mm) => new Response(JSON.stringify({ error: mm }), { status: s }),
     json: (o, init) => new Response(JSON.stringify(o), { status: (init && init.status) || 200 }), getParentalState: async () => ({}),
-    _checkPromptSafetyAlerte: async () => ({ safe: true }), getPrice: async () => 6, isTrustedAssetHost: () => true,
+    _checkPromptSafetyAlerte: async () => ({ safe: true }), getPrice: async () => 6, isTrustedAssetHost: () => true, _refusLongueur: () => null, LangueTexte: { morceauxEtrangers: () => [] }, _filetLangue: async (_e, _u, t) => ({ textes: t, traduit: false }),
     checkAndIncrementModalSpend: async () => 100, _spendRefusalMessage: async () => 'refus', checkAndIncrementUserCalls: async () => 10,
     refundModalSpend: async () => { refus.j.budget.push('rembourse'); }, spendCredits: async () => null, addCredits: async () => {},
     callModalImageOp: async () => { refus.j.modal.push(1); return { url: 'x' }; }, logOperation: async () => {},

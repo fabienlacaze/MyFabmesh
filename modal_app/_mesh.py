@@ -607,6 +607,7 @@ def generate(
     tris_exact: bool = False,     # « Max triangles » : nombre tenu a +/- 5 %
     smooth: bool = False,         # filtre bilateral sur l'atlas (case « Texture smooth »)
     ultra_hd: bool = False,       # Ultra 8K : atlas couleur x2 AVANT la serialisation (voir plus bas)
+    normal_map: bool = False,     # OPTION « relief pour moteur de jeu » : carte de normales (plafonnee, voir normal_bake) ; faux = GLB d'avant
 ) -> bytes:
     """Run TRELLIS-2 inference + GLB export. Returns the GLB bytes
     (caller pushes to R2). When `back_img` is provided, runs the
@@ -802,6 +803,31 @@ def generate(
         DERNIER_NB_FACES = None
     t_couleurs = time.time() - t_fin
 
+    # CARTE DE NORMALES (2026-10-13 ; demande du proprietaire le 04/10 : « on ajoute la carte de normales a l'export »).
+    # to_glb reduit les 12 a 47 M de faces du maillage FIN a la cible (500 000...) : le relief fin disparait a l'eclairage. Il est
+    # cuit ici dans une carte de normales (glTF normalTexture, espace tangent ; modal_app/normal_bake.py = scripts/normal_bake.py)
+    # depuis les sommets fins (o_voxel_obj, repere de la grille, converti comme to_glb), UNE fois, sur le maillage RETENU (apres
+    # exporter_exact et les retouches de couleur, qui ne touchent ni la forme ni les UV). Taille = l'atlas de couleur cuit par
+    # to_glb (texture_size) : Ultra 8K, plus bas, n'agrandit que la couleur ; une carte 8192 ne verrait rien de plus (un texel y
+    # est plus petit que le pas des sommets fins) et pese 4 fois plus. La carte est encodee SANS PERTE (WebP lossless).
+    # OPTION PAR GENERATION (2026-10-15, decision du proprietaire apres l'essai A/B : gain net en argile sous lumiere rasante mais
+    # DISCRET en couleur, +22 Mo a 4096) : la carte n'est cuite que si `normal_map` vaut exactement True (case « Game-engine relief »,
+    # desactivee par defaut), ET plafonnee a 2048 px (normal_bake.PLAFOND_DEFAUT, +6,4 Mo). Sans option on n'entre meme pas dans ce
+    # bloc : le GLB est celui d'avant a l'octet. FABMESH_NORMAL_MAP=0 reste l'interrupteur d'urgence et l'emporte sur l'option.
+    # Tout echec : GLB sans carte, journal.
+    t_normales, carte_normales = 0.0, False
+    if normal_map is True:
+        try:
+            from modal_app import normal_bake as _normal_bake
+            if _normal_bake.carte_normales_voulue(normal_map):
+                _t = time.time()
+                carte_normales = bool(_normal_bake.ajouter_carte_normales(
+                    glb_obj, o_voxel_obj.vertices, o_voxel_obj.faces,
+                    log=lambda m: print(f'[mesh] {m}', flush=True)).get('posee'))
+                t_normales = time.time() - _t
+        except Exception as e:  # ajouter_carte_normales ne leve jamais : filet si le module lui-meme manquait
+            print(f'[mesh] carte de normales ignoree : {type(e).__name__}: {e}', flush=True)
+
     # ULTRA 8K AVANT LA SERIALISATION (2026-09-29). Avant, l'atlas etait agrandi APRES : le GLB
     # (500 K faces, textures WebP) etait serialise, recharge par trimesh, puis reserialise en
     # entier (8K : 39 s dont ~20 s de ce double passage). Meme agrandissement, fait une fois.
@@ -826,11 +852,19 @@ def generate(
 
     _t = time.time()
     t_webp = preencoder_couleur(glb_obj, log=lambda m: print(m, flush=True))
+    suite_normales = ''
+    if carte_normales:
+        try:
+            from modal_app.acceleration_glb import preencoder_normales
+            suite_normales = (f', carte de normales {t_normales:.1f}s + encodage sans perte '
+                              f'{preencoder_normales(glb_obj, log=lambda m: print(m, flush=True)):.1f}s')
+        except Exception as e:  # la carte reste protegee par normal_bake (encodage sans perte a l'export)
+            suite_normales = f', carte de normales {t_normales:.1f}s (pre-encodage ignore : {type(e).__name__})'
     buf = io.BytesIO()
     glb_obj.export(buf, file_type='glb', extension_webp=True)
     glb_bytes = buf.getvalue()
     print(f'[mesh] finitions : couleurs/metal/alpha {t_couleurs:.1f}s, serialisation {time.time() - _t:.1f}s '
-          f'(dont texture couleur {t_webp:.1f}s)', flush=True)
+          f'(dont texture couleur {t_webp:.1f}s){suite_normales}', flush=True)
 
     # EU AI Act art. 50 metadata — required by EU Regulation 2024/1689,
     # applicable from 2026-08-02. Marks the GLB as AI-generated. Same

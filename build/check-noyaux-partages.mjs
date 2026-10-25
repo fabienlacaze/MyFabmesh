@@ -138,6 +138,8 @@ const FICHIERS = [
   { nom: 'reshape (auto inpaint 3D)', source: 'scripts/mesh_inpaint.py', copie: 'modal_app/reshape/mesh_inpaint.py' },
   { nom: 'serpent etire (silhouette)', source: 'scripts/serpent_etire.py', copie: 'modal_app/serpent_etire.py' },
   { nom: 'acceleration du GLB (atlas, WebP)', source: 'scripts/acceleration_glb.py', copie: 'modal_app/acceleration_glb.py' },
+  // carte de normales cuite du maillage fin vers le maillage final (2026-10-13) : generation bureau ET Modal, outils
+  { nom: 'carte de normales (cuisson)', source: 'scripts/normal_bake.py', copie: 'modal_app/normal_bake.py' },
   // Face Fix image (2026-09-29) : visage humain ou TETE d'animal + retouche SDXL, bureau (serveur local) et web
   { nom: 'face fix image (visage / tete d animal)', source: 'scripts/face_fix_image.py', copie: 'modal_app/_face_fix_image.py' },
   { nom: 'align texture (reprojection)', source: 'scripts/texture_project.py', copie: 'modal_app/texproj/texture_project.py' },
@@ -151,8 +153,14 @@ const FICHIERS = [
   { nom: 'worker LOD', source: 'src/renderer/lib/lod-worker.js', copie: 'cloud/public/app/lib/lod-worker.js' },
   { nom: 'meshoptimizer simplifier', source: 'src/renderer/lib/meshopt-simplifier.js', copie: 'cloud/public/app/lib/meshopt-simplifier.js' },
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
+  // filtrage anisotrope + mipmaps des textures des visualiseurs (2026-10-15) : MEME fichier sur le bureau et le web
+  { nom: 'filtrage des textures (anisotropie)', source: 'src/renderer/lib/filtrage-textures.js', copie: 'cloud/public/app/lib/filtrage-textures.js' },
   // redacteur de la fenetre New project (2026-09-30) : meme script sur le bureau (local) et sur Modal (site)
   { nom: 'redacteur (New project)', source: 'scripts/redacteur.py', copie: 'modal_app/redacteur/redacteur.py' },
+  // fusion des masques de detourage (2026-10-03) : UNION u2net + Lucida, Python pur + numpy ; le bureau (_prep_image) et Modal (_detourage) l'appellent
+  { nom: 'fusion des masques de detourage (union)', source: 'scripts/fusion_masques.py', copie: 'modal_app/fusion_masques.py' },
+  // substituts pur torch de timm / kornia pour le code distant de Lucida (2026-10-14) : bureau (lucida_matte) et Modal (conteneur image sans kornia)
+  { nom: 'substituts timm / kornia (Lucida)', source: 'scripts/lucida_shims.py', copie: 'modal_app/lucida_shims.py' },
   // composeur d'intention (2026-10-03) : objets tenus, negatifs d'armes, gabarit adapte a ce que l'utilisateur DEMANDE ; Python = bureau (pont) et Modal, JS = les deux pages
   { nom: 'composeur d intention (Python)', source: 'scripts/composeur_intention.py', copie: 'modal_app/composeur_intention.py' },
   { nom: 'composeur d intention (JS)', source: 'src/renderer/lib/composeur-intention.js', copie: 'cloud/public/app/lib/composeur-intention.js' },
@@ -163,6 +171,10 @@ const FICHIERS = [
   // Modify image : retrait et remplacement (2026-10-20) : module pur + ses traductions, memes octets sur les deux pages
   { nom: 'retrait dans Modify (JS)', source: 'src/renderer/lib/retrait-image.js', copie: 'cloud/public/app/lib/retrait-image.js' },
   { nom: 'traductions de Modify (retrait)', source: 'src/renderer/lang/_additions_retrait.js', copie: 'cloud/public/app/lang/_additions_retrait.js' },
+  // langue du texte de l'utilisateur (2026-10-13, audit de la langue) : bureau, site ET worker (cloud/src/worker.ts importe la copie du site)
+  { nom: 'langue du texte', source: 'src/renderer/lib/langue-texte.js', copie: 'cloud/public/app/lib/langue-texte.js' },
+  // encodeur SDXL des prompts longs (2026-10-13) : memes bornes de poids et memes jetons speciaux casses sur le bureau et sur Modal
+  { nom: 'encodeur SDXL des prompts (poids, jetons speciaux)', source: 'scripts/_sdxl_prompt_utils.py', copie: 'modal_app/_sdxl_prompt_utils.py' },
 ];
 for (const p of FICHIERS) {
   const a = lf(readFileSync(join(RACINE, p.source), 'utf-8'));

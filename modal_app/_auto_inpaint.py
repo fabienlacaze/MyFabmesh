@@ -21,6 +21,23 @@ from PIL import Image, ImageFilter
 import torch
 
 
+def _tri_negations(texte):
+    """(texte sans ses locutions negatives, termes de negatif) : 24/10, audit M7 (voir composeur_intention.separer_negations_outil)."""
+    try:
+        from modal_app import composeur_intention as _ci
+        return _ci.separer_negations_outil(texte)
+    except Exception:
+        return ('' if texte is None else str(texte)), []
+
+
+def _neg_avec(negatif, termes):
+    try:
+        from modal_app import composeur_intention as _ci
+        return _ci.negatif_avec_termes(negatif, termes)
+    except Exception:
+        return negatif
+
+
 def _segment(seg_processor, seg_model, image: Image.Image, target_text: str,
              work_w: int, work_h: int, dilate: int) -> Image.Image:
     """CLIPSeg → soft mask, then threshold + dilate + blur (same recipe
@@ -70,6 +87,10 @@ def generate(
     work_h = (work_h // 8) * 8
     img_work = img.resize((work_w, work_h), Image.LANCZOS)
 
+    # Negations de l'utilisateur (24/10, M7) : ni la cible CLIPSeg ni le remplacement ne gardent « no helmet » ; les termes vont au negatif.
+    target_text, _negs_cible = _tri_negations(target_text)
+    prompt, _negs_prompt = _tri_negations(prompt)
+    _negs = list(_negs_cible) + [x for x in _negs_prompt if x not in _negs_cible]
     # CLIPSeg is weak on small / repeated parts (e.g. building "windows").
     # Try a few phrasings and keep the strongest mask before giving up.
     _base = (target_text or '').strip()
@@ -109,6 +130,7 @@ def generate(
     else:
         final_prompt = p
         negative = f'blurry, distorted, duplicate, {target_text}'
+    negative = _neg_avec(negative, _negs)
     _strength = 0.85 if is_removal else 0.99
 
     result = inpaint_pipe(

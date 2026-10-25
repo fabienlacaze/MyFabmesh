@@ -168,18 +168,50 @@ def _check_auth(payload: dict) -> None:
         raise HTTPException(status_code=401, detail="auth")
 
 
+# 2026-10-13 (constats MODERATION-07 / SERVEUR-09 de l'audit du 11/10) : champs de TEXTE LIBRE qui partent a un generateur.
+# Mesures : 32 000 blancs = 12,6 s dans l'epuration de fin de demande, 32 000 « (a » = 19 s dans le lecteur de poids, le tout
+# sous le verrou GPU ; « <|endoftext|> » lu comme le vrai jeton de fin ; « (x:99999) » = poids infini. Le worker borne et
+# neutralise deja ; ceci est la meme regle au niveau du generateur (appel direct, ancien worker).
+_CHAMPS_TEXTE = ("prompt", "prompt_hint", "target_text", "neg_prompt", "style")
+
+
+def _texte_generateur(texte):
+    """Ce qui part au generateur : caracteres effaces retires, jetons speciaux du tokenizer casses, poids A1111 bornes
+    (modal_app/_moderation_texte.py, genere depuis cloud/src/nsfw_filter.ts). None si le texte est trop long, sinon le texte
+    neutralise. Module absent de l'image (ne devrait pas arriver) : texte tel quel."""
+    try:
+        from modal_app._moderation_texte import (PROMPT_MAX_ENRICHI, controler_longueur_prompt,
+                                                 neutraliser_syntaxe_prompt)
+    except ImportError:
+        return texte
+    if not controler_longueur_prompt(texte, PROMPT_MAX_ENRICHI)["safe"]:
+        return None
+    return neutraliser_syntaxe_prompt(texte)
+
+
 async def _read_json(request) -> dict:
     """FastAPI hands us a `Request`; legacy endpoints used `payload: dict`.
 
     We restore the legacy contract by reading + parsing the body once here.
     A malformed body → 400 (same status FastAPI would give for a bad
     `payload: dict` argument before).
+
+    2026-10-13 : les champs de texte libre (_CHAMPS_TEXTE) sont bornes (400 au-dela de PROMPT_MAX_ENRICHI, longueur ponderee)
+    et neutralises ici, une fois pour toutes les routes, AVANT le plancher et le calcul.
     """
     from fastapi import HTTPException
     try:
-        return await request.json()
+        payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json body")
+    if isinstance(payload, dict):
+        for cle in _CHAMPS_TEXTE:
+            if isinstance(payload.get(cle), str):
+                texte = _texte_generateur(payload[cle])
+                if texte is None:
+                    raise HTTPException(status_code=400, detail="%s too long" % cle)
+                payload[cle] = texte
+    return payload
 
 
 # CALCUL GPU HORS DE LA BOUCLE D'EVENEMENTS, RATTACHABLE PAR LE REJEU (2026-09-29).
@@ -379,6 +411,69 @@ _U2NET_DANS_L_IMAGE = (
     "download/v0.0.0/u2net.onnx', '/root/.u2net/u2net.onnx')\"",
     "echo '8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491  "
     "/root/.u2net/u2net.onnx' | sha256sum -c -",
+)
+
+# Detoureur LUCIDA (egeorcun/lucida, MIT, fine-tune de BiRefNet), 844 Mo, integre au conteneur IMAGE (Backview : rectification,
+# T-pose) et au conteneur du MAILLAGE (2026-10-14). Il complete u2net dans modal_app/_detourage.py (masque = UNION) : sur les
+# personnages en T-pose a fond gris, u2net perd en mediane 21,7 % de ce que Lucida garde (avant-bras, mains, ARMES ; mesure Modal du
+# 2026-10-03, 36 images). Sans ces poids, _detourage se replie sur u2net seul (resultat d'avant) : rien ne casse, rien ne change.
+#   * REVISION ET SHA-256 EPINGLES. Le modele est du code DISTANT (trust_remote_code) : sans epinglage, un changement du depot
+#     s'executerait dans nos conteneurs. Revision et empreintes des QUATRE fichiers (releves dans le cache du depot, 2026-10-14) sont fixes
+#     ici ; `sha256sum -c` fait ECHOUER la construction si un fichier differe (comme u2net et Real-ESRGAN ci-dessus).
+#   * DOSSIER LOCAL, PAS DE CACHE HF. Les fichiers sont deposes dans /opt/lucida et _detourage les charge PAR CE CHEMIN
+#     (FABMESH_LUCIDA_DIR). snapshot_download(revision=<sha>) n'ecrit pas refs/main dans le cache, et from_pretrained(depot,
+#     local_files_only=True) SANS revision echoue alors : Lucida declare indisponible en silence (prouve avec le vrai transformers hors
+#     ligne, revue du 2026-10-14). Le chemin local n'a pas ce piege.
+#   * AUCUNE DEPENDANCE AJOUTEE. timm est deja dans l'image (Florence-2) ; kornia n'est PAS dans celle du conteneur image : le code distant
+#     le demande (un seul appel, en entrainement) -> modal_app/lucida_shims.py (substituts pur torch, installes seulement si le vrai
+#     paquet manque). Le conteneur du maillage a les vrais timm et kornia.
+# Testee sur CPU : build/bancs/noyaux/test_lucida_image_modal.py (execute ces commandes telles quelles). JAMAIS execute sous
+# transformers 4.45.2 (conteneur image) : premiere validation = modal_app/test_lucida_union.py --conteneur backview.
+_LUCIDA_DIR = "/opt/lucida"
+_LUCIDA_DANS_L_IMAGE = (
+    "python -c \"from huggingface_hub import snapshot_download; "
+    "snapshot_download('egeorcun/lucida', revision='6cbedc9722652dc9a3df91dd871f0c4f3334e922', "
+    "local_dir='/opt/lucida', "
+    "allow_patterns=['config.json', 'birefnet.py', 'BiRefNet_config.py', 'model.safetensors'])\"",
+    "cd /opt/lucida && printf '%s  %s\\n' "
+    "'274c3949a052b9da73885c8df33e6cf8605ea4280668e194e4a249cbcda06ec2' config.json "
+    "'2a45b4e0ece72d7c4212bca1a988e7d7e52bfe9f98ec59c58b8809c8a8b7a831' birefnet.py "
+    "'e7b8c2a74f6cea6a59553d517f71d47f2c1d90e670a13416af17c25fe2f3dc52' BiRefNet_config.py "
+    "'2f1aa6913426537d4b93dd5f7138ae5c6664e99abda98c95f3d5b9101283e7d5' model.safetensors "
+    "| sha256sum -c -",
+)
+
+# CuMesh RECONSTRUIT AVEC LE BVH MIT DE CUBVH + CORRECTIF DE FILL_HOLES (2026-10-14/15, verifie a la source :
+# docs/cumesh_licence_et_fill_holes_2026-10-15.md, modal_app/construction_cumesh.py, AGENT_LOG du 15/10).
+#   1) Licence : le CuMesh clone plus haut (sans commit fige) compile le sous-module cubvh de JeffreyXiang
+#      (ce92267), dont le BVH vient d'instant-ngp sous NVIDIA Source Code License (« research or evaluation
+#      purposes only ») ; ashawkey/cubvh l'a reecrit sous MIT (c7379c0, 26/08/2026). On recompile CuMesh
+#      (12289e1, base de la PR #41) avec ashawkey/cubvh epingle a de1badf, sans changer son API Python.
+#   2) fill_holes (PR #41 de CuMesh, non fusionnee) : la valeur initiale de la somme des sommets de bouchage
+#      est construite cote hote avec un constructeur __device__ seulement -> restes de pile, sommets faux des
+#      le 2e appel d'un processus. Correctif de la PR (constructeurs __host__ __device__) applique au texte
+#      EXACT attendu, sinon la construction s'arrete.
+# Gardes BRUYANTES : sources (commit epingle, descendant de c7379c0, ni LICENSE_NVIDIA ni code d'instant-ngp),
+# puis paquet INSTALLE (binaire sans BVH d'instant-ngp, origine = ce dossier, BVH construit sur le CPU). Couche
+# AJOUTEE EN DERNIER dans mesh_image : seule cette compilation (quelques minutes) est refaite ; o-voxel,
+# FlexGEMM, flash-attn et les ~25 Go de poids restent en cache. Teste sur CPU :
+# build/bancs/noyaux/test_cumesh_mit.py. Mesure sur GPU (rien n'a ete lance) : modal_app/test_cumesh_bvh.py (BVH MIT
+# juste sur CUDA 12.4 / L40S) et modal_app/test_cumesh_fill_holes.py (le defaut de la PR #41 touche-t-il la production ?).
+# Si une autre couche est ajoutee en fin de chaine (ex. correctif de hachage d'o_voxel, quelques secondes) : la mettre
+# APRES celle-ci, pour qu'une retouche ne recompile pas CuMesh.
+_CUMESH_MIT = (
+    "rm -rf /tmp/cumesh_mit "
+    "&& git clone --quiet https://github.com/JeffreyXiang/CuMesh.git /tmp/cumesh_mit "
+    "&& git -C /tmp/cumesh_mit checkout --quiet 12289e1062f0603f2f0d0771b02e1395d247f26f "
+    "&& rm -rf /tmp/cumesh_mit/third_party/cubvh "
+    "&& git clone --quiet https://github.com/ashawkey/cubvh.git /tmp/cumesh_mit/third_party/cubvh "
+    "&& git -C /tmp/cumesh_mit/third_party/cubvh checkout --quiet de1badf89b54975d407c42a02a47d41fa149e486 "
+    "&& git -C /tmp/cumesh_mit/third_party/cubvh submodule update --init --recursive --quiet",
+    "python /opt/construction_cumesh.py sources /tmp/cumesh_mit",
+    "pip install --force-reinstall --no-deps --no-build-isolation /tmp/cumesh_mit",
+    "python /opt/construction_cumesh.py installation --source /tmp/cumesh_mit",
+    # plus aucune source de CuMesh dans l'image (l'ancienne copie /tmp/cumesh contient LICENSE_NVIDIA)
+    "rm -rf /tmp/cumesh /tmp/cumesh_mit",
 )
 
 # Base image — CUDA + Python + the heavy pip deps shared by every
@@ -608,6 +703,12 @@ predictor_image = _avec_sources(
         "hf_hub_download('ByteDance/SDXL-Lightning', 'sdxl_lightning_4step_lora.safetensors')\"",
     )
 )
+# Image du conteneur IMAGE (Backview) = celle-ci + les poids de Lucida (voir _LUCIDA_DANS_L_IMAGE). Derivee AVANT _avec_sources, EN FIN de
+# chaine : aucune couche precedente n'est reconstruite. Ni `image` ni `predictor_image` (text2image, qui ne detoure pas) ne portent
+# les 844 Mo.
+image_backview = _avec_sources(
+    image.run_commands(*_LUCIDA_DANS_L_IMAGE).env({"FABMESH_LUCIDA_DIR": _LUCIDA_DIR})
+)
 image = _avec_sources(image)
 
 # Blender image — export format conversion (GLB -> FBX/OBJ/STL/...).
@@ -822,6 +923,8 @@ mesh_image = (
         # upstream JeffreyXiang/CuMesh repo (same as TRELLIS-2 setup.sh)
         # and pip install --no-deps to preserve torch 2.4. CuMesh has
         # NO triton dependency — safe to keep.
+        # 2026-10-14 : ce CuMesh (cubvh d'instant-ngp, non commercial) est REMPLACE en fin d'image par
+        # _CUMESH_MIT ; commande laissee telle quelle pour ne pas reconstruire cette couche et les suivantes.
         "git clone --recursive https://github.com/JeffreyXiang/CuMesh.git /tmp/cumesh "
         "&& pip install /tmp/cumesh --no-build-isolation --no-deps",
         # flex-gemm — sparse GEMM kernels used by trellis2/representations/
@@ -944,6 +1047,10 @@ mesh_image = (
         "d('ZhengPeng7/BiRefNet', allow_patterns=['*.json', '*.safetensors', '*.py'])\"",
         secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
     )
+    # Poids de Lucida (detourage de la preparation d'image, avec u2net) : revision et SHA-256 epingles, voir _LUCIDA_DANS_L_IMAGE.
+    # Place AVANT les poids d'edition ci-dessous pour ne reconstruire que ceux-la, et loin de la fin de chaine (couche du correctif).
+    .run_commands(*_LUCIDA_DANS_L_IMAGE)
+    .env({"FABMESH_LUCIDA_DIR": _LUCIDA_DIR})
     # RealVisXL (fp16) + ControlNet-Tile + VAE fp16 : charges a la DEMANDE par ce conteneur (Reshape a
     # region / dessin, Face fix, Detail refine). Absents de cette image (ils ne sont que dans celle du
     # conteneur image), ils se telechargeaient depuis HuggingFace au premier usage de chaque conteneur
@@ -954,6 +1061,10 @@ mesh_image = (
         "d('xinsir/controlnet-tile-sdxl-1.0', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors']); "
         "d('madebyollin/sdxl-vae-fp16-fix', allow_patterns=['config.json', 'diffusion_pytorch_model.safetensors'])\"",
     )
+    # CuMesh recompile avec le BVH MIT + correctif de fill_holes (voir _CUMESH_MIT). EN DERNIER : remplace le
+    # CuMesh installe plus haut sans reconstruire les couches lourdes ni retelecharger les poids.
+    .add_local_file("modal_app/construction_cumesh.py", "/opt/construction_cumesh.py", copy=True)
+    .run_commands(*_CUMESH_MIT)
     # Table de hachage d'o_voxel juste pour les grilles > 1625 (voir _CORRECTIF_HACHAGE_OVOXEL) : correctif
     # puis garde. EN DERNIER pour ne reconstruire que cette couche (quelques secondes), pas CuMesh ni les poids.
     .run_commands(*_CORRECTIF_HACHAGE_OVOXEL)
@@ -1121,14 +1232,19 @@ class MyFabmeshPredictor:
         unrestricted: bool = False,
         turbo: bool = False,
         pose_libre: bool = False,
+        negative_extra=None,
     ) -> bytes:
-        """Internal: do the generation and return PNG bytes."""
-        from modal_app._prompts import build_enriched_prompt
+        """Internal: do the generation and return PNG bytes.
+
+        `negative_extra` (2026-10-03) : termes de negatif que le client a SORTIS du texte (« no helmet » -> « helmet », via le worker) ; s'y ajoutent ceux
+        que _prompts.negatifs_utilisateur trouve dans le texte brut (anciens clients). Ils vont au NEGATIF, jamais au positif."""
+        from modal_app._prompts import build_enriched_prompt, negatifs_utilisateur
         from modal_app._realvis import generate
         from modal_app._nsfw import is_safe, make_blocked_placeholder
 
         t0 = time.time()
         enriched = build_enriched_prompt(prompt, asset_type, asset_style, pose_libre=pose_libre)
+        negatifs = negatifs_utilisateur(prompt, negative_extra)   # « no helmet » : retire du positif par build_enriched_prompt, ajoute au NEGATIF ci-dessous
         if not seed:
             seed = int(time.time())
         print(
@@ -1142,7 +1258,8 @@ class MyFabmeshPredictor:
             self.pipe.scheduler = self._euler_trailing
         try:
             img = generate(self.pipe, enriched, seed=seed, steps=steps,
-                           asset_type=asset_type, turbo=_use_turbo)
+                           asset_type=asset_type, turbo=_use_turbo,
+                           negatif_utilisateur=negatifs)
         finally:
             if _use_turbo:
                 self.pipe.disable_lora()
@@ -1212,7 +1329,8 @@ class MyFabmeshPredictor:
                   "asset_style": "realistic",
                   "seed": 424242,
                   "steps": 30,
-                  "pose_libre": false      (true : case « T-pose » decochee, le gabarit n'impose pas la T-pose)
+                  "pose_libre": false,     (true : case « T-pose » decochee, le gabarit n'impose pas la T-pose)
+                  "negative_extra": ["helmet"]   (negations de l'utilisateur sorties du texte par le client : AJOUTEES au negatif, nettoyees ici)
                 }
             Response: raw PNG bytes (Content-Type image/png).
             """
@@ -1221,7 +1339,10 @@ class MyFabmeshPredictor:
             prompt = (payload.get("prompt") or "").strip()
             if not prompt:
                 raise HTTPException(status_code=400, detail="prompt required")
-            _hf = _prompt_hard_floor(prompt)
+            # Le plancher dur voit AUSSI les negations que le client a sorties du texte (« a child, no whip » arrive comme « a child » + le terme « whip ») :
+            # meme verdict qu'avant. Sans negation, le texte lui-meme.
+            from modal_app._prompts import texte_pour_plancher
+            _hf = _prompt_hard_floor(texte_pour_plancher(prompt, payload.get("negative_extra")))
             if _hf:
                 raise HTTPException(status_code=403, detail=_hf)
             def _generer(payload):
@@ -1234,6 +1355,7 @@ class MyFabmeshPredictor:
                     unrestricted=bool(payload.get("unrestricted")),
                     turbo=bool(payload.get("turbo")),
                     pose_libre=bool(payload.get("pose_libre")),
+                    negative_extra=payload.get("negative_extra"),
                 )
             # hors de la boucle, a l'abri de l'annulation (voir _calcul_protege)
             png = await _calcul_protege("text2image", payload, _generer)
@@ -1309,6 +1431,7 @@ def _charger_pipe_tile(decharger_cpu):
 
 
 @app.cls(
+    image=image_backview,   # + poids de Lucida (detourage de rectify / T-pose : voir _LUCIDA_DANS_L_IMAGE)
     gpu="L40S",
     timeout=600,
     # SNAPSHOT GPU ESSAYE PUIS RETIRE LE 2026-08-04 — il ne prenait pas.
@@ -1578,6 +1701,7 @@ class MyFabmeshBackview:
         from fastapi import HTTPException
         from fastapi.responses import Response
         from modal_app._tpose import generate as tpose_generate
+        from modal_app._prompts import termes_negatifs_valides, texte_pour_plancher
         from modal_app._nsfw import is_safe, make_blocked_placeholder
 
         _check_auth(payload)
@@ -1586,7 +1710,10 @@ class MyFabmeshBackview:
         ref_url = (payload.get("ref_image_url") or "").strip()
         if not prompt and not ref_url:
             raise HTTPException(status_code=400, detail="prompt or ref_image_url required")
-        _hf = _prompt_hard_floor(prompt)
+        # negations de l'utilisateur (le prompt enrichi du client n'en porte plus) : nettoyees UNE fois, examinees par le plancher dur (« a child, no whip »
+        # est juge comme avant) puis ajoutees au negatif
+        _negatifs = termes_negatifs_valides(payload.get("negative_extra"))
+        _hf = _prompt_hard_floor(texte_pour_plancher(prompt, _negatifs))
         if _hf:
             raise HTTPException(status_code=403, detail=_hf)
 
@@ -1611,6 +1738,8 @@ class MyFabmeshBackview:
             cn_scale=float(payload.get("cn_scale") or 1.15),
             ip_scale=float(payload.get("ip_scale") or 0.75),
             steps=int(payload.get("steps") or 30),
+            # negations de l'utilisateur (le prompt enrichi du client n'en porte plus) : ajoutees au negatif, nettoyees de facon stricte
+            negatif_extra=_negatifs,
         )
 
         # Parental control — image NSFW scan, same as text2image path.
@@ -3090,6 +3219,10 @@ class MyFabmeshMesh:
                 # Ultra 8K fait AVANT la serialisation (une seule ecriture du GLB) quand
                 # aucune etape ne retouche la texture ensuite (refine, face fix).
                 ultra_hd=ultra_dans_generate,
+                # Case « Game-engine relief (normal map) » : carte de normales plafonnee a 2048, desactivee par defaut.
+                # Lecture STRICTE (`is True`) : bool("false") vaudrait True ; le worker n'envoie de toute facon qu'un
+                # booleen, mais un appel direct ne doit jamais activer la cuisson par une valeur ambigue.
+                normal_map=payload.get("normal_map") is True,
             )
 
             # AFFINAGE DE L ATLAS (case « Detail refine »). Il exige le

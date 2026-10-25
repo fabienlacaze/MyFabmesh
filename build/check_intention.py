@@ -9,6 +9,12 @@
     chaque pose, vue, couleur...) sont comparees a build/intention_attendus.json ; le jumeau JavaScript (src/renderer/lib/composeur-intention.js)
     est verifie contre le MEME fichier par build/check-intention.mjs : les deux langages donnent donc les memes sorties, mot par mot.
  4. Les deux copies Python (scripts/ et modal_app/) sont identiques (aussi garde par build/check-noyaux-partages.mjs).
+ 5. NEGATIONS DE L'UTILISATEUR (extraire_negations, assainir_negatifs) : cas ecrits a la main dans intention_cas.json (attendu.negations), balayage
+    GENERE des listes de mots du module (faux amis, garde-robe, mots vides : le texte doit ressortir tel quel), temoin « sans negation = octet pour octet ».
+    Leurs sorties sont gravees dans intention_attendus.json (cles `negations`, `assainir`, `constantes`) et le jumeau JavaScript doit donner les memes.
+    INTENTION_SCRIPTS=<dossier> verifie une autre copie du module (preuve qu'un code mute ou ancien est detecte).
+    Les cas CONSTRUITS (build/bancs/noyaux/negations_constructions.py : le texte ET la sortie attendue sortent du meme gabarit de phrase, rien n'est recopie de la sortie du
+    module) rejoignent le balayage : leur attendu est verifie ici en Python, et grave pour que le JavaScript le reproduise (2026-10-18).
 
     python build/check_intention.py            verifie
     python build/check_intention.py --ecrire   regrave build/intention_attendus.json (apres un changement VOULU du module)
@@ -20,9 +26,12 @@ import re
 import sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(RACINE, 'scripts'))
+# INTENTION_SCRIPTS=<dossier> : verifie une AUTRE copie de composeur_intention.py (preuve qu'un test echoue sur du code mute ou ancien ; meme usage que MAIN_JS / WORKER_SRC)
+sys.path.insert(0, os.environ.get('INTENTION_SCRIPTS') or os.path.join(RACINE, 'scripts'))
 sys.path.insert(0, RACINE)
+sys.path.insert(1, os.path.join(RACINE, 'build', 'bancs', 'noyaux'))
 import composeur_intention as C  # noqa: E402
+import negations_constructions as K  # noqa: E402
 from modal_app import _prompts as P  # noqa: E402
 
 CAS = os.path.join(RACINE, 'build', 'intention_cas.json')
@@ -161,6 +170,142 @@ def balayage():
     return cas
 
 
+# entrees du nettoyeur `assainir_negatifs` (JSON : le jumeau JavaScript les rejoue telles quelles)
+ENTREES_ASSAINIR = [
+    ['helmet', 'beard'], ['Helmet', 'BEARD', 'helmet'], ['  white   curly  beard '], ['t-shirt', '-x', 'x-', 'a--b', 'ok-ok'],
+    ['x' * 40, 'x' * 41], ['cafe\u00e9'], ['no, helmet'], ['helmet2'], [''], [' '], [1, None, True, ['helmet']], ['a'] * 20,
+    ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 'helmet', None, {'a': 'b'}, 7, [], ['hel\tmet'], ['a\u00a0b'], ["knight's helmet"],
+    ['mid\nline'], ['a b', 'a  b', 'A B'], ['one two three four five six seven eight nine ten eleven twelve'],
+    # garde-robe / nudite (2026-10-14) : TOUTE la liste, seule, a tiret et dans un groupe : chaque nettoyeur (JS, bureau, site) doit tous les refuser
+    sorted(C._NEG_SENSIBLES), ['x-' + w for w in sorted(C._NEG_SENSIBLES)], ['red ' + w for w in sorted(C._NEG_SENSIBLES)],
+    ['K', 'hatK', 'helmet'],      # signe Kelvin : toLowerCase() en ferait un « k » ASCII
+]
+
+
+# PLAFOND PAR ROUTE (24/10, plafond 20) : textes a N negations (virgules, listes, forme « with no ») rejoues a chaque plafond par les deux langages. Le plafond absent
+# (None) vaut NEG_MAX_DIRECT (8) : un appelant qui oublie de passer NEG_MAX_LONG garde le comportement prudent d'avant.
+MOTS_PLAFOND = ['helmet', 'cape', 'sword', 'shield', 'crown', 'boots', 'belt', 'ring', 'staff', 'horns', 'wings', 'tail', 'beard', 'scarf', 'gloves', 'amulet', 'spear',
+                'quiver', 'hood', 'mask', 'banner', 'chain', 'torch', 'bow', 'axe']
+
+
+def textes_plafond():
+    t = []
+    for n in (0, 1, 8, 9, 12, 20, 21, 25):
+        mots = MOTS_PLAFOND[:n]
+        t.append('An orc warrior, ' + ', '.join('no ' + m for m in mots) if n else 'An orc warrior')
+        if n:
+            t.append('An orc warrior with no ' + ', '.join(mots[:-1]) + (' or ' if n > 1 else '') + mots[-1] + ', holding an axe')
+            t.append('An orc warrior without ' + ' and '.join(mots) + '.')
+    return t
+
+
+ENTREES_PLAFOND_ASSAINIR = [list(MOTS_PLAFOND[:n]) for n in (0, 8, 9, 12, 20, 21, 25)] + [['a'] * 30]
+
+
+# entrees de l'enveloppe negations_et_positif (2026-10-14) : un texte de plus de 2 000 caracteres n'est pas coupe, un texte entierement negatif garde son positif
+ENTREES_ENVELOPPE = [
+    'An orc', 'An orc, no helmet', 'no helmet', 'NO HELMET', 'without a beard', 'no helmet, no beard',
+    'An orc, no helmet, ' + 'x' * 1990, 'An orc, ' + 'very ' * 400 + 'tall, no helmet', 'An orc, no helmet' + ' ' * 1990, '',
+    'a knight without a helmet on his head',
+]
+
+
+def balayage_negations():
+    """Cas GENERES des negations : [{id, texte, inchange}]. `inchange` : le texte doit ressortir TEL QUEL, aucun terme (faux amis, garde-robe, mots vides) :
+    attendu pose par REGLE, pas par la sortie du module. Les autres cas n'ont pas d'attendu ecrit : leurs sorties sont gravees, le JavaScript doit donner
+    les memes. Chaque mot des listes du module a ses cas : un mot oublie d'un cote ou retire par erreur change le nombre ou la sortie des cas."""
+    cas = []
+
+    def ajoute(texte, inchange=False):
+        cas.append({'id': 'g%03d' % (len(cas) + 1), 'texte': texte, 'inchange': inchange})
+
+    for decl in ('no', 'not', 'never', 'without'):
+        for w in sorted(C._NEG_FAUX[decl]):
+            ajoute('A knight, %s %s around' % (decl, w), True)
+            ajoute('A knight %s %s around' % (decl, w), True)
+    for w in sorted(C._NEG_FAUX['no']):
+        ajoute('A knight with no %s around' % w, True)
+    for w in sorted(C._NEG_SENSIBLES):
+        ajoute('A man, no %s' % w, True)
+        ajoute('A man without a %s' % w, True)
+        ajoute('A man, not %s' % w, True)
+    for w in sorted(C._NEG_VIDES):
+        ajoute('A man, no %s' % w, True)
+        ajoute('A man without %s' % w, True)
+    for w in sorted(C._NEG_FIN_GN):
+        if w != 'without':      # « no without the hill » : le second mot est lui-meme un declencheur (negation de « the hill »)
+            ajoute('A man, no %s the hill' % w, True)
+        else:
+            ajoute('A man, no without the hill')
+    for decl in ('no', 'No', 'NO', 'not', 'Not', 'never', 'Never', 'without', 'Without', 'WITHOUT'):
+        ajoute('A knight, %s helmet' % decl)
+        ajoute('A knight %s a helmet and a cape' % decl)
+        ajoute('%s helmet, a knight' % decl)
+    for w in sorted(C._NEG_AVANT_NO):
+        ajoute('A knight %s no helmet' % w)
+        ajoute('A knight %s no helmet, holding a sword' % w)
+    for w in sorted(C._NEG_LEGERS_NOT):
+        ajoute('A knight not %s a helmet' % w)
+        ajoute('A knight, not %s a helmet' % w)
+    for w in sorted(C._NEG_LEGERS):
+        ajoute('A knight, not %s a helmet' % w)
+        ajoute('A knight without %s a helmet' % w)
+    for w in sorted(C._NEG_DEBUT):
+        ajoute('A knight, %s no helmet' % w)
+        ajoute('A knight, %s without a helmet, holding a sword' % w)
+    for w in sorted(C._NEG_VERBES):
+        ajoute('A knight without a helmet and %s a sword' % w)
+        ajoute('A knight, no helmet and %s a sword' % w)
+        ajoute('A knight, no helmet or %s a sword' % w)
+    for w in sorted(C._NEG_ARTICLES):
+        ajoute('A knight, no %s helmet' % w)
+        ajoute('A knight without %s helmet' % w)
+    for conj in ('and', 'or', 'nor', 'but'):
+        ajoute('A knight, no helmet %s no beard' % conj)
+        ajoute('A knight, no helmet %s beard' % conj)
+        ajoute('A knight, no helmet %s a red cape' % conj)
+        ajoute('A knight without a helmet %s a beard' % conj)
+        ajoute('A knight without a helmet %s holding a sword' % conj)
+        ajoute('A knight with no helmet %s a red cape' % conj)
+        ajoute('A knight with no helmet %s covered in mud' % conj)
+        ajoute('A knight, no helmet %s' % conj)
+    mots = ['long', 'white', 'curly', 'red', 'beard']
+    for k in range(1, 6):
+        ajoute('A knight, no ' + ' '.join(mots[-k:]))
+        ajoute('A knight without ' + ' '.join(mots[-k:]) + ' in the rain')
+    for sep in (',', ';', '.', ' - ', ' | ', '\n', '\r\n', ' , ', '. '):
+        ajoute('A knight%sno helmet%sholding a sword' % (sep, sep))
+        ajoute('A knight%sno helmet' % sep)
+        ajoute('no helmet%sA knight' % sep)
+    for avant, apres in (('(', ')'), ('[', ']'), ('{', '}'), ('"', '"'), ("'", "'"), ('\u201c', '\u201d')):
+        ajoute('An orc %sno helmet%s holding a club' % (avant, apres))
+        ajoute('An orc, %sno helmet%s, holding a club' % (avant, apres))
+        ajoute('An orc %swithout a helmet%s holding a club' % (avant, apres))
+    for n in (6, 7, 8, 9, 10, 12):
+        noms = ['hat', 'coat', 'boots', 'gloves', 'scarf', 'belt', 'cape', 'mask', 'ring', 'sock', 'vest', 'cloak'][:n]
+        ajoute('A knight, ' + ', '.join('no ' + x for x in noms))
+        ajoute('A knight without ' + ' and '.join(noms))
+    ajoute('no helmet, no helmet, without a helmet, not wearing a helmet')
+    ajoute('A knight, no helmet or helmet')                          # le meme terme deux fois dans UNE liste
+    ajoute('A knight without a hat and a hat and a hat')
+    for fin in ('!', '?', ':', ')', '.'):
+        ajoute('A knight without a helmet%s holding a sword' % fin)
+    for w in ('t-shirt', 'full-body', 'x-', '-x', 'a--b', '12 arms', '#hat', "helmet's", "knight's helmet", 'caf\u00e9', 'under_score', 'ab', 'x'):
+        ajoute('A knight, no ' + w)
+    ajoute('A knight, not wearing a helmet, no sword, and not holding a shield')
+    ajoute('An orc warrior covered in blood, no helmet, holding a massive spiked club, grim dark fantasy style')
+    ajoute('We want no shadows and no text')
+    ajoute('A sign saying no entry')
+    ajoute('Without Remorse, a film poster, without a helmet')
+    ajoute('  no helmet  ,   no beard  ')
+    ajoute('no helmet \t\n and \u00a0 no beard')
+    # cas CONSTRUITS (2026-10-18, build/bancs/noyaux/negations_constructions.py) : le texte ET la sortie attendue sortent du MEME gabarit (« S with no N but a M » ->
+    # « S with a M » + terme N), pour une grande variete de sujets, de groupes nies et de complements. L'attendu n'est donc pas recopie de la sortie du module.
+    for k in K.construire(2027, 6):
+        cas.append({'id': 'g%03d' % (len(cas) + 1), 'texte': k['texte'], 'inchange': False, 'attendu': {'positif': k['positif'], 'negatifs': k['negatifs']}})
+    return cas
+
+
 def canon(x):
     """JSON canonique (cles triees, tuples -> listes) pour comparer deux langages."""
     return json.loads(json.dumps(x, sort_keys=True, ensure_ascii=False))
@@ -182,6 +327,8 @@ def sorties(cas):
         'clause_defaut': C.clause_objet_tenu(it), 'tpl_defaut': tpl_d, 'notes_defaut': notes_d,
         'tpl_libre': tpl_l, 'notes_libre': notes_l,
         'negatif_armes': canon(arm), 'negatifs_extra': canon([ajout, retire]),
+        'negations': canon(C.extraire_negations(cas['texte'])),
+        'avertissements': C.detecter_avertissements(cas['texte'], cas['texte'], typ, True),
         '_retire_tot': list(retire) + (arm[1] if arm else []),
         '_ajout_tot': list(ajout) + (arm[2] if arm else []),
     }
@@ -223,6 +370,14 @@ def verifier(cas, s):
             pb.append('neg_ajout sans %r' % x)
     if att.get('neg_ajout') == [] and any('dual' in a or 'second' in a for a in s['_ajout_tot']):
         pb.append('neg_ajout devrait etre vide')
+    if 'avertissements' in att and s['avertissements'] != att['avertissements']:
+        pb.append('avertissements %s != %s' % (s['avertissements'], att['avertissements']))
+    if 'negations' in att:
+        got, exp = s['negations'], att['negations']
+        if got['positif'] != exp['positif']:
+            pb.append('negations.positif %r != %r' % (got['positif'], exp['positif']))
+        if got['negatifs'] != exp['negatifs']:
+            pb.append('negations.negatifs %r != %r' % (got['negatifs'], exp['negatifs']))
     return pb
 
 
@@ -244,6 +399,33 @@ def main():
         print('  cas %s "%s" : %s' % (e[0], e[1][:70], '; '.join(e[2])))
     code = 1 if echecs else 0
 
+    # 1 bis. negations de l'utilisateur : balayage GENERE (les faux amis, la garde-robe et les mots vides doivent rendre le texte tel quel)
+    neg_cas = balayage_negations()
+    neg_grav, neg_echecs = [], []
+    for c in neg_cas:
+        r = canon(C.extraire_negations(c['texte']))
+        if c['inchange'] and (r['positif'] != c['texte'] or r['negatifs']):
+            neg_echecs.append((c['id'], c['texte'], r))
+        elif c.get('attendu') and (r['positif'] != c['attendu']['positif'] or r['negatifs'] != c['attendu']['negatifs']):
+            neg_echecs.append((c['id'], c['texte'], {'obtenu': r, 'attendu': c['attendu']}))
+        neg_grav.append(dict({'id': c['id'], 'texte': c['texte'], 'positif': r['positif'], 'negatifs': r['negatifs']}, **({'perdus': r['perdus']} if r.get('perdus') else {})))
+    print('[intention] negations : %d cas generes, %d qui doivent rester inchanges, %d echec(s)'
+          % (len(neg_cas), sum(1 for c in neg_cas if c['inchange']), len(neg_echecs)))
+    for e in neg_echecs:
+        print('  cas %s "%s" : %s' % (e[0], e[1][:70], ('attendu / obtenu ' if 'attendu' in e[2] else 'devait rester inchange : ') + str(e[2])))
+    if neg_echecs:
+        code = 1
+    assainir = [{'entree': e, 'sortie': C.assainir_negatifs(e)} for e in ENTREES_ASSAINIR]
+    # enveloppe de fabrication du prompt (negations_et_positif / negationsEtPositif) : texte trop long non analyse, texte entierement negatif garde (2026-10-14)
+    enveloppe = [{'entree': e, 'sortie': C.negations_et_positif(e)} for e in ENTREES_ENVELOPPE]
+    constantes = {'MAX_TEXTE_NEGATIONS': C.MAX_TEXTE_NEGATIONS, 'MAX_TERMES_NEGATIFS': C.MAX_TERMES_NEGATIFS, 'MAX_CARS_TERME': C.MAX_CARS_TERME,
+                  'MAX_MOTS_TERME': C.MAX_MOTS_TERME, 'NEG_MAX_DIRECT': C.NEG_MAX_DIRECT, 'NEG_MAX_LONG': C.NEG_MAX_LONG}
+    plafonds = [{'texte': t, 'plafond': p, 'sortie': canon(C.extraire_negations(t, None, p)), 'enveloppe': canon(C.negations_et_positif(t, None, p)),
+                 'avertissements': C.detecter_avertissements(t, t, 'prop', True, p)}
+                for t in textes_plafond() for p in (None, 8, 20)]
+    assainir_long = [{'entree': e, 'sortie': C.assainir_negatifs(e, C.NEG_MAX_LONG)} for e in ENTREES_ASSAINIR]   # ce que les clients de la generation d'image rejouent
+    assainir_plafond = [{'entree': e, 'plafond': p, 'sortie': C.assainir_negatifs(e, p)} for e in ENTREES_PLAFOND_ASSAINIR for p in (None, 8, 20)]
+
     # 2. temoin : octet pour octet avec les regles actives
     gab = P.ASSET_TYPE_PROMPTS['character']
     it = C.analyser(TEMOIN, 'character', 'realistic')
@@ -258,12 +440,24 @@ def main():
         if t2 != g or n2:
             print('[intention] ECHEC : le gabarit "%s" change sans objet tenu : %r' % (typ, n2))
             code = 1
+    # temoin des negations : un texte sans negation ressort OCTET POUR OCTET, pour chaque gabarit de type aussi
+    for t in [TEMOIN] + ['A simple ' + typ for typ in sorted(P.ASSET_TYPE_PROMPTS)]:
+        r = C.extraire_negations(t)
+        if r['positif'] != t or r['negatifs']:
+            print('[intention] ECHEC : "%s" change sans aucune negation : %r' % (t, r))
+            code = 1
+    # interrupteur d'urgence : sans la regle « negations », rien n'est extrait
+    r = C.extraire_negations('An orc, no helmet', [])
+    if r != {'positif': 'An orc, no helmet', 'negatifs': []}:
+        print('[intention] ECHEC : regles=[] devrait couper les negations : %r' % (r,))
+        code = 1
 
     # 3. sorties completes
-    complet = {'gabarits': P.ASSET_TYPE_PROMPTS, 'cas': grav}
+    complet = {'gabarits': P.ASSET_TYPE_PROMPTS, 'cas': grav, 'negations': neg_grav, 'assainir': assainir, 'constantes': constantes,
+               'enveloppe': enveloppe, 'plafonds': plafonds, 'assainir_plafond': assainir_plafond, 'assainir_long': assainir_long}
     if ecrire:
         io.open(ATTENDUS, 'w', encoding='utf-8', newline='\n').write(json.dumps(complet, ensure_ascii=False, indent=0, sort_keys=True) + '\n')
-        print('[intention] %s regrave (%d cas)' % (os.path.relpath(ATTENDUS, RACINE), len(grav)))
+        print('[intention] %s regrave (%d cas, %d negations)' % (os.path.relpath(ATTENDUS, RACINE), len(grav), len(neg_grav)))
     else:
         try:
             ref = json.load(io.open(ATTENDUS, 'r', encoding='utf-8'))
@@ -272,8 +466,10 @@ def main():
             return 1
         if canon(complet) != canon(ref):
             diff = [g['id'] for g, r in zip(grav, ref.get('cas', [])) if canon(g) != canon(r)]
+            diff += [g['id'] for g, r in zip(neg_grav, ref.get('negations', [])) if canon(g) != canon(r)]
             print('[intention] ECHEC : les sorties du module different de build/intention_attendus.json (cas %s) ;'
-                  ' si le changement est voulu : python build/check_intention.py --ecrire' % (', '.join(diff[:12]) if diff else 'gabarits ou nombre de cas'))
+                  ' si le changement est voulu : python build/check_intention.py --ecrire'
+                  % (', '.join(diff[:12]) if diff else 'gabarits, constantes, assainir ou nombre de cas'))
             code = 1
         else:
             print('[intention] sorties completes identiques a build/intention_attendus.json')
@@ -287,6 +483,19 @@ def main():
     if a != b:
         print('[intention] ECHEC : modal_app/composeur_intention.py absent ou different (node build/check-noyaux-partages.mjs --sync)')
         code = 1
+
+    # 5. tests unitaires des negations (2026-10-15) : branches au prebuild par CETTE garde (deja dans les deux prebuild, racine et cloud) pour ne pas toucher package.json.
+    #    INTENTION_SCRIPTS (module d'une autre copie) ou INTENTION_SANS_TESTS=1 : non lances (ils lisent le module du depot).
+    banc = os.path.join(RACINE, 'build', 'bancs', 'noyaux', 'test_negations.py')
+    if os.path.isfile(banc) and not os.environ.get('INTENTION_SCRIPTS') and not os.environ.get('INTENTION_SANS_TESTS'):
+        import subprocess
+        r = subprocess.run([sys.executable, banc], cwd=RACINE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, env=dict(os.environ, PYTHONUTF8='1'))
+        resume = [l for l in r.stdout.splitlines() if l.startswith('Ran ') or l.startswith('OK') or l.startswith('FAILED')]
+        if r.returncode != 0:
+            print('[intention] ECHEC : build/bancs/noyaux/test_negations.py\n' + '\n'.join(r.stdout.splitlines()[-25:]))
+            code = 1
+        else:
+            print('[intention] tests des negations : %s' % ' / '.join(resume))
     return code
 
 

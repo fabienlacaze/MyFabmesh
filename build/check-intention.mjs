@@ -10,8 +10,11 @@
  *   - la clause d'objet tenu et le gabarit adapte, avec TOUTES les regles et avec les regles ACTIVES ;
  *   - les notes.
  * Il verifie aussi que les regles actives sont les memes dans les deux fichiers, et que le cas temoin « An orc » ne change pas d'un octet.
+ * NEGATIONS (2026-10-03) : extraireNegations() rejoue les cas ecrits a la main et les cas generes (balayage du lexique) de build/check_intention.py ; assainirNegatifs()
+ * et les constantes MAX_* sont comparees aussi. INTENTION_JS=<fichier> verifie une autre copie du module (preuve qu'un code mute est detecte).
  */
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -24,7 +27,8 @@ const dossier = mkdtempSync(join(tmpdir(), 'intention-'));
 let J;
 try {
   const copie = join(dossier, 'composeur-intention.mjs');
-  writeFileSync(copie, readFileSync(join(RACINE, 'src/renderer/lib/composeur-intention.js'), 'utf-8'));
+  // INTENTION_JS=<fichier> : verifie une AUTRE copie du jumeau JavaScript (preuve qu'un code mute ou ancien est detecte ; meme usage que MAIN_JS / WORKER_SRC)
+  writeFileSync(copie, readFileSync(process.env.INTENTION_JS || join(RACINE, 'src/renderer/lib/composeur-intention.js'), 'utf-8'));
   J = await import(pathToFileURL(copie).href);
 } finally {
   rmSync(dossier, { recursive: true, force: true });
@@ -63,11 +67,60 @@ for (const a of attendus) {
     ['notes (regles actives)', notesD, a.notes_defaut],
     ['gabarit (pose libre)', tplL, a.tpl_libre],
     ['notes (pose libre)', notesL, a.notes_libre],
+    ['avertissements avant depense', J.detecterAvertissements(a.texte, a.texte, a.type, { tpose: true }), a.avertissements],
   ];
   for (const [nom, js, py] of verifs) {
     if (!egal(js, py)) dit(`cas ${a.id} : ${nom} different\n      JS     : ${JSON.stringify(js)}\n      Python : ${JSON.stringify(py)}`);
   }
+  if (!egal(J.extraireNegations(a.texte), a.negations)) {
+    dit(`cas ${a.id} : negations differentes\n      JS     : ${JSON.stringify(J.extraireNegations(a.texte))}\n      Python : ${JSON.stringify(a.negations)}`);
+  }
 }
+
+// negations de l'utilisateur : balayage genere (build/check_intention.py, balayage_negations), nettoyeur du champ `negativeExtra`, constantes
+for (const g of grave.negations || []) {
+  const r = J.extraireNegations(g.texte);
+  const attendu = { positif: g.positif, negatifs: g.negatifs, ...(g.perdus ? { perdus: g.perdus } : {}) };
+  if (!egal(r, attendu)) {
+    dit(`negations ${g.id} « ${g.texte.slice(0, 60)} » : sortie differente\n      JS     : ${JSON.stringify(r)}\n      Python : ${JSON.stringify(attendu)}`);
+  }
+}
+if (!grave.negations || !grave.negations.length) dit('intention_attendus.json ne porte aucun cas de negations (python build/check_intention.py --ecrire)');
+for (const e of grave.assainir || []) {
+  const r = J.assainirNegatifs(e.entree);
+  if (!egal(r, e.sortie)) dit(`assainirNegatifs(${JSON.stringify(e.entree).slice(0, 80)}) : ${JSON.stringify(r)} au lieu de ${JSON.stringify(e.sortie)}`);
+}
+if (!grave.assainir || !grave.assainir.length) dit('intention_attendus.json ne porte aucune entree d assainir (python build/check_intention.py --ecrire)');
+// enveloppe de fabrication du prompt (2026-10-14) : negationsEtPositif (JS) = negations_et_positif (Python)
+for (const e of grave.enveloppe || []) {
+  const r = J.negationsEtPositif(e.entree);
+  if (!egal(r, e.sortie)) dit(`negationsEtPositif(${JSON.stringify(e.entree).slice(0, 60)}) : ${JSON.stringify(r).slice(0, 200)} au lieu de ${JSON.stringify(e.sortie).slice(0, 200)}`);
+}
+if (!grave.enveloppe || !grave.enveloppe.length) dit('intention_attendus.json ne porte aucune entree d enveloppe (python build/check_intention.py --ecrire)');
+// plafond par route (24/10) : extraireNegations / negationsEtPositif / assainirNegatifs (JS) = les fonctions Python, a chaque plafond (absent, 8, 20)
+for (const e of grave.plafonds || []) {
+  const r = J.extraireNegations(e.texte, undefined, e.plafond === null ? undefined : e.plafond);
+  const b = J.negationsEtPositif(e.texte, undefined, e.plafond === null ? undefined : e.plafond);
+  if (!egal(r, e.sortie)) dit(`extraireNegations(${JSON.stringify(e.texte).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(r).slice(0, 200)} au lieu de ${JSON.stringify(e.sortie).slice(0, 200)}`);
+  const av = J.detecterAvertissements(e.texte, e.texte, 'prop', { plafond: e.plafond === null ? undefined : e.plafond });
+  if (!egal(av, e.avertissements)) dit(`detecterAvertissements(${JSON.stringify(e.texte).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(av)} au lieu de ${JSON.stringify(e.avertissements)}`);
+  if (!egal(b, e.enveloppe)) dit(`negationsEtPositif(${JSON.stringify(e.texte).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(b).slice(0, 200)} au lieu de ${JSON.stringify(e.enveloppe).slice(0, 200)}`);
+}
+if (!grave.plafonds || !grave.plafonds.length) dit('intention_attendus.json ne porte aucun cas de plafond (python build/check_intention.py --ecrire)');
+for (const e of grave.assainir_plafond || []) {
+  const r = J.assainirNegatifs(e.entree, e.plafond === null ? undefined : e.plafond);
+  if (!egal(r, e.sortie)) dit(`assainirNegatifs(${JSON.stringify(e.entree).slice(0, 60)}, plafond ${e.plafond}) : ${JSON.stringify(r)} au lieu de ${JSON.stringify(e.sortie)}`);
+}
+for (const e of grave.assainir_long || []) {
+  const r = J.assainirNegatifs(e.entree, J.NEG_MAX_LONG);
+  if (!egal(r, e.sortie)) dit(`assainirNegatifs(${JSON.stringify(e.entree).slice(0, 60)}, NEG_MAX_LONG) : ${JSON.stringify(r)} au lieu de ${JSON.stringify(e.sortie)}`);
+}
+if (!grave.assainir_long || !grave.assainir_long.length) dit('intention_attendus.json ne porte aucune entree assainir_long (python build/check_intention.py --ecrire)');
+if (!grave.assainir_plafond || !grave.assainir_plafond.length) dit('intention_attendus.json ne porte aucune entree d assainir par plafond (python build/check_intention.py --ecrire)');
+for (const [nom, valeur] of Object.entries(grave.constantes || {})) {
+  if (J[nom] !== valeur) dit(`constante ${nom} : JS ${J[nom]} / Python ${valeur}`);
+}
+if (!Object.keys(grave.constantes || {}).length) dit('intention_attendus.json ne porte aucune constante de negations');
 
 // regles actives identiques dans les deux fichiers
 const py = lf(readFileSync(join(RACINE, 'scripts/composeur_intention.py'), 'utf-8'));
@@ -83,6 +136,12 @@ const gabCharacter = grave.gabarits.character;
 const itT = J.analyser('An orc', 'character', 'realistic');
 const [tplT] = J.composerGabarit(gabCharacter, 'character', itT);
 if (tplT !== gabCharacter || J.clauseObjetTenu(itT) !== null) dit('le cas temoin « An orc » a change (JS)');
+// negations : un texte sans negation ressort OCTET POUR OCTET ; l'interrupteur d'urgence (regles vides) coupe l'extraction
+for (const t of ['An orc', 'An  orc ,  warrior', 'A simple character']) {
+  const r = J.extraireNegations(t);
+  if (r.positif !== t || r.negatifs.length) dit(`« ${t} » change sans aucune negation (JS) : ${JSON.stringify(r)}`);
+}
+if (!egal(J.extraireNegations('An orc, no helmet', []), { positif: 'An orc, no helmet', negatifs: [] })) dit('regles=[] devrait couper les negations (JS)');
 
 // relecture d'un prompt enrichi : la clause GENEREE est retiree, jamais l'ecriture de l'utilisateur
 {
@@ -111,6 +170,24 @@ if (tplT !== gabCharacter || J.clauseObjetTenu(itT) !== null) dit('le cas temoin
     const enrichi = a.texte + ', ' + clause;
     const relu = J.retirerClauseFinale(enrichi);
     if (relu !== a.texte && !a.texte.toLowerCase().includes('holding exactly')) dit(`cas ${a.id} : composer puis relire ne redonne pas le texte (${JSON.stringify(relu)})`);
+  }
+}
+
+// Tests des clients (2026-10-15) : branches au prebuild par CETTE garde (deja dans les deux prebuild, racine et cloud) pour ne pas toucher package.json. Les tests racine
+// (tests/main, tests/bureau-interface) ne sont lances par aucun autre script ; ils prouvent que le renderer bureau + web, main.js, cloud_fallback et le shim du site
+// envoient bien les negations de l'utilisateur au negatif. INTENTION_JS (module d'une autre copie) : on ne lance pas ces tests, ils lisent les fichiers du depot.
+if (!process.env.INTENTION_JS && !process.env.INTENTION_SANS_TESTS) {
+  const tests = ['tests/bureau-interface/composeur-prompt.test.mjs', 'tests/bureau-interface/negations-site.test.mjs', 'tests/main/negations_bureau.test.mjs']
+    .filter((f) => existsSync(join(RACINE, f)));
+  if (tests.length) {
+    const r = spawnSync(process.execPath, ['--test', ...tests], { cwd: RACINE, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
+    const resume = (k) => ((r.stdout || '').match(new RegExp('^# ' + k + ' (\\d+)', 'm')) || [])[1];
+    if (r.status !== 0) {
+      const lignes = (r.stdout || '').split('\n').filter((l) => /^not ok|^# fail/.test(l)).slice(0, 12).join('\n');
+      dit('tests des negations du bureau / du site en echec (node --test ' + tests.join(' ') + ') :\n' + lignes + '\n' + String(r.stderr || '').slice(0, 600));
+    } else {
+      console.log(`[intention] tests des clients : ${resume('pass')} reussis, ${resume('fail')} en echec (${tests.length} fichiers)`);
+    }
   }
 }
 

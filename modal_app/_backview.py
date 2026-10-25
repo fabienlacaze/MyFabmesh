@@ -58,8 +58,11 @@ def caption_outfit(florence_proc, florence_model, ref_img) -> str:
     full_caption = (parsed.get(task) or '').strip()
 
     outfit_desc = full_caption
+    # OBJET TENU (24/10, audit des prompts m9) : « He is holding a sword in his right hand. » perdait la phrase ENTIERE, arme comprise, et la vue de dos
+    # redessinait un personnage sans son arme. « is/are holding » devient « holding » (la proposition reste, sans le sujet) ; seules les poses pures sont retirees.
+    outfit_desc = re.sub(r'\b(she|he|they) (is|are) (?=holding\b)', '', outfit_desc, flags=re.IGNORECASE)
     for noise in [
-        r'\b(she|he|they) (is|are) (standing|posing|holding|sitting|walking)[^.]*\.',
+        r'\b(she|he|they) (is|are) (standing|posing|sitting|walking)[^.]*\.',
         r'\b(she|he|they) has? a [^.]*expression[^.]*\.',
         r'\b(she|he|they) is looking [^.]*\.',
         r'\b(the )?background (is|appears)[^.]*\.',

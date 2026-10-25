@@ -22,7 +22,11 @@ async function clicPendantAnalyse(cle, texte, anglais, mode, pendant) {
   await TICKS(1);
   assert.equal(page.el('mod-apply').disabled, true, 'Apply grise pendant l\'analyse');
   await pendant(page);
-  page.liberer();
+  // la traduction se termine, puis (chemin Modify, depuis la fusion avec deploy-2510) la traduction de l'ENVOI, qui attend aussi : on libere
+  // jusqu'a ce que le clic soit termine
+  let fini = false;
+  clic.then(() => { fini = true; }, () => { fini = true; });
+  for (let i = 0; i < 20 && !fini; i++) { page.liberer(); await TICKS(2); }
   await clic;
   await TICKS();
   page.liberer();

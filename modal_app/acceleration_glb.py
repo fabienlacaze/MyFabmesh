@@ -27,6 +27,12 @@ environnements ont deja (numpy, opencv, Pillow, trimesh, o_voxel).
    operations de maillage, variantes, affinage...) par `webp_rapide`, qui ne leve jamais. Les
    octets pre-encodes portent une empreinte de l'image : repris seulement si elle n'a pas change.
 
+2 bis. CARTES DE NORMALES SANS PERTE (preencoder_normales, 2026-10-13). La generation pose une carte
+   de normales (normal_bake.py) QUAND L'OPTION « relief pour moteur de jeu » EST COCHEE (2026-10-15 : decochee
+   par defaut) ; trimesh l'encoderait en WebP AVEC perte a chaque re-export d'un outil
+   (jusqu'a 97 degres d'erreur aux bords des ilots). webp_rapide l'encode donc en WebP SANS PERTE, avec
+   le meme mecanisme que la couleur. Sans carte de normales : strictement rien ne change.
+
 1 bis. REMPLISSAGE PAR LE BORD LE PLUS PROCHE (2026-10-03, constat E-1 / essai T4 de l'analyse du
    03/10). Les texels vides de l'atlas ne prennent plus l'inpainting TELEA mais la valeur du texel COUVERT
    le plus proche (cv2.distanceTransformWithLabels : prolongement du bord de l'ilot). Mesure sur trois
@@ -461,11 +467,62 @@ def preencoder_couleur(glb_obj, log=print) -> float:
     return time.time() - t
 
 
+#: cartes de normales : WebP SANS PERTE (memes reglages que normal_bake.WEBP_SANS_PERTE ; mesure du 2026-10-04 : 1,8 a 2,2 s pour une
+#: carte 4096, 3,5 a 15 Mo). Le WebP avec perte de trimesh (qualite 80) y met jusqu'a 97 degres d'erreur aux bords des ilots.
+WEBP_NORMALES = {'lossless': True, 'quality': 0, 'method': 1}
+
+
+def _sauvegarde_sans_perte(img) -> None:
+    """Repli si l'enveloppe de trimesh est absente : `img.save(..., format='WEBP')` (appel de trimesh) devient sans perte."""
+    if getattr(img, '_fabmesh_sans_perte', False):
+        return
+    sauver = img.save
+
+    def save(fp, format=None, **options):
+        if str(format or getattr(img, 'format', None) or '').upper() == 'WEBP':
+            options.update(WEBP_NORMALES)
+        return sauver(fp, format=format, **options)
+    img.save = save
+    img._fabmesh_sans_perte = True
+
+
+def preencoder_normales(glb_obj, log=print) -> float:
+    """CARTES DE NORMALES SANS PERTE (2026-10-13). Chaque `normalTexture` est encodee en WebP SANS PERTE (WEBP_NORMALES) et marquee
+    pour trimesh, comme la couleur ; sa methode save est aussi rendue sans perte (repli si l'enveloppe manque).
+
+    POURQUOI. trimesh encode TOUTE texture en WebP AVEC perte quand on exporte avec extension_webp=True. La carte cuite a la
+    generation est protegee sur son objet image (normal_bake), mais un outil qui RELIT le GLB (affinage, face fix, Ultra 8K, variantes,
+    operations de maillage...) obtient une image PIL ordinaire : sans ceci, chaque passage par un outil degraderait la carte.
+    Rend la duree (0 sans carte de normales : rien n'est fait)."""
+    import io
+    import time
+    t = time.time()
+    vues = set()
+    for g in (list(glb_obj.geometry.values()) if hasattr(glb_obj, 'geometry') else [glb_obj]):
+        mat = getattr(getattr(g, 'visual', None), 'material', None)
+        img = getattr(mat, 'normalTexture', None) if mat is not None else None
+        if img is None or not hasattr(img, 'save') or id(img) in vues:
+            continue
+        vues.add(id(img))
+        _sauvegarde_sans_perte(img)
+        if _envelopper_append_image(log):
+            f = io.BytesIO()
+            img.save(f, format='WEBP', **WEBP_NORMALES)
+            img._fabmesh_webp = (_empreinte(img), f.getvalue())
+    return (time.time() - t) if vues else 0.0
+
+
 def webp_rapide(glb_obj, log=None) -> float:
-    """preencoder_couleur SANS jamais lever : a appeler juste avant tout `export(...,
-    extension_webp=True)` (outils d'edition, bureau et cloud, 2026-09-29). Au pire, rien n'est
-    pre-encode et trimesh encode comme avant."""
+    """preencoder_couleur + preencoder_normales SANS jamais lever : a appeler juste avant tout `export(...,
+    extension_webp=True)` (outils d'edition, bureau et cloud, 2026-09-29 ; cartes de normales 2026-10-13). Au pire, rien
+    n'est pre-encode et trimesh encode comme avant."""
+    muet = log or (lambda *_: None)
     try:
-        return preencoder_couleur(glb_obj, log=log or (lambda *_: None))
+        t = preencoder_couleur(glb_obj, log=muet)
     except Exception:
-        return 0.0
+        t = 0.0
+    try:
+        t += preencoder_normales(glb_obj, log=muet)
+    except Exception:
+        pass
+    return t

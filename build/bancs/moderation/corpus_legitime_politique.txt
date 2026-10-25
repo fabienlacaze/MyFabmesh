@@ -1,0 +1,70 @@
+# PHRASES REFUSEES A DESSEIN (24/10, correction de prompts-secu-2410) : issues des corpus des relecteurs et de corpus_legitime_langues.txt, ces 66 lignes sont
+# refusees par la version corrigee et acceptees par la production f86208c0, MAIS pour une raison de POLITIQUE (le mot, dans sa langue, signifie la nudite, un sous-vetement,
+# le viol ou « sexy » ; « nu » d une statue de musee ; « nahy » = nu en tcheque) ou parce que la phrase est mal formee (« rinteen rinnat », « riisut sinappia »).
+# Aucune n est une collision avec un mot courant d une autre langue. Decision du proprietaire : voir le rapport (sections statues, sous-vetements, sexy). Non lues par une garde.
+rinteen rinnat luminen maisema
+nogent barn der gar i skole
+sexig bil på racerbanen
+zonder kleren van katoen een winkel
+naakt portret is een schilderij van Rembrandt museum
+slipje van kant
+onderbroek
+alasti totuus kirja
+rinnat vuoren rinteet
+riisut sinappia ruoka
+bugyi a polcon
+szexi autó
+szexuális nevelés tankönyv
+nud arta portret muzeu
+goła ściana
+piersi kurczaka pieczone
+gwalt na ulicy w mieście
+majtki na sznurku suszą się
+cipka kotek
+sutek tam
+hubad na katotohanan aklat
+bila nguo za baridi
+nudus gladiator romanus
+Hubad Filipino proverb
+sexig bil
+sexig klänning
+seksowna sukienka
+golas*
+vaatteeton
+ruisgte
+Gwalt na boisku
+gymnos
+gymna
+bar overkrop
+poezja erotyczna Młodej Polski
+wystawa erotyczna w muzeum
+meztelen szobor a múzeumban
+alasti kuva taidemuseossa
+naken staty i museet
+naakt standbeeld in het museum
+patung telanjang di museum
+patung tanpa busana
+nocht
+nackeg
+slipjes
+despire
+despir
+espidea
+hubadi
+Hubad
+alasti
+seksualitet
+erotisk
+riisutaan
+voldtatt
+Voldtatt
+sexigt
+sexiga
+rinnat
+golas
+Golas
+golasa
+nuog
+nuoga
+Nuogis
+tece gol lopta

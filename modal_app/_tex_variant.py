@@ -124,6 +124,23 @@ def _desaturer(img, gris):
     return Image.blend(img, img.convert('L').convert('RGB'), float(min(1.0, gris)))
 
 
+def _tri_negations(texte):
+    """(texte sans ses locutions negatives, termes de negatif) : 24/10, audit M7 (voir composeur_intention.separer_negations_outil)."""
+    try:
+        from modal_app import composeur_intention as _ci
+        return _ci.separer_negations_outil(texte)
+    except Exception:
+        return ('' if texte is None else str(texte)), []
+
+
+def _neg_avec(negatif, termes):
+    try:
+        from modal_app import composeur_intention as _ci
+        return _ci.negatif_avec_termes(negatif, termes)
+    except Exception:
+        return negatif
+
+
 def generate(pipe, source_img, prompt='', strength=0.45, seed=0,
              cn_scale=0.45, neg_prompt=None, max_dim=1024, gris=0.0, motifs=0.0):
     """Retourne une image PIL a la taille de la source.
@@ -146,11 +163,12 @@ def generate(pipe, source_img, prompt='', strength=0.45, seed=0,
     travail = _aplatir_motifs(travail, float(motifs or 0))   # 0 = comportement d'origine
     travail = _desaturer(travail, float(gris or 0))
 
+    prompt, _negs = _tri_negations(prompt)      # 24/10 (M7) : « no wrinkles » va au negatif, pas dans le positif
     p = (prompt or '').strip() or PROMPT_DEFAUT
     with torch.inference_mode():
         out = pipe(
             prompt=p,
-            negative_prompt=neg_prompt or NEGATIF_DEFAUT,
+            negative_prompt=_neg_avec(neg_prompt or NEGATIF_DEFAUT, _negs),
             image=travail,
             control_image=travail,
             strength=float(max(FORCE_MIN, min(FORCE_MAX, strength))),

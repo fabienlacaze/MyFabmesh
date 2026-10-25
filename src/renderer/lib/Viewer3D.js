@@ -22,6 +22,9 @@
 import { majLOD, preparerLOD, geometriePleine } from './lod-maillage.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+// Filtrage anisotrope + mipmaps des textures (2026-10-15) : importer ce module suffit a l'activer pour tout chargement
+// GLB de la page (voir lib/filtrage-textures.js) ; preparerTexturesModele sert a la methode preparerTextures() plus bas.
+import { preparerTexturesModele } from './filtrage-textures.js';
 
 // RENDU ECONOME POUR LES GROS MAILLAGES (2026-09-30, user : « ca fait laguer mon PC »). Un maillage de plusieurs millions de
 // triangles redessine toute la scene 60 fois par seconde meme quand rien ne bouge. Au-dela de 2 M de triangles, le viewer ne
@@ -288,6 +291,12 @@ export class Viewer3D {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Filtrage anisotrope + mipmaps de toutes les textures d'un modele (voir lib/filtrage-textures.js). Deja fait au
+   *  chargement par le chargeur GLB ; sert pour un modele fabrique autrement. Rend le bilan { textures, anisotropie, ... }. */
+  preparerTextures(racine) {
+    return preparerTexturesModele(racine || this.scene, this.renderer);
   }
 
   /** Gros maillage : prepare (Worker) puis active les niveaux de detail sur `root`. `cle` = chemin du fichier (cache). */

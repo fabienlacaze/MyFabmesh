@@ -101,6 +101,8 @@ export function creerPage(cle, { lang = 'en', traductions = {}, mode = 'cloud', 
     if (!traductionLente) return sortie;
     return new Promise((res) => attente.push(() => res(sortie)));
   };
+  // l'analyse pendant la frappe passe par traduireTexteUtilisateur (resultat { texte, echec }) et non plus par translateUserPrompt (deploy-2510)
+  const traduireTexteUtilisateur = async (t, opts) => ({ texte: await translateUserPrompt(t, opts), traduit: true });
   const API = {
     autoInpaint: async (a) => { journal.autoInpaint.push(a); return resultatRetrait; },
     img2img: async (a) => { journal.img2img.push(a); return { success: true }; },
@@ -109,7 +111,7 @@ export function creerPage(cle, { lang = 'en', traductions = {}, mode = 'cloud', 
   const doublures = {
     document, window: fenetre, localStorage: stockage, setTimeout: fausseMinuterie, clearTimeout: () => {},
     state: { currentProject: projet }, editTarget: () => '/projets/pig.png', showToast: (m, t) => journal.toasts.push([m, t]),
-    translateUserPrompt, API, gatedRun: (kind, nom, fn) => { journal.gated.push([kind, nom]); return fn(); },
+    translateUserPrompt, traduireTexteUtilisateur, _traduirePourGeneration: async (t) => ({ texte: await translateUserPrompt(t), telQuel: false }), API, gatedRun: (kind, nom, fn) => { journal.gated.push([kind, nom]); return fn(); },
     pushJob: (nom, annul, params, ms, ...reste) => { const j = { id: journal.jobs.length + 1, nom, params, reste }; journal.jobs.push(j); return j; },
     completeJob: () => {}, reloadCurrentProject: async () => {}, customError: (m, t) => journal.erreurs.push([m, t]),
     fabConfirm: async (o) => { journal.confirm.push(o); return reponseConfirm; },

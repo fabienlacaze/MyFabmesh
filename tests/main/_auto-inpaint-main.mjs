@@ -40,6 +40,11 @@ export const refusRetraitMineur = dRefus > 0 && fRefus > dRefus
   ? new Function(main.slice(dRefus, fRefus) + '\n;return refusRetraitMineur;')()
   : null;
 
+// ── refusTexteOutil (MODERATION-04, deploy-2510), tel que main.js le definit ──────────────────────────────────────────────────────────────
+const dRT = main.indexOf('function refusTexteOutil(');
+const fRT = main.indexOf(String.fromCharCode(10) + '}' + String.fromCharCode(10), dRT) + 3;
+const sourceRefusTexteOutil = dRT > 0 ? main.slice(dRT, fRT) : null;
+
 export function monter({ cloud = false, aiSafe = true } = {}) {
   const j = { cloud: [], serveur: [], processus: [], ia: [], multivue: [] };
   const doublures = {
@@ -57,6 +62,9 @@ export function monter({ cloud = false, aiSafe = true } = {}) {
     sdxlReady: true,
     refusRetraitMineur: refusRetraitMineur || (() => null),
   };
+  // le VRAI refusTexteOutil de main.js (filtre de chaque champ) ; le plancher joint est celui du filtre (checkHardFloor : sans objet ici)
+  if (sourceRefusTexteOutil) doublures.refusTexteOutil = new Function('checkPromptSafety', 'checkHardFloor', sourceRefusTexteOutil + ';return refusTexteOutil;')(
+    (t) => filtre.checkPromptSafety(t), () => ({ safe: true }));
   const noms = Object.keys(doublures);
   const gestionnaire = new Function(...noms, 'return (' + sourceGestionnaire + ');')(...noms.map((n) => doublures[n]));
   return { j, appeler: (args) => gestionnaire({}, { imagePath: '/proj/pig.png', ...args }) };

@@ -26,6 +26,10 @@ Detection (plusieurs formulations) et recollage a la taille d'origine y
 vivent aussi depuis le 2026-09-30 : bureau et Modal font la meme chose.
 """
 
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))   # composeur_intention (voisin) : le Python embarque n'ajoute pas ce dossier (24/10)
+
 # --- NOYAU PARTAGE : DEBUT (copie identique dans modal_app/_recolor.py) ---
 # Extrait de scripts/sdxl_server.py — ne rien y ajouter qui depende du bureau
 # ou de Modal : numpy + PIL seulement (scipy en option : recolor_masque_fond
@@ -59,10 +63,26 @@ def _strip_accents(s):
     return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 
+def recolor_separer_negations(prompt):
+    """-> (texte sans ses locutions negatives, termes de negatif). « make the sword blue, no helmet » : la cible CLIPSeg ne doit pas deplacer le masque vers
+    la tete, et « helmet » part au negatif du re-rendu (24/10, audit M7). Module composeur_intention (Modal : modal_app.composeur_intention ; bureau :
+    scripts/composeur_intention.py) ; sans lui ou en cas d'erreur : le texte tel quel et []."""
+    t = '' if prompt is None else str(prompt)
+    try:
+        try:
+            from modal_app import composeur_intention as _ci
+        except ImportError:
+            import composeur_intention as _ci
+        return _ci.separer_negations_outil(t)
+    except Exception:
+        return t, []
+
+
 def parse_recolor_prompt(prompt):
     """'cape rouge' -> ('cape', color_spec) ; color_spec is None when no known
-    colour word is present (-> ControlNet-Tile material fallback)."""
-    text = (prompt or '').strip()
+    colour word is present (-> ControlNet-Tile material fallback).
+    Les locutions negatives (« no hood », « without feathers ») ne font jamais partie de la cible."""
+    text = recolor_separer_negations(prompt)[0].strip()
     color_spec = None
     noun_words = []
     for raw in text.split():
@@ -112,7 +132,7 @@ def recolor_hsv_masked(img_rgb, mask_soft, color_spec, strength=1.0):
 def recolor_mots_descriptifs(prompt):
     """Mots du prompt qui ne sont PAS des mots de couleur : « military green camo » -> ['military', 'camo'] ; « green » -> []."""
     mots = []
-    for raw in (prompt or '').split():
+    for raw in recolor_separer_negations(prompt)[0].split():
         if _strip_accents(raw.strip(".,;:!?\"'()").lower()) not in _COLOR_LEXICON:
             mots.append(raw)
     return mots
@@ -126,13 +146,23 @@ def recolor_tile_route(color_spec, prompt, recolor_all):
     return color_spec is None or bool(recolor_all and recolor_mots_descriptifs(prompt))
 
 
-def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0):
+def recolor_tile_params(noun, full_prompt, recolor_all=False, strength=1.0, negatifs=None):
     """Reglages du re-rendu : { denoise, cn, steps, guidance, prompt, negative }.
 
     Toute l'image (style) : vrai re-rendu img2img (denoise 0,57 a 0,85 selon le curseur Strength, ControlNet a 0,45 pour que les
     couleurs changent tout en tenant la forme, prompt oriente COHERENCE). Une partie : reglage prudent (denoise 0,18) pour
     preserver la zone detectee."""
     s = max(0.2, min(1.0, float(strength)))
+    p = _recolor_tile_params(noun, full_prompt, recolor_all, s)
+    if negatifs:       # negations de l'utilisateur (24/10, M7) : AJOUTEES au negatif de l'outil
+        deja = {x.strip().lower() for x in p['negative'].split(',')}
+        neufs = [x for x in negatifs if x.lower() not in deja]
+        if neufs:
+            p['negative'] = p['negative'] + ', ' + ', '.join(neufs)
+    return p
+
+
+def _recolor_tile_params(noun, full_prompt, recolor_all, s):
     if recolor_all:
         return {
             'denoise': 0.5 + s * 0.35, 'cn': 0.45, 'steps': 30, 'guidance': 6.5,

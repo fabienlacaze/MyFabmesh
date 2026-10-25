@@ -116,7 +116,7 @@ def smooth(input_path, output_path, iterations=None, lamb=None):
                     g.vertices[:] = verts_backup
             except Exception:
                 pass
-    _export(scene, geoms, output_path)
+    _export(scene, geoms, output_path, carte_normales=False)   # le relief lisse ne doit pas revenir par la carte de normales
     log(f'smoothed ({iterations} iterations, lambda={lamb}, preset={ACTIVE_PRESET})')
 
 
@@ -139,8 +139,9 @@ def decimate(input_path, output_path, target_faces=None):
                         default=0)
         if 0 < max_faces <= target_faces:
             log(f'decimate skipped - already at {max_faces} <= target {target_faces}')
-            _export(scene, geoms, output_path)
+            _export(scene, geoms, output_path)     # geometrie intacte : la carte de normales reste juste
             return
+    reduit = False      # une geometrie reduite (quelle que soit la methode) : la carte de normales ne correspond plus
     for gi, g in enumerate(geoms):
         # Cloud-parity safety rail: skip meshes with < 100 faces.
         if not hasattr(g, 'faces') or len(g.faces) < 100:
@@ -169,6 +170,7 @@ def decimate(input_path, output_path, target_faces=None):
                     geoms[gi] = g_new
                     if geom_names[gi] is not None:
                         scene.geometry[geom_names[gi]] = g_new
+                    reduit = True
                     log(f'decimated to {len(g_new.faces)} faces (target: {target_faces}, meshoptimizer + recuisson)')
                     continue
                 except Exception as e:
@@ -202,6 +204,7 @@ def decimate(input_path, output_path, target_faces=None):
                     # No usable per-vertex UV: plain simplify in place.
                     g.vertices = points
                     g.faces = faces_out
+                reduit = True
             except ImportError:
                 # Fallback: trimesh's built-in (itself fast_simplification on
                 # trimesh 4.x) - also drops UVs.
@@ -212,9 +215,12 @@ def decimate(input_path, output_path, target_faces=None):
                 g_new = g.simplify_quadric_decimation(face_count=n)
                 g.vertices = g_new.vertices
                 g.faces = g_new.faces
+                reduit = True
                 log('decimate fallback (quadric) - UVs/texture not preserved')
             log(f'decimated to {len(g.faces)} faces (target: {target_faces}, preset={ACTIVE_PRESET})')
-    _export(scene, geoms, output_path)
+    # 2026-10-14 (revue de la carte de normales) : la recuisson pose un materiau neuf, mais les replis gardent l'ANCIEN materiau
+    # (carte comprise) sur des UV transferees au plus proche sommet : la carte est retiree des qu'une geometrie a ete reduite.
+    _export(scene, geoms, output_path, carte_normales=not reduit)
 
 
 def subdivide_mesh(input_path, output_path, levels=1, mode=None):
@@ -247,11 +253,12 @@ def subdivide_mesh(input_path, output_path, levels=1, mode=None):
                     g.faces = sub.faces
             except Exception as e:
                 log(f'subdivide_loop skipped: {e}')
-        _export(scene, geoms, output_path)
+        _export(scene, geoms, output_path, carte_normales=False)   # Loop deplace les sommets et ne suit pas les UV
         log(f'loop-subdivided ({levels} levels, preset={ACTIVE_PRESET})')
         return True
 
-    # Default: midpoint via the existing subdivide.py
+    # Default: midpoint via the existing subdivide.py. La carte de normales y reste JUSTE (2026-10-14) : les nouveaux sommets sont
+    # au milieu des aretes, dans le plan de leur triangle (surface inchangee), et leurs UV sont interpolees exactement.
     import subprocess
     script = os.path.join(os.path.dirname(__file__), 'subdivide.py')
     r = subprocess.run([sys.executable, script, input_path, output_path, str(levels)],
@@ -607,7 +614,9 @@ def watertight(input_path, output_path, resolution=128, mode=''):
             log(f'watertight colour bake warn: {e}')
     log(f'watertight: {len(wt.faces)} faces, watertight={wt.is_watertight}, '
         f'bodies={wt.body_count} (resolution={resolution})')
-    _export(None, [wt], output_path)
+    # coque NEUVE sans UV (couleurs de sommets) : aucune carte de normales ne doit la suivre. Le mode « seal » (plus haut) garde
+    # au contraire le maillage d'origine intact, carte comprise, et lui adosse une coque sans carte.
+    _export(None, [wt], output_path, carte_normales=False)
 
 
 _TRELLIS2_PRESETS = {
@@ -821,15 +830,53 @@ def _marquer_ia(chemin):
         return False
 
 
-def _export(scene, geoms, output_path):
+def _retirer_cartes_normales(scene, geoms):
+    """Retire la carte de normales (normalTexture) de chaque materiau : l'operation a DEFORME la forme ou refait les UV.
+
+    CARTE DE NORMALES (2026-10-14, revue de la branche carte-normales ; meme regle que modal_app/_mesh_op.py). La generation du
+    bureau pose une carte (scripts/normal_bake.py) QUAND L'OPTION « relief pour moteur de jeu » est cochee (2026-10-15 : decochee par
+    defaut ; sans elle ces regles ne s'appliquent a rien) : elle decrit le relief du maillage FIN par rapport a la forme et aux UV
+    du maillage livre. GARDEE par center, set_pivot, fix_normals, fill_holes, la subdivision au milieu des aretes et le mode
+    « seal » de watertight (forme et UV intactes) ; RETIREE par smooth (le relief efface reviendrait a l'eclairage), decimate des
+    qu'une geometrie est reduite, la subdivision de Loop et la coque de watertight. Ne leve jamais ; rend le nombre de cartes retirees."""
+    elements = list(geoms or [])
+    if scene is not None and hasattr(scene, 'geometry'):
+        elements += list(scene.geometry.values())
+    n = 0
+    try:
+        from normal_bake import retirer_cartes_normales
+        for g in elements:
+            n += retirer_cartes_normales(g)
+        return n
+    except Exception:
+        pass
+    for g in elements:          # repli si le module manque : meme effet
+        try:
+            mat = getattr(getattr(g, 'visual', None), 'material', None)
+            if mat is not None and getattr(mat, 'normalTexture', None) is not None:
+                mat.normalTexture = None
+                n += 1
+        except Exception:
+            pass
+    return n
+
+
+def _export(scene, geoms, output_path, carte_normales=True):
     """Export mesh(es) to GLB.
 
     When the active preset enables `extension_webp` AND the target is a
     .glb, we pass `extension_webp=True` so trimesh writes WebP textures
     (EXT_texture_webp glTF extension). Cloud parity - smaller GLBs.
+
+    carte_normales=False : l'operation a deforme la forme ou refait les UV, la carte de normales est retiree
+    (voir _retirer_cartes_normales). Une carte gardee reste SANS PERTE : PNG (preset desktop) ou WebP sans perte (webp_rapide).
     """
     import trimesh
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    if not carte_normales:
+        n = _retirer_cartes_normales(scene, geoms)
+        if n:
+            log(f'carte de normales retiree ({n} materiau(x)) : forme ou UV modifies')
     webp = bool(PRESETS[ACTIVE_PRESET].get('extension_webp', False))
     kwargs = {}
     if webp and output_path.lower().endswith('.glb'):
