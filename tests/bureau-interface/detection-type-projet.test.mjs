@@ -41,7 +41,7 @@ const CAS = [
   ['voiture de course', 'vehicle'], ['tractor', 'vehicle'], ['camioneta', 'vehicle'], ['helicóptero', 'avion'], ['avion de chasse', 'avion'],
   ['yate', 'bateau'], ['voilier', 'bateau'], ['castillo', 'building'], ['phare', 'building'], ['molino', 'building'],
   ['espada larga', 'weapon'], ['hallebarde', 'weapon'], ['candelabro', 'prop'], ['sablier', 'prop'], ['cascada', 'environment'], ['volcan', 'environment'],
-  ['mariposa', 'insect'], ['libellule', 'insect'],
+  ['mariposa', 'insect'], ['libellule', 'insect'], ['Cerf-volant', 'prop'], ['lucane cerf-volant', 'insect'], ['cerf', 'animal'],
   ['鹦鹉', 'animal'], ['大象', 'animal'], ['कुत्ता', 'animal'], ['طاووس', 'animal'], ['城堡', 'building'], ['सेना का टैंक', 'vehicle'], ['战斗机', 'avion'],
   ['宝剑', 'weapon'], ['شجرة', 'environment'], ['龙', 'creature'],
 ];
