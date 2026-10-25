@@ -3436,7 +3436,26 @@ async function _preremplirPrompt(brut, assetType, assetStyle) {
   ta.value = buildFullPrompt(r.texte || brut, assetType, assetStyle, { garderNegations: true });
 }
 
+/* 25/10 (user : « a la fin de la subdivision : un flash, je me retrouve en haut de la page, ma popup a disparu ») : populateWorkspace redessine toute la page ;
+ * pour le MEME projet deja affiche (fin d'un outil, d'une generation, rechargement), la position de defilement est relue avant et remise apres, au fil des
+ * rendus asynchrones qui suivent. Un autre projet ou une page cachee : comportement d'origine (retour en haut). */
 function populateWorkspace(p) {
+  let positions = null;
+  try {
+    const page = document.getElementById('page-workspace');
+    const meme = !!(p && state.currentProject && state.currentProject.name === p.name && page && !page.classList.contains('hidden'));
+    if (meme) positions = { page: page.scrollTop, fenetre: window.scrollY || 0, page_el: page };
+  } catch (_) { positions = null; }
+  const retour = _populateWorkspaceBrut(p);
+  if (positions) {
+    const remettre = () => { try { if (positions.page_el.scrollTop !== positions.page) positions.page_el.scrollTop = positions.page; if ((window.scrollY || 0) !== positions.fenetre) window.scrollTo(0, positions.fenetre); } catch (_) {} };
+    remettre();
+    requestAnimationFrame(() => { remettre(); requestAnimationFrame(remettre); });
+    [150, 500, 1200, 2500].forEach((t) => setTimeout(remettre, t));
+  }
+  return retour;
+}
+function _populateWorkspaceBrut(p) {
   // MEME projet (rechargement apres une suppression, une generation...) : la bande des versions d'images garde
   // ses vignettes jusqu'a ce que renderImageVersions les remplace. Sinon elle restait VIDE le temps des appels
   // reseau du rendu (user 29/09 : « j'ai supprime une version, les autres ont disparu ~5 s puis sont reapparues »).
