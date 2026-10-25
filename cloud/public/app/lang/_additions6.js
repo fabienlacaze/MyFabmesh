@@ -1501,6 +1501,8 @@
     "Zoom out": ["Zoom arrière", "Alejar", "缩小", "ज़ूम आउट", "تصغير"],
     "Fullscreen": ["Plein écran", "Pantalla completa", "全屏", "पूर्ण स्क्रीन", "ملء الشاشة"],
     "Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom": ["Glisser gauche = peindre · glisser droit = déplacer · glisser molette = tourner · molette = zoom", "Arrastre izquierdo = pintar · derecho = mover · rueda pulsada = girar · rueda = zoom", "左键拖动 = 绘制 · 右键拖动 = 平移 · 中键拖动 = 旋转 · 滚轮 = 缩放", "बायाँ-खींचें = पेंट · दायाँ-खींचें = खिसकाएँ · बीच का बटन खींचें = घुमाएँ · व्हील = ज़ूम", "سحب أيسر = رسم · سحب أيمن = تحريك · سحب العجلة = تدوير · العجلة = تكبير"],
+    /* LOT W34 */
+    "Animations marked EXISTING already have a version. Procedural gaits are free; each AI clip is charged once.": ["Les animations marquées EXISTING ont déjà une version. Les allures procédurales sont gratuites ; chaque clip IA est facturé une fois.", "Las animaciones marcadas EXISTING ya tienen una versión. Los pasos procedurales son gratuitos; cada clip de IA se cobra una vez.", "标有 EXISTING 的动画已有版本。程序化步态免费；每个 AI 片段只收费一次。", "EXISTING चिह्नित एनिमेशन का संस्करण पहले से मौजूद है। प्रक्रियात्मक चालें मुफ़्त हैं; हर AI क्लिप का शुल्क एक बार लगता है।", "الحركات المعلَّمة بـ EXISTING لها نسخة بالفعل. الحركات الإجرائية مجانية؛ ويُحتسب كل مقطع ذكاء اصطناعي مرة واحدة."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
