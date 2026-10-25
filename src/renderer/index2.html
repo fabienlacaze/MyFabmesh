@@ -2480,17 +2480,15 @@
          emissiveIntensity). Same UX as the cloud version.
          ============================================================ -->
     <div id="modal-paint-emissive" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>💡 Paint Emissive</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle" style="margin-bottom:8px;">Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.</p>
-        <div style="display:flex; gap:12px;">
-          <div style="flex:1; min-width:0;">
-            <div id="pe-viewport-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:6px; position:relative;">
+        <p class="modal-subtitle">Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.</p>
+        <div class="fen-corps">
+          <div id="pe-viewport-wrap" class="fen-apercu">
               <canvas id="pe-canvas" style="width:100%; height:100%; display:block; cursor: crosshair;"></canvas>
-              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.</div>
-            </div>
+              <div id="pe-status" class="fen-apercu-etat">Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.</div>
           </div>
-          <div style="width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:10px;">
+          <div class="fen-form">
             <!-- Region re-texture (mask) mode — shown only when opened from
                  "Re-texture a region"; peints a white UV mask, then SDXL
                  inpaints only that area (uvMask:true → no back-face bleed). -->
@@ -2509,25 +2507,25 @@
               <div style="font-size:13px; line-height:1.5;"><b>Ctrl+click</b> on the mesh = set the <b>source</b>.<br><b>Left-click + drag</b> = clone onto the destination.</div>
               <div style="font-size:12px; color:var(--text-2); line-height:1.4;">Paint on the texture. The shape is kept.</div>
             </div>
-            <div class="pe-emissive-only">
-              <label style="display:block; font-size:13px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Emissive color</label>
-              <input type="color" id="pe-color" value="#ffaa33" style="width:100%; height:36px; cursor:pointer; background:#1a1a2e; border:1px solid #333; border-radius:4px;" />
+            <div class="fen-champ pe-emissive-only">
+              <div class="fen-champ-tete"><span class="fen-label">Emissive color</span></div>
+              <input type="color" id="pe-color" value="#ffaa33" class="fen-couleur" />
             </div>
-            <div class="pe-emissive-only">
-              <label style="display:flex; justify-content:space-between; font-size:13px;">Intensity <span id="pe-intensity-val" class="slider-val">1.0</span></label>
-              <input type="range" id="pe-intensity" min="0.1" max="20" step="0.1" value="1.0" style="width:100%;" />
+            <div class="fen-champ pe-emissive-only">
+              <div class="fen-champ-tete"><span class="fen-label">Intensity</span><span id="pe-intensity-val" class="slider-val fen-valeur">1.0</span></div>
+              <input type="range" id="pe-intensity" min="0.1" max="20" step="0.1" value="1.0" />
             </div>
-            <div>
-              <label style="display:flex; justify-content:space-between; font-size:13px;">Brush size (px) <span id="pe-brush-size-val" class="slider-val">40</span></label>
-              <input type="range" id="pe-brush-size" min="2" max="200" step="1" value="40" style="width:100%;" />
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Brush size (px)</span><span id="pe-brush-size-val" class="slider-val fen-valeur">40</span></div>
+              <input type="range" id="pe-brush-size" min="2" max="200" step="1" value="40" />
             </div>
-            <div>
-              <label style="display:flex; justify-content:space-between; font-size:13px;">Brush opacity <span id="pe-brush-opacity-val" class="slider-val">100%</span></label>
-              <input type="range" id="pe-brush-opacity" min="5" max="100" step="5" value="100" style="width:100%;" />
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Brush opacity</span><span id="pe-brush-opacity-val" class="slider-val fen-valeur">100%</span></div>
+              <input type="range" id="pe-brush-opacity" min="5" max="100" step="5" value="100" />
             </div>
-            <div>
-              <label style="display:flex; justify-content:space-between; font-size:13px;">Soft falloff <span id="pe-brush-falloff-val" class="slider-val">50%</span></label>
-              <input type="range" id="pe-brush-falloff" min="0" max="100" step="5" value="50" style="width:100%;" />
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Soft falloff</span><span id="pe-brush-falloff-val" class="slider-val fen-valeur">50%</span></div>
+              <input type="range" id="pe-brush-falloff" min="0" max="100" step="5" value="50" />
             </div>
             <div style="display:flex; gap:6px; padding:6px 8px; background:#0a0a0a; border-radius:4px;">
               <button id="pe-mode-paint" class="ghost-btn" style="flex:1; padding:6px; font-size:13px; background:var(--accent, #5a4fcf); color:#fff;">🖌 Paint</button>
