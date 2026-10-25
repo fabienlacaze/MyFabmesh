@@ -3336,6 +3336,21 @@ async function _cleCompteurIp(env: Env, ip: string): Promise<string> {
  * conserver ni ville ni IP. Ne pas la reintroduire sans declarer ces donnees dans la politique ; vague2-worker.test.mjs echoue si un appelant reapparait.
  * Les aides _tronquerIp / _empreinteIp ci-dessus ne servaient plus a rien ; elles sont reprises depuis le 2026-10-03 (D-05 / D-07) : IP tronquee dans les messages et signalements, empreinte salee dans les compteurs anti-abus (_cleCompteurIp). */
 
+/** Reglages d'une operation, a ranger dans l'historique (25/10) : seulement des valeurs simples et courtes (jamais d'URL, de masque ni de donnees). */
+function _paramsPourHistorique(p: unknown): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  if (!p || typeof p !== 'object') return out;
+  let n = 0;
+  for (const [k, v] of Object.entries(p as Record<string, unknown>)) {
+    if (n >= 12 || !/^[A-Za-z0-9_]{1,40}$/.test(k)) continue;
+    if (/url|mask|masque|base64|image|data/i.test(k)) continue;
+    if (typeof v === 'number' && Number.isFinite(v)) { out[k] = v; n++; }
+    else if (typeof v === 'boolean') { out[k] = v; n++; }
+    else if (typeof v === 'string' && v.length <= 120 && !/^(https?:|data:)/i.test(v)) { out[k] = v; n++; }
+  }
+  return out;
+}
+
 async function logOperation(
   env: Env,
   userId: string,
@@ -14370,7 +14385,9 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     // chemins de SUCCES, alors que les echecs, eux, portaient le projet. La
     // colonne etait donc renseignee pour les ratages et vide pour les
     // reussites : exactement l'inverse de ce qu'on veut lire.
-    const logCtx: Record<string, unknown> = { req, projectName, op_type: op, mesh_url_in: finalUrl };
+    const logCtx: Record<string, unknown> = { req, projectName, op_type: op, mesh_url_in: finalUrl,
+      // 25/10 : de quoi retrouver la version dans l'historique (maillage d'origine, reglages) : voir handleLineageMeta
+      op, output_name: key.split('/').pop() || '', params: _paramsPourHistorique(params) };
     if (data.stats) {
       const s = data.stats as Record<string, unknown>;
       if (s.verdict) logCtx.verdict = s.verdict;
@@ -15456,11 +15473,14 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
    * JSON reste accepte pour un onglet encore ouvert sur l'ancienne version. */
   const binaire = /gltf-binary|octet-stream/i.test(req.headers.get('content-type') ?? '');
   let opType: string | undefined, glbBase64: string | undefined, projectName: string | undefined;
+  let versionDe: string | undefined, reglagesBruts: unknown;   // maillage d'origine et reglages (historique, 25/10)
   let octetsBruts: Uint8Array | null = null;
   if (binaire) {
     const q = new URL(req.url).searchParams;
     opType = q.get('op') ?? undefined;
     projectName = q.get('project') || undefined;
+    versionDe = q.get('from') || undefined;
+    try { reglagesBruts = JSON.parse((q.get('params') || '').slice(0, 1500)); } catch { reglagesBruts = undefined; }
     // Cloudflare refuse de toute facon un corps > 100 Mo ; on le dit clairement.
     const annonce = Number(req.headers.get('content-length') ?? '0');
     if (annonce > 100_000_000) return err(413, 'glb too large (>100 MB)');
@@ -15558,7 +15578,9 @@ async function handleMeshOpClientResult(req: Request, env: Env): Promise<Respons
     // Zero GPU (cout 0 dans MODAL_COST_USD), mais facture depuis le 2026-09-27.
     await logOperation(env, user.id, 'mesh-op-client',
                        prixClient, opStart, Date.now(), 'succeeded',
-                       { req, projectName, op_type: op, client_side: true, size_bytes: bytes.length });
+                       { req, projectName, op_type: op, client_side: true, size_bytes: bytes.length,
+                         op, output_name: key.split('/').pop() || '', params: _paramsPourHistorique(reglagesBruts),
+                         ...(versionDe && isTrustedAssetHost(env, versionDe) ? { mesh_url_in: versionDe } : {}) });
     return json({ ok: true, success: true, path: url, newPath: url, mesh_url: url });
   } catch (e) {
     if (prixClient > 0) await addCredits(env, user.id, prixClient);
@@ -24322,7 +24344,7 @@ async function handlePrewarm(req: Request, env: Env,
  * sont pourtant enregistres dans jobs.options : le GLB d'une generation s'appelle modal_<id du travail>. Pour
  * un autre fichier (operation, rig), on cherche le travail dont mesh_url se termine par ce nom. Proprietaire
  * seulement ; les champs internes (prix, pays, provenance) ne sortent pas. */
-const _CHAMPS_INTERNES = new Set(['cost_usd', 'pays', 'provenance', 'tris_prix_socle', 'tris_prix_tranche',
+const _CHAMPS_INTERNES = new Set(['output_name', 'client_side', 'size_bytes', 'cost_usd', 'pays', 'provenance', 'tris_prix_socle', 'tris_prix_tranche',
   'tris_supplement', 'tris_courbe_pct', 'delai_max_s', 'backend', 'operation_type', 'projectName', 'sourceImage',
   'engine', 'batch_id', 'sourceMesh', 'sourceRig', 'coquille', 'error']);
 async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
@@ -24363,10 +24385,18 @@ async function handleLineageMeta(req: Request, env: Env): Promise<Response> {
       .order('created_at', { ascending: false }).limit(1);
     job = ((r.data as Record<string, unknown>[] | null) || [])[0] || null;
   }
+  // 25/10 : les versions issues d'un outil de maillage (lissage, subdivision, decimation...) n'ont pas de ligne « maillage » : on retrouve
+  // l'operation par le NOM du fichier qu'elle a produit (options.output_name), avec son maillage d'origine et ses reglages.
+  if (!job) {
+    const r = await sb.from('jobs').select('*').eq('user_id', user.id).eq('options->>output_name', nom)
+      .order('created_at', { ascending: false }).limit(1);
+    job = ((r.data as Record<string, unknown>[] | null) || [])[0] || null;
+  }
   if (!job || job.user_id !== user.id) return json({ meta: null });
   const options = (job.options && typeof job.options === 'object') ? job.options as Record<string, unknown> : {};
   const params: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(options)) if (!_CHAMPS_INTERNES.has(k)) params[k] = v;
+  for (const [k, v] of Object.entries(options)) if (!_CHAMPS_INTERNES.has(k) && k !== 'params') params[k] = v;
+  if (options.params && typeof options.params === 'object') for (const [k, v] of Object.entries(options.params as Record<string, unknown>)) params[k] = v;
   const debut = job.created_at ? new Date(String(job.created_at)).getTime() : 0;
   const fin = job.finished_at ? new Date(String(job.finished_at)).getTime() : 0;
   if (debut && fin && !('duration_ms' in params)) params.duration_ms = fin - debut;
