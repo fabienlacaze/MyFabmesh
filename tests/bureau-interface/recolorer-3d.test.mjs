@@ -31,7 +31,7 @@ for (const [nom, f] of Object.entries(PLATEFORMES)) {
     assert.match(js, /openPaintEmissive\(\{ maskMode: true, recolor: \{ color: _r3\.couleur, intensity: intensite \}, meshPath: mp \}\)/);
     assert.match(js, /if \(mode === 'whole-style'\) \{ fermer\(\); document\.getElementById\('ws-mesh-texvar-btn'\)\?\.click\(\); return; \}/);
     assert.match(js, /if \(peState\.maskMode && peState\.recolor\) \{\n\s*await _peApplyRecolor\(\);/);
-    assert.match(js, /\(mesh edit\|save mesh\|sculpt\|watertight\|decimate\|set\[- \]\?pivot\|fix\[- \]\?normals\|segment\|recolor 3d\)/);
+    assert.match(js, /\(mesh edit\|save mesh\|sculpt\|watertight\|decimate\|subdivid\|\^center\|set\[- \]\?pivot\|fix\[- \]\?normals\|segment\|recolor 3d\)/);
   });
 }
 test('bureau : API exposee (preload) et canal marque IA', () => {

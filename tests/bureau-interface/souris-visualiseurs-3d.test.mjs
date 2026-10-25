@@ -24,8 +24,8 @@ for (const [nom, f] of Object.entries(INDEX)) {
     const ecouteurs = [];
     const THREE = { MOUSE: { PAN: 'PAN', ROTATE: 'ROTATE' }, TOUCH: { PAN: 'tp', DOLLY_ROTATE: 'tdr' } };
     const ctl = {}; const dom = { addEventListener: (t, fn) => ecouteurs.push([t, fn]) };
-    const f2 = new Function('THREE', 'ctl', 'dom', code + '\n_sourisVisualiseur(ctl, dom); _sourisVisualiseur(ctl, dom); return _sourisVisualiseur;');
-    f2(THREE, ctl, dom);
+    const f2 = new Function('THREE', 'ctl', 'dom', 'centrerRotation', code + '\n_sourisVisualiseur(ctl, dom); _sourisVisualiseur(ctl, dom); return _sourisVisualiseur;');
+    f2(THREE, ctl, dom, () => {});   // centrerRotation (lib/centre-rotation.js) a son propre test
     assert.deepEqual(ctl.mouseButtons, { LEFT: null, MIDDLE: 'ROTATE', RIGHT: 'PAN' });
     assert.equal(ctl.screenSpacePanning, true);
     assert.equal(ctl.enableZoom, true);

@@ -2950,7 +2950,7 @@ function _ajusterAuto3D() {
   const auto = document.getElementById('ws-3d-auto');
   const note = document.getElementById('ws-3d-auto-note');
   if (!auto) return;
-  if (!auto.checked) { if (note) note.textContent = 'Manual settings. Tick "Auto settings" to let the app choose.'; return; }
+  if (!auto.checked) { if (note) note.textContent = 'Manual settings. Untick "Manual settings" to let the app choose.'; return; }
   const at = document.getElementById('ws-asset-type')?.value || 'character';
   const visible = (id) => {
     const cb = document.getElementById(id);
@@ -2989,6 +2989,25 @@ function _ajusterAuto3D() {
   _AUTO3D_OPTIONS.forEach(id => document.getElementById(id)?.dispatchEvent(new Event('change', { bubbles: true })));
 }
 
+// 25/10 (user : « inverse : Reglages manuels, et pas coche ») : la case visible devient « Reglages manuels » (decochee d'office) ; la case
+// d'origine « Reglages automatiques » reste la source de verite (cachee) : tout le code existant continue de la lire, et les deux restent synchronisees.
+(function _caseManuelle3D() {
+  const auto = document.getElementById('ws-3d-auto');
+  if (!auto || document.getElementById('ws-3d-manual')) return;
+  const lab = auto.closest('label');
+  if (!lab) return;
+  lab.style.display = 'none';
+  const neuf = document.createElement('label');
+  neuf.className = lab.className;
+  neuf.title = _i18nT('Choose the settings yourself. Untick to let the app pick the best settings for this image and asset type.');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.id = 'ws-3d-manual'; cb.checked = !auto.checked;
+  neuf.append(cb, document.createTextNode(' ' + _i18nT('Manual settings')));
+  lab.insertAdjacentElement('afterend', neuf);
+  const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked');
+  Object.defineProperty(auto, 'checked', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); cb.checked = !v; } });
+  cb.addEventListener('change', () => { auto.checked = !cb.checked; auto.dispatchEvent(new Event('change', { bubbles: true })); });
+})();
 (function _wireAuto3D() {
   const auto = document.getElementById('ws-3d-auto');
   if (!auto) return;
