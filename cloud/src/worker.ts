@@ -16634,6 +16634,8 @@ async function handleAutoRig(req: Request, env: Env): Promise<Response> {
     job_id: jobId,
     status: 'queued',
     creditsRemaining: remaining,
+    // projet du MAILLAGE (deduit ci-dessus) : le client le met sur la tuile de reprise et « Aller a »
+    project_name: projetDeduit,
   });
 }
 

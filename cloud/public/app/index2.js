@@ -21335,6 +21335,7 @@ async function lancerRigIA(options = {}) {
       // is still being polled successfully every 5s.
       const r = await API.autoRigAI({
         meshPath: meshPathToUse,
+        projectName: p.name,
         engine: rigEngine,
         ...(points ? { points } : {}),
         ...(points && Array.isArray(options.liens) ? { liens: options.liens } : {}),

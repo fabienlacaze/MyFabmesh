@@ -2837,13 +2837,13 @@
     //   { success, ok, glb_url, path, error? }
     // so callers can hot-swap the mesh in the viewer without knowing
     // anything changed under the hood.
-    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, liens, graine, tirage, squelette } = {}) => {
-      const _projetLancement = _projetAuLancement(null);   // voir _projetAuLancement
+    autoRigAI: async ({ meshPath, meshUrl, engine, skeleton, onProgress, points, liens, graine, tirage, squelette, projectName: _projetDemande } = {}) => {
+      const _projetLancement = _projetAuLancement(_projetDemande);   // voir _projetAuLancement
       const url = meshUrl || meshPath;
       if (!url) return { success: false, ok: false, error: 'meshPath or meshUrl required' };
 
       // ── 1. Spawn ──
-      let jobId;
+      let jobId, _projetServeur = null;
       try {
         const spawn = await postJSON('/api/auto-rig', {
           mesh_url: url, skeleton: skeleton || 'orc_m1', engine: engine || 'puppeteer',
@@ -2862,6 +2862,7 @@
           return { success: false, ok: false, error: spawn?.error || 'auto-rig spawn failed' };
         }
         jobId = String(spawn.job_id);
+        _projetServeur = spawn.project_name ? String(spawn.project_name) : null;
       } catch (e) {
         return { success: false, ok: false, error: e?.message || String(e) };
       }
@@ -2884,7 +2885,8 @@
       try {
         const pending = JSON.parse(localStorage.getItem('fabmesh_pending_rigs') || '[]');
         const projectId = window.state?.currentProject?.id || null;
-        const projectName = window.state?.currentProject?.name || null;
+        // le projet du MAILLAGE (serveur), puis celui demande par l'appelant, puis l'ouvert : sinon la tuile de reprise « Aller a » menait a un autre projet (25/10)
+        const projectName = _projetServeur || _projetDemande || window.state?.currentProject?.name || null;
         pending.push({ jobId, projectId, projectName, meshUrl: url, createdAt: Date.now() });
         localStorage.setItem('fabmesh_pending_rigs', JSON.stringify(pending.slice(-10)));
       } catch (e) { /* localStorage may be disabled */ }
