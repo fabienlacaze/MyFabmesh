@@ -30559,14 +30559,36 @@ function _checkLmFsPresetDrift(pane) {
   }
 }
 document.getElementById('lm-fullscreen')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('.lm-fs-view-toolbar button[data-view]');
+  const btn = e.target.closest('.lm-fs-view-toolbar button[data-view], .lm-fs-view-toolbar button[data-act]');
   if (!btn || !lmFsModel) return;
   const toolbar = btn.closest('.lm-fs-view-toolbar');
   const pane = toolbar?.dataset.pane || 'a';
   const cam = pane === 'b' ? lmFsCameraB : lmFsCamera;
   const ctrl = pane === 'b' ? lmFsControlsB : lmFsControls;
   if (!cam || !ctrl) return;
-  const view = btn.dataset.view;
+  const act = btn.dataset.act;
+  if (act === 'zoom-in' || act === 'zoom-out') {
+    // meme zoom que la barre commune des fenetres d'outils
+    const off = cam.position.clone().sub(ctrl.target).multiplyScalar(act === 'zoom-in' ? 0.8 : 1.25);
+    cam.position.copy(ctrl.target).add(off);
+    ctrl.update();
+    _setLmFsActiveViewBtn(pane, null);
+    return;
+  }
+  const view = act === 'reset' ? 'iso' : (act === 'fit' ? null : btn.dataset.view);
+  if (act === 'fit') {
+    // cadre le modele en gardant la direction de vue actuelle
+    const sz = new THREE.Box3().setFromObject(lmFsModel).getSize(new THREE.Vector3());
+    const dirv = cam.position.clone().sub(ctrl.target);
+    if (dirv.lengthSq() < 1e-9) dirv.set(0.7, 0.5, 0.7);
+    dirv.normalize();
+    const centre = new THREE.Vector3(0, sz.y * 0.5, 0);
+    cam.position.copy(centre).addScaledVector(dirv, sz.length() * 1.4);
+    cam.lookAt(centre);
+    ctrl.target.copy(centre);
+    ctrl.update();
+    return;
+  }
   const box = new THREE.Box3().setFromObject(lmFsModel);
   const sizeVec = box.getSize(new THREE.Vector3());
   const size = sizeVec.length();
