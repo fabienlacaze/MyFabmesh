@@ -6266,15 +6266,15 @@ if (qualityEl && qualityLabel) {
 //  3. Negative prompt (local_juggernaut_bridge.py) blocks grid layouts.
 const ASSET_TYPE_PROMPTS = {
   character: 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
-  building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
-  vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
-  weapon: 'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
-  prop: 'isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette',
+  building: 'architectural building exterior, whole structure, margin on all sides, plain white background, centered, high three-quarter view from front left, from above, clean silhouette',
+  vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, centered, high three-quarter view from front left, 45 degrees above, front pointing lower left, clean silhouette',
+  weapon: 'isolated, full weapon, plain white background, even studio lighting, centered, high three-quarter view from front left, 45 degrees above, clean silhouette',
+  prop: 'isolated, full item, plain white background, even studio lighting, centered, high three-quarter view from front left, 45 degrees above, clean silhouette',
   creature: 'full body creature, wide establishing shot, whole creature head to tail, body stretched out, fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
-  environment: 'isolated, full structure, plain white background, even studio lighting, centered, strict front view, clean silhouette',
+  environment: 'isolated, full structure, plain white background, even studio lighting, centered, high three-quarter view from front left, 45 degrees above, clean silhouette',
   icon: 'flat app icon, isolated subject centered in square frame, pure white background, soft rim light, vibrant colors, slight isometric 3/4 angle, glossy material, clean silhouette',
   avion: 'complete aircraft, high three-quarter view from front left, 45 degrees above, nose pointing lower left, both wings and tail fin visible, plain white background, centered, clean silhouette',
-  bateau: 'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
+  bateau: 'complete boat, high three-quarter view from front left, 45 degrees above, bow pointing lower left, bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
   animal: 'full body animal, lateral profile, whole animal nose to tail, body stretched out, all four feet on ground, fills 60 percent of frame, plain white background, centered',
   // 2026-10-01 : animal qui VOLE (« flying pink pig ») : le gabarit « animal » dit « all four feet on ground » et contredit le vol.
   en_vol: 'full body animal, airborne, lateral profile, whole animal nose to tail, fills 60 percent of frame, plain white background, centered',
@@ -6286,9 +6286,9 @@ const ASSET_TYPE_PROMPTS = {
   poisson: 'full body fish, lateral profile, body straight from head to tail fin, fins spread, fills 60 percent of frame, plain white background, centered',
   custom: '',
   other_living:  'full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
-  other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
-  other_built:   'full structure, isolated, plain white background, even studio lighting, centered, strict front view, clean silhouette',
-  other_item:    'full item, plain white background, centered, strict front view, clean silhouette',
+  other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, centered, high three-quarter view from front left, 45 degrees above, front pointing lower left, clean silhouette',
+  other_built:   'full structure, isolated, plain white background, even studio lighting, centered, high three-quarter view from front left, 45 degrees above, clean silhouette',
+  other_item:    'full item, plain white background, centered, high three-quarter view from front left, 45 degrees above, clean silhouette',
 };
 
 const ASSET_STYLE_PROMPTS = {
@@ -6563,6 +6563,15 @@ function stripKnownPromptSuffixes(raw) {
   let connus = stripKnownPromptSuffixes._gabaritsConnus;
   if (!connus || connus.signature !== signature) {
     const GABARITS_HISTORIQUES = [
+      'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
+      'isolated, complete vehicle, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
+      'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
+      'isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette',
+      'isolated, full structure, plain white background, even studio lighting, centered, strict front view, clean silhouette',
+      'complete boat, 3/4 isometric view, full body visible from bow to stern, hull and superstructure visible, plain white background, centered, clean silhouette',
+      'complete vehicle, isolated, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
+      'full structure, isolated, plain white background, even studio lighting, centered, strict front view, clean silhouette',
+      'full item, plain white background, centered, strict front view, clean silhouette',
       'complete aircraft, three-quarter view from front left, slightly above, nose pointing left, nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
       'complete passenger aircraft, 3/4 isometric view, full body visible from nose to tail, both wings and tail fin visible, plain white background, centered, clean silhouette',
       'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',

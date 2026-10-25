@@ -61,7 +61,11 @@ def gabarit(prompt: str, asset_type: str, asset_style: str, pose_libre: bool) ->
         # 25/10 : un vehicule de FACE cache sa longueur et son envergure (3D mediocre) : trois quarts avant, un peu au-dessus.
         return (f"Three-quarter front view of {texte}{habillage}, seen from the front left and slightly above, "
                 f"the whole vehicle visible from end to end, {fond}.")
-    return f"Front view of {texte}{habillage}, the whole object visible, {fond}."
+    if t == "icon":
+        return f"Front view of {texte}{habillage}, the whole object visible, {fond}."
+    # 25/10 (user : « tout ce qui n'est pas vivant oriente comme les avions ») : trois quarts HAUTE, avant gauche.
+    return (f"High three-quarter view of {texte}{habillage}, seen from the front left and about 45 degrees above, "
+            f"the whole object visible, {fond}.")
 
 
 def _nettoyer_negations(brut):
