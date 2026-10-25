@@ -89,8 +89,8 @@ for (const [nom, c] of Object.entries(CIBLES)) {
     }
     const cp = bloc(html, 'modal-colorpick');
     assert.match(cp, /id="modal-colorpick" class="modal hidden"/);
-    assert.match(cp, /class="modal-content" style="width:var\(--vz-editeur-w\); height:var\(--vz-editeur-h\)/);
-    assert.match(css, /@media \(max-width: 760px\)[\s\S]*#modal-colorpick \.modal-content[\s\S]*100dvh/);
+    // LOT W08 (25/10) : le Color Picker prend le gabarit commun .fen-3d (apercu a gauche, valeurs a droite, pied Fermer / Copier)
+    assert.match(cp, /class="modal-card fen-3d fen-colorpick"/);
   });
 
   test(`${nom} : Draw Mask et Clone ont une aide sur une ligne ; Blur annonce le clic droit`, () => {

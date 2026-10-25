@@ -5161,3 +5161,13 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ══ LOT W08 (25/10) : Color Picker au gabarit commun .fen-3d (apercu a gauche, valeurs en colonne a droite, pied Fermer / Copier) ══ */
+#modal-colorpick .modal-card.fen-colorpick .fen-apercu { cursor: crosshair; }
+#modal-colorpick .cpick-pastille { height: 72px; border-radius: 8px; border: 2px solid var(--border); }
+#modal-colorpick .cpick-hex { font-size: 22px; font-weight: 700; font-family: monospace; min-height: 1.3em; }
+#modal-colorpick .cpick-rgb { font-size: 14px; color: var(--text-2); font-family: monospace; min-height: 1.3em; }
+#modal-colorpick .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-colorpick .modal-card.fen-colorpick { height: auto; max-height: 96vh; }
+#modal-colorpick .modal-card.fen-colorpick .fen-corps { flex: 0 0 auto; }
+#modal-colorpick .modal-actions { margin-top: 16px; }
