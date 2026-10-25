@@ -2949,52 +2949,57 @@
          (= new version) without leaving the Edit selected stage.
          ============================================================ -->
     <div id="modal-anim-gen" class="modal-overlay hidden">
-      <div class="modal-card" style="width:440px; max-width:92vw;">
+      <div class="modal-card fen-3d fen-anim-gen">
         <div class="fen-tete"><h2>Generate Animation</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Pick the animations to add. One new version per click.</p>
-        <div id="modal-anim-types" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px; padding:10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; margin:12px 0;">
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+        <div class="fen-corps">
+          <div class="fen-apercu">
+        <div id="modal-anim-types">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="idle"> <span>😴 Idle</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="walk"> <span>🚶 Walk</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="run"> <span>🏃 Run</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="turn_left"> <span>↰ Turn left</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="turn_right"> <span>↱ Turn right</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="attack"> <span>⚔️ Attack</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="death"> <span>💀 Death</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="trot"> <span>🐎 Trot</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="jump"> <span>🦘 Jump</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="walk_back"> <span>↩ Walk back</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="eat"> <span>🌿 Eat</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="lie_down"> <span>🛌 Lie down</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="hit"> <span>💥 Hit</span>
           </label>
-          <label class="anim-type-opt" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="fly"> <span>✈️ Fly</span>
           </label>
+        </div>
+          </div>
+          <div class="fen-form"><p class="fen-note">Animations marked EXISTING already have a version. Procedural gaits are free; each AI clip is charged once.</p></div>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="modal-anim-cancel">Cancel</button>
@@ -3375,7 +3380,7 @@
          JOB DETAILS MODAL
          ============================================================ -->
     <div id="modal-job-details" class="modal-overlay hidden">
-      <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-card fen-3d fen-detail">
         <button class="settings-close-x" id="job-details-close-x" title="Minimize (the task keeps running in the panel)" style="position:absolute; top:14px; right:14px; z-index:11;">&#9660;</button>
         <div id="job-gpu-monitor" class="job-gpu-monitor">
           <div class="jgm-row"><span class="jgm-label">GPU</span><span class="jgm-val" id="jgm-util">--</span></div>
@@ -3383,13 +3388,15 @@
           <div class="jgm-row"><span class="jgm-label">VRAM</span><span class="jgm-val" id="jgm-vram">--</span></div>
           <div class="jgm-row"><span class="jgm-label">RAM</span><span class="jgm-val" id="jgm-ram">--</span></div>
         </div>
-        <div class="job-details-head">
-          <img id="jd-ref-img" alt="" />
+        <div class="fen-tete job-details-head">
           <div class="job-details-head-text">
             <h2 id="job-details-title">Running task</h2>
             <p class="modal-subtitle" id="job-details-subtitle">--</p>
           </div>
         </div>
+        <div class="fen-corps">
+          <div class="fen-apercu"><img id="jd-ref-img" alt="" /></div>
+          <div class="fen-form">
         <div class="job-details-stats">
           <div class="jd-row"><span class="jd-label">Status</span><span class="jd-value" id="jd-status">Running</span></div>
           <div class="jd-row"><span class="jd-label">Started</span><span class="jd-value" id="jd-started">--</span></div>
@@ -3410,6 +3417,8 @@
           </span>
         </div>
         <div id="jd-error-box" class="jd-error-box hidden"></div>
+          </div>
+        </div>
         <div class="modal-actions" style="flex-wrap:wrap;">
           <button class="ghost-btn" id="job-details-export-logs" style="white-space:nowrap;" title="Save all logs to a text file on the Desktop (to send for support)">&#128203; Export logs</button>
           <button class="primary-btn" id="job-details-goto-step" style="display:none; white-space:nowrap; background:linear-gradient(135deg,#7c3aed,#a855f7);">&#8594; Go to generation</button>

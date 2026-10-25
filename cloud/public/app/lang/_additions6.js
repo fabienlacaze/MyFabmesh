@@ -1527,6 +1527,8 @@
     "Sculpt, paint or select faces on the model, then save the result as a new version.": ["Sculptez, peignez ou sélectionnez des faces sur le modèle, puis enregistrez le résultat comme nouvelle version.", "Esculpe, pinta o selecciona caras en el modelo y guarda el resultado como una nueva versión.", "在模型上雕刻、绘制或选择面，然后将结果保存为新版本。", "मॉडल पर स्कल्प्ट करें, पेंट करें या फेस चुनें, फिर परिणाम को नए संस्करण के रूप में सहेजें।", "انحت أو لوّن أو حدّد أوجهًا على النموذج، ثم احفظ النتيجة كنسخة جديدة."],
     // LOT W33
     "Points": ["Points", "Puntos", "点", "बिंदु", "النقاط"],
+    /* LOT W34 */
+    "Animations marked EXISTING already have a version. Procedural gaits are free; each AI clip is charged once.": ["Les animations marquées EXISTING ont déjà une version. Les allures procédurales sont gratuites ; chaque clip IA est facturé une fois.", "Las animaciones marcadas EXISTING ya tienen una versión. Los pasos procedurales son gratuitos; cada clip de IA se cobra una vez.", "标有 EXISTING 的动画已有版本。程序化步态免费；每个 AI 片段只收费一次。", "EXISTING चिह्नित एनिमेशन का संस्करण पहले से मौजूद है। प्रक्रियात्मक चालें मुफ़्त हैं; हर AI क्लिप का शुल्क एक बार लगता है।", "الحركات المعلَّمة بـ EXISTING لها نسخة بالفعل. الحركات الإجرائية مجانية؛ ويُحتسب كل مقطع ذكاء اصطناعي مرة واحدة."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
