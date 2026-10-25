@@ -5388,6 +5388,42 @@ function createMeshViewerControls(toolbarEl, getViewer) {
   }
   // Only show the explode/segcolors controls for a SEGMENTED or fractured mesh:
   // _isSegmented flag OR >=2 part_XX submeshes. Reset per model.
+  // 25/10 (user : « jouer une animation pour faire bouger le curseur d'explosion, en boucle ») : lecture automatique du curseur
+  // 0 -> 100 % -> 0 avec une courte pause aux extremites. S'arrete des que l'utilisateur touche le curseur ou le bouton ; une lecture
+  // arretee n'est pas relancee par les reconstructions du visualiseur (refreshAll) pour le MEME modele.
+  const _explAuto = { actif: false, raf: 0, modele: null };
+  function _explBouton() { return toolbarEl.querySelector('[data-act="explode-play"]'); }
+  function _explArreter() {
+    _explAuto.actif = false;
+    if (_explAuto.raf) cancelAnimationFrame(_explAuto.raf);
+    _explAuto.raf = 0;
+    const b = _explBouton(); if (b) { b.classList.remove('active'); b.textContent = '▶'; }
+  }
+  function _explLire() {
+    const wrap = toolbarEl.querySelector('[data-explode-wrap]');
+    const sl = wrap && wrap.querySelector('input[data-act="explode"]');
+    if (!sl) return;
+    _explArreter();
+    _explAuto.actif = true;
+    const b = _explBouton(); if (b) { b.classList.add('active'); b.textContent = '⏸'; }
+    const DUREE = 6500;
+    let t0 = 0;
+    const pas = (t) => {
+      if (!_explAuto.actif) return;
+      const vw = getViewer();
+      if (!vw || !vw.model || vw.model !== _explAuto.modele) { _explArreter(); return; }
+      if (!t0) t0 = t;
+      const ph = ((t - t0) % DUREE) / DUREE;
+      const tri = 1 - Math.abs(2 * ph - 1);                       // 0 -> 1 -> 0
+      const x = Math.min(1, Math.max(0, (tri - 0.12) / 0.76));    // pauses aux deux extremites
+      const v = x * x * (3 - 2 * x);                              // lissage
+      sl.value = String(Math.round(v * 100));
+      sl.style.setProperty('--val', sl.value + '%');
+      applyExplode(vw, v);
+      _explAuto.raf = requestAnimationFrame(pas);
+    };
+    _explAuto.raf = requestAnimationFrame(pas);
+  }
   function refreshExplodeUI(viewer) {
     const wrap = toolbarEl.querySelector('[data-explode-wrap]');
     if (!wrap) return;
@@ -5402,14 +5438,25 @@ function createMeshViewerControls(toolbarEl, getViewer) {
     if (sl) { sl.value = 0; sl.style.setProperty('--val', '0%'); }
     const segBtn = wrap.querySelector('button[data-act="segcolors"]');
     if (segBtn) segBtn.classList.toggle('active', state.segColors !== false);
+    if (sl && !_explBouton()) {
+      const bp = document.createElement('button');
+      bp.type = 'button'; bp.dataset.act = 'explode-play'; bp.className = segBtn ? segBtn.className : 'tb-btn';
+      bp.title = 'Play / pause the explosion loop'; bp.textContent = '▶';
+      bp.addEventListener('click', () => { if (_explAuto.actif) { _explArreter(); _explAuto.modele = getViewer()?.model || null; } else { _explAuto.modele = getViewer()?.model || null; _explLire(); } });
+      sl.addEventListener('pointerdown', () => { _explArreter(); });
+      wrap.insertBefore(bp, sl);
+    }
+    if (!seg) _explArreter();
     if (seg) {
       model.traverse(o => {
         if (o.isMesh && o.geometry && !o.geometry.getAttribute('normal')) {
           o.geometry.computeVertexNormals();
         }
       });
-      applyExplode(viewer, 0);
       applySegColors(viewer, state.segColors !== false);
+      // Nouveau modele eclate : lecture automatique en boucle ; meme modele deja vu : on ne relance pas (arret volontaire respecte).
+      if (_explAuto.modele !== model) { _explAuto.modele = model; applyExplode(viewer, 0); _explLire(); }
+      else if (!_explAuto.actif) applyExplode(viewer, 0);
     }
   }
 

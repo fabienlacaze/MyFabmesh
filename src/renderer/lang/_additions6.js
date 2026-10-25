@@ -1362,6 +1362,7 @@
     "Wedges": ["Quartiers", "Cuñas", "楔形", "फाँक", "أسافين"],
     "Blocks": ["Blocs", "Bloques", "方块", "ब्लॉक", "كتل"],
     "Zones": ["Zones", "Zonas", "区域", "क्षेत्र", "مناطق"],
+    "Play / pause the explosion loop": ["Lire / mettre en pause la boucle d'explosion", "Reproducir / pausar el bucle de explosión", "播放 / 暂停爆炸循环", "विस्फोट लूप चलाएँ / रोकें", "تشغيل / إيقاف حلقة الانفجار"],
     "Could not open this step.": ["Impossible d'ouvrir cette étape.", "No se pudo abrir este paso.", "无法打开此步骤。", "यह चरण नहीं खुल सका।", "تعذّر فتح هذه الخطوة."],
     // --- mode Vol et bouton « moteur rapide » (25/10) ---
     "🦅 Flies": ["🦅 Vole", "🦅 Vuela", "🦅 飞行", "🦅 उड़ता है", "🦅 يطير"],
