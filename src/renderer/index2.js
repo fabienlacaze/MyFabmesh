@@ -2201,6 +2201,7 @@ function _npAutoInfo(texte, ecrit = false) {
   document.getElementById('np-auto-row')?.classList.toggle('ecrit', !!ecrit);
 }
 let _npIaMinuteur = null, _npIaJeton = 0, _npTypeMotsCles = null, _npIaType = null;
+let _npIaEnCours = false;   // 25/10 : l'IA rédige (ou va rédiger) : type et style restent GRISES, ils sont choisis pour toi
 function _npLangue() {
   try { return (localStorage.getItem('fabmesh.lang') || 'en').toLowerCase().slice(0, 2); } catch (_) { return 'en'; }
 }
@@ -2232,7 +2233,7 @@ function _npAutoSync() {
   const saisi = !!(nom.trim() || (desc && desc.value.trim()));
   // RIEN DE DETECTE (2026-10-13, MANQUE-02) : le menu du type reste LIBRE et l'info le dit. Avant : « Detected: Character » et le menu
   // verrouille sur le personnage (gabarit T-pose) pour un « castillo medieval » ou un « 中世纪城堡 ».
-  if (!type && saisi) { selT.disabled = false; selT.style.opacity = ''; }
+  if (!type && saisi && !_npIaEnCours) { selT.disabled = false; selT.style.opacity = ''; }   // libre SEULEMENT une fois l'IA terminee sans rien detecter
   _npAutoInfo(!saisi ? _i18nT('Type a name: the type, the style and the description are filled in for you')
     : (type ? _npResume() : (NP_TYPE_NON_DETECTE[_langueInterface()] || NP_TYPE_NON_DETECTE.en)));
 }
@@ -2261,12 +2262,14 @@ function _npTexteAnalyse(texte) {
 }
 function _npPlanifierRedaction() {
   clearTimeout(_npIaMinuteur);
+  const _a = document.getElementById('np-auto'), _d = document.getElementById('np-prompt');
+  _npIaEnCours = !!(_a && _a.checked && _npDescAuto(_d) && (document.getElementById('np-name')?.value || '').trim().length >= 2 && window.meshyAPI?.redacteurDecrire);
   _npIaMinuteur = setTimeout(_npRediger, 900);
 }
 async function _npRediger() {
   const auto = document.getElementById('np-auto'), desc = document.getElementById('np-prompt');
   const nom = (document.getElementById('np-name')?.value || '').trim();
-  if (!auto?.checked || !_npDescAuto(desc) || nom.length < 2 || !window.meshyAPI?.redacteurDecrire) return;
+  if (!auto?.checked || !_npDescAuto(desc) || nom.length < 2 || !window.meshyAPI?.redacteurDecrire) { _npIaEnCours = false; _npAutoSync(); return; }
   const jeton = ++_npIaJeton;
   _npAutoInfo(_i18nT('Writing the description…'), true);
   let r = null;
@@ -2274,6 +2277,7 @@ async function _npRediger() {
     r = await window.meshyAPI.redacteurDecrire({ name: nom, lang: _npLangue(), type: _npTypeMotsCles || undefined });
   } catch (_) { r = null; }
   if (jeton !== _npIaJeton) return;             // nom modifie ou fenetre fermee entre-temps
+  _npIaEnCours = false;
   const nomActuel = (document.getElementById('np-name')?.value || '').trim();
   if (!auto.checked || !_npDescAuto(desc) || nomActuel !== nom) { _npAutoSync(); return; }
   if (r && r.ok && r.description) {
@@ -2308,7 +2312,7 @@ async function _npRediger() {
     _npAutoSync();
     if (!d.value.trim()) _npPlanifierRedaction();
   });
-  document.getElementById('np-name')?.addEventListener('input', () => { _npIaType = null; _npAutoSync(); _npPlanifierRedaction(); });
+  document.getElementById('np-name')?.addEventListener('input', () => { _npIaType = null; _npPlanifierRedaction(); _npAutoSync(); });
   _npAutoSync();
 })();
 

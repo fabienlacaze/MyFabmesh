@@ -4917,7 +4917,7 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
  * (lissage, materiau, peinture de maillage, emissive, redimensionner, reshape / clone 3D / re-texture, poids de peau, sculpt / selection)
  * ont EXACTEMENT la meme taille : --vz-w-corps x --vz-h-corps. Mesure avant : 786 a 1120 px de large, 558 a 702 px de haut.
  * ============================================================ */
-:root { --vz-w-corps: min(900px, 64vw); }
+:root { --vz-w-corps: min(1240px, 70vw); --vz-h-corps: max(360px, min(68vh, 820px)); }   /* 25/10 : « 896x576 me parait petit » -> 980x612 a 1400x900, 1240x734 a 1920x1080 */
 .modal-card.fen-3d .fen-corps { grid-template-columns: var(--vz-w-corps) minmax(0, 1fr) !important; }
 .modal-card.fen-3d .fen-apercu { box-sizing: content-box; width: var(--vz-w-corps); height: var(--vz-h-corps); min-height: 0; }
 #pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap, div:has(> #pe-viewport-wrap) {

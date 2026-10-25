@@ -3276,12 +3276,12 @@
             <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
+                <div class="prompt-lang-hint" data-pour="mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+        <div class="modal-actions fen-pied-editeur">
+          <div style="display:flex; align-items:center; gap:10px; flex:1 1 auto; min-width:0;">
           <label for="mask-prompt" style="font-size: 14px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
           <input type="text" id="mask-prompt" placeholder="Describe what to put in the masked area — leave empty to just remove it" style="flex: 1; padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;" />
         </div>
-        <div class="prompt-lang-hint" data-pour="mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
-        <div class="modal-actions fen-pied-editeur">
           <button id="mask-cancel" class="ghost-btn">Cancel</button>
           <button id="mask-apply" class="primary-btn">Apply Inpaint</button>
         </div>
