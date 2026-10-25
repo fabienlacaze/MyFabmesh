@@ -10399,6 +10399,7 @@ async function renderMeshVersions(p) {
     }
   }
   meshes.forEach((m, i) => {
+   try {   // 25/10 : une version qui plante ne vide plus toute la bande (projet « fighter plane » : bande des versions absente)
     const t = document.createElement('div');
     t.className = 'version-thumb';
     // Stable id so marketplace badge walker (_badgeAllCards) can match by
@@ -10508,6 +10509,7 @@ async function renderMeshVersions(p) {
       await reloadCurrentProject();
     });
     strip.appendChild(t);
+   } catch (e) { console.warn('[versions] maillage ignore :', m && (m.filename || m.path), e); }
   });
 }
 
