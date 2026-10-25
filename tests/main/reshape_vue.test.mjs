@@ -77,7 +77,7 @@ function gestionnaire(canal) {
   return SRC.slice(trouve.start, trouve.end);
 }
 const ENTREES = ['isCloudMode', 'isPathAllowed', 'fs', 'path', 'os', 'nativeImage', 'safeSend', '_lancerPy', '_aiPython', 'SCRIPTS_DIR', 'ensureSdxlServer',
-  'sdxlServerCall', 'stopSdxlServer', 'app', 'writeMeta', 'execFile', '_reshapeVue', 'getSdxlReady', '__dirname'];
+  'sdxlServerCall', 'stopSdxlServer', 'app', 'writeMeta', 'execFile', '_reshapeVue', 'getSdxlReady', '__dirname', 'refusTexteOutil'];
 
 function monterReshape() {
   const journal = { appels: [], ecrits: [], sdxl: [], meta: [] };
@@ -93,6 +93,7 @@ function monterReshape() {
     ensureSdxlServer: async () => {}, sdxlServerCall: async (_r, corps) => { journal.sdxl.push(corps); fs.writeFileSync(corps.output, 'x'); return { ok: true }; },
     stopSdxlServer: () => {}, app: { isPackaged: false }, __dirname: path.join(RACINE, 'src', 'main'), writeMeta: (...a) => journal.meta.push(a), execFile: () => {},
     getSdxlReady: () => true,
+    refusTexteOutil: () => null,   // 2026-10-13 (MODERATION-07) : le gestionnaire filtre le texte avant tout calcul
     _reshapeVue: RV,
     _lancerPy: async (_exe, args) => {
       journal.appels.push(args);
