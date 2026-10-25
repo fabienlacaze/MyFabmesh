@@ -3538,39 +3538,49 @@
     </div>
   </div>
 
-  <!-- Blur Brush modal -->
+  <!-- Blur Brush modal (gabarit .fen-3d : apercu a gauche, reglages a droite, pied pleine largeur) -->
   <div id="modal-blur" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
+    <div class="modal-card fen-3d fen-2d-blur">
       <div class="fen-tete"><h2>Blur / Sharpen Brush</h2><button id="blur-close-x" class="settings-close-x">&#10005;</button></div>
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
-          <span style="font-size:13px;">Brush:</span>
-          <input type="range" id="blur-brush-size" min="5" max="200" value="30" style="flex:1; min-width:60px;" />
-          <span id="blur-brush-val" style="min-width:24px; font-size:13px;">30</span>
-        </label>
-        <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
-          <span style="font-size:13px;">Strength:</span>
-          <input type="range" id="blur-strength" min="1" max="20" value="5" style="flex:1; min-width:60px;" />
-          <span id="blur-strength-val" style="min-width:24px; font-size:13px;">5</span>
-        </label>
-        <div style="display:flex; gap:4px; flex-shrink:0;">
-          <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active" style="padding:4px 10px; font-size:13px;">Blur</button>
-          <button id="blur-mode-sharpen" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:13px;">Sharpen</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="blur-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="blur-fit" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="blur-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-          <button id="blur-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="blur-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+      <p class="modal-subtitle vz-aide">Left: blur or sharpen - Right-drag: pan - Wheel: zoom</p>
+      <div class="fen-corps">
+        <div id="blur-canvas-container" class="fen-apercu" style="background:#1a1a2e;">
+          <canvas id="blur-canvas" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
+          <div id="blur-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid white; border-radius:50%; display:none; z-index:1000;">
+            <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
+          </div>
         </div>
-      </div>
-      <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Left: blur or sharpen - Right-drag: pan - Wheel: zoom</div>
-      <div id="blur-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
-        <canvas id="blur-canvas" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
-        <div id="blur-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid white; border-radius:50%; display:none; z-index:1000;">
-          <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
+        <div class="fen-form">
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Brush</span><span id="blur-brush-val" class="fen-valeur">30</span></div>
+            <input type="range" id="blur-brush-size" min="5" max="200" value="30" />
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Strength</span><span id="blur-strength-val" class="fen-valeur">5</span></div>
+            <input type="range" id="blur-strength" min="1" max="20" value="5" />
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">Mode</span>
+            <div class="fen-rangee">
+              <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active">Blur</button>
+              <button id="blur-mode-sharpen" class="secondary-btn tool-btn">Sharpen</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">View</span>
+            <div class="fen-rangee">
+              <button id="blur-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+              <button id="blur-fit" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">History</span>
+            <div class="fen-rangee">
+              <button id="blur-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+              <button id="blur-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+              <button id="blur-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-actions fen-pied-editeur">
