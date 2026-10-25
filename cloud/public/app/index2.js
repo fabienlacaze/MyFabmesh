@@ -23713,6 +23713,7 @@ function completeJob(id, success, errorMessage) {
   // (voir _finDiffereeSiEnfants), et non plus abandonnee a mi-chemin.
   if (_finDiffereeSiEnfants(j, success, errorMessage)) return;
   j.progress = 100;
+  j.finiLe = Date.now();   // 25/10 : « Aller a » retrouve la version produite par l'heure de fin
   j.status = success ? 'done' : 'error';
   // Un travail termine REMONTE en tete de la liste (demande de l'utilisateur),
   // puis part dans « Travaux finis » (_programmerArchivage).
@@ -24101,6 +24102,30 @@ function _defilerVersCarte(el) {
   setTimeout(() => EVTS.forEach(ev => window.removeEventListener(ev, stop, { capture: true })), 2600);
 }
 
+/* « ALLER A » AMENE A LA VERSION PRODUITE (25/10, user : « si je clique sur Aller a, ca ne m'amene pas a la version, ca reste sur V22 »).
+ * Un travail de maillage termine ouvre l'etape ET selectionne la version qu'il a creee : celle dont l'horodatage (13 chiffres du nom de fichier, sinon la date du
+ * fichier) tombe entre son debut et sa fin (+ 2 min de marge), la plus proche de sa fin. `j.resultPath` (si un outil le renseigne) a la priorite. */
+function _versionDuTravail(j, p) {
+  if (!j || !p || !Array.isArray(p.meshes) || !p.meshes.length) return null;
+  const nom = (s) => String(s || '').split('?')[0].split(/[\\/]/).pop();
+  if (j.resultPath) { const m = p.meshes.find((x) => x && nom(x.path) === nom(j.resultPath)); if (m) return m; }
+  const fin = j.finiLe || j.finishedAt || Date.now(), debut = (j.startedAt || fin) - 5000;
+  const tsDe = (m) => {
+    const d = String(m.filename || m.path || '').match(/\d{13}/g);
+    if (d && d.length) return +d[d.length - 1];
+    const t = new Date(m.mtime || m.created || 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+  let meilleur = null, ecart = Infinity;
+  for (const m of p.meshes) {
+    if (!m) continue;
+    const t = tsDe(m);
+    if (!t || t < debut || t > fin + 120000) continue;
+    const e = Math.abs(fin - t);
+    if (e < ecart) { ecart = e; meilleur = m; }
+  }
+  return meilleur;
+}
 window._navigateToJobStep = async function(jobId, jobObj) {
   // `jobObj` : une entree de « Travaux finis », qui n'est plus dans state.jobs.
   const j = jobObj || state.jobs.find(x => x.id === jobId);
@@ -24139,6 +24164,18 @@ window._navigateToJobStep = async function(jobId, jobObj) {
     _edit.open = true;
     if (stage) stage.open = false;
   } else if (stage && !stage.open) stage.open = true;
+  // Travail de maillage TERMINE : on selectionne aussi la version qu'il a produite (sinon l'etape s'ouvrait sur l'ancienne version)
+  if (_fini && stepIdx === 2) {
+    try {
+      const pj = state.currentProject;
+      const v = _versionDuTravail(j, pj);
+      if (v && pj && pj.previewMeshPath !== v.path) {
+        pj.previewMeshPath = v.path; pj.selectedMeshPath = v.path;
+        try { await renderMeshVersions(pj); } catch (_) {}
+        try { await showStep2Preview(v); } catch (_) {}
+      }
+    } catch (_) { /* la navigation ne doit jamais echouer pour une selection */ }
+  }
   // 2026-06-02 fix: scrollIntoView right after toggling <details> open
   // landed the user at the BOTTOM of the page because layout hadn't
   // reflowed yet — the card's bounding box was still its pre-expand
