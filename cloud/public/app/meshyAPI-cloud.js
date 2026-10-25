@@ -2755,9 +2755,10 @@
       // image_op endpoint with op='mask_inpaint'.
       if (!imagePath)   return { success: false, error: 'imagePath required' };
       if (!maskDataUrl) return { success: false, error: 'maskDataUrl required' };
-      if (!prompt)      return { success: false, error: 'prompt required' };
+      // 25/10 : « Replace with » vide = SUPPRIMER la zone (l'interface le dit : « laissez vide pour simplement la supprimer ») ; le worker
+      // (handleMaskInpaint) sait deja traiter un prompt vide. Avant : « Inpaint failed: prompt required » ici, cote client.
       try {
-        const r = await postJSON('/api/mask-inpaint', { imageUrl: imagePath, maskDataUrl, prompt,
+        const r = await postJSON('/api/mask-inpaint', { imageUrl: imagePath, maskDataUrl, prompt: prompt || '',
           ...(langueVerifiee ? { langueVerifiee: true } : {}) });
         if (r?.success && (r.newPath || r.path)) {
           const newPath = r.newPath || r.path;
