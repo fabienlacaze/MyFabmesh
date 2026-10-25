@@ -4935,3 +4935,10 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ===== LOT W29 : edition de maillage (Sculpt / Paint / Select) au gabarit .fen-3d ===== */
+#modal-mesh-edit .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-mesh-edit #me-panel input[type="range"] { width: 100% !important; }
+#modal-mesh-edit #me-panel > div { flex-shrink: 0; }
+#modal-mesh-edit #me-sym-opts { flex-wrap: wrap; }
+#modal-mesh-edit .modal-card.fen-3d .fen-corps { margin-bottom: 14px; }

@@ -3974,24 +3974,33 @@
 
   <!-- Mesh Edit modal (Sculpt / Paint / Select) -->
   <div id="modal-mesh-edit" class="modal hidden">
-    <div class="modal-content" style="width:92vw; height:92vh; max-width:1600px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:min(600px, 100vw); overflow:hidden;">
+    <div class="modal-card fen-3d">
       <div class="fen-tete">
         <h2 id="mesh-edit-title">Mesh Edit</h2>
-        <!-- Main tools: mode selector (top, centered) -->
-        <div style="display:flex; gap:6px;">
-          <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:6px 18px; font-size:14px;">&#9997;&nbsp;Sculpt</button>
-          <button id="me-tool-paint" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:14px;">&#127912;&nbsp;Paint</button>
-          <button id="me-tool-select" class="secondary-btn tool-btn" style="padding:6px 18px; font-size:14px;">&#9634;&nbsp;Select</button>
-        </div>
-        <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
-          <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
-          <button id="me-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-          <button id="me-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-          <button id="me-close-x" class="settings-close-x" style="margin-left:4px;">&#10005;</button>
-        </div>
+        <button id="me-close-x" class="settings-close-x">&#10005;</button>
       </div>
-      <!-- General controls toolbar (always visible): symmetry + brush sliders -->
-      <div style="display:flex; align-items:center; gap:18px; flex-shrink:0; padding:6px 2px; border-top:1px solid var(--border, #333); border-bottom:1px solid var(--border, #333); flex-wrap:wrap;">
+      <p id="me-subtitle" class="modal-subtitle">Sculpt, paint or select faces on the model, then save the result as a new version.</p>
+      <div class="fen-corps">
+        <!-- Apercu 3D a GAUCHE (gabarit des fenetres d'outils) -->
+        <div id="me-viewport" class="fen-apercu" style="position:relative; overflow:hidden; background:#1a1a2e;">
+          <canvas id="me-canvas" style="width:100%; height:100%; display:block;"></canvas>
+          <canvas id="me-lasso-canvas" style="position:absolute; left:0; top:0; width:100%; height:100%; display:none; pointer-events:none; z-index:900;"></canvas>
+          <div id="me-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid rgba(255,200,50,0.8); border-radius:50%; display:none; z-index:1000;"></div>
+          <div id="me-loupe"><canvas id="me-loupe-canvas" width="150" height="150" style="width:150px; height:150px;"></canvas></div>
+        </div>
+        <div id="me-panel" class="fen-form" style="gap:10px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Mode</span>
+            <button id="me-tool-sculpt" class="secondary-btn tool-btn tool-active" style="padding:5px 10px; font-size:13px; text-align:left; width:100%;">&#9997;&nbsp;Sculpt</button>
+          <button id="me-tool-paint" class="secondary-btn tool-btn" style="padding:5px 10px; font-size:13px; text-align:left; width:100%;">&#127912;&nbsp;Paint</button>
+          <button id="me-tool-select" class="secondary-btn tool-btn" style="padding:5px 10px; font-size:13px; text-align:left; width:100%;">&#9634;&nbsp;Select</button>
+          </div>
+          <div id="me-actions-row" style="display:flex; gap:4px; align-items:center;">
+            <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
+            <button id="me-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+            <button id="me-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
         <div id="me-sym-opts" style="display:flex; align-items:center; gap:6px;">
           <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Mirror</span>
           <button id="me-sym-x" class="secondary-btn tool-btn" style="padding:3px 10px; font-size:13px; color:#ff5577; border-color:rgba(255,85,119,0.55);" title="Mirror edits across the X axis (left / right).">X</button>
@@ -4007,9 +4016,7 @@
           <input type="range" id="me-strength" min="1" max="100" value="50" style="width:130px;" />
         </div>
       </div>
-      <div style="display:flex; flex:1 1 0; gap:12px; min-height:400px;">
-        <!-- Left panel: tools — scrolls vertically when controls (incl. Tolerance) overflow. -->
-        <div style="display:flex; flex-direction:column; gap:10px; width:200px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto;">
+
           <!-- Sculpt options -->
           <div id="me-sculpt-opts" style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Sculpt</span>
@@ -4089,15 +4096,8 @@
             <button id="me-paint-reset" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; width:100%;">&#8634;&nbsp;Reset paint</button>
           </div>
         </div>
-        <!-- Right: 3D viewport -->
-        <div id="me-viewport" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
-          <canvas id="me-canvas" style="width:100%; height:100%; display:block;"></canvas>
-          <canvas id="me-lasso-canvas" style="position:absolute; left:0; top:0; width:100%; height:100%; display:none; pointer-events:none; z-index:900;"></canvas>
-          <div id="me-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid rgba(255,200,50,0.8); border-radius:50%; display:none; z-index:1000;"></div>
-          <div id="me-loupe"><canvas id="me-loupe-canvas" width="150" height="150" style="width:150px; height:150px;"></canvas></div>
-        </div>
       </div>
-      <div class="modal-actions fen-pied-editeur">
+      <div class="modal-actions">
         <button id="me-cancel" class="ghost-btn">Cancel</button>
         <button id="me-save" class="primary-btn">Save as new version</button>
       </div>

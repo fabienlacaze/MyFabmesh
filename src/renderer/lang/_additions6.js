@@ -1501,6 +1501,8 @@
     "Zoom out": ["Zoom arrière", "Alejar", "缩小", "ज़ूम आउट", "تصغير"],
     "Fullscreen": ["Plein écran", "Pantalla completa", "全屏", "पूर्ण स्क्रीन", "ملء الشاشة"],
     "Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom": ["Glisser gauche = peindre · glisser droit = déplacer · glisser molette = tourner · molette = zoom", "Arrastre izquierdo = pintar · derecho = mover · rueda pulsada = girar · rueda = zoom", "左键拖动 = 绘制 · 右键拖动 = 平移 · 中键拖动 = 旋转 · 滚轮 = 缩放", "बायाँ-खींचें = पेंट · दायाँ-खींचें = खिसकाएँ · बीच का बटन खींचें = घुमाएँ · व्हील = ज़ूम", "سحب أيسر = رسم · سحب أيمن = تحريك · سحب العجلة = تدوير · العجلة = تكبير"],
+    /* LOT W29 */
+    "Sculpt, paint or select faces on the model, then save the result as a new version.": ["Sculptez, peignez ou sélectionnez des faces sur le modèle, puis enregistrez le résultat comme nouvelle version.", "Esculpe, pinta o selecciona caras en el modelo y guarda el resultado como una nueva versión.", "在模型上雕刻、绘制或选择面，然后将结果保存为新版本。", "मॉडल पर स्कल्प्ट करें, पेंट करें या फेस चुनें, फिर परिणाम को नए संस्करण के रूप में सहेजें।", "انحت أو لوّن أو حدّد أوجهًا على النموذج، ثم احفظ النتيجة كنسخة جديدة."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
