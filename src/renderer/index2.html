@@ -3705,16 +3705,17 @@
   <script type="module" src="index2.js"></script>
   <!-- Resolution modal -->
   <div id="modal-resolution" class="modal-overlay hidden">
-    <div class="modal-card modal-card-wide">
+    <div class="modal-card fen-3d">
       <div class="fen-tete"><h2>Resolution</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-      <div class="modal-with-image">
-        <div class="modal-image-side">
+      <p class="modal-subtitle">Enlarge the image or make it lighter.</p>
+      <div class="fen-corps">
+        <div class="fen-apercu">
           <img id="res-preview" alt="" />
         </div>
-        <div class="modal-form-side">
-          <label>Size</label>
-          <div class="res-tailles"><span id="res-current"></span><span id="res-arrow" style="display:none;">&rarr;</span><span id="res-target" style="display:none;"></span></div>
-          <label>Change</label>
+        <div class="fen-form">
+          <div class="fen-champ"><span class="fen-label">Size</span>
+          <div class="res-tailles"><span id="res-current"></span><span id="res-arrow" style="display:none;">&rarr;</span><span id="res-target" style="display:none;"></span></div></div>
+          <div class="fen-champ"><span class="fen-label">Change</span>
           <select id="res-mode" style="display:none;">
             <option value="up" selected>Upscale 2x</option>
             <option value="down">Downscale 0.5x</option>
@@ -3722,7 +3723,7 @@
           <div class="choix" data-pour="res-mode">
             <button type="button" class="choix-btn" data-valeur="up"><b>&#8593; Upscale 2x</b><small>Sharper (AI)</small></button>
             <button type="button" class="choix-btn" data-valeur="down"><b>&#8595; Downscale 0.5x</b><small>Lighter file</small></button>
-          </div>
+          </div></div>
           <!-- boutons d'origine, CACHES : « Apply » leur relaie le clic (gestionnaires inchanges) -->
           <div hidden>
             <button id="res-downscale" class="ghost-btn">&#8595; Downscale 0.5x</button>
