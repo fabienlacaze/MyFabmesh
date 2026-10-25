@@ -64,8 +64,10 @@ def gabarit(prompt: str, asset_type: str, asset_style: str, pose_libre: bool) ->
     if t == "icon":
         return f"Front view of {texte}{habillage}, the whole object visible, {fond}."
     # 25/10 (user : « tout ce qui n'est pas vivant oriente comme les avions ») : trois quarts HAUTE, avant gauche.
-    return (f"High three-quarter view of {texte}{habillage}, seen from the front left and about 45 degrees above, "
-            f"the whole object visible, {fond}.")
+    # 25/10 : un bateau / un vehicule sortait en MAQUETTE posee sur un socle d'exposition : on demande l'objet reel, grandeur nature.
+    reel = "a real full-size " if t in ("bateau", "boat", "ship", "vehicle", "other_vehicle", "car") else ""
+    return (f"High three-quarter view of {reel}{texte}{habillage}, seen from the front left and about 45 degrees above, "
+            f"the whole object visible with nothing underneath it, {fond}.")
 
 
 def _nettoyer_negations(brut):

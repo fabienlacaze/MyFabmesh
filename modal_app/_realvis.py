@@ -82,9 +82,9 @@ _ANATOMY_NEG = {
                    "(character:1.4), (person:1.4), (mascot:1.4), "
                    "(standing figure:1.4), (statue:1.3), (mannequin:1.3)",
     # 25/10 : un avion / vehicule sortait de FACE (vue sans longueur ni envergure, 3D mediocre) ; une negation dans le positif ne marche pas.
-    'avion':   "(front view:1.6), (head-on:1.6), (nose-on:1.5), (facing camera:1.5), (rear view:1.3)",
-    'bateau':  "(front view:1.6), (head-on:1.6), (bow-on:1.5), (facing camera:1.5)",
-    'vehicle': "(front view:1.6), (head-on:1.6), (facing camera:1.5)",
+    'avion':   "(front view:1.6), (head-on:1.6), (nose-on:1.5), (facing camera:1.5), (display stand:1.5), (scale model:1.3)",
+    'bateau':  "(display stand:1.7), (pedestal:1.7), (plinth:1.6), (scale model:1.5), (miniature:1.4), (front view:1.5), (head-on:1.5)",
+    'vehicle': "(front view:1.6), (head-on:1.6), (facing camera:1.5), (display stand:1.5), (scale model:1.3)",
     'environment': "(village:1.5), (town:1.5), (city:1.5), "
                    "(multiple buildings:1.5), (rows of houses:1.4), "
                    "(many houses:1.4), (aerial view:1.4), "
