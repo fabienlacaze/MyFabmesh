@@ -210,16 +210,16 @@ export const ESPECES = {
   },
   felin: {         // lion, tigre, chat : marche basse et souple, galop bondissant (dos plie/deplie)
     walk: { motif: 'lateral', T: 1.1, h: 0.75, bob: 0.6, tendu: 0.93, tete: 0.1, hoche: 0.015, flexion: 0.03 },
-    // galop rotatif (26/10) : foulee ~3,5 hauteurs de garrot, 2 suspensions (rassemblee + etendue), colonne qui se plie et se deplie
+    // galop rotatif (26/10 ; tendu 0.82 -> 0.9 le 25/10 apres relecture : 5 % d'os sous le sol sur Mule / Phacochere) : foulee ~3,5 hauteurs de garrot, 2 suspensions (rassemblee + etendue), colonne qui se plie et se deplie
     // (Hildebrand 1959 ; Hudson, Corr & Wilson 2012, JEB 215:2425 : guepard 2,4 -> 3,2 foulees/s), pattes bien repliees au decollage
-    run: { motif: 'rotatif', beta: 0.27, T: 0.9, foulee: 1.5, h: 1.1, bob: 1.4, tangage: 0.06, hoche: 0.02, tete: 0.06, flexion: 0.34, tendu: 0.82, leve: 0.65 },
+    run: { motif: 'rotatif', beta: 0.27, T: 0.9, foulee: 1.5, h: 1.1, bob: 1.4, tangage: 0.06, hoche: 0.02, tete: 0.06, flexion: 0.34, tendu: 0.9, leve: 0.65 },
     idle: { T: 1.2, bob: 1.8, queue: 2.0, regard: 1.2 },
     jump: { decalage: 0.08, h: 1.3 },
   },
   canide: {        // chien, loup, renard
     walk: { motif: 'lateral', hoche: 0.03 },
     // galop du chien (26/10) : ~2,5-3 foulees/s (greyhound ~3,5 : Hudson 2012), foulee 3-4 hauteurs, dos bien plie
-    run: { motif: 'rotatif', beta: 0.28, T: 0.88, foulee: 1.4, h: 1.1, bob: 1.3, tangage: 0.07, hoche: 0.05, flexion: 0.3, tendu: 0.82, leve: 0.65 },
+    run: { motif: 'rotatif', beta: 0.28, T: 0.88, foulee: 1.4, h: 1.1, bob: 1.3, tangage: 0.07, hoche: 0.05, flexion: 0.3, tendu: 0.9, leve: 0.65 },
     trot: { motif: 'trot', T: 1.0, h: 1.1, bob: 0.9, hoche: 0.03, tendu: 0.86, leve: 0.8 },
     idle: { T: 1.1, bob: 2.0, queue: 2.2, regard: 1.4 },
     jump: { decalage: 0.08, h: 1.2 },
@@ -438,10 +438,11 @@ export function lireClip(nom) {
 //   nage      : onde laterale le long de la colonne, a la hauteur du corps (poisson, cetace)
 //   reptation : meme onde, au sol (serpent, ver)
 // Les clips portent alors un nom qui dit ce qu'ils sont : swim, slither… (walk pour les pattes).
-export const MODES = ['auto', 'pattes', 'nage', 'reptation'];
+export const MODES = ['auto', 'pattes', 'nage', 'reptation', 'vol'];
 const NOMS_PAR_MODE = {
   nage: { walk: 'swim', run: 'swim_fast', turn_left: 'swim_left', turn_right: 'swim_right' },
   reptation: { walk: 'slither', run: 'slither_fast', turn_left: 'slither_left', turn_right: 'slither_right' },
+  vol: { walk: 'flight', run: 'flight_fast', turn_left: 'flight_left', turn_right: 'flight_right' },
 };
 /** Nom de clip -> allure du moteur (« swim » -> « walk »). */
 export const ALIAS_ALLURES = Object.fromEntries(Object.values(NOMS_PAR_MODE).flatMap((t) => Object.entries(t).map(([a, n]) => [n, a])));
@@ -2034,18 +2035,142 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
   return { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos };
 }
 
+// ------------------------------------------------------------------ MODE « VOL » (2026-10-25, demande du user : « il manque les animations pour les volants »)
+// Oiseau, chauve-souris, abeille, dragon, cochon volant : le corps flotte au-dessus du sol, les AILES battent, les pattes se replient.
+// Repere : +z devant, +y en haut, +x a gauche (lacet positif = vers la gauche : voir ALLURES.turn_left).
+//  - ailes : chaines laterales qui ne sont ni des pattes, ni des queues, ni des tetes ; la racine de l'aile bat autour de l'axe avant (Rz),
+//    chaque os suivant bat avec un RETARD de phase et une amplitude decroissante (l'extremite fouette, comme une vraie aile) ;
+//  - corps : monte pendant la descente de l'aile (la portance), tangage vers l'avant en vol rapide, roulis dans les virages (le virage se prend
+//    en penchant du cote ou l'on tourne) ;
+//  - sans aile (cochon volant) : le corps flotte et tangue au meme rythme, sans battement ;
+//  - pattes : repliees vers l'arriere (oiseau, insecte) avec un leger balancement ; queue : ondulation ; tete : stabilisee contre le tangage.
+// Frequences de battement reelles : petits oiseaux 8-20 Hz, rapaces 2-4 Hz, gros oiseaux 1-2 Hz (Tobalske 2007, Physiol Biochem Zool) ;
+// ici on vise le LISIBLE a 30 images/s : 1,4 a 2,2 Hz (un battement rapide sous-echantillonne donnerait un tremblement).
+const PROFILS_VOL = {
+  idle: { T: 0.8, amp: 0.45, lift: 0.10, avance: 0, tangage: 0.0, roulis: 0.03 },          // vol stationnaire : battement plus court
+  walk: { T: 0.7, amp: 0.65, lift: 0.14, avance: 1.2, tangage: 0.10, roulis: 0.04 },       // vol de croisiere
+  run: { T: 0.55, amp: 0.8, lift: 0.16, avance: 2.6, tangage: 0.24, roulis: 0.05 },        // vol rapide : battement ample, corps incline vers l'avant
+  turn_left: { T: 0.7, amp: 0.65, lift: 0.14, avance: 1.0, tangage: 0.10, roulis: 0.04 },
+  turn_right: { T: 0.7, amp: 0.65, lift: 0.14, avance: 1.0, tangage: 0.10, roulis: 0.04 },
+};
+function animerVol(sq, allure, cycles, fps, variante, det) {
+  const { par, P0 } = sq, J = par.length, E = enfantsDe(par);
+  const { racine, queues, tetes, pattes } = det;
+  const H = Math.max(ptpAxe(P0, 1), 1e-6), ext = Math.max(etendue(P0), 1e-6);
+  const B = ALLURES[allure], V = (VARIANTES[allure] || {})[variante] || {};
+  const PV = PROFILS_VOL[allure] || PROFILS_VOL.walk;
+  const T0 = PV.T * (V.T || 1);
+  const nCycles = allure === 'idle' ? Math.max(3, Math.round(cycles)) : Math.max(1, Math.round(cycles));
+  const nT = Math.max(2, Math.round(nCycles * T0 * fps));
+  const T = nT / (nCycles * fps);                              // periode : nombre ENTIER d'images par cycle (la boucle se referme)
+  const t = Array.from({ length: nT }, (_, i) => i / fps);
+  const w = B.lacet || 0;                                      // rad/s, + = vers la gauche
+  const v = PV.avance * (V.foulee || 1) * ext * 0.9;           // vitesse d'avance (unites / s)
+  const cheminCorps = (tt) => {
+    const cap = w * tt;
+    const c = Math.abs(w) < 1e-9 ? [0, 0, v * tt] : [(v / w) * (1 - Math.cos(cap)), 0, (v / w) * Math.sin(cap)];
+    return { c, cap };
+  };
+  const phi = (tt) => 2 * Math.PI * tt / T;                    // phase de battement : sin > 0 = aile en HAUT
+  // --- ailes : feuilles laterales hors pattes / queues / tetes (meme critere que le leger battement des quadrupedes a ailes)
+  const xMid = median(P0.map((p) => p[0]));
+  const pris = new Set([...pattes].flatMap((q) => sousArbre(E, q.chaine[0])));
+  [...tetes, ...queues].forEach((c) => c.forEach((k) => pris.add(k)));
+  const ailes = [];
+  for (let f = 0; f < J; f++) {
+    if (E[f].length || pris.has(f) || Math.abs(P0[f][0] - xMid) < 0.12 * ext) continue;
+    const c = [f];
+    let k = f;
+    while (par[k] >= 0 && E[par[k]].length === 1 && !pris.has(par[k])) { k = par[k]; c.push(k); }
+    c.reverse();
+    if (c.length < 2 || par[c[0]] < 0) continue;
+    ailes.push({ chaine: c, cote: P0[f][0] > xMid ? 1 : -1 });
+  }
+  const balance = new Map();                                   // joint -> rotations locales (par rapport au parent), une par image
+  const ampAile = PV.amp * (V.h || 1);
+  for (const a of ailes) {
+    a.chaine.slice(0, -1).forEach((j, k) => {
+      const amp = ampAile * Math.pow(0.72, k), retard = 0.55 * k;     // l'extremite suit avec retard et moins d'amplitude
+      balance.set(j, t.map((tt) => Rz(a.cote * amp * Math.sin(phi(tt) - retard) + (k === 0 ? a.cote * 0.12 * ampAile : 0))));
+    });
+  }
+  // --- queue : ondulation douce, en retard sur le battement ; tete : contre-tangage
+  const tangage = t.map((tt) => PV.tangage + 0.035 * Math.sin(phi(tt) + 0.6));
+  for (const cq of queues) {
+    cq.slice(0, -1).forEach((j, a) => {
+      balance.set(j, t.map((tt) => mm(Ry(0.14 * (a + 1) / cq.length * Math.sin(phi(tt) * 0.5 - 0.5 * a)), Rx(-0.10 * Math.sin(phi(tt) - 0.8 - 0.4 * a)))));
+    });
+  }
+  for (const ct of tetes) {
+    ct.slice(0, -1).forEach((j, a) => {
+      balance.set(j, t.map((tt, i) => Rx((a === 0 ? -tangage[i] * 0.8 : 0) + 0.03 * Math.sin(phi(tt) + 0.9))));
+    });
+  }
+  // --- pattes : repliees vers l'arriere (hanche, puis chaque articulation) avec un leger balancement
+  for (const p of pattes) {
+    p.chaine.slice(0, -1).forEach((j, k) => {
+      const repli = (k === 0 ? 0.55 : 0.75) * (V.repli ?? 1);
+      balance.set(j, t.map((tt) => Rx(repli + 0.07 * Math.sin(phi(tt) - 0.4 * k))));
+    });
+  }
+  // --- le corps : portance (monte a la descente de l'aile), tangage, roulis (penche dans les virages)
+  const roulisVirage = Math.abs(w) > 1e-9 ? -Math.sign(w) * 0.35 : 0;
+  const Rb = t.map((tt, i) => mm(Ry(cheminCorps(tt).cap), mm(Rz(roulisVirage + PV.roulis * Math.sin(phi(tt) + 1.2)), Rx(tangage[i]))));
+  const lift = (tt) => (PV.lift + 0.045 * PV.amp * Math.sin(phi(tt) - Math.PI / 2)) * H;
+  const racineMonde = t.map((tt) => add(add(P0[racine], cheminCorps(tt).c), [0, lift(tt), 0]));
+  const racinesSec = sq.racines.filter((r) => r !== racine).map((r) => ({ j: r, pos: t.map((tt) => add(add(P0[r], cheminCorps(tt).c), [0, lift(tt), 0])) }));
+  const ordre = [], file = [racine, ...sq.racines.filter((r) => r !== racine)];
+  while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
+  const D = Array.from({ length: nT }, () => new Array(J));
+  for (let i = 0; i < nT; i++) {
+    for (const j of ordre) {
+      if (par[j] < 0) D[i][j] = Rb[i];
+      else if (balance.has(j)) D[i][j] = mm(D[i][par[j]], balance.get(j)[i]);
+      else D[i][j] = D[i][par[j]];
+    }
+  }
+  const R = D.map((Di) => Di.map((Dj, j) => (par[j] < 0 ? Dj : mm(tr(Di[par[j]]), Dj))));
+  // --- controles : positions reconstruites, os sous le sol, a-coups des articulations d'aile
+  const sol = det.sol, Pw = D.map(() => new Array(J));
+  for (let i = 0; i < nT; i++) for (const j of ordre) {
+    Pw[i][j] = j === racine ? racineMonde[i] : par[j] < 0 ? racinesSec.find((x) => x.j === j).pos[i]
+      : add(Pw[i][par[j]], mv(D[i][par[j]], sub(P0[j], P0[par[j]])));
+  }
+  let sousSol = 0, pireOs = -1, acoups = 0;
+  for (let i = 0; i < nT; i++) for (let j = 0; j < J; j++) if (sol - Pw[i][j][1] > sousSol) { sousSol = sol - Pw[i][j][1]; pireOs = j; }
+  for (const a of ailes) for (const j of a.chaine) {
+    let prec = null;
+    for (let i = 1; i < nT; i++) {
+      const w_ = angleRot(mm(tr(D[i - 1][j]), D[i][j]));
+      if (prec !== null) acoups = Math.max(acoups, Math.abs(w_ - prec));
+      prec = w_;
+    }
+  }
+  const infos = {
+    mode: 'vol', ailes: ailes.length, pattes: pattes.length, queues: queues.length, tetes: tetes.length, colonne: 0,
+    periode: T, foulee: +(v * T).toFixed(3), images: nT,
+    sous_sol_pct: +(100 * sousSol / H).toFixed(1), pire_os: pireOs, glissement_appui_pct: 0, acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
+    battements_par_s: +(1 / T).toFixed(2),
+  };
+  return { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos };
+}
+
 /** Calcul protégé : une allure qui échoue ou rend une valeur invalide donne un mouvement minimal. */
 function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espece = 'generique') {
   const fini = (c) => c.R.every((Ri) => Ri.every((m) => m.every(Number.isFinite))) && c.racineMonde.every((p) => p.every(Number.isFinite));
   // nom du clip selon ce qu'il est vraiment : « swim » pour un poisson, « slither » pour un serpent
   const nommer = (c) => {
-    const table = NOMS_PAR_MODE[mode === 'nage' ? 'nage' : c.infos.mode === 'reptation' ? 'reptation' : ''];
+    const table = NOMS_PAR_MODE[mode === 'nage' ? 'nage' : mode === 'vol' ? 'vol' : c.infos.mode === 'reptation' ? 'reptation' : ''];
     if (table && table[allure]) c.nom = table[allure] + (variante === 'normal' ? '' : '__' + variante);
-    c.infos.deplacement = mode === 'nage' ? 'nage' : c.infos.mode === 'reptation' ? 'reptation' : 'pattes';
+    c.infos.deplacement = mode === 'nage' ? 'nage' : mode === 'vol' ? 'vol' : c.infos.mode === 'reptation' ? 'reptation' : 'pattes';
     return c;
   };
   try {
-    let c = mode === 'nage' || mode === 'reptation'
+    // vol : seulement les 5 allures de base (attente = vol stationnaire) ; les actions (attaque, mort, manger...) gardent le calcul a pattes
+    const volPossible = mode === 'vol' && !!PROFILS_VOL[allure];
+    let c = volPossible
+      ? animerVol(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine))
+      : mode === 'nage' || mode === 'reptation'
       ? animerSansPattes(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine), 'reptation', mode === 'nage')
       : animerAllure(sq, allure, cycles, fps, variante, espece);
     // action trop ample pour CETTE creature (corps bas, tete au ras du sol : tortue, araignee) :
