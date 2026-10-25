@@ -14306,6 +14306,10 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
 
   const opStart = Date.now();
   try {
+    // 25/10 : Modal televerse le GLB DIRECTEMENT dans R2 (URL PUT pre-signee pour cette seule cle) : un GLB de 60-90 Mo en base64 dans du JSON
+    // faisait exploser la memoire (128 Mo) et le temps CPU du worker : « Worker exceeded resource limits », HTTP 503 (voir _rendre_glb, app.py).
+    const cleSortie = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}.glb`;
+    const urlPut = await _urlPutR2Signee(env, cleSortie, 1800).catch(() => null);
     const r = await fetch(env.MODAL_MESH_START_URL!, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -14314,6 +14318,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
         op_type: op,
         mesh_url: finalUrl,
         params: params ?? {},
+        ...(urlPut ? { r2_put_url: urlPut } : {}),
       }),
       signal: AbortSignal.timeout(120_000),
     });
@@ -14326,16 +14331,19 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
       throw e;
     }
     if (!r.ok) throw new Error(`Service mesh_op HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
-    const data = await r.json() as { glb_base64?: string; stats?: Record<string, unknown> };
-    if (!data.glb_base64) throw new Error('Modal mesh_op missing glb_base64');
-
-    // Decode base64 → R2 → return URL.
-    const bin = atob(data.glb_base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const data = await r.json() as { glb_base64?: string; uploaded?: boolean; stats?: Record<string, unknown> };
     if (!env.MESHES || !env.R2_PUBLIC_URL) throw new Error('R2 binding required');
-    const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}.glb`;
-    await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    const key = cleSortie;
+    if (data.uploaded) {
+      if (!(await env.MESHES.head(key))) throw new Error('Modal mesh_op: televersement annonce mais fichier absent de R2');
+    } else {
+      if (!data.glb_base64) throw new Error('Modal mesh_op missing glb_base64');
+      // Repli (ancien Modal) : decode base64 → R2.
+      const bin = atob(data.glb_base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    }
     const url = await signedR2Url(env, key, 'mesh');
     // Forward fill_holes verdict + delta-faces into telemetry so we can
     // measure the diagnostic-first rollout via Supabase SELECT later.
@@ -14471,7 +14479,10 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   };
   try {
     const url = env.MODAL_IMAGE_OP_URL.replace(/\/[^/]*$/, conf.route);
-    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl, ...envoi });
+    // 25/10 : televersement direct de Modal vers R2 (voir handleMeshOp) : evite « Worker exceeded resource limits » sur les gros GLB
+    const cleSortie = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${conf.op}.glb`;
+    const urlPut = await _urlPutR2Signee(env, cleSortie, 1800).catch(() => null);
+    const body = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET, mesh_url: meshUrl, ...envoi, ...(urlPut ? { r2_put_url: urlPut } : {}) });
     const envoyer = () => fetch(url, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body,
       signal: AbortSignal.timeout(300_000),
@@ -14492,14 +14503,17 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
         error: `This mesh has no baked texture for ${conf.libelle} (credits refunded).` }, { status: 422 });
     }
     if (!r.ok) throw new Error(`Service ${conf.op} HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
-    const data = await r.json() as { glb_base64?: string };
-    if (!data.glb_base64) throw new Error(`Modal ${conf.op} missing glb_base64`);
-
-    const bin = atob(data.glb_base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const key = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${conf.op}.glb`;
-    await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    const data = await r.json() as { glb_base64?: string; uploaded?: boolean };
+    const key = cleSortie;
+    if (data.uploaded) {
+      if (!(await env.MESHES.head(key))) throw new Error(`Modal ${conf.op}: televersement annonce mais fichier absent de R2`);
+    } else {
+      if (!data.glb_base64) throw new Error(`Modal ${conf.op} missing glb_base64`);
+      const bin = atob(data.glb_base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+    }
     const signed = await signedR2Url(env, key, 'mesh');
     await logOperation(env, user.id, 'mesh-op', cost, opStart, Date.now(), 'succeeded',
                        { req, projectName, op_type: conf.op, mesh_url_in: meshUrl });
@@ -15016,20 +15030,27 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
     // 3. Pull stages ONE per request and mirror to R2.
     const stageUrls: string[] = [];
     for (let i = 0; i < start.count; i++) {
+      // 25/10 : chaque etape est televersee par Modal directement dans R2 (voir handleMeshOp) : « Worker exceeded resource limits » (HTTP 503)
+      const key = `${user.id}/stages3d/${newStem}/stage_${i}.glb`;
+      const urlPut = await _urlPutR2Signee(env, key, 1800).catch(() => null);
       const fr = await fetch(env.MODAL_MESH_START_URL!.replace(/\/mesh_start$/, '/c3d_fetch'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '', job_id: start.job_id, index: i }),
+        body: JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '', job_id: start.job_id, index: i, ...(urlPut ? { r2_put_url: urlPut } : {}) }),
         signal: AbortSignal.timeout(120_000),
       });
       if (!fr.ok) throw new Error(`c3d_fetch ${i} HTTP ${fr.status}`);
-      const fd = await fr.json() as { ready?: boolean; glb_base64?: string };
-      if (!fd.ready || !fd.glb_base64) throw new Error(`stage ${i} not on Volume`);
-      const bin = atob(fd.glb_base64);
-      const bytes = new Uint8Array(bin.length);
-      for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-      const key = `${user.id}/stages3d/${newStem}/stage_${i}.glb`;
-      await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+      const fd = await fr.json() as { ready?: boolean; glb_base64?: string; uploaded?: boolean };
+      if (!fd.ready) throw new Error(`stage ${i} not on Volume`);
+      if (fd.uploaded) {
+        if (!(await env.MESHES.head(key))) throw new Error(`stage ${i}: televersement annonce mais fichier absent de R2`);
+      } else {
+        if (!fd.glb_base64) throw new Error(`stage ${i} not on Volume`);
+        const bin = atob(fd.glb_base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+        await env.MESHES.put(key, bytes, { httpMetadata: { contentType: 'model/gltf-binary' } });
+      }
       stageUrls.push(await signedR2Url(env, key, 'mesh'));
     }
 
