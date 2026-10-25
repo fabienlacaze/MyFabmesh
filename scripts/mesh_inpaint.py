@@ -267,6 +267,14 @@ def preparer(repeint, masque, sortie_piece, sortie_cadre, origine=None, vue=None
     if m.mean() > 0.35:
         log(f'ATTENTION : zone de {m.mean():.0%} de la vue — une grande zone donne une piece mal isolee')
     ys, xs = np.where(m)
+    # 25/10 : diagnostic (resultat decevant d'un Reshape « Large engines » sur un yacht : cadre de la piece = toute la largeur du bateau, echelle 1,717).
+    # On ECRIT ce qui est reellement envoye : part de la vue, boite, nombre de morceaux. Aucun effet sur le calcul.
+    try:
+        from scipy import ndimage as _ndi
+        _, _nb = _ndi.label(m)
+        log(f'diagnostic zone : {m.mean():.1%} de la vue, boite x {xs.min()}-{xs.max()} y {ys.min()}-{ys.max()} sur {S} px, {int(_nb)} morceau(x)')
+    except Exception:
+        log(f'diagnostic zone : {m.mean():.1%} de la vue, boite x {xs.min()}-{xs.max()} y {ys.min()}-{ys.max()} sur {S} px')
     marge = int(0.04 * S)
     x0, x1 = max(0, xs.min() - marge), min(S, xs.max() + marge + 1)
     y0, y1 = max(0, ys.min() - marge), min(S, ys.max() + marge + 1)
@@ -412,6 +420,11 @@ def assembler(maillage, masque, cadre_json, piece_glb, sortie, faces_npy=None):
     sx = (cadre['x'][1] - cadre['x'][0]) / max(1e-6, pb[1][0] - pb[0][0])
     sy = (cadre['y'][1] - cadre['y'][0]) / max(1e-6, pb[1][1] - pb[0][1])
     echelle = (sx + sy) / 2
+    # 25/10 : si les deux axes demandent des echelles tres differentes (cadre large et plat, piece generee compacte), la MOYENNE fait deborder la
+    # piece du cadre sur l'axe le plus petit (echelle 1,717 constatee) : on prend alors le plus PETIT des deux, la piece reste dans la zone.
+    if max(sx, sy) > 1.35 * max(1e-6, min(sx, sy)):
+        log(f'echelles des axes tres differentes (x {sx:.3f}, y {sy:.3f}) : la plus petite est retenue')
+        echelle = min(sx, sy)
     piece.apply_translation(-(pb[0] + pb[1]) / 2)
     piece.apply_scale(echelle)
     piece.apply_translation([(cadre['x'][0] + cadre['x'][1]) / 2, (cadre['y'][0] + cadre['y'][1]) / 2,
