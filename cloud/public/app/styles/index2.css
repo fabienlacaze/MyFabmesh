@@ -5080,3 +5080,9 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-variant .modal-card.fen-3d .modal-actions, #variant-modal .modal-card.fen-3d .modal-actions { justify-content: stretch; }
 #modal-variant .modal-actions .ghost-btn, #variant-modal .modal-actions .ghost-btn { min-width: 0; flex: 0 0 auto; }
 #modal-variant .modal-actions .primary-btn, #variant-modal .modal-actions .primary-btn { flex: 1 1 auto; }
+/* ══ LOT W15 (25/10) : Auto Inpaint sur le gabarit commun des fenetres d'outils (apercu a gauche, colonne de droite, pied pleine largeur) ══ */
+#modal-auto-inpaint .fen-apercu { display: flex; align-items: center; justify-content: center; }
+#modal-auto-inpaint .fen-apercu #ai-source-img { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; display: block; }
+#modal-auto-inpaint .fen-form input[type="text"] { flex: 0 0 auto; width: 100%; box-sizing: border-box; }
+#modal-auto-inpaint .fen-form input[type="range"] { width: 100%; }
+#modal-auto-inpaint .modal-actions .primary-btn { flex: 1 1 auto; }
