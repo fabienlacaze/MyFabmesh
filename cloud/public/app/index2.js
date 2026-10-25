@@ -17458,6 +17458,70 @@ function _matWriteSliders(p) {
   if (typeof _matApplyLivePBR === 'function') _matApplyLivePBR();
 }
 
+// ══ LOT P2 (25/10, user : « il faut une fenetre pour TOUS les outils ») : APERCU 3D REEL commun ══
+// Montre dans un canevas de fenetre d'outil le MODELE AFFICHE (celui que l'outil va traiter), avec la barre de vues
+// commune. Meme chargement que Material Adjust. Sert a Recolor (3D) et a la fenetre de lancement (Sharpen texture,
+// Detail++...). Aucune logique metier : on regarde, on ne modifie rien. Identique bureau / web.
+const _apercuMaillages = new Map();
+function _maillageCourantChemin() {
+  const p = state.currentProject;
+  return (p && (p.previewMeshPath || p.selectedMeshPath)) || null;
+}
+async function _apercuMaillageMontrer(idCanvas, idEtat) {
+  const canvas = document.getElementById(idCanvas);
+  if (!canvas) return;
+  let e = _apercuMaillages.get(idCanvas);
+  if (!e) { e = { viewer: null, model: null, jeton: 0 }; _apercuMaillages.set(idCanvas, e); }
+  const jeton = ++e.jeton;
+  const etat = idEtat ? document.getElementById(idEtat) : null;
+  const normal = etat ? (etat.dataset.normal || (etat.dataset.normal = etat.textContent)) : '';
+  const dire = (t) => { if (etat) etat.textContent = t || normal; };
+  delete canvas.dataset.pret;
+  const chemin = _maillageCourantChemin();
+  if (!chemin) { dire(_i18nT('Pick a mesh first.')); return; }
+  try {
+    if (!e.viewer) {
+      e.viewer = new Viewer3D({ canvas, fov: 45, bgColor: 0x1b1b1b, cameraPos: [2, 2, 3], lighting: true });
+      if (e.viewer.renderer) {
+        e.viewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        e.viewer.renderer.toneMappingExposure = 1.0;
+      }
+      e.viewer.startTickLoop();
+      creerBarreVues3D(canvas.parentElement, e.viewer, { cible: () => e.model });
+    }
+  } catch (err) { console.warn('[apercu-maillage]', err); return; }
+  if (!e.viewer.renderer) return;   // pas de WebGL : la fenetre reste utilisable sans apercu
+  await new Promise((r) => requestAnimationFrame(r));
+  e.viewer.resize();
+  if (e.model) { e.viewer.scene.remove(e.model); e.model = null; }
+  dire(_i18nT('Loading mesh…'));
+  let buffer = null;
+  try { buffer = _etapeAffiche(chemin, true) ? new ArrayBuffer(8) : await API.readMeshFile(chemin); } catch (_) { buffer = null; }
+  if (jeton !== e.jeton) return;
+  if (!buffer) { dire(_i18nT('Failed to read mesh file')); return; }
+  const loader = _fauxChargeur(chemin, { leger: true });
+  loader.parse(buffer, '', (gltf) => {
+    if (jeton !== e.jeton) return;   // une ouverture plus recente a pris la place
+    e.model = gltf.scene;
+    e.viewer.scene.add(e.model);
+    const box = new THREE.Box3().setFromObject(e.model);
+    const taille = box.getSize(new THREE.Vector3()).length() || 2;
+    const centre = box.getCenter(new THREE.Vector3());
+    e.model.position.sub(centre);
+    e.viewer.camera.near = taille / 100;
+    e.viewer.camera.far = taille * 100;
+    e.viewer.camera.updateProjectionMatrix();
+    e.viewer.camera.position.set(taille * 0.8, taille * 0.5, taille * 0.8);
+    e.viewer.controls?.target.set(0, 0, 0);
+    e.viewer.controls?.update();
+    dire('');
+    canvas.dataset.pret = '1';
+  }, (err) => {
+    console.warn('[apercu-maillage] lecture du modele impossible', err);
+    dire(_i18nT('Failed to load mesh in preview'));
+  });
+}
+
 // Three.js viewer state for the Material Adjust modal.
 let _matViewer = null;
 let _matModel = null;
@@ -17772,6 +17836,35 @@ function _r3AppliquerMode() {
   if (hint) hint.textContent = _i18nT(m === 'general' ? 'The whole texture is tinted, the lighting is kept.'
     : (m === 'zone' ? 'Next, paint the part to recolor straight on the 3D model.' : 'Describe the new look with Texture variants.'));
   if (go) go.textContent = _i18nT(m === 'zone' ? 'Paint the part' : (style ? 'Open Texture variants' : 'Recolor'));
+  _r3PoserPrix();
+}
+/** Prix de Recolor lu comme la pastille du bouton (bureau : grille ; site : pastille posee sur le bouton). Style = autre fenetre. */
+function _r3PrixAffiche() {
+  if (_r3Mode() === 'whole-style') return null;
+  if (typeof window._prixBouton === 'function') {
+    const cloud = (typeof window._computeMode === 'function') && window._computeMode() === 'cloud';
+    return cloud ? window._prixBouton('ws-mesh-recolor-btn') : null;
+  }
+  const el = document.querySelector('#ws-mesh-recolor-btn .cloud-cost-badge, #ws-mesh-recolor-btn .credit-badge');
+  return el ? el.textContent.trim() : null;
+}
+function _r3PoserPrix() {
+  const go = document.getElementById('r3-go');
+  const prix = _r3PrixAffiche();
+  if (go) {
+    if (typeof window._posePastille === 'function') window._posePastille(go, prix);
+    else {
+      go.querySelectorAll('.credit-badge').forEach((x) => x.remove());
+      if (prix) { const b = document.createElement('span'); b.className = 'credit-badge'; b.style.marginLeft = '8px'; b.textContent = prix; go.appendChild(b); }
+    }
+  }
+  const pastille = document.getElementById('r3-credits');
+  if (pastille) {
+    const ok = (typeof prix === 'number' && prix > 0) || (typeof prix === 'string' && prix !== '');
+    pastille.hidden = !ok;
+    const v = document.getElementById('r3-credits-val');
+    if (v) v.textContent = ok ? String(prix) : '';
+  }
 }
 document.getElementById('r3-mode')?.addEventListener('change', _r3AppliquerMode);
 document.querySelectorAll('#modal-recolor3d .choix-btn').forEach((b) => b.addEventListener('click', () => setTimeout(_r3AppliquerMode, 0)));
@@ -17783,6 +17876,7 @@ document.getElementById('ws-mesh-recolor-btn')?.addEventListener('click', () => 
   if (!_r3MeshCourant()) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
   document.getElementById('modal-recolor3d')?.classList.remove('hidden');
   _r3AppliquerMode();
+  _apercuMaillageMontrer('r3-canvas', 'r3-etat');   // LOT P2 : le modele reel a gauche
 });
 document.getElementById('r3-go')?.addEventListener('click', async () => {
   const p = state.currentProject;
@@ -31817,7 +31911,7 @@ const _OUTILS_A_VALIDER = {
   'ws-facefix-btn': { titre: 'Face Fix', texte: "Sharpens the face, or an animal's head.", action: 'Fix the face', apercu: 'image' },
   'ws-symmetrize-auto-btn': { titre: 'Auto symmetry', texte: 'Mirrors the left half of the image onto the right half.', action: 'Symmetrize', apercu: 'image' },
   'ws-extend-btn': { titre: 'Extend', texte: 'Adds a margin around the image (15 % on each side).', action: 'Extend', apercu: 'image' },
-  'ws-mesh-enhance-tex-btn': { titre: 'Sharpen texture (x2)', texte: 'Doubles the texture resolution, without inventing detail.', action: 'Sharpen', apercu: null },
+  'ws-mesh-enhance-tex-btn': { titre: 'Sharpen texture (x2)', texte: 'Doubles the texture resolution, without inventing detail.', action: 'Sharpen', apercu: 'mesh' },
   'ws-mesh-detail-synth-btn': { titre: 'Detail++', texte: 'Adds fine AI detail to the texture.', action: 'Add detail', apercu: null },
   // outils manuels PAYANTS sur le web (1 credit a l'ouverture) : validation seulement s'il y a un prix
   'ws-picker-btn': { titre: 'Color Pick', texte: 'Opens the colour picker on the image.', action: 'Open', apercu: 'image', siPayant: true },
@@ -31848,9 +31942,13 @@ function _ouvrirLancement(def, boutonPrix) {
     document.getElementById('lct-titre').textContent = def.titreBrut || t(def.titre);
     document.getElementById('lct-texte').textContent = t(def.texte);
     const src = def.apercu === 'image' ? _lctImageCourante() : '';
-    document.getElementById('lct-corps').classList.toggle('sans-apercu', !src);
-    m.querySelector('.lct-carte').classList.toggle('fen-3d', !!src);   // LOT W23 : gabarit 3D (apercu grand a gauche, pied pleine largeur) seulement avec apercu
-    document.getElementById('lct-apercu').hidden = !src;
+    const mesh = def.apercu === 'mesh' && !!_maillageCourantChemin();   // LOT P2 : apercu 3D reel du modele affiche
+    document.getElementById('lct-corps').classList.toggle('sans-apercu', !src && !mesh);
+    m.querySelector('.lct-carte').classList.toggle('fen-3d', !!src || mesh);   // LOT W23 : gabarit 3D (apercu grand a gauche, pied pleine largeur) seulement avec apercu
+    document.getElementById('lct-apercu').hidden = !src && !mesh;
+    document.getElementById('lct-image').hidden = mesh;
+    document.getElementById('lct-canvas').hidden = !mesh;
+    document.getElementById('lct-etat').hidden = !mesh;
     if (src) document.getElementById('lct-image').src = src;
     const lancer = document.getElementById('lct-lancer');
     const annuler = document.getElementById('lct-annuler');
@@ -31875,6 +31973,7 @@ function _ouvrirLancement(def, boutonPrix) {
     annuler.onclick = () => fin(false);
     fermer.onclick = () => fin(false);
     m.classList.remove('hidden');
+    if (mesh) _apercuMaillageMontrer('lct-canvas', 'lct-etat');
   });
 }
 document.addEventListener('click', (e) => {
@@ -31896,6 +31995,7 @@ document.addEventListener('click', (e) => {
   // meme, sans prix, plutot que de lancer un outil payant sans rien demander.
   if (def.siPayant && window.__LIVE_PRICES
       && !(boutonPrix && boutonPrix.querySelector('.cloud-cost-badge, .credit-badge'))) return;
+  if (def.apercu === 'mesh' && !_maillageCourantChemin()) return;   // LOT P2 : sans modele, le gestionnaire de l'outil dit Pick a mesh first
   e.stopImmediatePropagation();
   e.preventDefault();
   _ouvrirLancement(def, boutonPrix).then((ok) => {

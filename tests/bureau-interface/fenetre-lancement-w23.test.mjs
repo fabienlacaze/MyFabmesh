@@ -19,7 +19,7 @@ for (const [nom, h, j, c] of cotes) {
     for (const id of ['lct-titre', 'lct-fermer', 'lct-corps', 'lct-apercu', 'lct-image', 'lct-annuler', 'lct-lancer'])
       assert.ok(bloc.includes('id="' + id + '"'), id);
     const js = fs.readFileSync(j, 'utf8');
-    assert.match(js, /classList\.toggle\('fen-3d', !!src\)/);
+    assert.match(js, /classList\.toggle\('fen-3d', !!src( \|\| mesh)?\)/);
     const css = fs.readFileSync(c, 'utf8');
     assert.match(css, /#modal-lancement \.modal-card\.fen-3d \.modal-actions \.primary-btn \{ flex: 1 1 auto; \}/);
   });

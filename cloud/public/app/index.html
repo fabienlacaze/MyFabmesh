@@ -1695,29 +1695,41 @@
          ============================================================ -->
     <!-- RECOLORIER LE MAILLAGE (25/10, demande du user : « les memes boutons que Recolorier pour la 3D ») : memes choix que « Recolor » de l'image. -->
     <div id="modal-recolor3d" class="modal-overlay hidden">
-      <div class="modal-card">
-        <div class="fen-tete"><h2>Recolor</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <div class="modal-form-side">
-          <label>What to change</label>
-          <select id="r3-mode" style="display:none;">
-            <option value="general">Whole model</option>
-            <option value="zone">One part</option>
-            <option value="whole-style">Style</option>
-          </select>
-          <div class="choix" data-pour="r3-mode">
-            <button type="button" class="choix-btn" data-valeur="general"><b>Whole model</b><small>One colour</small></button>
-            <button type="button" class="choix-btn" data-valeur="zone"><b>One part</b><small>Painted on the model</small></button>
-            <button type="button" class="choix-btn" data-valeur="whole-style"><b>Style</b><small>From a prompt</small></button>
+      <div class="modal-card fen-3d">
+        <div class="fen-tete">
+          <h2>Recolor</h2>
+          <span id="r3-credits" class="lct-credits" hidden><span class="generate-cost-bolt">&#9889;</span><span id="r3-credits-val"></span></span>
+          <button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button>
+        </div>
+        <p class="modal-subtitle">Pick what to recolor, then the colour. The lighting is kept.</p>
+        <div class="fen-corps">
+          <!-- apercu 3D REEL a GAUCHE (le modele affiche), reglages a DROITE (gabarit commun des fenetres d'outils) -->
+          <div class="fen-apercu">
+            <canvas id="r3-canvas"></canvas>
+            <div id="r3-etat" class="fen-apercu-etat">Right-drag to pan &middot; middle-drag to rotate &middot; wheel to zoom</div>
           </div>
-          <div class="r3-f-color">
-            <label style="margin-top:10px;">Colour</label>
-            <div id="r3-swatches" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>
+          <div class="fen-form modal-form-side">
+            <label>What to change</label>
+            <select id="r3-mode" style="display:none;">
+              <option value="general">Whole model</option>
+              <option value="zone">One part</option>
+              <option value="whole-style">Style</option>
+            </select>
+            <div class="choix" data-pour="r3-mode">
+              <button type="button" class="choix-btn" data-valeur="general"><b>Whole model</b><small>One colour</small></button>
+              <button type="button" class="choix-btn" data-valeur="zone"><b>One part</b><small>Painted on the model</small></button>
+              <button type="button" class="choix-btn" data-valeur="whole-style"><b>Style</b><small>From a prompt</small></button>
+            </div>
+            <div class="r3-f-color">
+              <label style="margin-top:10px;">Colour</label>
+              <div id="r3-swatches" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>
+            </div>
+            <div class="r3-f-color">
+              <label style="margin-top:12px;">Strength <span id="r3-strength-val" class="slider-val">100%</span></label>
+              <input type="range" id="r3-strength" min="20" max="100" value="100" />
+            </div>
+            <small id="r3-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:12px; line-height:1.4;"></small>
           </div>
-          <div class="r3-f-color">
-            <label style="margin-top:12px;">Strength <span id="r3-strength-val" class="slider-val">100%</span></label>
-            <input type="range" id="r3-strength" min="20" max="100" value="100" />
-          </div>
-          <small id="r3-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:12px; line-height:1.4;"></small>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="r3-cancel">Cancel</button>
@@ -1882,7 +1894,7 @@
         </div>
         <p id="lct-texte" class="modal-subtitle lct-texte"></p>
         <div class="fen-corps" id="lct-corps">
-          <div class="fen-apercu" id="lct-apercu"><img id="lct-image" alt="" /></div>
+          <div class="fen-apercu" id="lct-apercu"><img id="lct-image" alt="" /><canvas id="lct-canvas" hidden></canvas><div id="lct-etat" class="fen-apercu-etat" hidden>Right-drag to pan &middot; middle-drag to rotate &middot; wheel to zoom</div></div>
           <div class="fen-form">
             <p class="fen-note">A new version is created &mdash; the original is kept.</p>
           </div>
