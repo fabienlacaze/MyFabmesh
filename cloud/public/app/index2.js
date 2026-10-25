@@ -21187,26 +21187,7 @@ document.getElementById('ws-rig-unreal-btn')?.addEventListener('click', async ()
 // the in-app rig viewer (Three.js AnimationMixer) — no Blender spawn.
 // If multiple clips are embedded, plays the first one and scrolls the user
 // to the animation toolbar so they can pick a different clip.
-document.getElementById('ws-rig-test-btn')?.addEventListener('click', () => {
-  const r = getCurrentRigObj();
-  if (!r) { showToast('No rig yet.', 'error'); return; }
-  if (!rigVwMixer || rigVwClips.length === 0) {
-    customError('This rig has no embedded animations to play. Re-generate the rig with an animated template, or use a clip-bearing FBX.', 'Test animation');
-    return;
-  }
-  // Reuse the play button's existing logic by clicking it programmatically
-  const playBtn = document.getElementById('ws-rig-anim-play');
-  const sel = document.getElementById('ws-rig-anim-select');
-  if (sel && (!sel.value || sel.value === '')) sel.value = '0';
-  // If currently playing, clicking again pauses (matches the play button toggle)
-  if (playBtn) playBtn.click();
-  // Make sure the animation bar is visible to the user
-  const bar = document.getElementById('ws-rig-anim-bar');
-  if (bar) {
-    bar.classList.remove('hidden');
-    bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-});
+// (le clic sur « Test animation » ouvre desormais la fenetre #modal-rig-test : bloc LOT P4, pres de « Import GLB »)
 
 // Legacy template-based rig path. The #ws-generate-rig button was removed from
 // the UI in favor of the unified AI "Generate Rig" button above, but we keep
@@ -22816,18 +22797,7 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
     customError('You need a rigged mesh first. Generate a Rig in Step 3, then come back.', 'No rig available');
     return;
   }
-  // 25/10 (user : « Ajouter une animation » doit reprendre les menus de « Creer une animation ») : on ouvre la zone « Create new »
-  // de l'etape Animation, avec ses menus (mouvement, espece, animation, variante), son apercu et sa liste. Une seule interface.
-  try {
-    const carte = document.getElementById('step-card-animation');
-    const zone = carte && carte.querySelector('.stage-create');
-    if (carte && zone) {
-      carte.classList.remove('collapsed');
-      zone.open = true;
-      requestAnimationFrame(() => requestAnimationFrame(() => { try { _defilerVersCarte(zone); } catch (_) { zone.scrollIntoView({ block: 'start' }); } }));
-      return;
-    }
-  } catch (_) { /* repli : l'ancienne fenetre a cases */ }
+  // 25/10 (LOT P4) : « Add Animation » ouvre sa fenetre (apercu du rig a gauche, choix a droite, prix au pied).
   // 'Existing' = types in the CURRENTLY-SELECTED version (matches the
   // type buttons shown under the viewer). Using all-batches here was
   // confusing — the modal would say RUN/ATTACK already existed even
@@ -22889,7 +22859,7 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
   };
   checkboxes.forEach(cb => cb.addEventListener('change', updateGoState));
   updateGoState();
-  modal.classList.remove('hidden');
+  modal.classList.remove('hidden');  _p4ApercuAjout();
 });
 
 document.getElementById('modal-anim-cancel')?.addEventListener('click', () => {
@@ -22920,21 +22890,194 @@ document.getElementById('modal-anim-go')?.addEventListener('click', () => {
 // Manual import — user picks an animated GLB → POST to
 // /api/animations/upload → R2 → reload project so it appears as a
 // new version v(N) in the strip.
-document.getElementById('ws-anim-import-btn')?.addEventListener('click', () => {
-  document.getElementById('ws-anim-import-file')?.click();
-});
-document.getElementById('ws-anim-import-file')?.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  e.target.value = ''; // reset so the same file can be picked twice
-  if (!file) return;
+// ============================================================
+// LOT P4 (25/10, demande du user : « il faut une fenetre pour TOUS les outils ») : Re-skin only, Test animation, Import GLB et
+// Add Animation s'ouvrent dans la fenetre commune .fen-3d (titre + aide, apercu REEL du rig a gauche, colonne de droite, pied
+// « Annuler » + action pleine largeur). Aucun calcul n'est change : seuls les points d'entree passent par une fenetre.
+// ============================================================
+const _p4Inst = {};   // un apercu (creerApercu) par fenetre
+function _p4Dire(idEtat, texte) {
+  const el = document.getElementById(idEtat);
+  if (el) { el.textContent = texte || ''; el.style.display = texte ? '' : 'none'; }
+}
+/** Charge `rig` ({ cle, lire }) dans l'apercu de la fenetre `id` ; rend l'apercu, ou null (message dans la zone d'etat). */
+async function _p4ChargerRig(id, idCanvas, idEtat, rig) {
+  const canvas = document.getElementById(idCanvas);
+  if (!canvas) return null;
+  if (!rig) { _p4Dire(idEtat, _i18nT('Choose a rig in step 3 to see the preview.')); return null; }
+  try {
+    if (!_p4Inst[id]) {
+      _p4Inst[id] = creerApercu(canvas);
+      creerBarreVues3D(canvas.parentElement, () => _p4Inst[id]?.vue3d?.() || null);   // barre commune des visualiseurs
+    }
+    _p4Dire(idEtat, _i18nT('Loading preview…'));
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));   // la fenetre vient de s'afficher : laisser poser la taille du canevas
+    const ok = await _p4Inst[id].chargerRig(rig.cle, rig.lire);
+    if (!ok) { _p4Dire(idEtat, _i18nT('Preview unavailable.')); return null; }
+    _p4Dire(idEtat, '');
+    return _p4Inst[id];
+  } catch (e) {
+    console.warn('[p4] apercu', id, e);
+    _p4Dire(idEtat, _i18nT('Preview unavailable.'));
+    return null;
+  }
+}
+const _p4Esc = (t) => String(t == null ? '' : t).split('&').join('&amp;').split('<').join('&lt;').split('"').join('&quot;');
+const _p4Nom = (c) => String(c || '').split('?')[0].split(/[\\/]/).pop();
+const _p4Ouvrir = (id) => document.getElementById(id)?.classList.remove('hidden');
+const _p4Fermer = (id) => document.getElementById(id)?.classList.add('hidden');
+
+// ---- Re-skin only -------------------------------------------------------------
+let _p4Reskin = null;
+async function _p4OuvrirReskin() {
   const p = state.currentProject;
-  if (!p) { showToast('Open a project first', 'error'); return; }
-  if (!/\.(glb|gltf)$/i.test(file.name)) {
-    showToast('Pick a .glb or .gltf file', 'error');
+  const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
+  if (!rig) { showToast(_i18nT('No rig yet.'), 'error'); return; }
+  const source = _ptsSourceDuRig(p, rig);
+  if (!source) {
+    customError(_i18nT('The mesh this rig was made from is no longer in the project, so the skin cannot be recomputed.'), _i18nT('Re-skin only'));
     return;
   }
-  // Quick animType prompt — let the user label it (defaults to 'clip').
-  const animType = (prompt('Animation type? (idle / walk / run / attack / death / fly / clip)', 'clip') || 'clip').trim().toLowerCase();
+  _p4Reskin = { rig, source };
+  document.getElementById('rgs-rig').textContent = _p4Nom(rig);
+  document.getElementById('rgs-source').textContent = _p4Nom(source);
+  // pastille de prix : cloud-overrides.js (ACTION_TARIFS, 'rgs-go' = reskin)
+  _p4Ouvrir('modal-rig-reskin');
+  await _p4ChargerRig('reskin', 'rgs-canvas', 'rgs-status', { cle: rig, lire: () => API.readMeshFile(rig) });
+}
+document.getElementById('ws-rig-reskin-btn')?.addEventListener('click', _p4OuvrirReskin);
+for (const id of ['rgs-cancel', 'rgs-close-x']) document.getElementById(id)?.addEventListener('click', () => _p4Fermer('modal-rig-reskin'));
+document.getElementById('rgs-go')?.addEventListener('click', async () => {
+  const c = _p4Reskin;
+  if (!c) return;
+  _p4Fermer('modal-rig-reskin');
+  let squelette;
+  try { squelette = await _ptsLireSquelette(c.rig); }
+  catch (e) {
+    console.warn('[re-skin] squelette illisible', e);
+    customError(_i18nT('Could not read the skeleton of this rig.'), _i18nT('Re-skin only'));
+    return;
+  }
+  lancerRigIA({ meshPath: c.source, squelette });
+});
+
+// ---- Test animation -----------------------------------------------------------
+let _p4TestEnPause = false;
+function _p4JouerTest() {
+  const inst = _p4Inst.test, v = document.getElementById('rgt-choix')?.value || '';
+  if (!inst || !v) return;
+  _p4TestEnPause = false;
+  inst.pause(false);
+  if (v.startsWith('e:')) inst.jouerIntegre(parseInt(v.slice(2), 10) || 0);
+  else inst.jouer(v.slice(2), _modeAnim(), _especeAnim());
+  const go = document.getElementById('rgt-go');
+  if (go) go.textContent = _i18nT('Pause');
+}
+async function _p4OuvrirTest() {
+  const rig = _rigPourApercu();
+  if (!rig) { showToast(_i18nT('No rig yet.'), 'error'); return; }
+  _p4Ouvrir('modal-rig-test');
+  const inst = await _p4ChargerRig('test', 'rgt-canvas', 'rgt-status', rig);
+  if (!inst) return;
+  const sel = document.getElementById('rgt-choix');
+  const opts = inst.nomsIntegres().map((n, i) => `<option value="e:${i}">${_p4Esc(n)}</option>`);
+  for (const t of _animsPermises().filter((x) => ALLURES_PROCEDURALES.includes(x))) {
+    const nom = _nomClipSelection({ type: t, variante: 'normal' });
+    opts.push(`<option value="p:${_p4Esc(nom)}">${_p4Esc(_libelleClip(nom))}</option>`);
+  }
+  if (sel) sel.innerHTML = opts.join('');
+  if (!opts.length) { _p4Dire('rgt-status', _i18nT('This rig has no motion to play.')); return; }
+  _p4JouerTest();
+}
+document.getElementById('ws-rig-test-btn')?.addEventListener('click', _p4OuvrirTest);
+document.getElementById('rgt-choix')?.addEventListener('change', _p4JouerTest);
+document.getElementById('rgt-go')?.addEventListener('click', () => {
+  const inst = _p4Inst.test;
+  if (!inst) return;
+  _p4TestEnPause = !_p4TestEnPause;
+  inst.pause(_p4TestEnPause);
+  document.getElementById('rgt-go').textContent = _i18nT(_p4TestEnPause ? 'Play' : 'Pause');
+});
+for (const id of ['rgt-cancel', 'rgt-close-x']) document.getElementById(id)?.addEventListener('click', () => _p4Fermer('modal-rig-test'));
+
+// ---- Add Animation : apercu du rig dans la fenetre de choix --------------------
+function _p4JouerAjout(t) {
+  const inst = _p4Inst.ajout;
+  if (!inst || !t) return;
+  if (!ALLURES_PROCEDURALES.includes(t)) { inst.arreter(); _p4Dire('modal-anim-apercu-msg', _i18nT('AI animation: no preview, it is generated when you click Generate.')); return; }
+  _p4Dire('modal-anim-apercu-msg', '');
+  inst.jouer(_nomClipSelection({ type: t, variante: 'normal' }), _modeAnim(), _especeAnim());
+}
+async function _p4ApercuAjout() {
+  const inst = await _p4ChargerRig('ajout', 'modal-anim-apercu', 'modal-anim-apercu-msg', _rigPourApercu());
+  if (!inst) return;
+  const cases = [...document.querySelectorAll('#modal-anim-types input[name="modal-anim-type"]')].filter((cb) => !cb.closest('label')?.hidden);
+  const premier = cases.find((cb) => cb.checked && ALLURES_PROCEDURALES.includes(cb.value)) || cases.find((cb) => ALLURES_PROCEDURALES.includes(cb.value));
+  if (premier) _p4JouerAjout(premier.value);
+}
+document.getElementById('modal-anim-types')?.addEventListener('change', (e) => {
+  const cb = e.target;
+  if (cb && cb.name === 'modal-anim-type' && cb.checked) _p4JouerAjout(cb.value);
+});
+document.getElementById('modal-anim-types')?.addEventListener('mouseover', (e) => {
+  const cb = e.target.closest?.('label')?.querySelector('input[name="modal-anim-type"]');
+  if (cb && !cb.closest('label').hidden) _p4JouerAjout(cb.value);
+});
+
+// ---- Import GLB ---------------------------------------------------------------
+let _p4Fichier = null;
+function _p4TypeDuNom(nom) {
+  const lc = String(nom || '').toLowerCase();
+  return ['idle', 'walk', 'run', 'attack', 'death', 'fly', 'jump', 'dance'].find((t) => lc.includes(t)) || 'clip';
+}
+function _p4OuvrirImport() {
+  const p = state.currentProject;
+  if (!p) { showToast(_i18nT('Open a project first'), 'error'); return; }
+  _p4Fichier = null;
+  document.getElementById('ami-fichier').textContent = '';
+  const go = document.getElementById('ami-go');
+  if (go) go.disabled = true;
+  _p4Dire('ami-status', _i18nT('Choose a .glb file to see it here.'));
+  // pastille de prix : cloud-overrides.js (ACTION_TARIFS, 'ami-go' = manual_tool)
+  _p4Ouvrir('modal-anim-import');
+  // apercu : le rig du projet en attendant le choix du fichier
+  _p4ChargerRig('import', 'ami-canvas', 'ami-status', _rigPourApercu()).then((inst) => {
+    if (inst && !_p4Fichier) _p4Dire('ami-status', _i18nT('Choose a .glb file to see it here.'));
+  });
+}
+async function _p4FichierChoisi(file) {
+  if (!file) return;
+  if (!/\.(glb|gltf)$/i.test(file.name)) { showToast(_i18nT('Pick a .glb or .gltf file'), 'error'); return; }
+  _p4Fichier = file;
+  document.getElementById('ami-fichier').textContent = `${file.name} · ${(file.size / 1024).toFixed(0)} KB`;
+  const sel = document.getElementById('ami-type');
+  if (sel) sel.value = _p4TypeDuNom(file.name);
+  const go = document.getElementById('ami-go');
+  if (go) go.disabled = false;
+  const inst = await _p4ChargerRig('import', 'ami-canvas', 'ami-status', { cle: `f:${file.name}:${file.size}:${file.lastModified}`, lire: () => file.arrayBuffer() });
+  if (!inst || _p4Fichier !== file) return;
+  if (!inst.jouerIntegre(0)) _p4Dire('ami-status', _i18nT('No animation found in this file.'));
+}
+document.getElementById('ws-anim-import-btn')?.addEventListener('click', _p4OuvrirImport);
+document.getElementById('ami-choisir')?.addEventListener('click', () => document.getElementById('ws-anim-import-file')?.click());
+document.getElementById('ws-anim-import-file')?.addEventListener('change', (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  _p4FichierChoisi(file);
+});
+for (const id of ['ami-cancel', 'ami-close-x']) document.getElementById(id)?.addEventListener('click', () => _p4Fermer('modal-anim-import'));
+document.getElementById('ami-go')?.addEventListener('click', async () => {
+  const file = _p4Fichier;
+  if (!file) return;
+  const type = document.getElementById('ami-type')?.value || 'clip';
+  _p4Fermer('modal-anim-import');
+  await _p4Importer(file, type);
+});
+// Import manuel : le GLB part vers /api/animations/upload -> R2 -> le projet est recharge, il apparait
+// comme une nouvelle version dans la bande. Le type vient de la fenetre (plus de prompt()).
+async function _p4Importer(file, animType) {
+  const p = state.currentProject;
+  if (!p) { showToast('Open a project first', 'error'); return; }
   const job = pushJob(`Import animation: ${file.name}`, null, {
     File: file.name,
     'Size': `${(file.size / 1024).toFixed(0)} KB`,
@@ -22962,7 +23105,8 @@ document.getElementById('ws-anim-import-file')?.addEventListener('change', async
     completeJob(job.id, false, err?.message || String(err));
     showToast(`Import failed: ${err?.message || err}`, 'error', 5000);
   }
-});
+}
+
 
 document.getElementById('ws-anim-folder-btn')?.addEventListener('click', async () => {
   const a = _step4ActiveAnim;
@@ -27949,27 +28093,7 @@ if (skinSlider && skinSliderVal) {
 // RE-SKIN ONLY (2026-09-26) : l'IA recalcule la PEAU sur le squelette du rig,
 // garde TEL QUEL (squelette impose, la 2e passe du rig complet). Aucun tirage
 // de squelette : le maillage d'origine du rig + ses os -> nouvelle version.
-document.getElementById('ws-rig-reskin-btn')?.addEventListener('click', async () => {
-  const p = state.currentProject;
-  const rig = p?.selectedRigPath || p?.rigs?.[0]?.url || p?.rigs?.[0]?.path;
-  if (!rig) { showToast(_i18nT('No rig yet.'), 'error'); return; }
-  const source = _ptsSourceDuRig(p, rig);
-  if (!source) {
-    customError(_i18nT('The mesh this rig was made from is no longer in the project, so the skin cannot be recomputed.'), _i18nT('Re-skin only'));
-    return;
-  }
-  const ok = await customConfirm(_i18nT('Recompute the skin weights of this rig? The skeleton stays exactly as it is.'),
-    _i18nT('Re-skin only'), _i18nT('Re-skin'));
-  if (!ok) return;
-  let squelette;
-  try { squelette = await _ptsLireSquelette(rig); }
-  catch (e) {
-    console.warn('[re-skin] squelette illisible', e);
-    customError(_i18nT('Could not read the skeleton of this rig.'), _i18nT('Re-skin only'));
-    return;
-  }
-  lancerRigIA({ meshPath: source, squelette });
-});
+// (le clic sur « Re-skin only » ouvre desormais la fenetre #modal-rig-reskin : bloc LOT P4, pres de « Import GLB »)
 
 // ============================================================
 // DRAG & DROP (image / mesh files)

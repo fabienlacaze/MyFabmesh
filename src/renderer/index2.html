@@ -3012,6 +3012,10 @@
         <p class="modal-subtitle">Pick the animations to add. One new version per click.</p>
         <div class="fen-corps">
           <div class="fen-apercu">
+            <canvas id="modal-anim-apercu" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="modal-anim-apercu-msg" class="fen-apercu-etat">Loading preview…</div>
+          </div>
+          <div class="fen-form">
         <div id="modal-anim-types">
           <label class="anim-type-opt">
             <input type="checkbox" name="modal-anim-type" value="idle"> <span>😴 Idle</span>
@@ -3056,12 +3060,83 @@
             <input type="checkbox" name="modal-anim-type" value="fly"> <span>✈️ Fly</span>
           </label>
         </div>
+            <p class="fen-note">Animations marked EXISTING already have a version. Procedural gaits are free; each AI clip is charged once.</p>
           </div>
-          <div class="fen-form"><p class="fen-note">Animations marked EXISTING already have a version. Procedural gaits are free; each AI clip is charged once.</p></div>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="modal-anim-cancel">Cancel</button>
           <button class="primary-btn" id="modal-anim-go">Generate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         LOT P4 (25/10) : fenetres au gabarit .fen-3d pour les outils de RIG et d'ANIMATION qui n'avaient qu'une boite de confirmation
+         ou aucune fenetre : Re-skin only, Test animation, Import GLB. Apercu REEL du rig a gauche, colonne de droite, pied pleine largeur.
+         ============================================================ -->
+    <div id="modal-rig-reskin" class="modal-overlay hidden">
+      <div class="modal-card fen-3d fen-p4">
+        <div class="fen-tete"><h2>Re-skin only</h2><button type="button" id="rgs-close-x" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Recompute the skin weights of this rig. The skeleton stays exactly as it is.</p>
+        <div class="fen-corps">
+          <div class="fen-apercu">
+            <canvas id="rgs-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="rgs-status" class="fen-apercu-etat">Loading preview…</div>
+          </div>
+          <div class="fen-form">
+            <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">Rig</span></div><div id="rgs-rig" class="fen-p4-valeur"></div></div>
+            <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">Source mesh</span></div><div id="rgs-source" class="fen-p4-valeur"></div></div>
+            <p class="fen-note">The AI recomputes how each bone moves the surface. Bones, names and pose do not change. The result is saved as a new version of the rig.</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="rgs-cancel" class="ghost-btn">Cancel</button>
+          <button id="rgs-go" class="primary-btn">Re-skin</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-rig-test" class="modal-overlay hidden">
+      <div class="modal-card fen-3d fen-p4">
+        <div class="fen-tete"><h2>Test animation</h2><button type="button" id="rgt-close-x" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Play a test motion on the rig to check that it holds up. Nothing is saved.</p>
+        <div class="fen-corps">
+          <div class="fen-apercu">
+            <canvas id="rgt-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="rgt-status" class="fen-apercu-etat">Loading preview…</div>
+          </div>
+          <div class="fen-form">
+            <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">Motion</span></div><select id="rgt-choix"></select></div>
+            <p class="fen-note">Free: the motion is computed on your rig, in this window only.</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="rgt-cancel" class="ghost-btn">Close</button>
+          <button id="rgt-go" class="primary-btn">Pause</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-anim-import" class="modal-overlay hidden">
+      <div class="modal-card fen-3d fen-p4">
+        <div class="fen-tete"><h2>Import GLB</h2><button type="button" id="ami-close-x" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <p class="modal-subtitle">Import an animated GLB as a new version of the animations.</p>
+        <div class="fen-corps">
+          <div class="fen-apercu">
+            <canvas id="ami-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="ami-status" class="fen-apercu-etat">Choose a .glb file to see it here.</div>
+          </div>
+          <div class="fen-form">
+            <button id="ami-choisir" type="button" class="ghost-btn">Choose a GLB file…</button>
+            <div id="ami-fichier" class="fen-p4-valeur"></div>
+            <div class="fen-champ"><div class="fen-champ-tete"><span class="fen-label">Animation type</span></div>
+              <select id="ami-type"><option value="clip">Clip</option><option value="idle">Idle</option><option value="walk">Walk</option><option value="run">Run</option><option value="attack">Attack</option><option value="death">Death</option><option value="fly">Fly</option><option value="jump">Jump</option><option value="dance">Dance</option></select></div>
+            <p class="fen-note">The file is kept as it is and added to the project as a new animation version.</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="ami-cancel" class="ghost-btn">Cancel</button>
+          <button id="ami-go" class="primary-btn" disabled>Import</button>
         </div>
       </div>
     </div>
