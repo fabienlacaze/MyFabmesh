@@ -5337,3 +5337,5 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-anim-gen .fen-apercu { padding: 0; overflow: hidden; }
 #modal-anim-gen #modal-anim-types { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); padding: 0; gap: 8px; }
 #modal-anim-gen #modal-anim-types .anim-type-opt { padding: 8px 10px; font-size: 14px; }
+/* arabe : le « text-align: left » de .p3-cat (LOT P3) devient le debut de ligne logique */
+html[dir="rtl"] .p3-cat { text-align: start; }

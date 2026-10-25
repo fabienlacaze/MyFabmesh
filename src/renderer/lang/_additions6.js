@@ -1555,12 +1555,25 @@
 })();
 
 /* LOT P2 : fenetres Recolor (3D) et lancement des outils de maillage, avec le modele reel en apercu */
-/* LOT P3 : cles des fenetres Segment parts / Name the zones (gabarit .fen-3d) */
 (function () {
   if (!window.FabI18n || !window.FabI18n.register) return;
   var L = ['fr', 'es', 'zh', 'hi', 'ar'];
   var T = {
     "Pick what to recolor, then the colour. The lighting is kept.": ["Choisissez ce qu'il faut recolorier, puis la couleur. L'éclairage est conservé.", "Elige qué recolorear y luego el color. La iluminación se conserva.", "选择要重新着色的内容，然后选择颜色。光照保持不变。", "चुनें कि क्या रंगना है, फिर रंग चुनें। प्रकाश व्यवस्था बनी रहती है।", "اختر ما تريد إعادة تلوينه ثم اللون. تبقى الإضاءة كما هي."]
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();
+
+/* LOT P3 : cles des fenetres Segment parts / Name the zones (gabarit .fen-3d) */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
     "Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). Adds a new colored, separable mesh version.": ["Découpe le maillage en parties logiques (tête / torse / bras / jambes — roue / châssis / tourelle / canon). Ajoute une nouvelle version colorée, aux parties séparables.", "Divide la malla en partes lógicas (cabeza / torso / brazos / piernas — rueda / chasis / torreta / cañón). Añade una nueva versión coloreada con partes separables.", "将网格拆分为语义部件（头 / 躯干 / 手臂 / 腿 — 车轮 / 底盘 / 炮塔 / 炮管）。会新增一个带颜色、可分离部件的网格版本。", "मेष को अर्थपूर्ण हिस्सों में बाँटता है (सिर / धड़ / बाँहें / टाँगें — पहिया / चेसिस / बुर्ज / नली)। रंगीन, अलग किए जा सकने वाले हिस्सों वाला नया मेष संस्करण जुड़ता है।", "يقسم المجسم إلى أجزاء ذات معنى (رأس / جذع / ذراعان / ساقان — عجلة / هيكل / برج / مدفع). تتم إضافة نسخة جديدة ملوّنة بأجزاء قابلة للفصل."],
     "Runs in the MyFabmesh cloud.": ["S'exécute dans le cloud MyFabmesh.", "Se ejecuta en la nube de MyFabmesh.", "在 MyFabmesh 云端运行。", "MyFabmesh क्लाउड में चलता है।", "يعمل في سحابة MyFabmesh."],
     "Runs locally on your GPU, about 1 minute.": ["S'exécute en local sur votre carte graphique, environ 1 minute.", "Se ejecuta en local en su GPU, aproximadamente 1 minuto.", "在本机 GPU 上运行，约 1 分钟。", "आपके GPU पर स्थानीय रूप से चलता है, लगभग 1 मिनट।", "يعمل محليًا على بطاقتك الرسومية، حوالي دقيقة واحدة."],
@@ -1574,8 +1587,11 @@
   if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
 })();
 
-
 /* LOT P4 : cles des fenetres Re-skin only, Test animation, Import GLB (gabarit .fen-3d) */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
     "Recompute the skin weights of this rig. The skeleton stays exactly as it is.": ["Recalcule les poids de peau de ce rig. Le squelette reste exactement tel quel.", "Recalcula los pesos de piel de este rig. El esqueleto se queda exactamente como está.", "重新计算此骨架的蒙皮权重。骨骼保持原样不变。", "इस रिग के स्किन वेट दोबारा गणना करें। कंकाल बिल्कुल वैसा ही रहता है।", "أعد حساب أوزان الجلد لهذا الهيكل. يبقى العظم كما هو تمامًا."],
     "The AI recomputes how each bone moves the surface. Bones, names and pose do not change. The result is saved as a new version of the rig.": ["L'IA recalcule comment chaque os déplace la surface. Les os, leurs noms et la pose ne changent pas. Le résultat est enregistré comme nouvelle version du rig.", "La IA recalcula cómo cada hueso mueve la superficie. Los huesos, sus nombres y la pose no cambian. El resultado se guarda como una nueva versión del rig.", "AI 会重新计算每根骨骼如何带动表面。骨骼、名称和姿势都不变。结果会保存为骨架的新版本。", "AI यह दोबारा गणना करता है कि हर हड्डी सतह को कैसे हिलाती है। हड्डियाँ, उनके नाम और पोज़ नहीं बदलते। परिणाम रिग के नए संस्करण के रूप में सहेजा जाता है।", "يعيد الذكاء الاصطناعي حساب كيفية تحريك كل عظمة للسطح. لا تتغير العظام ولا أسماؤها ولا الوضعية. تُحفَظ النتيجة كنسخة جديدة من الهيكل."],
     "Play a test motion on the rig to check that it holds up. Nothing is saved.": ["Joue un mouvement d'essai sur le rig pour vérifier qu'il tient. Rien n'est enregistré.", "Reproduce un movimiento de prueba en el rig para comprobar que aguanta. No se guarda nada.", "在骨架上播放测试动作，检查是否稳定。不会保存任何内容。", "रिग पर एक परीक्षण गति चलाकर जाँचें कि वह टिकता है। कुछ भी सहेजा नहीं जाता।", "شغّل حركة اختبار على الهيكل للتحقق من تماسكه. لا يُحفَظ شيء."],
@@ -1590,3 +1606,11 @@
     "The file is kept as it is and added to the project as a new animation version.": ["Le fichier est gardé tel quel et ajouté au projet comme nouvelle version d'animation.", "El archivo se conserva tal cual y se añade al proyecto como una nueva versión de animación.", "文件原样保留，并作为新的动画版本添加到项目中。", "फ़ाइल जैसी है वैसी ही रखी जाती है और प्रोजेक्ट में नए एनिमेशन संस्करण के रूप में जुड़ती है।", "يُحفَظ الملف كما هو ويُضاف إلى المشروع كنسخة حركة جديدة."],
     "Choose a .glb file to see it here.": ["Choisis un fichier .glb pour le voir ici.", "Elige un archivo .glb para verlo aquí.", "选择一个 .glb 文件即可在此查看。", "यहाँ देखने के लिए .glb फ़ाइल चुनें।", "اختر ملف .glb لعرضه هنا."],
     "No animation found in this file.": ["Aucune animation dans ce fichier.", "No hay ninguna animación en este archivo.", "此文件中没有动画。", "इस फ़ाइल में कोई एनिमेशन नहीं मिला।", "لا توجد حركة في هذا الملف."],
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();
