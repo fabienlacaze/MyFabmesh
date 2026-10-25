@@ -5101,3 +5101,39 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 /* Visionneuse 2D : barre de zoom (recentrer, taille reelle) au-dessus du nom de fichier */
 .lb-zoombar { display: flex; gap: 2px; background: rgba(0,0,0,0.7); border-radius: 8px; padding: 4px 6px; backdrop-filter: blur(4px); }
 #lightbox-2-img { transform-origin: 50% 50%; }
+
+/* Harmonisation (25/10, correctifs de relecture) : rien ne deborde ni ne se coupe, du bureau (1400 px) au site a 900 px. */
+/* Barres de vues : elles se replient sur plusieurs lignes au lieu de rogner Zoom -, Zoom +, Fit. */
+.mesh-toolbar.fen {
+  flex-wrap: wrap; justify-content: center; row-gap: 4px;
+  overflow: visible; max-width: calc(100% - 16px);
+}
+.mesh-toolbar.fen .bv3-groupe { flex-wrap: nowrap; }
+.lm-fs-view-toolbar {
+  flex-wrap: wrap; justify-content: center; row-gap: 4px;
+  max-width: calc(100% - 12px);
+}
+/* Visionneuse 3D plein ecran : la barre reste a gauche de la colonne d'outils et se replie. */
+.mesh-toolbar.lb3d {
+  left: 16px; right: calc(var(--lb-colonne, 252px) + 44px);
+  width: fit-content; margin: 0 auto;
+  transform: none; max-width: none;
+  flex-wrap: wrap; justify-content: center; overflow: visible; row-gap: 6px;
+}
+/* Fenetres hautes (Resize, Paint Mesh) : la carte tient dans l'ecran, defile au besoin ; entete et boutons restent visibles. */
+#modal-resize .modal-card,
+#modal-paint-mesh .modal-card {
+  max-height: 96vh; overflow-y: auto; box-sizing: border-box;
+}
+#modal-resize .modal-card > .fen-tete,
+#modal-paint-mesh .modal-card > div:first-child {
+  position: sticky; top: -28px; z-index: 5; background: var(--bg-1);
+  padding-top: 28px; margin-top: -28px;
+}
+#modal-resize .modal-card > .modal-actions,
+#modal-paint-mesh .modal-card > .modal-actions {
+  position: sticky; bottom: -28px; z-index: 5; background: var(--bg-1);
+  padding: 10px 0 28px; margin-bottom: -28px;
+}
+#rz-viewport { height: min(var(--vz-h-corps), 62vh) !important; }
+#pm-viewport-wrap { min-height: min(var(--vz-h-corps), 62vh) !important; }
