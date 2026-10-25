@@ -158,6 +158,7 @@ const FICHIERS = [
   { nom: 'niveaux de detail (LOD)', source: 'src/renderer/lib/lod-maillage.js', copie: 'cloud/public/app/lib/lod-maillage.js' },
   { nom: 'worker LOD', source: 'src/renderer/lib/lod-worker.js', copie: 'cloud/public/app/lib/lod-worker.js' },
   { nom: 'meshoptimizer simplifier', source: 'src/renderer/lib/meshopt-simplifier.js', copie: 'cloud/public/app/lib/meshopt-simplifier.js' },
+  { nom: 'barre commune des visualiseurs 3D (vues, zoom)', source: 'src/renderer/lib/barre-vues-3d.js', copie: 'cloud/public/app/lib/barre-vues-3d.js' },
   { nom: 'apercu des allures', source: 'src/renderer/lib/apercu-animation.js', copie: 'cloud/public/app/lib/apercu-animation.js' },
   // filtrage anisotrope + mipmaps des textures des visualiseurs (2026-10-15) : MEME fichier sur le bureau et le web
   { nom: 'filtrage des textures (anisotropie)', source: 'src/renderer/lib/filtrage-textures.js', copie: 'cloud/public/app/lib/filtrage-textures.js' },

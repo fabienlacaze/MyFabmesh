@@ -7,6 +7,19 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+  /* Harmonisation des visualiseurs (25/10) : UNE regle par famille, identique site / bureau. */
+  --vz-h-principal: 440px;            /* A : visualiseur principal (carte, maillage, rig, animation) */
+  --vz-h-fenetre: min(88vh, 920px);   /* B : visualiseur de fenetre d'outil */
+  --vz-apercu-min: 360px;
+  --vz-h-corps: max(var(--vz-apercu-min), min(64vh, 700px));   /* B : hauteur de la zone 3D dans le corps d'une fenetre (remplace 560px / 56vh) */
+  --vz-editeur-w: 95vw;               /* C : editeurs 2D a canevas */
+  --vz-editeur-h: 95vh;
+  --vz-editeur-zone-min: 400px;
+  --vz-source-min: 240px;             /* D : apercus de source des etapes */
+  --vz-vignette-h: 200px;             /* E : vignettes de cartes */
+  --vz-pub-thumb: 84px;
+  --vz-police-barre: 13px;            /* police des barres d'outils des visualiseurs */
+  --lb-colonne: 252px;                /* colonne d'outils de la visionneuse 2D / 3D */
   --bg-0: #0b0b14;
   --bg-1: #15151f;
   --bg-2: #1d1d2c;
@@ -1113,7 +1126,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  height: 440px;
+  height: var(--vz-h-principal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1123,7 +1136,7 @@ body.workspace-mode #back-to-projects { display: inline-flex; }
 /* Large variant (used by the rig viewer) keeps the same height so the
    preview block matches image and mesh one-for-one. */
 .step-card-preview.large {
-  height: 440px;
+  height: var(--vz-h-principal);
 }
 /* Navigation arrows on image preview */
 .nav-arrow {
@@ -3270,12 +3283,20 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   pointer-events: auto;
 }
 .mesh-toolbar.hidden { display: none; }
+/* Barre commune des fenetres d'outils (lib/barre-vues-3d.js) : en bas, centree, TOUJOURS visible. */
+.mesh-toolbar.fen {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  opacity: 1; pointer-events: auto; overflow-x: auto; max-width: 94%; z-index: 6;
+}
+.mesh-toolbar .bv3-groupe { display: inline-flex; align-items: center; gap: 2px; }
+.mesh-toolbar .bv3-groupe + .bv3-groupe { margin-left: 4px; padding-left: 6px; border-left: 1px solid var(--border-strong); }
+@media (hover: none) { .mesh-toolbar { opacity: 1; pointer-events: auto; } }
 .mesh-toolbar button {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-1);
   padding: 4px 8px;
-  font-size: 13px;
+  font-size: var(--vz-police-barre);
   font-weight: 600;
   border-radius: 3px;
   cursor: pointer;
@@ -3957,13 +3978,13 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 }
 #lightbox-2.hidden { display: none; }
 #lightbox-2 img {
-  /* Place reservee a droite pour la colonne d outils (252 px + marges) */
-  max-width: calc(92vw - 290px);
+  /* Place reservee a droite pour la colonne d outils (--lb-colonne + marges) */
+  max-width: calc(92vw - var(--lb-colonne) - 38px);
   max-height: 92vh;
   object-fit: contain;
   box-shadow: 0 20px 60px rgba(0,0,0,0.8);
   border-radius: 8px;
-  margin-right: 270px;
+  margin-right: calc(var(--lb-colonne) + 18px);
 }
 
 /* Tool column on the right side of the big viewer */
@@ -3972,7 +3993,7 @@ details.stage-generating > summary .stage-gear .gear-glyph {
   right: 20px;
   top: 72px;
   bottom: 72px;
-  width: 252px;
+  width: var(--lb-colonne);
   background: rgba(26, 26, 40, 0.85);
   border: 1px solid #2a2a3a;
   border-radius: 8px;
@@ -4723,10 +4744,15 @@ details.stage-generating > summary .stage-gear .gear-glyph {
 .fen-tete h2, .fen-tete h3 { margin: 0; }
 .fen-corps { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(260px, 1fr); gap: 20px;
   margin-top: 12px; min-height: 0; }
-.fen-apercu { position: relative; overflow: hidden; min-height: 360px; background: var(--bg-0, #0b0b12);
+.fen-apercu { position: relative; overflow: hidden; min-height: var(--vz-apercu-min); background: var(--bg-0, #0b0b12);
   border: 2px solid var(--accent); border-radius: var(--radius-sm, 10px); }
 .fen-apercu-etat { position: absolute; left: 8px; right: 8px; bottom: 6px; padding: 4px 8px; border-radius: 4px;
   font-size: 13px; color: #ccc; background: rgba(0, 0, 0, 0.7); pointer-events: none; }
+/* Bandeau d'etat / d'aide : toujours AU-DESSUS de la barre de vues commune. */
+.fen-apercu:has(.barre-vues-3d) .fen-apercu-etat,
+#pm-viewport-wrap:has(.barre-vues-3d) #pm-status,
+#pe-viewport-wrap:has(.barre-vues-3d) #pe-status,
+#rz-viewport:has(.barre-vues-3d) #rz-hint { bottom: 46px !important; }
 .fen-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; overflow-y: auto; }
 .fen-champ { display: flex; flex-direction: column; gap: 6px; }
 .fen-champ-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -5044,3 +5070,34 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
   text-align: center; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.35; max-width: 85%; box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45); }
 .tampon-eco-cadre b { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; }
 .tampon-eco-cadre span { color: #cfe9da; }
+
+/* Harmonisation des visualiseurs : ecrans etroits (identique site / bureau) */
+@media (max-width: 900px) {
+  :root { --vz-h-principal: min(440px, 56vh); }
+}
+@media (max-width: 760px) {
+  :root { --vz-apercu-min: 260px; }
+  #mask-modal .modal-content, #clone-modal .modal-content, #select-modal .modal-content,
+  #modal-colorpick .modal-content, #modal-blur .modal-content, #modal-crop .modal-content,
+  #modal-symmetrize .modal-content, #modal-paint .modal-content {
+    width: 100vw !important; max-width: 100vw !important;
+    height: 100dvh !important; max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+  .vz-barre, #mask-modal .modal-content > div[style*="flex-wrap"], #clone-modal .modal-content > div[style*="flex-wrap"],
+  #select-modal .modal-content > div[style*="flex-wrap"], #modal-blur .modal-content > div[style*="flex-wrap"],
+  #modal-crop .modal-content > div[style*="flex-wrap"], #modal-symmetrize .modal-content > div[style*="flex-wrap"] {
+    flex-wrap: nowrap !important; overflow-x: auto;
+  }
+}
+/* Tactile : pas de survol, les boutons flottants restent visibles */
+@media (hover: none) {
+  .step-card-preview .preview-expand-btn, .nav-arrow, .mv-btn-bar { opacity: 1; }
+}
+
+/* Barres d'outils 2D : separateur fin entre groupes (reglages | zoom | historique | reinitialiser) */
+.vz-sep { align-self: stretch; flex: 0 0 auto; width: 1px; min-height: 18px; margin: 0 4px; background: var(--border-strong, #3c3c5a); }
+
+/* Visionneuse 2D : barre de zoom (recentrer, taille reelle) au-dessus du nom de fichier */
+.lb-zoombar { display: flex; gap: 2px; background: rgba(0,0,0,0.7); border-radius: 8px; padding: 4px 6px; backdrop-filter: blur(4px); }
+#lightbox-2-img { transform-origin: 50% 50%; }

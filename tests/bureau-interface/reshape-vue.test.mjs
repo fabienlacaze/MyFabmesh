@@ -120,13 +120,13 @@ const CIBLES = [
 ];
 
 for (const c of CIBLES) {
-  test(`${c.nom} : la page importe le module, a tous les elements des deux etapes et les six vues rapides`, () => {
+  test(`${c.nom} : la page importe le module, a tous les elements des deux etapes et les sept vues rapides, Iso en premier`, () => {
     const js = lire(c.js), html = lire(c.html);
     assert.match(js, /from '\.\/lib\/reshape-vue\.js'/);
     for (const id of Object.keys(L.affichageEtape(1))) assert.ok(html.includes(`id="${id}"`), `${c.nom} : element #${id} absent de la page`);
     assert.ok(html.includes('id="rrx-3d-canvas"') && html.includes('id="rrx-3d-info"') && html.includes('id="rrx-3d-presets"'));
     const vues = [...html.matchAll(/data-rrx-yaw="(-?[\d.]+)" data-rrx-pitch="(-?[\d.]+)">(\w+)</g)].map((m) => [m[3], Number(m[1]), Number(m[2])]);
-    assert.deepEqual(vues, [['Front', 0, 0], ['Back', 180, 0], ['Left', -90, 0], ['Right', 90, 0], ['Top', 0, 89.9], ['Bottom', 0, -89.9]]);
+    assert.deepEqual(vues, [['Iso', 45, 30], ['Front', 0, 0], ['Back', 180, 0], ['Left', -90, 0], ['Right', 90, 0], ['Top', 0, 89.9], ['Bottom', 0, -89.9]]);
     for (const [, yaw, pitch] of vues) assert.equal(L.validerVue(yaw, pitch).ok, true);
     // l'etape 1 est la premiere chose que voit « Reshape a region »
     assert.match(js, /Viewer3D\(\{ canvas: (cv|\$\('rrx-3d-canvas'\))/);
@@ -180,7 +180,7 @@ test('les libelles nouveaux sont traduits dans les 5 langues, bureau ET site', a
   const { chargerDictionnaires } = await import(pathToFileURL(path.join(RACINE, 'build', 'couverture-traductions.mjs')).href);
   const CLES = ['Use this view', 'Change view', 'Angled view', 'Could not open the 3D viewer.',
     'Turn the model until you see the part to rebuild, then press Use this view.',
-    'Drag to turn the model, scroll to zoom. Zoom is only for looking: the next step shows the whole model from this angle.',
+    'Middle-drag: rotate · right-drag: pan · wheel: zoom. Zoom is only for looking: the next step shows the whole model from this angle.',
     'Front', 'Back', 'Left', 'Right', 'Top', 'Bottom', 'View'];
   for (const c of CIBLES) {
     const dicts = chargerDictionnaires({ i18n: path.join(RACINE, c.i18n), dossierLang: path.join(RACINE, c.lang) });

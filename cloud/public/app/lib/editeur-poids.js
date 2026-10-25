@@ -68,7 +68,7 @@ function construireFenetre() {
     <div class="fen-corps">
       <div class="fen-apercu" id="pp-vue"><canvas id="pp-canvas" style="width:100%;height:100%;display:block;"></canvas>
         <div class="pp-vues3d" id="pp-vues3d">
-          <button type="button" data-vue="front">${esc(T('Front'))}</button><button type="button" data-vue="right">${esc(T('Right'))}</button><button type="button" data-vue="back">${esc(T('Back'))}</button><button type="button" data-vue="left">${esc(T('Left'))}</button><button type="button" data-vue="top">${esc(T('Top'))}</button><button type="button" data-vue="bottom">${esc(T('Bottom'))}</button><button type="button" data-vue="iso">Iso</button>
+          <button type="button" data-vue="iso">${esc(T('Iso'))}</button><button type="button" data-vue="front">${esc(T('Front'))}</button><button type="button" data-vue="back">${esc(T('Back'))}</button><button type="button" data-vue="left">${esc(T('Left'))}</button><button type="button" data-vue="right">${esc(T('Right'))}</button><button type="button" data-vue="top">${esc(T('Top'))}</button><button type="button" data-vue="bottom">${esc(T('Bottom'))}</button>
         </div>
         <div class="fen-apercu-etat" id="pp-etat">${esc(T('Loading…'))}</div></div>
       <div class="fen-form pp-form">
@@ -114,7 +114,7 @@ function construireFenetre() {
           <span class="fen-note" style="color:#ff5fd8;">&#9632; ${esc(T('Magenta zones would be removed'))}</span>
           <button type="button" class="ghost-btn fen-petit" id="pp-dist-ok">${esc(T('Remove zones farther than this'))}</button>
         </details>
-        <span class="fen-note">${esc(T('Left drag = paint · right drag = rotate · middle drag or Shift + right drag = move · wheel = zoom'))}</span>
+        <span class="fen-note">${esc(T('Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom'))}</span>
       </div>
     </div>
     <div class="modal-actions">

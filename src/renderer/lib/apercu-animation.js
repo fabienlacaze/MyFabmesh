@@ -36,7 +36,7 @@ export function creerApercu(canvas) {
     controles.zoomToCursor = true;
     centrerRotation(controles, canvas);   // rotation autour du centre du modele (25/10)
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    canvas.style.cursor = 'grab';
+    canvas.style.cursor = 'default';   // 25/10 : curseur par defaut (le clic gauche n'a pas d'action de camera)
     boucle();
   }
   function boucle() {
@@ -166,5 +166,6 @@ export function creerApercu(canvas) {
     if (nbP === null) { try { nbP = pattesDuSquelette(tampon); } catch (_) { nbP = 4; } }
     return nbP;
   }
-  return { chargerRig, jouer, arreter, detruire, modeSquelette, nbPattes, pret: () => !!modele, cleChargee: () => cle };
+  // 25/10 : camera et commandes exposees a la barre commune des visualiseurs (lib/barre-vues-3d.js) ; rien d'autre ne change.
+  return { chargerRig, jouer, arreter, detruire, modeSquelette, nbPattes, pret: () => !!modele, cleChargee: () => cle, vue3d: () => (camera && controles ? { camera, controls: controles, scene, model: modele } : null) };
 }

@@ -18,6 +18,7 @@ import { centrerRotation } from './lib/centre-rotation.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
+import { creerBarreVues3D } from './lib/barre-vues-3d.js';   // barre commune des visualiseurs des fenetres d'outils (25/10)
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
   positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
@@ -5287,7 +5288,7 @@ function _showStagesBar(dir, stages) {
     btn.dataset.stage = String(s.index);
     btn.dataset.path = s.path;
     const pct = Math.round((s.progress != null ? s.progress : (s.index / last)) * 100);
-    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    const lbl = s.index === last ? _stageKindLabels(stages).last : (s.index === 0 ? _stageKindLabels(stages).first : pct + '%');
     // Labelled button like the multi-view bar (number + phase), not a tiny digit.
     btn.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${lbl}</span>`;
     btn.title = s.index === last
@@ -5604,6 +5605,7 @@ function openResizeTool() {
   _sourisVisualiseur(controls, renderer.domElement);
   controls.enableDamping = true;
   Object.assign(rzState, { renderer, scene, camera, controls });
+  creerBarreVues3D(vp, rzState, { zoom: false });   // barre discrete : vues + reset (25/10)
 
   const resize = () => {
     const w = vp.clientWidth || 640, h = vp.clientHeight || 420;
@@ -7446,7 +7448,7 @@ function _renderLbStagesBar(stages) {
     btn.dataset.path = s.path;
     btn.dataset.stage = String(s.index);
     const pct = Math.round((s.progress != null ? s.progress : (s.index / last)) * 100);
-    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    const lbl = s.index === last ? _stageKindLabels(stages).last : (s.index === 0 ? _stageKindLabels(stages).first : pct + '%');
     btn.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${lbl}</span>`;
     bar.appendChild(btn);
   }
@@ -7515,8 +7517,71 @@ document.getElementById('lightbox-2-use-3d')?.addEventListener('click', async (e
   // assigns selectedImagePath, marks the thumb, scrolls + collapses + opens Create new
   document.getElementById('ws-use-for-3d-btn')?.click();
 });
+// Visionneuse 2D (harmonisation 25/10) : molette = zoom (x1.15, de 0.2 a 10), clic droit maintenu = deplacer,
+// comme dans les visualiseurs 3D. Remise a zero a chaque nouvelle image et a la fermeture.
+const _lbView = { z: 1, x: 0, y: 0, pan: false, ox: 0, oy: 0, dist: 0, bloque: false };
+function _lbApplyView() {
+  const im = document.getElementById('lightbox-2-img');
+  if (!im) return;
+  im.style.transform = (_lbView.z === 1 && !_lbView.x && !_lbView.y) ? '' : 'translate(' + _lbView.x + 'px, ' + _lbView.y + 'px) scale(' + _lbView.z + ')';
+}
+function _lbResetView() { _lbView.z = 1; _lbView.x = 0; _lbView.y = 0; _lbApplyView(); }
+function _lbZoomAt(f, cx, cy) {
+  const im = document.getElementById('lightbox-2-img');
+  if (!im) return;
+  const z2 = Math.max(0.2, Math.min(10, _lbView.z * f));
+  const g = z2 / _lbView.z;
+  if (g === 1) return;
+  const r = im.getBoundingClientRect();
+  const mx = r.left + r.width / 2, my = r.top + r.height / 2;   // le zoom se fait autour du centre : on rattrape l'ecart au curseur
+  _lbView.x += (cx - mx) * (1 - g);
+  _lbView.y += (cy - my) * (1 - g);
+  _lbView.z = z2;
+  _lbApplyView();
+}
+(function _lbWireZoom() {
+  const lb = document.getElementById('lightbox-2');
+  const im = document.getElementById('lightbox-2-img');
+  if (!lb || !im) return;
+  const OUTILS = '.lb-toolbox, #lightbox-2-bottom, .lightbox-nav, #lb-multiview-bar, #lb-stages-bar, #lightbox-2-close, #lightbox-2-info';
+  lb.addEventListener('wheel', (e) => {
+    if (e.target.closest && e.target.closest(OUTILS)) return;
+    e.preventDefault();
+    _lbZoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
+  }, { passive: false });
+  lb.addEventListener('contextmenu', (e) => { if (!(e.target.closest && e.target.closest(OUTILS))) e.preventDefault(); });
+  lb.addEventListener('mousedown', (e) => {
+    if (e.button !== 2 || (e.target.closest && e.target.closest(OUTILS))) return;
+    _lbView.pan = true; _lbView.dist = 0; _lbView.bloque = false;
+    _lbView.ox = e.clientX; _lbView.oy = e.clientY;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!_lbView.pan) return;
+    const dx = e.clientX - _lbView.ox, dy = e.clientY - _lbView.oy;
+    _lbView.ox = e.clientX; _lbView.oy = e.clientY;
+    _lbView.dist += Math.abs(dx) + Math.abs(dy);
+    _lbView.x += dx; _lbView.y += dy;
+    _lbApplyView();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_lbView.pan) return;
+    _lbView.pan = false;
+    if (_lbView.dist > 4) _lbView.bloque = true;   // le clic qui suit un deplacement ne ferme pas la visionneuse
+  });
+  im.addEventListener('load', _lbResetView);
+  document.getElementById('lightbox-2-fit')?.addEventListener('click', (e) => { e.stopPropagation(); _lbResetView(); });
+  document.getElementById('lightbox-2-actual')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!im.naturalWidth || !im.clientWidth) return;
+    _lbView.x = 0; _lbView.y = 0;
+    _lbView.z = Math.max(0.2, Math.min(10, im.naturalWidth / im.clientWidth));   // 1 pixel de l'image = 1 pixel de l'ecran
+    _lbApplyView();
+  });
+})();
 document.getElementById('lightbox-2').addEventListener('click', (e) => {
   // Close when clicking the background (not the image / nav / bottom bar)
+  if (_lbView.bloque) { _lbView.bloque = false; return; }
   if (e.target.id === 'lightbox-2' || e.target.id === 'lightbox-2-close') closeLightbox();
 });
 document.addEventListener('keydown', (e) => {
@@ -9493,8 +9558,9 @@ function _symApplyView() {
     symState.zoom = Math.max(0.2, Math.min(10, symState.zoom * factor));
     _symApplyView();
   }, { passive: false });
+  container.addEventListener('contextmenu', (e) => e.preventDefault());
   container.addEventListener('mousedown', (e) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) {   // clic droit maintenu = deplacer (25/10)
       symState.panning = true;
       symState.panStart = { x: e.clientX - symState.panX, y: e.clientY - symState.panY };
       container.style.cursor = 'grabbing';
@@ -9706,6 +9772,7 @@ if (_symOverlay) {
   }
 
   _symOverlay.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.altKey) return;   // les autres boutons deplacent la vue
     const p = _symCanvasCoords(e);
     const axPx = symState.axisX * symState.w;
     if (e.shiftKey) {
@@ -10113,6 +10180,7 @@ document.getElementById('ws-crop-btn')?.addEventListener('click', () => {
     // Reset preset buttons
     document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
     document.getElementById('crop-preset-free')?.classList.add('tool-active');
+    cropState.hist = []; cropState.redo = []; _cropBtns();
   };
   img.src = 'file:///' + cropState.imgPath.replace(/\\/g, '/') + '?t=' + Date.now();
 });
@@ -10172,6 +10240,8 @@ function _cropUpdateLabel() {
     return { x: (e.clientX - rect.left) * sx / cropState.w, y: (e.clientY - rect.top) * sx / cropState.h };
   }
   ov.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    _cropPush();
     const p = _coords(e);
     cropState.x1 = p.x; cropState.y1 = p.y;
     cropState.x2 = p.x; cropState.y2 = p.y;
@@ -10202,8 +10272,84 @@ function _cropUpdateLabel() {
   });
 })();
 
+// Historique du cadre (annuler / refaire, 20 niveaux), recentrage et loupe (harmonisation des editeurs 2D, 25/10)
+cropState.hist = []; cropState.redo = []; cropState.loupe = true;
+function _cropSnap() { return { x1: cropState.x1, y1: cropState.y1, x2: cropState.x2, y2: cropState.y2, aspect: cropState.aspect }; }
+function _cropBtns() {
+  const u = document.getElementById('crop-undo'), r = document.getElementById('crop-redo');
+  if (u) u.disabled = cropState.hist.length === 0;
+  if (r) r.disabled = cropState.redo.length === 0;
+}
+function _cropPush() {
+  cropState.hist.push(_cropSnap());
+  if (cropState.hist.length > 20) cropState.hist.shift();
+  cropState.redo = [];
+  _cropBtns();
+}
+function _cropRestore(s) {
+  Object.assign(cropState, s);
+  document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
+  const marque = [[null, 'crop-preset-free'], [1, 'crop-preset-1-1'], [4 / 3, 'crop-preset-4-3'], [16 / 9, 'crop-preset-16-9']]
+    .find(([r]) => (r === null ? !s.aspect : (s.aspect && Math.abs(r - s.aspect) < 0.01)));
+  if (marque) document.getElementById(marque[1])?.classList.add('tool-active');
+  _cropDrawOverlay(); _cropUpdateLabel(); _cropBtns();
+}
+document.getElementById('crop-undo')?.addEventListener('click', () => {
+  if (!cropState.hist.length) return;
+  cropState.redo.push(_cropSnap());
+  _cropRestore(cropState.hist.pop());
+});
+document.getElementById('crop-redo')?.addEventListener('click', () => {
+  if (!cropState.redo.length) return;
+  cropState.hist.push(_cropSnap());
+  _cropRestore(cropState.redo.pop());
+});
+// Recentrer = recadrer toute l'image (le cadre n'a pas de zoom)
+document.getElementById('crop-recenter')?.addEventListener('click', () => {
+  if (!cropState.w) return;
+  _cropPush();
+  cropState.x1 = 0; cropState.y1 = 0; cropState.x2 = 1; cropState.y2 = 1; cropState.aspect = null;
+  document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
+  document.getElementById('crop-preset-free')?.classList.add('tool-active');
+  _cropDrawOverlay(); _cropUpdateLabel();
+});
+document.getElementById('crop-loupe-toggle')?.addEventListener('click', () => {
+  cropState.loupe = !cropState.loupe;
+  document.getElementById('crop-loupe-toggle')?.classList.toggle('tool-active', cropState.loupe);
+  if (!cropState.loupe) { const l = document.getElementById('clone-loupe'); if (l) l.style.display = 'none'; }
+});
+document.getElementById('crop-loupe-toggle')?.classList.add('tool-active');
+(() => {
+  const ov = document.getElementById('crop-overlay');
+  if (!ov) return;
+  ov.addEventListener('mousemove', (e) => {
+    const el = document.getElementById('clone-loupe');
+    const lc = document.getElementById('clone-loupe-canvas');
+    const cv = document.getElementById('crop-canvas');
+    if (!el || !lc || !cv || !cropState.loupe || !cropState.w) { if (el) el.style.display = 'none'; return; }
+    const rect = cv.getBoundingClientRect();
+    const sx = cropState.w / rect.width;
+    const cx = Math.round((e.clientX - rect.left) * sx), cy = Math.round((e.clientY - rect.top) * sx);
+    const src = 20;
+    const lctx = lc.getContext('2d');
+    lctx.clearRect(0, 0, 120, 120);
+    lctx.save(); lctx.beginPath(); lctx.arc(60, 60, 58, 0, Math.PI * 2); lctx.clip();
+    lctx.drawImage(cv, cx - src, cy - src, src * 2, src * 2, 0, 0, 120, 120);
+    lctx.strokeStyle = 'rgba(255,255,255,0.6)'; lctx.lineWidth = 1;
+    lctx.beginPath(); lctx.moveTo(60, 50); lctx.lineTo(60, 70); lctx.moveTo(50, 60); lctx.lineTo(70, 60); lctx.stroke();
+    lctx.restore();
+    const cr = document.getElementById('crop-canvas-container').getBoundingClientRect();
+    let lx = e.clientX + 20, ly = e.clientY - 140;
+    if (lx + 120 > cr.right) lx = e.clientX - 140;
+    if (ly < cr.top) ly = e.clientY + 20;
+    el.style.left = lx + 'px'; el.style.top = ly + 'px'; el.style.display = 'block';
+  });
+  ov.addEventListener('mouseleave', () => { const l = document.getElementById('clone-loupe'); if (l) l.style.display = 'none'; });
+})();
+
 // Presets
 function _cropSetPreset(aspect, id) {
+  _cropPush();
   /* AUTO CENTER (2026-10-02, rapport d'essais du 01/10 : « Auto center remplace le ratio choisi par un carre (819 x 819) : le 16:9 est perdu »).
    * Avant : le cadre repartait a 80 % de l'image ET le ratio verrouille etait efface. Maintenant « Auto center » ne fait que RECENTRER : le ratio
    * choisi (1:1, 4:3, 16:9) est conserve ; en mode libre, la taille du cadre est conservee (80 % de l'image si aucun cadre n'a encore ete trace). */
@@ -10545,6 +10691,7 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
       resetBtn: document.getElementById('blur-reset'),
       loupeBtn: document.getElementById('blur-loupe-toggle'),
       brushCursor: document.getElementById('blur-brush-cursor'),
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (aucune autre fonction ici)
       brushSizeGetter: () => blurState.brushSize,
       onPaint: (ctx, x, y, _lastPt, mgr) => {
         const r = blurState.brushSize / 2;
@@ -10607,6 +10754,8 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
   // Load AFTER modal is visible so container has real dimensions
   await _blurMgr.loadImage('file:///' + tgt.replace(/\\/g, '/') + '?t=' + Date.now());
 });
+
+document.getElementById('blur-fit')?.addEventListener('click', () => { if (_blurMgr && _blurMgr.recenter) _blurMgr.recenter(); });
 
 // Mode toggle
 document.getElementById('blur-mode-blur')?.addEventListener('click', () => {
@@ -11118,6 +11267,7 @@ document.getElementById('ws-paint-btn')?.addEventListener('click', () => {
       resetBtn: document.getElementById('paint-reset'),
       loupeBtn: document.getElementById('paint-loupe-toggle'),
       brushCursor: document.getElementById('paint-brush-cursor'),
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (la pipette et les outils sont au clic gauche)
       brushSizeGetter: () => paintState.brushSize,
       onMouseDown: (ctx, x, y, e, mgr) => {
         if (paintState.eyedropping) {
@@ -12372,6 +12522,7 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
           const ctl = new OrbitControls(cam, canvas);
           _sourisVisualiseur(ctl, canvas);
  ctl.enableDamping = true;
+          creerBarreVues3D(canvas.parentElement, { camera: cam, controls: ctl, scene });   // barre commune (25/10)
           new GLTFLoader().load(url, (g) => {
             const root = g.scene; scene.add(root);
             // Disable frustum culling + grab bbox from skeleton bones
@@ -14139,6 +14290,7 @@ async function _mtInitViewport() {
   mtState.scene.add(dir);
   mtState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   mtState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(container, mtState);   // barre commune : Reset camera, vues, zoom (25/10)
   const tick = () => {
     if (!document.getElementById('modal-mesh-tool')?.classList.contains('hidden')) {
       mtState.controls?.update();
@@ -15186,6 +15338,7 @@ async function _peInitViewport() {
   peState.scene.add(fill);
   peState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   peState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(wrap, peState);   // barre commune : Reset camera, vues, zoom (25/10)
   peState.raycaster = new THREE.Raycaster();
   peState.pointer = new THREE.Vector2();
   const tick = () => {
@@ -16438,6 +16591,7 @@ async function _pmInitViewport() {
   fill.position.set(-5, 3, -5); pmState.scene.add(fill);
   pmState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   pmState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(wrap, pmState);   // barre commune : Reset camera, vues, zoom (25/10)
   pmState.raycaster = new THREE.Raycaster();
   pmState.pointer = new THREE.Vector2();
   const tick = () => {
@@ -17019,7 +17173,7 @@ function openPaintMesh(opts = {}) {
       if (subtitle) subtitle.textContent = 'Strokes go on the emissive map (T_emissive). Toggle off to paint the diffuse instead.';
     } else {
       if (title)    title.textContent = '🎨 Paint Mesh';
-      if (subtitle) subtitle.textContent = "Paint directly on the mesh's diffuse texture. Left-click + drag to paint, right-click to orbit.";
+      if (subtitle) subtitle.textContent = "Paint directly on the mesh's diffuse texture. Left-drag: paint · Right-drag: pan · Middle-drag: rotate.";
     }
     tBtn?.classList.toggle('tool-active', pmState.emissiveMode);
     if (tBtn) {
@@ -17245,6 +17399,7 @@ async function openMaterialAdjust() {
     _matViewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     _matViewer.renderer.toneMappingExposure = 1.0;
     _matViewer.startTickLoop();
+    creerBarreVues3D(canvas.parentElement, _matViewer, { cible: () => _matModel });   // barre commune (25/10)
   }
   // Wait one frame so the canvas has a layout size, then resize.
   await new Promise(r => requestAnimationFrame(r));
@@ -17720,6 +17875,7 @@ async function _meInitViewport() {
 
   // Grid
   meState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(container, meState);   // barre commune : Reset camera, vues, zoom (25/10)
 
   // Render loop
   function tick() {
@@ -20607,6 +20763,7 @@ async function _majApercuAnim() {
   if (!rig) { montrer(_i18nT('Choose a rig in step 3 to see the preview.')); return; }
   try {
     if (!_apercuAnim) _apercuAnim = creerApercu(canvas);
+    creerBarreVues3D(canvas.parentElement, () => _apercuAnim?.vue3d?.() || null);   // barre commune (25/10)
     if (!_apercuAnim.pret() || _apercuAnim.cleChargee() !== rig.cle) montrer(_i18nT('Loading preview…'));
     const ok = await _apercuAnim.chargerRig(rig.cle, rig.lire);
     if (!ok) { montrer(_i18nT('Preview unavailable.')); return; }
@@ -30317,7 +30474,7 @@ function _ptsModeAjout(actif) {
   if (consigne) {
     consigne.textContent = _i18nT(_pts.ajout
       ? 'Click the mesh where the new point goes (Esc to cancel).'
-      : 'Drag any point. Right-drag pans, wheel zooms.');
+      : 'Drag any point. Right-drag pans, middle-drag rotates, wheel zooms.');
   }
 }
 

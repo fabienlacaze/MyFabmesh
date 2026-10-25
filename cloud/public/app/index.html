@@ -907,7 +907,7 @@
                       <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
                       <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
                         <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
-                        <span title="Explode parts (segmented / fractured mesh)">&#128165;</span>
+                        <span title="Explode parts (segmented mesh)">&#128165;</span>
                         <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:90px;" />
                       </span>
                     </div>
@@ -1087,7 +1087,7 @@
                       <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
                       <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
                         <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
-                        <span title="Explode parts (segmented / fractured mesh)">&#128165;</span>
+                        <span title="Explode parts (segmented mesh)">&#128165;</span>
                         <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:90px;" />
                       </span>
                     </div>
@@ -1432,30 +1432,30 @@
         <div class="lm-fs-subviewer" data-pane="a">
           <canvas id="lm-fs-canvas" data-pane="a"></canvas>
           <div class="lm-fs-view-toolbar" data-pane="a">
+            <button data-view="iso"    title="Isometric">Iso</button>
             <button data-view="front"  title="Front view">Front</button>
             <button data-view="back"   title="Back view">Back</button>
             <button data-view="left"   title="Left side">Left</button>
             <button data-view="right"  title="Right side">Right</button>
             <button data-view="top"    title="Top view">Top</button>
             <button data-view="bottom" title="Bottom view">Bottom</button>
-            <button data-view="iso"    title="Isometric">Iso</button>
           </div>
           <div class="lm-fs-pane-label" id="lm-fs-pane-label-a">FRONT</div>
         </div>
         <div class="lm-fs-subviewer" data-pane="b">
           <canvas id="lm-fs-canvas-b" data-pane="b"></canvas>
           <div class="lm-fs-view-toolbar" data-pane="b">
+            <button data-view="iso"    title="Isometric">Iso</button>
             <button data-view="front"  title="Front view">Front</button>
             <button data-view="back"   title="Back view">Back</button>
             <button data-view="left"   title="Left side">Left</button>
             <button data-view="right"  title="Right side">Right</button>
             <button data-view="top"    title="Top view">Top</button>
             <button data-view="bottom" title="Bottom view">Bottom</button>
-            <button data-view="iso"    title="Isometric">Iso</button>
           </div>
           <div class="lm-fs-pane-label" id="lm-fs-pane-label-b">RIGHT</div>
         </div>
-        <div id="lm-fs-instruction">Drag any point. Right-drag pans, wheel zooms.</div>
+        <div id="lm-fs-instruction">Drag any point. Right-drag pans, middle-drag rotates, wheel zooms.</div>
         <!-- Options de placement du point selectionne (ajout ET glisser). -->
         <div id="pts-ajout-options" class="pts-ajout-options pts-options-bulle" hidden>
               <label title="On: a point you add or drag lands on the mesh under the cursor. Off: it goes where you point, even outside the mesh."><input type="checkbox" id="pts-ajout-coller" checked /> Stick to the mesh</label>
@@ -1504,6 +1504,10 @@
       <div id="lightbox-3d-info" class="viewer-info-overlay"></div>
       <div id="lb3d-stages-bar" class="stages-bar hidden"></div>
       <canvas id="lightbox-3d-canvas"></canvas>
+      <div id="lb3d-loading" class="hidden" style="position:absolute; inset:0; display:flex; flex-direction:column; gap:14px; align-items:center; justify-content:center; pointer-events:none; z-index:9505;">
+        <div style="width:48px; height:48px; border:4px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+        <div style="color:#fff; font-size:13px; text-shadow:0 1px 4px rgba(0,0,0,0.7);">Loading mesh&hellip;</div>
+      </div>
       <div id="lb3d-toolbox" class="lb-toolbox">
         <div class="lb-toolbox-group-label">GEOMETRY</div>
         <button class="lb-tool-btn" data-lb3d-tool="smooth" title="Smooth">&#10024;&nbsp;Smooth</button>
@@ -1562,7 +1566,13 @@
           <option value="gray">Gray</option>
         </select>
         <button data-act="shadows" title="Toggle shadows">Shadows</button>
-        <input type="range" data-act="light" min="0" max="200" value="100" title="Light intensity" />
+        <span class="light-label" title="Light intensity">&#9728;</span>
+        <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
+        <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
+          <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
+          <span title="Explode parts (segmented mesh)">&#128165;</span>
+          <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:110px;" />
+        </span>
       </div>
     </div>
 
@@ -1614,7 +1624,12 @@
         <button data-view="top" class="mv-btn" title="Top (elev=90)"><svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="1" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 13 L9 5 M6 8 L9 5 L12 8" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>TOP</span></button>
         <button data-view="bottom" class="mv-btn" title="Bottom (elev=-90)"><svg width="18" height="18" viewBox="0 0 18 18"><rect x="1" y="1" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 5 L9 13 M6 10 L9 13 L12 10" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>BOTTOM</span></button>
       </div>
+      <div id="lb-stages-bar" class="stages-bar hidden" style="bottom:60px;"></div>
       <div id="lightbox-2-bottom">
+        <div id="lightbox-2-zoombar" class="lb-zoombar">
+          <button id="lightbox-2-fit" class="mv-btn" title="Fit to view"><span>&#9678;</span><span>Fit</span></button>
+          <button id="lightbox-2-actual" class="mv-btn" title="Actual size (100%)"><span>1:1</span><span>100%</span></button>
+        </div>
         <div id="lightbox-2-filename"></div>
         <button id="lightbox-2-use-3d" class="primary-btn">Use this image for 3D &rarr;</button>
       </div>
@@ -1920,7 +1935,7 @@
           <!-- apercu 3D a GAUCHE, reglages a DROITE (gabarit commun des fenetres d'outils) -->
           <div id="mt-viewport" class="fen-apercu">
             <canvas id="mt-canvas" style="width:100%; height:100%; display:block;"></canvas>
-            <div id="mt-preview-status" class="fen-apercu-etat">Drag to rotate · wheel to zoom</div>
+            <div id="mt-preview-status" class="fen-apercu-etat">Right-drag to pan · middle-drag to rotate · wheel to zoom</div>
           </div>
           <div id="mt-body" class="fen-form"></div>
         </div>
@@ -1944,7 +1959,7 @@
           <!-- apercu 3D a GAUCHE, reglages a DROITE (gabarit commun des fenetres d'outils) -->
           <div class="fen-apercu">
             <canvas id="mat-canvas" style="width:100%; height:100%; display:block;"></canvas>
-            <div id="mat-preview-status" class="fen-apercu-etat">Drag to rotate · wheel to zoom</div>
+            <div id="mat-preview-status" class="fen-apercu-etat">Right-drag to pan · middle-drag to rotate · wheel to zoom</div>
           </div>
           <div class="fen-form">
             <div class="fen-champ">
@@ -1996,18 +2011,18 @@
         <div style="display:flex; gap:12px;">
           <!-- Left: large viewer -->
           <div style="flex:1; min-width:0;">
-            <div id="at-preview-canvas-wrap" style="width:100%; height:560px; background:#1b1b1b; border-radius:6px; position:relative;">
+            <div id="at-preview-canvas-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#1b1b1b; border-radius:6px; position:relative;">
               <canvas id="at-preview-canvas" style="width:100%; height:100%; display:block;"></canvas>
               <div id="at-preview-status" style="position:absolute; top:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc; display:none;"></div>
               <!-- View buttons row, bottom of viewer -->
               <div id="at-view-buttons" style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:4px; background:rgba(0,0,0,0.7); padding:4px 6px; border-radius:6px;">
+                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Iso</button>
                 <button data-view="front" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Front</button>
-                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Right</button>
                 <button data-view="back"  class="ghost-btn" style="padding:3px 10px; font-size:11px;">Back</button>
                 <button data-view="left"  class="ghost-btn" style="padding:3px 10px; font-size:11px;">Left</button>
+                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Right</button>
                 <button data-view="top"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Top</button>
                 <button data-view="bottom" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Bottom</button>
-                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Iso</button>
               </div>
             </div>
           </div>
@@ -2081,7 +2096,7 @@
             <button id="pm-close-x" class="settings-close-x" title="Close">&#10005;</button>
           </div>
         </div>
-        <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag to paint, right-drag to orbit.</p>
+        <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag: paint · Right-drag: pan · Middle-drag: rotate.</p>
         <div style="display:flex; flex:1 1 0; gap:12px; min-height:560px;">
           <!-- Left: brush tools (Paint Tools-style sidebar) -->
           <div style="display:flex; flex-direction:column; gap:10px; width:140px; flex-shrink:0; padding:8px 0;">
@@ -2137,7 +2152,7 @@
             </div>
           </div>
           <!-- Right: 3D viewer -->
-          <div id="pm-viewport-wrap" style="flex:1 1 0; position:relative; background:#0b0b14; border-radius:6px; overflow:hidden; min-height:560px;">
+          <div id="pm-viewport-wrap" style="flex:1 1 0; position:relative; background:#0b0b14; border-radius:6px; overflow:hidden; min-height:var(--vz-h-corps);">
             <canvas id="pm-canvas" style="width:100%; height:100%; display:block; cursor:crosshair;"></canvas>
             <div id="pm-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Loading mesh…</div>
           </div>
@@ -2166,7 +2181,7 @@
           <div class="fen-apercu rrx-apercu">
             <!-- ETAPE 1 de « Reshape a region » (2026-10-19) : visualiseur 3D pour tourner le modele jusqu'a la zone voulue -->
             <div id="rrx-3d-stage" style="display:none; position:relative; width:min(100%, calc(min(88vh, 920px) - 210px)); aspect-ratio:1; background:#1b1b1b; border-radius:4px; overflow:hidden;">
-              <canvas id="rrx-3d-canvas" style="position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:none;"></canvas>
+              <canvas id="rrx-3d-canvas" style="position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;"></canvas>
               <div id="rrx-3d-loading" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.62); color:#ddd; font-size:13px;"></div>
             </div>
             <div id="rrx-stage" style="position:relative; width:min(100%, calc(min(88vh, 920px) - 210px)); aspect-ratio:1; background:#111; border-radius:4px; overflow:hidden;">
@@ -2178,6 +2193,8 @@
           <div id="rrx-3d-panel" class="fen-form modal-form-side rrx-form" style="display:none">
             <div id="rrx-3d-aide">Turn the model until you see the part to rebuild, then press Use this view.</div>
             <div id="rrx-3d-presets" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;">
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="0" title="Reset camera">&#10227;</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="45" data-rrx-pitch="30">Iso</button>
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="0">Front</button>
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="180" data-rrx-pitch="0">Back</button>
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="-90" data-rrx-pitch="0">Left</button>
@@ -2186,7 +2203,7 @@
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="-89.9">Bottom</button>
             </div>
             <div id="rrx-3d-info" class="fen-facultatif" style="font-size:12px;"></div>
-            <div class="fen-facultatif" style="font-size:12px; margin-top:10px;">Drag to turn the model, scroll to zoom. Zoom is only for looking: the next step shows the whole model from this angle.</div>
+            <div class="fen-facultatif" style="font-size:12px; margin-top:10px;">Middle-drag: rotate · right-drag: pan · wheel: zoom. Zoom is only for looking: the next step shows the whole model from this angle.</div>
           </div>
           <div id="rrx-form" class="fen-form modal-form-side rrx-form">
             <div id="rrx-vue-nom" class="fen-facultatif" style="display:none; font-size:12px; margin-bottom:8px;"></div>
@@ -2222,9 +2239,9 @@
         <div style="display:flex; gap:12px;">
           <!-- Left: 3D viewer where the user paints -->
           <div style="flex:1; min-width:0;">
-            <div id="pe-viewport-wrap" style="width:100%; height:560px; background:#0b0b14; border-radius:6px; position:relative;">
+            <div id="pe-viewport-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:6px; position:relative;">
               <canvas id="pe-canvas" style="width:100%; height:100%; display:block; cursor: crosshair;"></canvas>
-              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Orbit with right-click.</div>
+              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.</div>
             </div>
           </div>
           <!-- Right: brush controls -->
@@ -2240,7 +2257,7 @@
               <div class="prompt-lang-hint" data-pour="pe-mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
               <label style="display:flex; justify-content:space-between; font-size:11px;">Strength <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
               <input type="range" id="pe-mask-strength" min="0.3" max="1" step="0.05" value="0.8" style="width:100%;" />
-              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Orbit with right-click, zoom with the wheel.</div>
+              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Right-drag pans, middle-drag rotates, wheel zooms.</div>
             </div>
             <!-- 3D clone-stamp mode — shown only when opened from "3D clone stamp". -->
             <div id="pe-clone-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#0f1e2e; border:1px solid #2a7fb8; border-radius:6px;">
@@ -3067,10 +3084,10 @@
         <div class="fen-tete"><h2>&#128207; Resize / dimension</h2><button type="button" class="settings-close-x" id="rz-close" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Drag the gizmo or type sizes and angles. Apply creates a new version.</p>
         <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
-          <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:56vh; background:#0b0b14; border-radius:10px; overflow:hidden;">
+          <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:10px; overflow:hidden;">
             <canvas id="rz-canvas" style="width:100%; height:100%; display:block;"></canvas>
             <div id="rz-readout" style="position:absolute; top:10px; left:12px; font-size:12px; line-height:1.5; color:#dfe6ff; background:rgba(0,0,0,0.55); padding:8px 10px; border-radius:8px; pointer-events:none; font-family:monospace;">…</div>
-            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:11px; color:#8a93b2; pointer-events:none;">Drag gizmo · orbit with right-drag · wheel to zoom</div>
+            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:11px; color:#8a93b2; pointer-events:none;">Drag gizmo · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
           </div>
           <div style="flex:0 0 240px; display:flex; flex-direction:column; gap:12px;">
             <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-1);">
@@ -3197,7 +3214,7 @@
     </div>
     <div id="variant-modal" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
-        <div class="fen-tete"><h2>✨ Create variant</h2><button id="var-close-x" class="settings-close-x">&#10005;</button></div>
+        <div class="fen-tete"><h2>Variant</h2><button id="var-close-x" class="settings-close-x">&#10005;</button></div>
         <div class="modal-with-image">
           <div class="modal-image-side">
             <img id="var-source-img" alt="" />
@@ -3230,29 +3247,26 @@
          DRAW MASK MODAL (ported from legacy)
          ============================================================ -->
     <div id="mask-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
-        <div class="fen-tete"><h2>Draw Mask (paint to remove)</h2><button id="mask-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 11px; color: var(--text-muted);">
-          <strong>Click & drag</strong> to paint &nbsp;|&nbsp;
-          <strong>E</strong> / eraser button to erase &nbsp;|&nbsp;
-          <strong>B</strong> for brush &nbsp;|&nbsp;
-          <strong>Right-click drag</strong> also erases &nbsp;|&nbsp;
-          <strong>Z</strong> to undo
-        </div>
+      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
+        <div class="fen-tete"><h2>Draw Mask (paint the area to replace or remove)</h2><button id="mask-modal-close" class="settings-close-x">&#10005;</button></div>
+        <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Left: paint - Right: erase - Wheel: zoom - Middle/Alt: pan</div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:11px; white-space:nowrap;">Brush:</span>
+            <span style="font-size:13px; white-space:nowrap;">Brush:</span>
             <input type="range" id="mask-brush-size" min="5" max="200" value="50" style="flex:1; min-width:60px;" />
-            <span id="mask-brush-val" style="min-width:24px; font-size:11px;">50</span>
+            <span id="mask-brush-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <div style="display:flex; gap:4px; flex-shrink:0;">
-            <button id="mask-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
             <button id="mask-brush-mode" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint mode (B)">&#128396;&#65039;</button>
             <button id="mask-eraser-mode" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Eraser mode (E) — radius follows brush size">&#129529;</button>
-            <button id="mask-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
-            <button id="mask-undo" class="secondary-btn tool-btn" disabled title="Undo (Z)">&#8630;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="mask-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+            <button id="mask-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="mask-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
             <button id="mask-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <button id="mask-clear" class="secondary-btn tool-btn" title="Clear whole mask">&#8634;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="mask-clear" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
           </div>
         </div>
         <div id="mask-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px;">
@@ -3263,7 +3277,7 @@
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <label for="mask-prompt" style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
+          <label for="mask-prompt" style="font-size: 14px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
           <input type="text" id="mask-prompt" placeholder="Describe what to put in the masked area — leave empty to just remove it" style="flex: 1; padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;" />
         </div>
         <div class="prompt-lang-hint" data-pour="mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
@@ -3278,32 +3292,31 @@
          CLONE STAMP MODAL (ported from legacy)
          ============================================================ -->
     <div id="clone-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
+      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
         <div class="fen-tete"><h2>Clone Stamp</h2><button id="clone-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 11px; color: var(--text-muted);">
-          <strong>Ctrl+Click</strong> to set source point &nbsp;|&nbsp;
-          <strong>Click & drag</strong> to clone &nbsp;|&nbsp;
-          <strong>Z</strong> to undo
-        </div>
+        <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Ctrl+click: source - Left: clone - Right-drag: pan - Wheel: zoom</div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:11px; white-space:nowrap;">Brush:</span>
+            <span style="font-size:13px; white-space:nowrap;">Brush:</span>
             <input type="range" id="clone-brush-size" min="5" max="200" value="50" style="flex:1; min-width:60px;" />
-            <span id="clone-brush-val" style="min-width:24px; font-size:11px;">50</span>
+            <span id="clone-brush-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:11px; white-space:nowrap;">Hard:</span>
+            <span style="font-size:13px; white-space:nowrap;">Hard:</span>
             <input type="range" id="clone-hardness" min="0" max="100" value="50" style="flex:1; min-width:60px;" />
-            <span id="clone-hardness-val" style="min-width:24px; font-size:11px;">50</span>
+            <span id="clone-hardness-val" style="min-width:24px; font-size:13px;">50</span>
           </label>
           <div style="display:flex; gap:4px; flex-shrink:0;">
-            <button id="clone-flip-toggle" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px;" title="Flip mode">Flip: Off</button>
-            <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px;" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
+            <button id="clone-flip-toggle" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px;" title="Flip mode">Flip: Off</button>
+            <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px;" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
+            <span class="vz-sep" aria-hidden="true"></span>
             <button id="clone-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-            <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
-            <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo (Z)">&#8630;</button>
+            <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
             <button id="clone-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <button id="clone-reset" class="secondary-btn tool-btn" title="Clear all paint">&#129529;&nbsp;Clear</button>
+            <span class="vz-sep" aria-hidden="true"></span>
+            <button id="clone-reset" class="secondary-btn tool-btn" title="Reset">&#8634;&nbsp;Clear</button>
           </div>
         </div>
         <div id="clone-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%;">
@@ -3316,43 +3329,46 @@
           </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span id="clone-status" style="font-size:11px; color:var(--text-muted);">No source point set</span>
+          <span id="clone-status" style="font-size:13px; color:var(--text-muted);">No source point set</span>
           <div class="modal-actions fen-pied-editeur">
             <button id="clone-cancel" class="ghost-btn">Cancel</button>
             <button id="clone-save" class="primary-btn">Save as new version</button>
           </div>
         </div>
-        <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 12px; font-weight: 600;"></div>
+        <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 14px; font-weight: 600;"></div>
       </div>
     </div>
 
     <!-- Selection / Cut-Paste modal (manual: rectangle select → cut/copy → move → drop) -->
     <div id="select-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 600px;">
+      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
         <div class="fen-tete"><h2>Selection — Cut / Copy / Paste</h2><button id="select-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 11px; color: var(--text-muted);">
+        <div style="font-size: 13px; color: var(--text-muted);">
           <strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
           drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom
         </div>
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
-          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
-          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
-          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
-          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
-          <span style="flex:1;"></span>
-          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:12px;" title="Rectangular selection">&#9647;&nbsp;Rect</button>
-          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:12px;" title="Freehand lasso selection">&#10227;&nbsp;Lasso</button>
-          <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
-          <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo (Ctrl+Z)">&#8630;</button>
-          <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo (Ctrl+Y)">&#8631;</button>
+          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
+          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
+          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
+          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
+          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:14px;" title="Rectangular selection">&#9647;&nbsp;Rect</button>
+          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Freehand lasso selection">&#10227;&nbsp;Lasso</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="select-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+          <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
         </div>
         <div id="select-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%; cursor: crosshair;">
           <canvas id="select-canvas" style="position: absolute; left: 0; top: 0;"></canvas>
           <canvas id="select-overlay" style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span id="select-status" style="font-size:11px; color:var(--text-muted);">Drag to select a rectangle.</span>
+          <span id="select-status" style="font-size:13px; color:var(--text-muted);">Drag to select a rectangle.</span>
           <div class="modal-actions fen-pied-editeur">
             <button id="select-cancel" class="ghost-btn">Cancel</button>
             <button id="select-save" class="primary-btn">Save as new version</button>
@@ -3490,11 +3506,11 @@
   </div>
 
   <!-- Color Picker modal -->
-  <div id="modal-colorpick" class="modal-overlay hidden">
-    <div class="modal-card" style="max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+  <div id="modal-colorpick" class="modal hidden">
+    <div class="modal-content" style="width:var(--vz-editeur-w); height:var(--vz-editeur-h); max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:min(600px, 100vw);">
       <div class="fen-tete"><h2>Color Picker</h2><button class="settings-close-x" id="cpick-close-x">&#10005;</button></div>
-      <div style="font-size:11px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
-      <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
+      <div style="font-size:13px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
+      <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:var(--vz-editeur-zone-min); cursor:crosshair;">
         <canvas id="cpick-canvas" style="position:absolute; left:0; top:0;"></canvas>
         <div id="cpick-cursor" style="position:absolute; pointer-events:none; width:20px; height:20px; border:2px solid white; border-radius:50%; box-shadow:0 0 0 1px black; display:none; transform:translate(-50%,-50%);">
           <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
@@ -3506,7 +3522,7 @@
           <!-- Valeurs (jamais traduites, toujours de gauche a droite) : sans translate="no", l'arabe les entourait de
                caracteres d'isolation invisibles et « Copy HEX » copiait « #a1b2c3 » entoure de U+2068 / U+2069 (revue du 2026-10-14). -->
           <div id="cpick-hex" translate="no" dir="ltr" style="font-size:18px; font-weight:700; font-family:monospace;"></div>
-          <div id="cpick-rgb" translate="no" dir="ltr" style="font-size:11px; color:var(--text-2); white-space:nowrap;"></div>
+          <div id="cpick-rgb" translate="no" dir="ltr" style="font-size:13px; color:var(--text-2); white-space:nowrap;"></div>
         </div>
         <span style="flex:1;"></span>
       </div>
@@ -3519,28 +3535,33 @@
 
   <!-- Blur Brush modal -->
   <div id="modal-blur" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
       <div class="fen-tete"><h2>Blur / Sharpen Brush</h2><button id="blur-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
-          <span style="font-size:11px;">Brush:</span>
+          <span style="font-size:13px;">Brush:</span>
           <input type="range" id="blur-brush-size" min="5" max="200" value="30" style="flex:1; min-width:60px;" />
-          <span id="blur-brush-val" style="min-width:24px; font-size:11px;">30</span>
+          <span id="blur-brush-val" style="min-width:24px; font-size:13px;">30</span>
         </label>
         <label style="display:flex; align-items:center; gap:4px; flex:1 1 140px;">
-          <span style="font-size:11px;">Strength:</span>
+          <span style="font-size:13px;">Strength:</span>
           <input type="range" id="blur-strength" min="1" max="20" value="5" style="flex:1; min-width:60px;" />
-          <span id="blur-strength-val" style="min-width:24px; font-size:11px;">5</span>
+          <span id="blur-strength-val" style="min-width:24px; font-size:13px;">5</span>
         </label>
         <div style="display:flex; gap:4px; flex-shrink:0;">
-          <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active" style="padding:4px 10px; font-size:11px;">Blur</button>
-          <button id="blur-mode-sharpen" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:11px;">Sharpen</button>
+          <button id="blur-mode-blur" class="secondary-btn tool-btn tool-active" style="padding:4px 10px; font-size:13px;">Blur</button>
+          <button id="blur-mode-sharpen" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:13px;">Sharpen</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="blur-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="blur-fit" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="blur-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="blur-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="blur-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
         </div>
       </div>
+      <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Left: blur or sharpen - Right-drag: pan - Wheel: zoom</div>
       <div id="blur-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
         <canvas id="blur-canvas" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
         <div id="blur-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid white; border-radius:50%; display:none; z-index:1000;">
@@ -3556,18 +3577,24 @@
 
   <!-- Crop modal -->
   <div id="modal-crop" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
       <div class="fen-tete"><h2>Crop</h2><button id="crop-close-x" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">Free</button>
-        <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:11px;">1:1</button>
-        <button id="crop-preset-4-3" class="secondary-btn" style="padding:4px 10px; font-size:11px;">4:3</button>
-        <button id="crop-preset-16-9" class="secondary-btn" style="padding:4px 10px; font-size:11px;">16:9</button>
-        <button id="crop-preset-center" class="secondary-btn" style="padding:4px 10px; font-size:11px;">Auto center</button>
+        <button id="crop-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+        <button id="crop-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+        <span class="vz-sep" aria-hidden="true"></span>
+        <button id="crop-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+        <button id="crop-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+        <span class="vz-sep" aria-hidden="true"></span>
+        <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Free</button>
+        <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:13px;">1:1</button>
+        <button id="crop-preset-4-3" class="secondary-btn" style="padding:4px 10px; font-size:13px;">4:3</button>
+        <button id="crop-preset-16-9" class="secondary-btn" style="padding:4px 10px; font-size:13px;">16:9</button>
+        <button id="crop-preset-center" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Auto center</button>
         <span style="flex:1;"></span>
-        <span id="crop-size-label" style="font-size:11px; color:var(--text-2);"></span>
+        <span id="crop-size-label" style="font-size:13px; color:var(--text-2);"></span>
       </div>
-      <div style="font-size:10px; color:var(--text-3);">Drag to select the crop area. Use presets for fixed aspect ratios.</div>
+      <div style="font-size:12px; color:var(--text-3);">Drag to select the crop area. Use presets for fixed aspect ratios.</div>
       <div id="crop-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
         <canvas id="crop-canvas" style="position:absolute; left:0; top:0;"></canvas>
         <canvas id="crop-overlay" style="position:absolute; left:0; top:0;"></canvas>
@@ -3581,36 +3608,38 @@
 
   <!-- Symmetrize modal -->
   <div id="modal-symmetrize" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
       <div class="fen-tete"><h2>Symmetrize</h2><button id="sym-close" class="settings-close-x">&#10005;</button></div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <label style="font-size:11px; display:flex; align-items:center; gap:4px;">
+        <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
           Direction:
-          <button id="sym-dir-lr" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">L &#8594; R</button>
-          <button id="sym-dir-rl" class="secondary-btn" style="padding:4px 10px; font-size:11px;">R &#8594; L</button>
+          <button id="sym-dir-lr" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">L &#8594; R</button>
+          <button id="sym-dir-rl" class="secondary-btn" style="padding:4px 10px; font-size:13px;">R &#8594; L</button>
         </label>
-        <label style="font-size:11px; display:flex; align-items:center; gap:4px;">
+        <label style="font-size:13px; display:flex; align-items:center; gap:4px;">
           Mode:
-          <button id="sym-mode-full" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px;">Full</button>
-          <button id="sym-mode-mask" class="secondary-btn" style="padding:4px 10px; font-size:11px;">Mask</button>
+          <button id="sym-mode-full" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Full</button>
+          <button id="sym-mode-mask" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Mask</button>
         </label>
-        <label id="sym-brush-label" style="font-size:11px; display:none; align-items:center; gap:4px;">
+        <label id="sym-brush-label" style="font-size:13px; display:none; align-items:center; gap:4px;">
           Brush:
           <input type="range" id="sym-brush-size" min="5" max="200" value="40" style="width:80px;" />
           <span id="sym-brush-val">40</span>
-          <button id="sym-paint-mode" class="secondary-btn tool-active" style="padding:4px 10px; font-size:11px; margin-left:6px;">Paint</button>
-          <button id="sym-erase-mode" class="secondary-btn" style="padding:4px 10px; font-size:11px;">Erase</button>
+          <button id="sym-paint-mode" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px; margin-left:6px;">Paint</button>
+          <button id="sym-erase-mode" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Erase</button>
         </label>
         <span style="flex:1;"></span>
         <div style="display:flex; gap:4px; flex-shrink:0;">
           <button id="sym-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="sym-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter view (fit)">&#9678;</button>
+          <button id="sym-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="sym-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="sym-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="sym-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
         </div>
       </div>
-      <div style="font-size:10px; color:var(--text-3);">
+      <div style="font-size:12px; color:var(--text-3);">
         Drag the <strong style="color:#22c55e;">green line</strong> to move the axis. <strong>Shift+drag</strong> to rotate. In Mask mode: paint to select, <strong>Ctrl+drag</strong> to move axis, <strong>Shift+drag</strong> to rotate.
       </div>
       <div id="sym-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
@@ -3629,15 +3658,18 @@
 
   <!-- Paint Tools modal -->
   <div id="modal-paint" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
+    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw); overflow:hidden;">
       <div class="fen-tete">
         <h2>Paint Tools</h2>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
-          <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
           <button id="paint-emissive-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161;&nbsp;Emissive</button>
-          <button id="paint-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Recenter image (fit to view)">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
+          <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
+          <button id="paint-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="paint-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
           <button id="paint-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+          <span class="vz-sep" aria-hidden="true"></span>
           <button id="paint-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
           <button id="paint-close-x" class="settings-close-x" style="margin-left:4px;">&#10005;</button>
         </div>
@@ -3647,51 +3679,51 @@
         <div style="display:flex; flex-direction:column; gap:10px; width:130px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto;">
           <!-- Tool buttons -->
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
-            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9634;&nbsp;Rect</button>
-            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#10038;&nbsp;Lasso</button>
-            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
+            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9634;&nbsp;Rect</button>
+            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#10038;&nbsp;Lasso</button>
+            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
             <div style="display:flex; gap:4px;">
-              <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Invert selection">&#8646; Invert</button>
-              <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:10px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
+              <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:12px; flex:1;" title="Invert selection">&#8646; Invert</button>
+              <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:12px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
             </div>
           </div>
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
-            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9998;&nbsp;Pen</button>
-            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128168;&nbsp;Spray</button>
-            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#128396;&nbsp;Ink</button>
-            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9585;&nbsp;Line</button>
-            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
-            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9781;&nbsp;Fill</button>
-            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:11px; text-align:left; width:100%;">&#9003;&nbsp;Eraser</button>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
+            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9998;&nbsp;Pen</button>
+            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#128168;&nbsp;Spray</button>
+            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#128396;&nbsp;Ink</button>
+            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9585;&nbsp;Line</button>
+            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
+            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9781;&nbsp;Fill</button>
+            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9003;&nbsp;Eraser</button>
           </div>
           <!-- Color -->
           <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
             <div style="display:flex; align-items:center; gap:6px;">
               <input type="color" id="paint-color" value="#ff0000" style="width:36px; height:36px; border:none; padding:0; cursor:pointer; border-radius:6px;" title="Pick color" />
-              <button id="paint-eyedropper" class="secondary-btn tool-btn" style="padding:6px 8px; font-size:11px;" title="Pick from image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M2 22l1-1h3l9-9"/><path d="M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg></button>
+              <button id="paint-eyedropper" class="secondary-btn tool-btn" style="padding:6px 8px; font-size:13px;" title="Pick from image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M2 22l1-1h3l9-9"/><path d="M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg></button>
             </div>
           </div>
           <!-- Brush size -->
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Brush <span id="paint-brush-val" style="color:var(--text-1);">20</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Brush <span id="paint-brush-val" style="color:var(--text-1);">20</span></span>
             <input type="range" id="paint-brush-size" min="1" max="200" value="20" style="width:100%;" />
           </div>
           <!-- Opacity -->
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Opacity <span id="paint-opacity-val" style="color:var(--text-1);">100%</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Opacity <span id="paint-opacity-val" style="color:var(--text-1);">100%</span></span>
             <input type="range" id="paint-opacity" min="5" max="100" value="100" style="width:100%;" />
           </div>
           <!-- Hardness (Pen soft↔hard edge) -->
           <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Hardness <span id="paint-hardness-val" style="color:var(--text-1);">100%</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Hardness <span id="paint-hardness-val" style="color:var(--text-1);">100%</span></span>
             <input type="range" id="paint-hardness" min="0" max="100" value="100" style="width:100%;" />
           </div>
           <!-- Tolerance (for Wand/Fill) -->
           <div id="paint-tolerance-group" style="display:none; flex-direction:column; gap:2px;">
-            <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Tolerance <span id="paint-tolerance-val" style="color:var(--text-1);">32</span></span>
+            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Tolerance <span id="paint-tolerance-val" style="color:var(--text-1);">32</span></span>
             <input type="range" id="paint-tolerance" min="1" max="128" value="32" style="width:100%;" />
           </div>
         </div>
@@ -3719,7 +3751,7 @@
     <!-- Taille FIXE (2026-09-27, user : « la page doit etre plus grande, on ne voit
          rien ») : sans largeur ni hauteur, la fenetre se reduisait a son contenu.
          Meme gabarit que le bureau (92 vw x 92 vh). -->
-    <div class="modal-content" style="width:94vw; height:92vh; max-width:1700px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
+    <div class="modal-content" style="width:92vw; height:92vh; max-width:1600px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:min(600px, 100vw); overflow:hidden;">
       <div class="fen-tete">
         <h2 id="mesh-edit-title">Mesh Edit</h2>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
