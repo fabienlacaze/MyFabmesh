@@ -5306,6 +5306,7 @@ document.getElementById('ws-stages-bar')?.addEventListener('click', (e) => {
 // scaffold) from the displayed mesh, then switch stages via a bar over the mesh
 // preview (mirrors the image stages bar). CPU-only worker → no GPU gate.
 document.getElementById('ws-mesh-stages3d-btn')?.addEventListener('click', () => {
+  _bs3dFinPrereglage();   // l'outil lui-meme : fenetre normale (pas le mode prereglage de la creation)
   const p = state.currentProject;
   const mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
@@ -5712,6 +5713,7 @@ document.getElementById('bs3d-count')?.addEventListener('input', (e) => {
 });
 document.getElementById('bs3d-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
+  if (_bs3dPrereglage) { _bs3dFinPrereglage(); const cb = document.getElementById('ws-3d-buildstages'); if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); } }
 });
 // AUTO (one preset everywhere) vs MANUAL (per-component material) toggle
 document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
@@ -5729,6 +5731,23 @@ document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
  * le maillage qui vient d'etre livre, facture a son propre tarif. Rien n'est
  * lance si l'utilisateur a change de projet entre-temps : l'outil agit sur le
  * maillage AFFICHE, ce serait celui d'un autre projet. */
+/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » :
+ * cocher la case ouvre la meme fenetre (nombre d'etapes, mode et materiaux) ; « OK » memorise le choix, applique apres la generation. */
+window._chantierPrereglage = null;
+let _bs3dPrereglage = false;
+function _bs3dFinPrereglage() {
+  _bs3dPrereglage = false;
+  const st = document.getElementById('bs3d-start');
+  if (st && st.dataset.htmlOrigine) { st.innerHTML = st.dataset.htmlOrigine; delete st.dataset.htmlOrigine; }
+}
+document.getElementById('ws-3d-buildstages')?.addEventListener('change', (e) => {
+  if (!e.target.checked) { window._chantierPrereglage = null; return; }
+  _bs3dPrereglage = true;
+  const st = document.getElementById('bs3d-start');
+  if (st && !st.dataset.htmlOrigine) { st.dataset.htmlOrigine = st.innerHTML; st.textContent = 'OK'; }
+  document.getElementById('modal-stages3d-options')?.classList.remove('hidden');
+});
+
 function _chantierApresGeneration(p, meshPath) {
   const cur = state.currentProject;
   const mp = meshPath || (cur && cur.meshes && cur.meshes[0] && cur.meshes[0].path) || null;
@@ -5737,15 +5756,22 @@ function _chantierApresGeneration(p, meshPath) {
     return;
   }
   cur.previewMeshPath = mp;
-  const nb = document.getElementById('bs3d-count');
-  if (nb) { nb.value = '3'; nb.dispatchEvent(new Event('input')); }
-  const mode = document.getElementById('bs3d-mat-mode');
-  if (mode && mode.value !== 'auto') { mode.value = 'auto'; mode.dispatchEvent(new Event('change')); }
+  const pre = window._chantierPrereglage || { count: '3', mode: 'auto' };
+  const poser = (id, v, ev) => { const el = document.getElementById(id); if (el && v != null && v !== '') { el.value = v; el.dispatchEvent(new Event(ev || 'change')); } };
+  poser('bs3d-count', pre.count, 'input');
+  poser('bs3d-mat-mode', pre.mode, 'change');
+  for (const k of ['material', 'scaffold', 'frame', 'planks', 'formwork']) poser(k === 'material' ? 'bs3d-material' : 'bs3d-mat-' + k, pre[k], 'change');
   document.getElementById('bs3d-start')?.click();
 }
 
 document.getElementById('bs3d-start')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
+  if (_bs3dPrereglage) {
+    const v = (id) => document.getElementById(id)?.value;
+    window._chantierPrereglage = { count: v('bs3d-count'), mode: v('bs3d-mat-mode'), material: v('bs3d-material'), scaffold: v('bs3d-mat-scaffold'), frame: v('bs3d-mat-frame'), planks: v('bs3d-mat-planks'), formwork: v('bs3d-mat-formwork') };
+    _bs3dFinPrereglage();
+    return;
+  }
   const p = state.currentProject;
   let mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
@@ -5790,11 +5816,11 @@ document.getElementById('bs3d-start')?.addEventListener('click', () => {
         }
         showToast(_i18nTf('New "3D stages" version — {x} steps, click the thumbnails', r.stages.length), 'success', 3000);
       } else {
-        completeJob(job.id, false);
+        completeJob(job.id, false, (r && r.error) || 'unknown');
         customError((r && r.error) || 'unknown', _i18nT('3D construction stages failed'));
       }
     } catch (e) {
-      completeJob(job.id, false);
+      completeJob(job.id, false, e?.message || String(e));
       customError(e?.message || String(e), _i18nT('Construction stages 3D — error'));
     }
   })();
@@ -13794,14 +13820,14 @@ const MESH_TOOL_SCHEMAS = {
   },
   watertight: {
     title: 'Watertight',
-    subtitle: 'Make the mesh watertight. Default (voxel remesh) rebuilds a closed shell but replaces the geometry (loses fine detail + UVs). Tick "Keep original detail" to instead KEEP your original mesh (quality + texture) and seal it from behind with a closed inner shell — no degradation.',
+    subtitle: 'Add a CLOSED inner shell inside the model so it becomes watertight (printable). Your mesh and its texture are not touched: the shell stays strictly inside. Parts thinner than a few voxels get no shell. Higher resolution = tighter shell, slower.',
     needsImage: false,
-    confirm: 'Watertight will close the mesh. With "Keep original detail" your original geometry & texture are preserved (sealed by an inner shell). Continue?',
+    confirm: 'Watertight adds a closed grey shell inside the mesh. The outside and the texture stay exactly as they are. Continue?',
     params: [
-      { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 512, step: 8, default: 192 },
-      { id: 'keepDetail', label: 'Keep original detail (seal, no remesh)', type: 'checkbox', default: false },
+      // 256 = plafond reel de la coque interieure (watertight_seal.coque_interieure).
+      { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 256, step: 8, default: 192 },
     ],
-    build: (vals) => [String(vals.resolution), vals.keepDetail ? 'seal' : ''],
+    build: (vals) => [String(vals.resolution), 'seal'],   // 25/10 : coque interieure ajoutee, l'original n'est pas touche
   },
   texture_var: {
     title: 'Texture variations',

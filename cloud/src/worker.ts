@@ -15087,7 +15087,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
                        0, opStart, Date.now(), 'failed',
                        { req, projectName, op_type: 'construction3d', error: errMsg });
     console.error('[construction-stages-3d]', errMsg, e);
-    return err(502, 'construction stages failed (credits refunded)');
+    return err(502, 'construction stages failed (credits refunded): ' + errMsg.slice(0, 200));   // 25/10 : la cause exacte remonte jusqu'a la fenetre Error
   }
 }
 

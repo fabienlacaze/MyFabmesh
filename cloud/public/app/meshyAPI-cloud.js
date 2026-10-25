@@ -3615,6 +3615,7 @@
             // build → [resolution]
             finalParams = {};
             if (a[0] != null) finalParams.resolution = Number(a[0]);
+            if (a[1]) finalParams.mode = String(a[1]);   // 'seal' : coque interieure ajoutee (defaut serveur)
             break;
           case 'retex_swap':
             // build (retexture) → [image_url] or empty; fall back to

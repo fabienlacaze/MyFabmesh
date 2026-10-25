@@ -997,7 +997,19 @@ def normalize_material(glb_bytes: bytes) -> bytes:
 
 
 # Dispatch table for the mesh_start endpoint.
-def watertight(glb_bytes: bytes, resolution: int = 128) -> bytes:
+def watertight(glb_bytes: bytes, resolution: int = 128, mode: str = 'seal') -> bytes:
+    """mode 'seal' (defaut, 25/10) : AJOUTE une coque fermee a l'INTERIEUR, l'original (geometrie, UV, texture) reste intact.
+    mode 'rebuild' : ancien comportement, reconstruction complete (voir ci-dessous)."""
+    if str(mode or 'seal').strip().lower() != 'rebuild':
+        from modal_app.watertight_seal import ajouter_coque
+        scene = _load_scene(glb_bytes)
+        coque = ajouter_coque(scene, max(48, min(256, int(resolution))))
+        print(f'[mesh-op] watertight (etanche) : coque interieure {0 if coque is None else len(coque.faces)} faces', flush=True)
+        return _export(scene)                      # l'original n'est pas deforme : cartes de normales conservees
+    return _watertight_rebuild(glb_bytes, resolution)
+
+
+def _watertight_rebuild(glb_bytes: bytes, resolution: int = 128) -> bytes:
     """Rebuild a CLOSED, watertight shell via voxel remesh + marching cubes.
 
     Fuses every disconnected body into one solid with no holes (loses the
@@ -1769,7 +1781,7 @@ def _executer(op_type: str, glb_bytes: bytes, params: dict | None = None):
     if op_type == 'subdivide':
         return subdivide(glb_bytes, iterations=int(p.get('iterations', 1))), None
     if op_type == 'watertight':
-        return watertight(glb_bytes, resolution=int(p.get('resolution', 128))), None
+        return watertight(glb_bytes, resolution=int(p.get('resolution', 128)), mode=str(p.get('mode') or 'seal')), None
     if op_type == 'retex_swap':
         return retex_swap_atlas(glb_bytes, str(p.get('image_url') or '')), None
     if op_type == 'align_texture':

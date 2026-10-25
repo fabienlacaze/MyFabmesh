@@ -1,24 +1,18 @@
-"""FabMesh — Watertight SEAL (rend un mesh étanche SANS le dégrader).
+"""FabMesh — Watertight « Etanche » : ajoute une coque FERMEE a l'INTERIEUR du maillage, sans toucher a la coque exterieure.
 
-Contrairement au voxel remesh classique (`mesh_tools.watertight`) qui REMPLACE
-la géométrie (perd détails + arêtes + UV → texture pixelisée), cette voie GARDE
-le mesh original intact (qualité + texture) et se contente de le SCELLER :
+Demande du user (25/10) : « il faut rajouter la coque watertight a l'interieur du mesh, sans depasser ni modifier la coque exterieure ».
+Le maillage d'origine (geometrie, UV, texture, materiaux, rig) reste intact, octet pour octet ; on lui AJOUTE une coque grise
+qui reste STRICTEMENT a l'interieur :
 
-  1. Voxel remesh de l'original → coque FERMÉE S (approxime la forme, watertight).
-  2. On rétrécit S vers l'intérieur (le long des normales) pour qu'elle rentre
-     JUSTE sous la surface de l'original.
-  3. On décime S (elle n'est qu'un scellage caché) + couleur neutre (pas de
-     texture → léger).
-  4. Merge : original (texturé, pleine qualité) + coque interne S.
-  → Le résultat montre l'original net à l'extérieur, et la coque bouche les
-    trous par-derrière : volume clos (imprimable) sans dégrader le visible.
+  1. voxelisation de l'original (surface) puis remplissage : volume plein V ;
+  2. EROSION de V de `marge` voxels (3 par defaut) : tout voxel restant est a au moins 2 voxels sous la surface voxelisee, donc a
+     l'interieur de l'original, meme la ou le maillage est ouvert (les parties plus fines que ~2 x marge voxels disparaissent :
+     pas de coque la ou il n'y a pas de place) ;
+  3. surface (marching cubes) de V erode -> coque fermee ; decimation (cachee, donc sans detail utile) ; materiau gris opaque ;
+  4. controle : distance de chaque sommet de la coque a l'original (au moins ~1 voxel) ; sommets trop proches repousses vers le centre.
 
-Idée de l'utilisateur : « générer le voxel, le réduire pour qu'il rentre dans
-le mesh initial, puis merge + supprimer les triangles invisibles » — on garde
-l'esprit (coque interne scellante) ; on décime plutôt que supprimer les faces
-cachées (les supprimer casserait la fermeture de la coque).
-
-CLI : python watertight_seal.py <mesh_in> <out.glb> [resolution=192]
+Fichier PARTAGE bureau / Modal (scripts/watertight_seal.py = modal_app/watertight_seal.py, garde check-noyaux-partages) : pas d'import relatif.
+CLI bureau : python watertight_seal.py <mesh_in> <out.glb> [resolution=192]
 """
 import os
 import sys
@@ -32,96 +26,113 @@ def log(msg):
     print(f"[wt-seal] {msg}", flush=True)
 
 
-def _voxel_shell(mesh, resolution):
-    """Coque fermée (voxel remesh + marching cubes), rescalée sur les bounds
-    du mesh source. Renvoie un Trimesh watertight."""
-    bb = float(np.linalg.norm(mesh.bounds[1] - mesh.bounds[0])) or 1.0
-    pitch = bb / max(16, int(resolution))
-    vg = mesh.voxelized(pitch=pitch)
-    try:
-        vg = vg.fill()
-    except Exception as e:
-        log(f"fill warn: {e}")
-    shell = vg.marching_cubes
-    # marching_cubes rend en espace INDICES voxel → rescale vers bounds source.
-    slo, shi = mesh.bounds
-    sctr = (slo + shi) / 2.0
-    ssz = shi - slo
-    wlo, whi = shell.bounds
-    wctr = (wlo + whi) / 2.0
-    wsz = np.maximum(whi - wlo, 1e-9)
-    sc = float(np.median(ssz / wsz))
-    if not np.isfinite(sc) or sc <= 0:
-        sc = 1.0
-    shell.apply_translation(-wctr)
-    shell.apply_scale(sc)
-    shell.apply_translation(sctr)
-    return shell, pitch
+def _surface_depuis_matrice(matrice, transform):
+    """Marching cubes d'une matrice booleenne (entouree de vide) -> Trimesh dans le repere du maillage (via la transformation de la grille)."""
+    from skimage import measure
+    pad = np.pad(matrice.astype(np.float32), 1)
+    verts, faces, _, _ = measure.marching_cubes(pad, 0.5)
+    verts = verts - 1.0                                     # retire le bord ajoute
+    h = np.column_stack([verts, np.ones(len(verts))])
+    monde = (np.asarray(transform, dtype=np.float64) @ h.T).T[:, :3]
+    return trimesh.Trimesh(vertices=monde, faces=faces, process=False)
 
 
-def _decimate(mesh, target_faces):
-    """Décime la coque (open3d si dispo, sinon renvoie tel quel)."""
-    if len(mesh.faces) <= target_faces:
-        return mesh
+def _volume_plein(S):
+    """Volume plein d'une surface voxelisee S (booleen 3D), y compris quand le maillage est OUVERT (dos coupe, trous) :
+    remplissage classique, OU vote de 6 rayons le long des axes (un voxel est dedans quand au moins 4 des 6 rayons croisent
+    un nombre IMPAIR de segments de surface). Un maillage ferme donne le meme resultat que le remplissage."""
+    from scipy import ndimage
+    plein = ndimage.binary_fill_holes(S)
+    votes = np.zeros(S.shape, dtype=np.uint8)
+    for axe in range(3):
+        for sens in (1, -1):
+            m = S if sens == 1 else np.flip(S, axe)
+            debut = np.logical_and(m, np.logical_not(np.roll(m, 1, axis=axe)))
+            idx = [slice(None)] * 3; idx[axe] = 0; debut[tuple(idx)] = m[tuple(idx)]
+            impair = (np.cumsum(debut, axis=axe, dtype=np.uint8) & 1).astype(bool)
+            if sens == -1:
+                impair = np.flip(impair, axe)
+            votes += impair.astype(np.uint8)
+    return plein | S | (votes >= 4)
+
+
+def coque_interieure(monde, resolution=192, marge=3, faces_max=40000):
+    """monde : Trimesh (tous les corps du modele, repere du monde). Rend (coque Trimesh fermee ou None, pitch)."""
+    from scipy import ndimage
+    diag = float(np.linalg.norm(monde.bounds[1] - monde.bounds[0])) or 1.0
+    pitch = diag / max(16, min(256, int(resolution)))
+    vg = monde.voxelized(pitch=pitch)
+    plein = _volume_plein(np.asarray(vg.matrix, dtype=bool))
+    erode = ndimage.binary_erosion(plein, iterations=int(marge), border_value=0)
+    if not erode.any():
+        log("rien a sceller a l'interieur : toutes les parties sont plus fines que la marge")
+        return None, pitch
+    coque = _surface_depuis_matrice(erode, vg.transform)
+    log(f"coque brute: {len(coque.faces)} faces, watertight={coque.is_watertight}")
+    # controle de distance : aucune partie de la coque ne doit frôler la surface d'origine
     try:
-        m = mesh.simplify_quadric_decimation(face_count=target_faces)
-        if m is not None and len(m.faces) > 0:
-            return m
+        from trimesh.proximity import closest_point
+        _, dist, _ = closest_point(monde, np.asarray(coque.vertices))
+        trop = dist < 0.8 * pitch
+        if trop.any():
+            centre = np.asarray(coque.vertices).mean(axis=0)
+            v = np.asarray(coque.vertices).copy()
+            v[trop] = v[trop] + (centre - v[trop]) * 0.02
+            coque.vertices = v
+            log(f"{int(trop.sum())} sommet(s) trop proches de la surface, rapproches du centre")
     except Exception as e:
-        log(f"décimation indispo ({e}) — coque gardée pleine")
-    return mesh
+        log(f"controle de distance indisponible ({e})")
+    if len(coque.faces) > faces_max:
+        try:
+            m = coque.simplify_quadric_decimation(face_count=faces_max)
+            if m is not None and len(m.faces) > 0:
+                coque = m
+        except Exception as e:
+            log(f"decimation indisponible ({e}) : coque gardee pleine")
+    try:
+        from trimesh.visual.material import PBRMaterial
+        # Gris OPAQUE sans couleurs de sommets RGBA (elles font passer le contenu pour transparent dans three.js)
+        coque.visual = trimesh.visual.TextureVisuals(
+            material=PBRMaterial(name="etanche_coque", baseColorFactor=[0.47, 0.47, 0.5, 1.0],
+                                 metallicFactor=0.0, roughnessFactor=0.9, doubleSided=True))
+    except Exception as e:
+        log(f"materiau: {e}")
+    try:
+        coque.fix_normals()
+    except Exception:
+        pass
+    return coque, pitch
+
+
+def ajouter_coque(scene, resolution=192):
+    """Ajoute la coque interieure a une trimesh.Scene SANS modifier ses geometries. Rend la coque (ou None)."""
+    corps = [g for g in scene.dump() if hasattr(g, 'faces') and len(g.faces)]
+    if not corps:
+        raise RuntimeError("maillage vide")
+    monde = trimesh.util.concatenate([trimesh.Trimesh(vertices=np.asarray(g.vertices), faces=np.asarray(g.faces), process=False) for g in corps])
+    coque, _ = coque_interieure(monde, resolution)
+    if coque is not None:
+        scene.add_geometry(coque, geom_name="etanche_coque", node_name="etanche_coque")
+    return coque
 
 
 def seal(mesh_in, out_path, resolution=192):
     t0 = time.time()
-    src = trimesh.load(mesh_in, force="mesh")
-    if not isinstance(src, trimesh.Trimesh) or len(src.faces) == 0:
-        raise RuntimeError("mesh source vide / non chargeable")
-    log(f"original: {len(src.faces)} faces, watertight={src.is_watertight}")
-
-    shell, pitch = _voxel_shell(src, resolution)
-    log(f"coque voxel: {len(shell.faces)} faces, watertight={shell.is_watertight}")
-
-    # rétréci vers l'intérieur pour rentrer sous la surface de l'original
-    try:
-        shell.vertices = shell.vertices - shell.vertex_normals * (pitch * 1.5)
-    except Exception as e:
-        log(f"shrink warn: {e}")
-
-    # décimation (scellage caché → pas besoin de détail)
-    shell = _decimate(shell, target_faces=min(len(shell.faces), 40000))
-    # Matériau gris OPAQUE (PAS de couleurs de sommets RGBA : elles donnent un
-    # COLOR_0 VEC4 que GLTFLoader flague `transparent` → contenu des trous
-    # transparent). + normales forcées (sinon PBR noir).
-    try:
-        from trimesh.visual.material import PBRMaterial
-        shell.visual = trimesh.visual.TextureVisuals(
-            material=PBRMaterial(name="seal",
-                                 baseColorFactor=[0.47, 0.47, 0.5, 1.0],
-                                 metallicFactor=0.0, roughnessFactor=0.9))
-    except Exception as e:
-        log(f"material warn: {e}")
-    try:
-        _ = shell.vertex_normals
-        _ = src.vertex_normals
-    except Exception:
-        pass
-
-    scene = trimesh.Scene()
-    scene.add_geometry(src, geom_name="original", node_name="original")
-    scene.add_geometry(shell, geom_name="seal_shell", node_name="seal_shell")
+    scene = trimesh.load(mesh_in)
+    if not hasattr(scene, 'geometry'):
+        scene = trimesh.Scene(scene)
+    n0 = sum(len(g.faces) for g in scene.geometry.values() if hasattr(g, 'faces'))
+    coque = ajouter_coque(scene, resolution)
     scene.export(out_path)
     if not os.path.isfile(out_path) or os.path.getsize(out_path) == 0:
         raise RuntimeError("export vide")
-    log(f"OK: original {len(src.faces)}f + coque {len(shell.faces)}f -> "
-        f"{out_path} ({os.path.getsize(out_path)} bytes) en {time.time()-t0:.1f}s")
-    return len(shell.faces)
+    log(f"OK: original {n0}f intact + coque {0 if coque is None else len(coque.faces)}f -> {out_path} ({os.path.getsize(out_path)} octets) en {time.time()-t0:.1f}s")
+    return 0 if coque is None else len(coque.faces)
 
 
 def main():
     if len(sys.argv) < 3:
-        print("usage: watertight_seal.py <mesh_in> <out.glb> [resolution]",
-              file=sys.stderr)
+        print("usage: watertight_seal.py <mesh_in> <out.glb> [resolution]", file=sys.stderr)
         return 2
     try:
         res = int(sys.argv[3]) if len(sys.argv) > 3 else 192

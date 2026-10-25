@@ -13369,8 +13369,8 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
         case 'smooth':      opParams = { iterations: Number(p[0]) || 10, lamb: Number(p[1]) || 0.5 }; break;
         case 'decimate':    opParams = { target_faces: Number(p[0]) || 10000 }; break;
         case 'subdivide':   opParams = { iterations: Number(p[0]) || 1 }; break;
-        // Mode 'seal' (p[1], keepDetail) desktop-only — Modal ne lit que resolution.
-        case 'watertight':  opParams = { resolution: Number(p[0]) || 512 }; break;
+        // 25/10 : mode 'seal' (p[1]) = coque interieure ajoutee ; Modal le lit aussi (defaut 'seal').
+        case 'watertight':  opParams = { resolution: Number(p[0]) || 192, mode: p[1] ? String(p[1]) : 'seal' }; break;
         case 'fill_holes':  // sliders min/max ignorés par Modal (défauts cloud)
         case 'center':
         case 'fix_normals': opParams = {}; break;
