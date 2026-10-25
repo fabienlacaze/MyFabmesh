@@ -3941,82 +3941,83 @@
 
   <!-- Paint Tools modal -->
   <div id="modal-paint" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw); overflow:hidden;">
+    <div class="modal-card fen-3d fen-paint">
       <div class="fen-tete">
         <h2>Paint Tools</h2>
-        <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
-          <button id="paint-emissive-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161;&nbsp;Emissive</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="paint-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="paint-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="paint-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-          <button id="paint-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="paint-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
-          <button id="paint-close-x" class="settings-close-x" style="margin-left:4px;">&#10005;</button>
-        </div>
+        <button id="paint-close-x" class="settings-close-x">&#10005;</button>
       </div>
-      <div style="display:flex; flex:1 1 0; gap:12px; min-height:500px;">
-        <!-- Left panel: tools — scrolls vertically when controls (incl. Tolerance) overflow. -->
-        <div style="display:flex; flex-direction:column; gap:10px; width:130px; flex-shrink:0; padding:8px 4px 8px 0; overflow-y:auto;">
-          <!-- Tool buttons -->
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Select</span>
-            <button id="paint-tool-sel-rect" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9634;&nbsp;Rect</button>
-            <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#10038;&nbsp;Lasso</button>
-            <button id="paint-tool-wand" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
-            <div style="display:flex; gap:4px;">
-              <button id="paint-sel-invert" class="secondary-btn" style="padding:4px 4px; font-size:12px; flex:1;" title="Invert selection">&#8646; Invert</button>
-              <button id="paint-sel-none" class="secondary-btn" style="padding:4px 4px; font-size:12px; flex:1;" title="Deselect (edit everywhere)">&#10005; None</button>
-            </div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
-            <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9998;&nbsp;Pen</button>
-            <button id="paint-tool-spray" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#128168;&nbsp;Spray</button>
-            <button id="paint-tool-ink" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#128396;&nbsp;Ink</button>
-            <button id="paint-tool-line" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9585;&nbsp;Line</button>
-            <button id="paint-tool-smudge" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
-            <button id="paint-tool-fill" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9781;&nbsp;Fill</button>
-            <button id="paint-tool-eraser" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">&#9003;&nbsp;Eraser</button>
-          </div>
-          <!-- Color -->
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Color</span>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <input type="color" id="paint-color" value="#ff0000" style="width:36px; height:36px; border:none; padding:0; cursor:pointer; border-radius:6px;" title="Pick color" />
-              <button id="paint-eyedropper" class="secondary-btn tool-btn" style="padding:6px 8px; font-size:13px;" title="Pick from image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M2 22l1-1h3l9-9"/><path d="M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg></button>
-            </div>
-          </div>
-          <!-- Brush size -->
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Brush <span id="paint-brush-val" style="color:var(--text-1);">20</span></span>
-            <input type="range" id="paint-brush-size" min="1" max="200" value="20" style="width:100%;" />
-          </div>
-          <!-- Opacity -->
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Opacity <span id="paint-opacity-val" style="color:var(--text-1);">100%</span></span>
-            <input type="range" id="paint-opacity" min="5" max="100" value="100" style="width:100%;" />
-          </div>
-          <!-- Hardness (Pen soft↔hard edge) -->
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Hardness <span id="paint-hardness-val" style="color:var(--text-1);">100%</span></span>
-            <input type="range" id="paint-hardness" min="0" max="100" value="100" style="width:100%;" />
-          </div>
-          <!-- Tolerance (for Wand/Fill) -->
-          <div id="paint-tolerance-group" style="display:none; flex-direction:column; gap:2px;">
-            <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Tolerance <span id="paint-tolerance-val" style="color:var(--text-1);">32</span></span>
-            <input type="range" id="paint-tolerance" min="1" max="128" value="32" style="width:100%;" />
-          </div>
-        </div>
-        <!-- Right: canvas -->
-        <div id="paint-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px;">
+      <p class="modal-subtitle">Paint on the image. Right-drag to pan, wheel to zoom, Ctrl+wheel to change the brush size.</p>
+      <div class="fen-corps">
+        <!-- apercu a GAUCHE, outils et reglages en colonne a DROITE (gabarit commun des fenetres d'outils) -->
+        <div id="paint-canvas-container" class="fen-apercu paint-apercu">
           <canvas id="paint-canvas" style="position:absolute; left:0; top:0; cursor:none;"></canvas>
           <canvas id="paint-emissive-overlay" style="position:absolute; left:0; top:0; pointer-events:none; mix-blend-mode:lighten;"></canvas>
           <canvas id="paint-sel-overlay" style="position:absolute; left:0; top:0; pointer-events:none; opacity:0.4;"></canvas>
           <div id="paint-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid white; border-radius:50%; box-shadow:0 0 0 1px rgba(0,0,0,0.7); display:none; z-index:1000;">
             <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+          </div>
+        </div>
+        <div class="fen-form paint-colonne">
+          <div class="fen-champ">
+            <span class="fen-label">View</span>
+            <div class="paint-rangee">
+              <button id="paint-emissive-toggle" class="secondary-btn tool-btn" title="Paint on a separate emissive layer (stored as T_emissive on the generated mesh)">&#128161;&nbsp;Emissive</button>
+              <span class="vz-sep" aria-hidden="true"></span>
+              <button id="paint-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+              <button id="paint-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+              <span class="vz-sep" aria-hidden="true"></span>
+              <button id="paint-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+              <button id="paint-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+              <span class="vz-sep" aria-hidden="true"></span>
+              <button id="paint-reset" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">Select</span>
+            <div class="paint-rangee">
+              <button id="paint-tool-sel-rect" class="secondary-btn tool-btn">&#9634;&nbsp;Rect</button>
+              <button id="paint-tool-sel-lasso" class="secondary-btn tool-btn">&#10038;&nbsp;Lasso</button>
+              <button id="paint-tool-wand" class="secondary-btn tool-btn" title="Select an area of similar colour in one click.">&#10022;&nbsp;Wand</button>
+            </div>
+            <div class="paint-rangee">
+              <button id="paint-sel-invert" class="secondary-btn" title="Invert selection">&#8646; Invert</button>
+              <button id="paint-sel-none" class="secondary-btn" title="Deselect (edit everywhere)">&#10005; None</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">Draw</span>
+            <div class="paint-rangee">
+              <button id="paint-tool-pen" class="secondary-btn tool-btn tool-active">&#9998;&nbsp;Pen</button>
+              <button id="paint-tool-spray" class="secondary-btn tool-btn">&#128168;&nbsp;Spray</button>
+              <button id="paint-tool-ink" class="secondary-btn tool-btn">&#128396;&nbsp;Ink</button>
+              <button id="paint-tool-line" class="secondary-btn tool-btn">&#9585;&nbsp;Line</button>
+              <button id="paint-tool-smudge" class="secondary-btn tool-btn" title="Drag colour around as if with a finger.">&#9775;&nbsp;Smudge</button>
+              <button id="paint-tool-fill" class="secondary-btn tool-btn">&#9781;&nbsp;Fill</button>
+              <button id="paint-tool-eraser" class="secondary-btn tool-btn">&#9003;&nbsp;Eraser</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">Color</span>
+            <div class="paint-rangee">
+              <input type="color" id="paint-color" value="#ff0000" style="width:36px; height:36px; border:none; padding:0; cursor:pointer; border-radius:6px;" title="Pick color" />
+              <button id="paint-eyedropper" class="secondary-btn tool-btn" title="Pick from image"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M2 22l1-1h3l9-9"/><path d="M3 21v-3l9-9"/><circle cx="17.5" cy="6.5" r="3.5"/></svg></button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Brush</span><span id="paint-brush-val" class="fen-valeur">20</span></div>
+            <input type="range" id="paint-brush-size" min="1" max="200" value="20" />
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Opacity</span><span id="paint-opacity-val" class="fen-valeur">100%</span></div>
+            <input type="range" id="paint-opacity" min="5" max="100" value="100" />
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Hardness</span><span id="paint-hardness-val" class="fen-valeur">100%</span></div>
+            <input type="range" id="paint-hardness" min="0" max="100" value="100" />
+          </div>
+          <div id="paint-tolerance-group" class="fen-champ" style="display:none;">
+            <div class="fen-champ-tete"><span class="fen-label">Tolerance</span><span id="paint-tolerance-val" class="fen-valeur">32</span></div>
+            <input type="range" id="paint-tolerance" min="1" max="128" value="32" />
           </div>
         </div>
       </div>
