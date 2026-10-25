@@ -17,16 +17,7 @@ for (const [html, css] of [['cloud/public/app/index.html', 'cloud/public/app/sty
     for (const id of ['modal-anim-cancel', 'modal-anim-go']) assert.ok(b.includes(`id="${id}"`));
     assert.ok(!b.includes('width:440px'));
   });
-  test(`${html} : detail d'un travail = image a gauche, stats a droite, pied`, () => {
-    const b = bloc(lire(html), 'modal-job-details', '(Legacy modal-confirm');
-    assert.ok(b.includes('class="modal-card fen-3d fen-detail"'));
-    assert.ok(b.indexOf('id="jd-ref-img"') < b.indexOf('id="jd-status"'));
-    assert.ok(b.indexOf('class="fen-apercu"') < b.indexOf('class="fen-form"'));
-    for (const id of ['job-details-title', 'job-details-subtitle', 'jd-params', 'jd-progress-fill', 'jd-progress-pct', 'jd-error-box', 'jd-first-run-hint',
-      'job-gpu-monitor', 'job-details-close-x', 'job-details-goto-step', 'job-details-open-settings', 'job-details-unlock', 'job-details-cancel'])
-      assert.ok(b.includes(`id="${id}"`), id);
-    assert.ok(b.indexOf('class="modal-actions"') > b.indexOf('id="jd-error-box"'));
-  });
+  // 25/10 : la fenetre « Tache en cours » (detail d'un travail) a retrouve sa mise en forme d'origine (la conversion au gabarit faisait deborder l'apercu sur les boutons)
   test(`${css} : bloc LOT W34 (pied pleine largeur)`, () => {
     const s = lire(css);
     assert.ok(s.includes('LOT W34'));

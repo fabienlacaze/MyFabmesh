@@ -2276,12 +2276,63 @@ function actionSansPattes(allure, nage, T0, fps, Ltot, V) {
   return AC;
 }
 
+/* TETE / QUEUE D'UN SERPENT PAR L'EPAISSEUR DU MAILLAGE (25/10, user : « le serpent a la tete et la queue inversees »). colonneAxiale devine la tete par la
+ * direction +Z, ce qui ne dit rien d'un corps couche le long de X (serpent, ver) : le rig du user avait sa racine a la QUEUE, le serpent rampait a reculons. Un serpent
+ * s'amincit vers la queue : on mesure le rayon moyen du maillage (distance au squelette) sur le premier et le dernier ~15 % de la colonne ; le bout le plus EPAIS
+ * est la tete (rapport >= 1,3 : sinon on ne change rien). Mesure sur le serpent du user : 0,012 (racine) contre 0,039 (bout) = 3,3 x. */
+function choisirTeteParRayons(rayonDebut, rayonFin) {
+  if (!(rayonDebut > 0) || !(rayonFin > 0)) return 0;
+  if (rayonFin >= 1.3 * rayonDebut) return 1;        // le DERNIER os de la colonne est la tete : il faut retourner la colonne
+  if (rayonDebut >= 1.3 * rayonFin) return -1;       // le premier os est deja la tete
+  return 0;                                          // indecis : comportement d'origine
+}
+function rayonsAuxBouts(sq, chemin) {
+  const { json, bin, P0 } = sq;
+  if (!json.meshes || chemin.length < 4) return null;
+  const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+  const lire = (i) => {
+    const a = json.accessors[i], bv = json.bufferViews[a.bufferView];
+    if (a.componentType !== 5126 || a.sparse) return null;
+    const off = (bv.byteOffset || 0) + (a.byteOffset || 0), st = bv.byteStride || 12, out = new Float64Array(a.count * 3);
+    for (let k = 0; k < a.count; k++) for (let c = 0; c < 3; c++) out[k * 3 + c] = dv.getFloat32(off + k * st + c * 4, true);
+    return out;
+  };
+  const cum = [0];
+  for (let i = 1; i < chemin.length; i++) cum.push(cum[i - 1] + norm(sub(P0[chemin[i]], P0[chemin[i - 1]])));
+  const L = cum[cum.length - 1];
+  if (!(L > 1e-9)) return null;
+  const bords = [0, 0, 0, 0];                       // somme et nombre de sommets : [debut s, debut n, fin s, fin n]
+  for (const m of json.meshes) for (const pr of m.primitives || []) {
+    if (!pr.attributes || pr.attributes.POSITION == null) continue;
+    const P = lire(pr.attributes.POSITION);
+    if (!P) continue;
+    const nV = P.length / 3, pas = Math.max(1, Math.floor(nV / 12000));
+    for (let v = 0; v < nV; v += pas) {
+      const x = P[3 * v], y = P[3 * v + 1], z = P[3 * v + 2];
+      let meilleur = Infinity, pos = 0;
+      for (let i = 1; i < chemin.length; i++) {
+        const a = P0[chemin[i - 1]], b = P0[chemin[i]];
+        const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ap = [x - a[0], y - a[1], z - a[2]];
+        const l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2] || 1e-12;
+        const t = Math.max(0, Math.min(1, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2));
+        const d = Math.hypot(ap[0] - t * ab[0], ap[1] - t * ab[1], ap[2] - t * ab[2]);
+        if (d < meilleur) { meilleur = d; pos = cum[i - 1] + t * (cum[i] - cum[i - 1]); }
+      }
+      if (pos <= 0.15 * L) { bords[0] += meilleur; bords[1]++; } else if (pos >= 0.85 * L) { bords[2] += meilleur; bords[3]++; }
+    }
+  }
+  if (bords[1] < 20 || bords[3] < 20) return null;
+  return { debut: bords[0] / bords[1], fin: bords[2] / bords[3] };
+}
 function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'reptation', nage = false) {
   const { par, P0 } = sq, J = par.length, E = enfantsDe(par);
   const racine = det.racine, sol = det.sol, H = Math.max(ptpAxe(P0, 1), 1e-6), ext = Math.max(etendue(P0), 1e-6);
   const B = ALLURES[allure], V = (VARIANTES[allure] || {})[variante] || {};
   let pas = B.pas;
   const chemin = colonneAxiale(par, P0, racine);
+  if (raison === 'reptation' && !nage && globalThis.__teteParEpaisseur !== false) {   // serpent / ver : la tete est le bout le plus EPAIS du maillage (25/10)
+    try { const r = rayonsAuxBouts(sq, chemin); if (r && choisirTeteParRayons(r.debut, r.fin) === 1) chemin.reverse(); } catch (_) { /* sans maillage lisible : comportement d'origine */ }
+  }
   const Ltot = longueurChaine(chemin.map((k) => P0[k]));
   const mode = raison === 'reptation' && chemin.length >= 4 && Ltot > 0.05 * ext ? 'reptation' : 'rigide';
   // Onde de la colonne, par type de corps (valeurs de la litterature, voir le detail en commentaire) :

@@ -5370,3 +5370,146 @@ html[dir="rtl"] .p3-cat { text-align: start; }
     padding: 10px 0 28px !important; margin: 12px 0 -28px !important;
   }
 }
+
+/* RESTAURATION (25/10) : fenetre « Tache en cours » (#modal-job-details) : son ancienne mise en forme, que la conversion au gabarit avait cassee (apercu qui deborde sur les boutons) */
+/* Generation/job popups must sit ABOVE the fullscreen viewers (#lightbox-2 at z-index
+   9500) so they stay visible when a generation runs while a viewer is open. */
+#modal-job-details { z-index: 10000; }
+/* Job-details actions wrap (Export logs / Go to generated item / Cancel) —
+   center each wrapped row instead of pinning "Export logs" to the right. */
+#modal-job-details .modal-actions {
+  justify-content: center;
+}
+.job-details-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.job-details-head img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  flex-shrink: 0;
+}
+.job-details-head img:not([src]),
+.job-details-head img[src=""] {
+  display: none;
+}
+.job-details-head-text { flex: 1; min-width: 0; }
+.job-details-head-text h2 {
+  font-size: 18px;
+  margin-bottom: 4px;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.job-details-head-text .modal-subtitle {
+  margin-bottom: 0;
+  /* Long underscore filenames don't break with word-break; overflow-wrap:
+     anywhere forces them to wrap instead of overflowing / getting clipped. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.job-details-stats {
+  margin: 16px 0;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.jd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;   /* long values wrap under themselves, not clipped */
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.jd-row:last-child { border-bottom: none; }
+.jd-label {
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  font-size: 10px;
+  flex: 0 0 auto;
+  padding-top: 1px;
+}
+.jd-value {
+  color: var(--text-0);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.jd-progress { margin-top: 8px; }
+.jd-progress-bar {
+  height: 10px;
+  background: var(--bg-3);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.jd-progress-fill {
+  height: 100%;
+  background: var(--accent-grad);
+  width: 0;
+  transition: width 0.3s;
+}
+.jd-progress-pct {
+  text-align: right;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* Info hint shown inside the job-details modal to explain the long first-run
+   of local AI models (model download + VRAM load). Blue-tinted. */
+.jd-first-run-hint {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 6px;
+  color: #c7d2fe;
+  font-size: 12px;
+  line-height: 1.5;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.jd-hint-icon {
+  font-size: 16px;
+  line-height: 1;
+  color: #a5b4fc;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.jd-hint-text { flex: 1; }
+.jd-hint-text strong { color: #ddd6fe; }
+/* Error message box shown inside the job-details modal when a job failed.
+   Red-tinted, monospace-friendly, scrolls if the error is long. */
+.jd-error-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 6px;
+  color: #fca5a5;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  max-height: 160px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
