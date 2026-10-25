@@ -15,6 +15,7 @@
   if (!window.FabI18n || !window.FabI18n.register) return;
   var L = ['fr', 'es', 'zh', 'hi', 'ar'];
   var T = {
+    "Adjust the image and watch the result live before applying.": ["Ajustez l'image et voyez le résultat en direct avant d'appliquer.", "Ajusta la imagen y mira el resultado en directo antes de aplicar.", "调整图像，应用前可实时查看效果。", "छवि को समायोजित करें और लागू करने से पहले परिणाम लाइव देखें।", "اضبط الصورة وشاهد النتيجة مباشرة قبل التطبيق."],
     "Aluminium": ["Aluminium", "Aluminio", "铝", "एल्युमिनियम", "ألومنيوم"],
     "Auto": [null, "Auto", "自动", "ऑटो", "تلقائي"],
     "Wood": [null, "Madera", "木材", "लकड़ी", "خشب"],

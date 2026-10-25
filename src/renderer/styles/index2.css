@@ -5161,3 +5161,12 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ============================================================
+ * LOT A4 (25/10) : Brightness / Contrast sur le gabarit .fen-3d (apercu a gauche, reglages a droite, pied pleine largeur)
+ * ============================================================ */
+#modal-brightness .fen-apercu-image { display: flex; align-items: center; justify-content: center; }
+#modal-brightness .fen-apercu-image img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+#modal-brightness .modal-card.fen-3d .modal-actions { justify-content: stretch; }
+#modal-brightness .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 auto; width: auto; }
+#modal-brightness .modal-card.fen-3d .modal-actions .ghost-btn { flex: 0 0 auto; width: auto; }
