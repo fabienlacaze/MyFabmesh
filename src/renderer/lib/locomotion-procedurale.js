@@ -1532,7 +1532,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       // 25/10 (2e tour) : patte en Z (grenouille : cuisse en avant, jambe en arriere, tarse a plat) qui se replie sous le corps : la
       // cheville passait 9 cm SOUS le sol a chaque poussee (44 % de la hauteur). On fait tourner le plan de la patte autour de l'axe
       // hanche-pied (les deux extremites ne bougent pas) jusqu'a ce que tous les os intermediaires soient hors du sol.
-      if (Pr.releveGenou && Q.length >= 3) relevePlan(Q, sol + 0.004 * H);
+      if (Pr.releveGenou && !p.debout && Q.length >= 3) relevePlan(Q, sol + 0.004 * H);   // patte ETALEE seulement (grenouille) : sur une patte droite (mule, lion) la rotation du plan retournait les genoux
       if (!A.pas && C && (C.pieds || C.relever)) Q = relever(Q, sol + 0.012 * H);   // membre replie (coucher) : aucune articulation sous le sol
       for (let a = 0; a < ch.length - 1; a++) {
         const repos = mv(Rb[i], sub(P0[ch[a + 1]], P0[ch[a]]));
