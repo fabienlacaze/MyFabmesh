@@ -15,6 +15,7 @@
   if (!window.FabI18n || !window.FabI18n.register) return;
   var L = ['fr', 'es', 'zh', 'hi', 'ar'];
   var T = {
+    "HEX": ["HEX", "HEX", "HEX", "HEX", "HEX"],
     "Aluminium": ["Aluminium", "Aluminio", "铝", "एल्युमिनियम", "ألومنيوم"],
     "Auto": [null, "Auto", "自动", "ऑटो", "تلقائي"],
     "Wood": [null, "Madera", "木材", "लकड़ी", "خشب"],

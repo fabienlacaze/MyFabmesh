@@ -3537,26 +3537,34 @@
 
   <!-- Color Picker modal -->
   <div id="modal-colorpick" class="modal hidden">
-    <div class="modal-content" style="width:var(--vz-editeur-w); height:var(--vz-editeur-h); max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:min(600px, 100vw);">
+    <div class="modal-card fen-3d fen-colorpick">
       <div class="fen-tete"><h2>Color Picker</h2><button class="settings-close-x" id="cpick-close-x">&#10005;</button></div>
-      <div style="font-size:13px; color:var(--text-muted);">Click anywhere on the image to pick a color.</div>
-      <div id="cpick-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:var(--vz-editeur-zone-min); cursor:crosshair;">
-        <canvas id="cpick-canvas" style="position:absolute; left:0; top:0;"></canvas>
-        <div id="cpick-cursor" style="position:absolute; pointer-events:none; width:20px; height:20px; border:2px solid white; border-radius:50%; box-shadow:0 0 0 1px black; display:none; transform:translate(-50%,-50%);">
-          <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
+      <p class="modal-subtitle">Click anywhere on the image to pick a color.</p>
+      <div class="fen-corps">
+        <div id="cpick-canvas-container" class="fen-apercu" style="cursor:crosshair; background:#1a1a2e;">
+          <canvas id="cpick-canvas" style="position:absolute; left:0; top:0;"></canvas>
+          <div id="cpick-cursor" style="position:absolute; pointer-events:none; width:20px; height:20px; border:2px solid white; border-radius:50%; box-shadow:0 0 0 1px black; display:none; transform:translate(-50%,-50%);">
+            <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%);"></div>
+          </div>
         </div>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div id="cpick-swatch" style="width:48px; height:48px; border-radius:8px; border:2px solid var(--border);"></div>
-        <div>
+        <div class="fen-form">
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Color</span></div>
+            <div id="cpick-swatch" class="cpick-pastille"></div>
+          </div>
           <!-- Valeurs (jamais traduites, toujours de gauche a droite) : sans translate="no", l'arabe les entourait de
                caracteres d'isolation invisibles et « Copy HEX » copiait « #a1b2c3 » entoure de U+2068 / U+2069 (revue du 2026-10-14). -->
-          <div id="cpick-hex" translate="no" dir="ltr" style="font-size:18px; font-weight:700; font-family:monospace;"></div>
-          <div id="cpick-rgb" translate="no" dir="ltr" style="font-size:13px; color:var(--text-2); white-space:nowrap;"></div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">HEX</span></div>
+            <div id="cpick-hex" translate="no" dir="ltr" class="cpick-hex"></div>
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">RGB</span></div>
+            <div id="cpick-rgb" translate="no" dir="ltr" class="cpick-rgb"></div>
+          </div>
         </div>
-        <span style="flex:1;"></span>
       </div>
-      <div class="modal-actions">
+      <div class="modal-actions fen-pied-editeur">
         <button id="cpick-close" class="ghost-btn">Close</button>
         <button id="cpick-copy" class="primary-btn">Copy HEX</button>
       </div>
