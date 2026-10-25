@@ -56,32 +56,27 @@ def _volume_plein(S):
     return plein | S | (votes >= 4)
 
 
-def coque_interieure(monde, resolution=192, marge=3, faces_max=40000):
-    """monde : Trimesh (tous les corps du modele, repere du monde). Rend (coque Trimesh fermee ou None, pitch)."""
+def coque_interieure(monde, resolution=192, ecart=2.0, epaisseur=2.5, faces_max=60000):
+    """monde : Trimesh (tous les corps du modele, repere du monde). Rend (coque Trimesh fermee ou None, pitch).
+
+    « EPAISSEUR DE PEAU » (choix du user, 25/10, apres l'essai de la hutte : une coque pleine comblait la piece derriere la porte) :
+    la coque est une PEAU creuse collee derriere la surface : les voxels du volume plein situes entre `ecart` et `ecart + epaisseur`
+    voxels de la surface. Elle ne touche jamais la surface (ecart >= 2 voxels), reste dans le volume plein, et laisse VIDE ce qui est
+    plus profond (la piece d'un batiment reste visible par la porte). Sa surface (deux feuillets) est fermee."""
     from scipy import ndimage
     diag = float(np.linalg.norm(monde.bounds[1] - monde.bounds[0])) or 1.0
     pitch = diag / max(16, min(256, int(resolution)))
     vg = monde.voxelized(pitch=pitch)
-    plein = _volume_plein(np.asarray(vg.matrix, dtype=bool))
-    erode = ndimage.binary_erosion(plein, iterations=int(marge), border_value=0)
-    if not erode.any():
-        log("rien a sceller a l'interieur : toutes les parties sont plus fines que la marge")
+    surface = np.asarray(vg.matrix, dtype=bool)
+    plein = _volume_plein(surface)
+    d = ndimage.distance_transform_edt(~surface).astype(np.float32)        # distance a la surface, en voxels
+    peau = plein & (d >= float(ecart)) & (d <= float(ecart) + float(epaisseur))
+    del d
+    if not peau.any():
+        log("rien a sceller a l'interieur : toutes les parties sont plus fines que l'ecart")
         return None, pitch
-    coque = _surface_depuis_matrice(erode, vg.transform)
+    coque = _surface_depuis_matrice(peau, vg.transform)
     log(f"coque brute: {len(coque.faces)} faces, watertight={coque.is_watertight}")
-    # controle de distance : aucune partie de la coque ne doit frôler la surface d'origine
-    try:
-        from trimesh.proximity import closest_point
-        _, dist, _ = closest_point(monde, np.asarray(coque.vertices))
-        trop = dist < 0.8 * pitch
-        if trop.any():
-            centre = np.asarray(coque.vertices).mean(axis=0)
-            v = np.asarray(coque.vertices).copy()
-            v[trop] = v[trop] + (centre - v[trop]) * 0.02
-            coque.vertices = v
-            log(f"{int(trop.sum())} sommet(s) trop proches de la surface, rapproches du centre")
-    except Exception as e:
-        log(f"controle de distance indisponible ({e})")
     if len(coque.faces) > faces_max:
         try:
             m = coque.simplify_quadric_decimation(face_count=faces_max)
