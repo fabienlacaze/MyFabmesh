@@ -23012,8 +23012,11 @@ window._navigateToJobStep = async function(jobId, jobObj) {
   // Travail de maillage TERMINE : on selectionne aussi la version qu'il a produite (sinon l'etape s'ouvrait sur l'ancienne version)
   if (_fini && stepIdx === 2) {
     try {
-      const pj = state.currentProject;
-      const v = _versionDuTravail(j, pj);
+      let pj = state.currentProject;
+      let v = _versionDuTravail(j, pj);
+      if (!v && pj && typeof reloadCurrentProject === 'function') {   // le projet n'a pas ete recharge a la fin du travail (25/10) : on le fait maintenant, sur demande
+        try { await reloadCurrentProject(); pj = state.currentProject; v = _versionDuTravail(j, pj); } catch (_) {}
+      }
       if (v && pj && pj.previewMeshPath !== v.path) {
         pj.previewMeshPath = v.path; pj.selectedMeshPath = v.path;
         try { await renderMeshVersions(pj); } catch (_) {}

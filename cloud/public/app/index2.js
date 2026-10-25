@@ -20104,13 +20104,11 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!stillActive.has(sid)) {
             try { completeJob(local.id, true); } catch (_) {}
             _jobByServerId.delete(sid);
-            // Refresh the current project view so the new mesh/rig/anim
-            // shows in the strip without a full reload.
-            try {
-              if (state.currentProject && typeof reloadCurrentProject === 'function') {
-                reloadCurrentProject();
-              }
-            } catch (_) {}
+            /* 25/10 (user : « ca m'a actualise la page et amene a la generation qui vient de finir : il y a un systeme de spawned automatique en fin de
+             * generation qu'il faut enlever ») : plus de rechargement du projet affiche a la fin d'un travail SUIVI PAR LE SONDAGE (reprise apres rechargement,
+             * autre onglet) : il redessinait la page et ramenait sur la nouvelle version. On met a jour les listes en arriere-plan et on previent ; le bouton
+             * « Aller a » de la tuile (geste de l'utilisateur) recharge le projet et ouvre la version. */
+            try { showToast(_i18nTf('{x} finished — use "Go to" to open it.', String(local.name || '').slice(0, 60)), 'success', 6000); } catch (_) {}
             _rafraichirListeProjets();                // miniature et compteurs de la liste
           }
         }
@@ -24167,8 +24165,11 @@ window._navigateToJobStep = async function(jobId, jobObj) {
   // Travail de maillage TERMINE : on selectionne aussi la version qu'il a produite (sinon l'etape s'ouvrait sur l'ancienne version)
   if (_fini && stepIdx === 2) {
     try {
-      const pj = state.currentProject;
-      const v = _versionDuTravail(j, pj);
+      let pj = state.currentProject;
+      let v = _versionDuTravail(j, pj);
+      if (!v && pj && typeof reloadCurrentProject === 'function') {   // le projet n'a pas ete recharge a la fin du travail (25/10) : on le fait maintenant, sur demande
+        try { await reloadCurrentProject(); pj = state.currentProject; v = _versionDuTravail(j, pj); } catch (_) {}
+      }
       if (v && pj && pj.previewMeshPath !== v.path) {
         pj.previewMeshPath = v.path; pj.selectedMeshPath = v.path;
         try { await renderMeshVersions(pj); } catch (_) {}

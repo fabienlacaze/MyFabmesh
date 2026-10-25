@@ -16,6 +16,7 @@ chargement a froid. Z-Image Turbo n'a PAS de prompt negatif : une negation ne pa
 import asyncio
 import io
 import os
+import re
 import threading
 import time
 
@@ -38,6 +39,10 @@ image = (modal.Image.debian_slim(python_version="3.11").apt_install("git")
 NEGATIF_QWEN = "blurry, low quality, deformed, extra limbs, extra fingers, cropped, cut off, shadow, ground, floor, text, watermark, logo"
 
 
+# Animaux SANS PATTES (le texte est deja en anglais : le site le traduit avant l'envoi)
+_SANS_PATTES = re.compile(r"\b(snakes?|serpents?|cobras?|pythons?|vipers?|anacondas?|boas?|mambas?|rattlesnakes?|adders?|eels?|worms?|slugs?|leeches|serpentine)\b", re.IGNORECASE)
+
+
 def gabarit(prompt: str, asset_type: str, asset_style: str, pose_libre: bool) -> str:
     """Cadrage du produit en langage naturel (ces modeles n'ont pas la limite de 77 jetons de CLIP).
     Personnage : plein pied, de face, T-pose sauf case decochee. Le gabarit a donne 4/4 T-pose propres sur le banc du 24/10."""
@@ -51,6 +56,11 @@ def gabarit(prompt: str, asset_type: str, asset_style: str, pose_libre: bool) ->
                 "standing in a T-pose with both arms stretched out horizontally, feet apart, facing the camera")
         return f"Full-body front view of {texte}{habillage}, {pose}, {fond}."
     if t in ("animal", "creature", "beast"):
+        # 25/10 (user : « le snake a des pattes et il n'est pas allonge, impossible de l'animer proprement ») : « all feet on the ground » faisait pousser des pattes
+        # a un serpent ; un animal SANS PATTES est demande etire, tete a queue, sans membres (meme idee que le gabarit « sans_pattes » du moteur d'image classique).
+        if _SANS_PATTES.search(texte):
+            return (f"Full-body view of {texte}{habillage}, a long slender body stretched out nearly straight along the ground from head to tail tip, "
+                    f"the whole length visible, no legs, no limbs, no feet, seen from slightly above, {fond}.")
         return f"Full-body side view of {texte}{habillage}, all feet on the ground, {fond}."
     if t in ("avion", "aircraft"):
         # 25/10 (user : « j'aimerais plutot cette orientation ») : vue de trois quarts HAUTE, nez vers le bas a gauche, ailes et derive visibles.
