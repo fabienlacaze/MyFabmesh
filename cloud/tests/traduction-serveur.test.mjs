@@ -46,6 +46,7 @@ const AUXILIAIRES = ['_traduireVersAnglais', '_decouperPourTraduction', '_dernie
   // _opAtlasGpu calcule le segment de projet (slugProjet, noms non latins, lot interface-langue du 13/10, integre a la
   // fusion du 20/10) : sans la vraie fonction et ses aides, les routes maillage tombent en ReferenceError.
   '_TRANSLIT_NOM_PROJET', '_estNomAscii', '_empreinteNomProjet', '_partieLisibleNomProjet', 'slugNonLatin', '_ancienSlugProjet', 'slugProjet',
+  '_paramsPourHistorique',   // 25/10 : _opAtlasGpu range les reglages de l'operation dans l'historique
   // negations de l'utilisateur (piste N, fusionnee le 20/10) : handleGenerateImage nettoie `negativeExtra` et le montre au filtre
   '_nettoyerNegativeExtra', '_texteDeModerationNegations', 'NEG_MAX_DIRECT', 'NEG_MAX_LONG', 'NEG_MAX_CARS', 'NEG_SENSIBLES'];
 

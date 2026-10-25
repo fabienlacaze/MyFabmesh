@@ -14548,7 +14548,9 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
     }
     const signed = await signedR2Url(env, key, 'mesh');
     await logOperation(env, user.id, 'mesh-op', cost, opStart, Date.now(), 'succeeded',
-                       { req, projectName, op_type: conf.op, mesh_url_in: meshUrl });
+                       { req, projectName, op_type: conf.op, mesh_url_in: meshUrl,
+                         // 25/10 : de quoi retrouver la version dans l'historique (voir handleLineageMeta)
+                         op: conf.op, output_name: key.split('/').pop() || '', params: _paramsPourHistorique(envoi) });
     return json({ ok: true, success: true, path: signed, newPath: signed, mesh_url: signed,
                   creditsRemaining: remaining });
   } catch (e) {
@@ -15088,7 +15090,9 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
 
     await logOperation(env, user.id, 'construction3d',
                        COST_PER, opStart, Date.now(), 'succeeded',
-                       { req, projectName, op_type: 'construction3d', stages: start.count });
+                       { req, projectName, op_type: 'construction3d', stages: start.count,
+                         // 25/10 (capture user : « historique perdu et pas de parametres ») : maillage d'origine, reglages et nom du fichier produit
+                         mesh_url_in: finalUrl, output_name: `${newStem}.glb`, params: _paramsPourHistorique({ stage_count: n, ...mats }) });
     return json({
       ok: true, success: true,
       versionMeshPath: versionUrl || finalUrl,

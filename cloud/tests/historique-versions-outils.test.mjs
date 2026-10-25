@@ -32,3 +32,7 @@ test('handleLineageMeta retrouve la version par le nom du fichier produit et fus
   assert.match(SRC, /for \(const \[k, v\] of Object\.entries\(options\.params as Record<string, unknown>\)\) params\[k\] = v;/);
   assert.match(SRC, /const _CHAMPS_INTERNES = new Set\(\['output_name', 'client_side', 'size_bytes'/);
 });
+test('les etapes de construction et les operations d atlas ecrivent aussi leur maillage d origine, leurs reglages et le nom du fichier produit', () => {
+  assert.ok(SRC.includes("mesh_url_in: finalUrl, output_name: `${newStem}.glb`, params: _paramsPourHistorique({ stage_count: n, ...mats })"));
+  assert.ok(SRC.includes("op: conf.op, output_name: key.split('/').pop() || '', params: _paramsPourHistorique(envoi)"));
+});
