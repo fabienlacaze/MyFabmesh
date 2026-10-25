@@ -2287,17 +2287,36 @@
     <div id="modal-region-retex" class="modal hidden">
       <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>&#127912; Re-texture a region</h2><button id="rrx-close-x" class="settings-close-x">&#10005;</button></div>
-        <p class="modal-subtitle">Name the part and describe its new look. The shape is kept.</p>
+        <p id="rrx-sous-titre" class="modal-subtitle">Name the part and describe its new look. The shape is kept.</p>
         <div class="fen-corps">
           <!-- apercu a GAUCHE (vue de face fixe : la detection et la projection UV en ont besoin), reglages a droite -->
           <div class="fen-apercu rrx-apercu">
-            <div id="rrx-stage" style="position:relative; width:min(100%, 78vh); aspect-ratio:1; background:#111; border-radius:4px; overflow:hidden;">
+            <!-- ETAPE 1 de « Reshape a region » (2026-10-19) : visualiseur 3D pour tourner le modele jusqu'a la zone voulue -->
+            <div id="rrx-3d-stage" style="display:none; position:relative; width:min(100%, calc(min(88vh, 920px) - 210px)); aspect-ratio:1; background:#1b1b1b; border-radius:4px; overflow:hidden;">
+              <canvas id="rrx-3d-canvas" style="position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:none;"></canvas>
+              <div id="rrx-3d-loading" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.62); color:#ddd; font-size:13px;"></div>
+            </div>
+            <div id="rrx-stage" style="position:relative; width:min(100%, calc(min(88vh, 920px) - 210px)); aspect-ratio:1; background:#111; border-radius:4px; overflow:hidden;">
               <img id="rrx-img" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; pointer-events:none;" />
               <canvas id="rrx-canvas" width="512" height="512" style="position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; touch-action:none;"></canvas>
               <div id="rrx-loading" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.62); color:#ddd; font-size:13px;"></div>
             </div>
           </div>
-          <div class="fen-form modal-form-side rrx-form">
+          <div id="rrx-3d-panel" class="fen-form modal-form-side rrx-form" style="display:none">
+            <div id="rrx-3d-aide">Turn the model until you see the part to rebuild, then press Use this view.</div>
+            <div id="rrx-3d-presets" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;">
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="0">Front</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="180" data-rrx-pitch="0">Back</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="-90" data-rrx-pitch="0">Left</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="90" data-rrx-pitch="0">Right</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="89.9">Top</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="-89.9">Bottom</button>
+            </div>
+            <div id="rrx-3d-info" class="fen-facultatif" style="font-size:12px;"></div>
+            <div class="fen-facultatif" style="font-size:12px; margin-top:10px;">Drag to turn the model, scroll to zoom. Zoom is only for looking: the next step shows the whole model from this angle.</div>
+          </div>
+          <div id="rrx-form" class="fen-form modal-form-side rrx-form">
+            <div id="rrx-vue-nom" class="fen-facultatif" style="display:none; font-size:12px; margin-bottom:8px;"></div>
             <div class="form-row">
               <label>Which part? <span class="fen-facultatif">(the AI finds it)</span></label>
               <input id="rrx-part" type="text" placeholder="e.g. helmet, cape, shoulder pads" />
@@ -2316,6 +2335,8 @@
         </div>
         <div class="modal-actions">
           <button id="rrx-cancel" class="ghost-btn">Cancel</button>
+          <button id="rrx-change-view" class="ghost-btn" style="display:none">Change view</button>
+          <button id="rrx-use-view" class="primary-btn" style="display:none">Use this view</button>
           <button id="rrx-apply" class="primary-btn">Apply</button>
         </div>
       </div>

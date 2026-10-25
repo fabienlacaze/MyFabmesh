@@ -3415,33 +3415,39 @@
     // « Reshape a region » (auto inpaint 3D, 2026-09-28). La vue de face A PLAT est rendue par le
     // NAVIGATEUR (window.__rendreFaceAPlat, index2.js : meme projection que mesh_inpaint.rendre),
     // puis rangee en R2 (upload-image, gratuit, hors projet) : la detection CLIPSeg et Modal la lisent.
-    renderMeshFront: async ({ meshPath, meshUrl } = {}) => {
+    // 2026-10-19 : vue CHOISIE dans le visualiseur 3D (yaw / pitch en degres, absents = de face). Le rendu rend
+    // aussi `vue` = { yaw, pitch, xmag } (null en vue de face) : a renvoyer tel quel a reshapeRegion.
+    renderMeshFront: async ({ meshPath, meshUrl, yaw, pitch } = {}) => {
       const url = meshUrl || meshPath;
-      if (!url || typeof window.__rendreFaceAPlat !== 'function') return { ok: false, error: 'front render unavailable' };
+      if (!url || typeof window.__rendreVueAPlat !== 'function') return { ok: false, error: 'front render unavailable' };
       try {
-        const dataUrl = await window.__rendreFaceAPlat(url);
+        const { dataUrl, vue } = await window.__rendreVueAPlat(url, 1024, yaw || 0, pitch || 0);
         const r = await postJSON('/api/upload-image', { dataUrl, suffix: 'reshape_vue' });
         if (!r?.success || !r.path) return { ok: false, error: r?.error || 'upload failed' };
-        return { ok: true, dataUrl, frontPath: r.path };
+        return { ok: true, dataUrl, frontPath: r.path, vue };
       } catch (e) { return { ok: false, error: String(e?.message || e) }; }
     },
     // Travail de plusieurs minutes (SDXL + piece en 3D) : suivi comme un re-texture.
-    reshapeRegion: async ({ meshPath, meshUrl, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName, langueVerifiee } = {}) => {
+    reshapeRegion: async ({ meshPath, meshUrl, frontPath, maskDataUrl, uvMaskDataUrl, prompt, projectName, langueVerifiee, vue } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { ok: false, error: 'meshPath or meshUrl required' };
       if (!maskDataUrl && !uvMaskDataUrl) return { ok: false, error: 'mask required' };
       try {
         let vueUrl = frontPath;
+        let vueEnvoyee = vue || null;
         if (!vueUrl) {
-          const v = await window.meshyAPI.renderMeshFront({ meshPath: url });
+          const v = await window.meshyAPI.renderMeshFront({ meshPath: url, yaw: vue?.yaw, pitch: vue?.pitch });
           if (!v?.ok) return { ok: false, error: v?.error || 'front render failed' };
           vueUrl = v.frontPath;
+          vueEnvoyee = v.vue || null;
         }
         const p = window.state?.currentProject || null;
         const r = await postJSON('/api/mesh-reshape', {
           meshUrl: url, vueUrl, maskDataUrl: maskDataUrl || undefined, uvMaskDataUrl: uvMaskDataUrl || undefined,
           prompt: prompt || '', projectName: projectName || p?.name || null, assetType: p?.assetType || null,
           ...(langueVerifiee ? { langueVerifiee: true } : {}),
+          // vue choisie (yaw / pitch / xmag) : le worker la valide et Modal tourne le maillage dans ce repere
+          ...(vueEnvoyee ? { vue: vueEnvoyee } : {}),
         });
         if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
         if (!r?.jobId) return { ok: false, error: r?.error || 'unknown' };
