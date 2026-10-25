@@ -59,3 +59,18 @@ test('les quatre visualiseurs et les deux index2.js appellent centrerRotation', 
     assert.match(readFileSync(join(RACINE, f), 'utf8'), /centrerRotation\(/, f);
   }
 });
+
+test('appui sur la molette : le defilement automatique du navigateur est annule sur le canevas (mousedown / auxclick), sans toucher aux autres boutons', () => {
+  const ecouteurs = {};
+  const dom = { addEventListener: (t, f, o) => { (ecouteurs[t] = ecouteurs[t] || []).push({ f, o }); } };
+  mod.centrerRotation({ object: new THREE.PerspectiveCamera(), target: new THREE.Vector3(), update() {} }, dom);
+  for (const evt of ['mousedown', 'auxclick']) {
+    assert.ok(ecouteurs[evt] && ecouteurs[evt][0].o.capture === true && ecouteurs[evt][0].o.passive === false, evt);
+    let bloque = 0;
+    ecouteurs[evt][0].f({ button: 1, preventDefault() { bloque++; } });
+    ecouteurs[evt][0].f({ button: 0, preventDefault() { bloque++; } });
+    ecouteurs[evt][0].f({ button: 2, preventDefault() { bloque++; } });
+    assert.equal(bloque, 1, 'seule la molette est annulee : ' + evt);
+  }
+});
+

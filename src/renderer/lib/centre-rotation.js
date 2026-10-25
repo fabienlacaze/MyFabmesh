@@ -38,6 +38,9 @@ export function centrerRotation(controls, domEl) {
     _retenirScene();
     if (!controls || !domEl || domEl.__centreRotation) return;
     domEl.__centreRotation = true;
+    // 25/10 (user : « il ne faut pas que le maintien de la molette fasse remonter la page, ca doit juste faire tourner l'objet ») : l'appui sur la molette
+    // declenche le defilement automatique du navigateur (la page part en haut / en bas). On l'annule sur le canevas ; la rotation (pointerdown) n'est pas touchee.
+    for (const evt of ['mousedown', 'auxclick']) domEl.addEventListener(evt, (e) => { if (e.button === 1) e.preventDefault(); }, { capture: true, passive: false });
     domEl.addEventListener('pointerdown', (e) => {
       if (e.button !== 1) return;                       // molette enfoncee = rotation
       const cam = controls.object;
