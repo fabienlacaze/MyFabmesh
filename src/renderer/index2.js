@@ -3463,6 +3463,7 @@ bindStepCardCollapse();
       if (!_rrxViewer) {
         _rrxViewer = new Viewer3D({ canvas: cv, fov: 45, bgColor: 0x1b1b1b, cameraPos: [0, 0, 3], lighting: true });
         _rrxViewer.controls.addEventListener('change', _rrxMajInfo);
+        creerBarreVues3D($('rrx-3d-stage'), () => _rrxViewer, { cible: () => _rrxModele });   // barre commune en bas de l'apercu (LOT W27)
         if (_rrxViewer.webglUnavailable) { charge(''); showToast(_i18nT('Could not open the 3D viewer.'), 'error'); close(); return; }
       }
       _rrxViewer.startTickLoop();
@@ -3489,9 +3490,6 @@ bindStepCardCollapse();
       close();
     } finally { if (jeton === _rrxJeton) charge(''); }
   }
-  document.querySelectorAll('#rrx-3d-presets [data-rrx-yaw]').forEach((b) => {
-    b.addEventListener('click', () => _rrxPoserCamera(Number(b.dataset.rrxYaw), Number(b.dataset.rrxPitch)));
-  });
   // « Use this view » : releve l'angle, rend la vue a plat depuis cet angle, passe a l'etape 2
   async function _rrxUtiliserVue() {
     const meshPath = _curMeshPath();

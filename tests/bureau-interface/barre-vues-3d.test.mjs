@@ -82,10 +82,7 @@ for (const c of COTES) {
       assert.deepEqual([...b.matchAll(/data-view="(\w+)"/g)].map((x) => x[1]), ORDRE, 'panneau ' + k);
       pos = a + 10;
     }
-    const r = html.slice(html.indexOf('id="rrx-3d-presets"'), html.indexOf('id="rrx-3d-info"'));
-    assert.match(r, /title="Reset camera"/);
-    assert.match(r, />Iso</);
-    assert.ok(r.indexOf('>Iso<') < r.indexOf('>Front<'));
+    assert.ok(!html.includes('id="rrx-3d-presets"'), 'Reshape utilise la barre commune (LOT W27)');
     assert.doesNotMatch(html, /id="rrx-3d-canvas"[^>]*cursor:grab/);
   });
 

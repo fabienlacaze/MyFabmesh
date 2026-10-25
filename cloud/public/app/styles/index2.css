@@ -4935,3 +4935,16 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ============================================================
+ * LOT W27 (25/10) : « Reshape a region » (#modal-region-retex), apercu a la taille commune, barre de vues en bas,
+ * pied : Annuler petit, action principale sur toute la largeur restante.
+ * ============================================================ */
+#modal-region-retex .rrx-apercu { display: block; }
+#modal-region-retex .rrx-etape-3d { position: relative; width: 100%; height: 100%; background: #1b1b1b; overflow: hidden; }
+#modal-region-retex .rrx-etape-2d { position: relative; height: 100%; max-width: 100%; aspect-ratio: 1; margin: 0 auto; background: #111; overflow: hidden; }
+#modal-region-retex .modal-actions { display: flex; align-items: stretch; gap: 10px; }
+#modal-region-retex .modal-actions .ghost-btn { flex: 0 0 auto; }
+#modal-region-retex .modal-actions .primary-btn { flex: 1 1 0; min-width: 0; }
+#modal-region-retex .rrx-form .form-row, #modal-region-retex .rrx-form label.rrx-curseur { width: 100%; }
+#modal-region-retex .rrx-form input[type="text"], #modal-region-retex .rrx-form input[type="range"] { width: 100%; box-sizing: border-box; }
