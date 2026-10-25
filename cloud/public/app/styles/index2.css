@@ -4935,3 +4935,16 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+
+/* ============================================================
+ * LOT W31 (25/10) : Align Texture sur le gabarit .fen-3d (apercu a gauche, colonne de reglages a droite, pied Annuler + action pleine largeur).
+ * ============================================================ */
+#modal-align-texture .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-align-texture .at-barre-vues { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px;
+  background: rgba(0, 0, 0, 0.7); padding: 4px 6px; border-radius: 6px; z-index: 2; }
+#modal-align-texture .at-barre-vues button { padding: 3px 10px; font-size: 13px; }
+#modal-align-texture .at-bascule { display: flex; gap: 4px; }
+#modal-align-texture .at-bascule button { flex: 1; padding: 5px; font-size: 13px; }
+#modal-align-texture .at-cases { padding: 8px 10px; background: #0a0a0a; border-radius: 4px; font-size: 13px; color: var(--text-2); }
+#modal-align-texture #at-reset { align-self: stretch; text-align: center; }
