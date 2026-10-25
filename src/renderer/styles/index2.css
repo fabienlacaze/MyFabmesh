@@ -5161,3 +5161,16 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ══ LOT W01 (25/10) : Draw Mask au gabarit .fen-3d — apercu a gauche, reglages a droite, pied Annuler + action pleine largeur ══ */
+.fen-editeur-2d .fen-outils { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fen-editeur-2d .fen-form > .fen-champ > input[type="text"] { flex: 0 0 auto; width: 100%; box-sizing: border-box; padding: 10px 12px;
+  background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; }
+.fen-editeur-2d .fen-form input[type="range"] { width: 100%; }
+.fen-editeur-2d .modal-actions.fen-pied-editeur { display: flex; gap: 10px; margin-top: 16px; }
+.fen-editeur-2d .modal-actions.fen-pied-editeur .ghost-btn { flex: 0 0 auto; }
+.fen-editeur-2d .modal-actions.fen-pied-editeur .primary-btn { flex: 1 1 auto; }
+#mask-modal .fen-apercu { background: #1a1a2e; }
+.modal-card.fen-3d.fen-editeur-2d { height: auto; max-height: 97vh; overflow-y: auto; }
+.modal-card.fen-3d.fen-editeur-2d .fen-corps { flex: 0 0 auto; }
+.fen-editeur-2d .fen-outils .tool-btn { padding: 8px 11px !important; font-size: 17px !important; }
