@@ -5196,3 +5196,16 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 .fen-rangee .tool-btn { padding: 4px 10px; font-size: 14px; }
 .fen-rangee .fen-danger { color: #ff8080; border-color: rgba(255, 80, 80, 0.4); }
 #select-modal .modal-actions .primary-btn { flex: 1 1 auto; }
+/* ============================================================
+ * LOT W05 (25/10) : editeur Blur / Sharpen au gabarit .fen-3d (apercu a gauche a la taille commune, reglages en colonne a droite, pied pleine largeur)
+ * ============================================================ */
+.fen-rangee { display: flex; gap: 6px; flex-wrap: wrap; }
+.fen-rangee .tool-btn { padding: 6px 12px; font-size: 14px; }
+.modal-card.fen-3d.fen-2d-blur { width: min(1700px, 97vw); max-width: 97vw; height: min(94vh, 1000px); }
+.fen-2d-blur .fen-form input[type="range"] { width: 100%; }
+.fen-2d-blur .modal-actions .primary-btn { flex: 1 1 auto; }
+.fen-2d-blur .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+@media (max-width: 760px) {
+  #modal-blur .modal-card { width: 100vw !important; max-width: 100vw !important; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; }
+  #modal-blur .fen-apercu { width: 100% !important; height: 50vh !important; }
+}

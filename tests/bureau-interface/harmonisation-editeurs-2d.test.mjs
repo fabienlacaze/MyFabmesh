@@ -21,7 +21,7 @@ const EDITEURS = {
   // LOT W04 : groupes de la colonne de droite (forme | couper-coller | vue et historique), plus de separateurs
   'select-modal': ['select-mode-rect', 'select-mode-lasso', 'select-cut', 'select-copy', 'select-delete', 'select-drop', 'select-deselect',
     'select-loupe-toggle', 'select-recenter', 'select-undo', 'select-redo'],
-  'modal-blur': ['blur-mode-blur', 'blur-mode-sharpen', '|', 'blur-loupe-toggle', 'blur-fit', '|', 'blur-undo', 'blur-redo', '|', 'blur-reset'],
+  'modal-blur': ['blur-mode-blur', 'blur-mode-sharpen', 'blur-loupe-toggle', 'blur-fit', 'blur-undo', 'blur-redo', 'blur-reset'],   // LOT W05 : groupes titres (plus de separateurs)
   'modal-crop': ['crop-preset-free', 'crop-preset-1-1', 'crop-preset-4-3', 'crop-preset-16-9', 'crop-preset-center', 'crop-loupe-toggle', 'crop-recenter', 'crop-undo', 'crop-redo'],   // LOT W03 : colonne de droite, groupes titres (reglages, vue, historique) sans separateur
   'modal-symmetrize': ['sym-loupe-toggle', 'sym-recenter', '|', 'sym-undo', 'sym-redo', '|', 'sym-reset'],
   'modal-paint': ['paint-emissive-toggle', '|', 'paint-loupe-toggle', 'paint-recenter', '|', 'paint-undo', 'paint-redo', '|', 'paint-reset'],
