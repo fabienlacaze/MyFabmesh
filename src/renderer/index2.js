@@ -14,6 +14,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+import { centrerRotation } from './lib/centre-rotation.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
@@ -2084,6 +2085,7 @@ function _sourisVisualiseur(controls, domEl) {
     controls.screenSpacePanning = true;
     controls.enableZoom = true;
     controls.zoomToCursor = true;
+    centrerRotation(controls, domEl);   // la molette enfoncee tourne autour du CENTRE du modele (25/10)
     if (domEl && !domEl.__souris25) {
       domEl.__souris25 = true;
       domEl.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -5306,7 +5308,6 @@ document.getElementById('ws-stages-bar')?.addEventListener('click', (e) => {
 // scaffold) from the displayed mesh, then switch stages via a bar over the mesh
 // preview (mirrors the image stages bar). CPU-only worker → no GPU gate.
 document.getElementById('ws-mesh-stages3d-btn')?.addEventListener('click', () => {
-  _bs3dFinPrereglage();   // l'outil lui-meme : fenetre normale (pas le mode prereglage de la creation)
   const p = state.currentProject;
   const mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
@@ -5713,7 +5714,6 @@ document.getElementById('bs3d-count')?.addEventListener('input', (e) => {
 });
 document.getElementById('bs3d-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
-  if (_bs3dPrereglage) { _bs3dFinPrereglage(); const cb = document.getElementById('ws-3d-buildstages'); if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); } }
 });
 // AUTO (one preset everywhere) vs MANUAL (per-component material) toggle
 document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
@@ -5731,28 +5731,76 @@ document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
  * le maillage qui vient d'etre livre, facture a son propre tarif. Rien n'est
  * lance si l'utilisateur a change de projet entre-temps : l'outil agit sur le
  * maillage AFFICHE, ce serait celui d'un autre projet. */
-/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » :
- * cocher la case ouvre la meme fenetre (nombre d'etapes, mode et materiaux) ; « OK » memorise le choix, applique apres la generation. */
+/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » (panneau deroulant sous la case). */
 window._chantierPrereglage = null;
-let _bs3dPrereglage = false;
-function _bs3dFinPrereglage() {
-  _bs3dPrereglage = false;
-  const st = document.getElementById('bs3d-start');
-  if (st && st.dataset.htmlOrigine) { st.innerHTML = st.dataset.htmlOrigine; delete st.dataset.htmlOrigine; }
+// Libelle de la case : « (3 versions) » devient le nombre CHOISI (25/10, capture : 5 etapes choisies, « 3 versions » affiche)
+function _bs3dLibelleCase(n) {
+  const cb = document.getElementById('ws-3d-buildstages');
+  const lab = cb && cb.closest('label');
+  if (!lab) return;
+  const noeud = Array.from(lab.childNodes).reverse().find((x) => x.nodeType === 3 && x.textContent.trim());
+  if (!noeud) return;
+  if (lab.dataset.libelleOrigine == null) lab.dataset.libelleOrigine = noeud.textContent;
+  noeud.textContent = n ? ' ' + _i18nTf('Construction stages ({x} versions)', String(n)) + ' ' : lab.dataset.libelleOrigine;
+}
+/* PANNEAU DEROULANT sous la case (25/10, demande du user : « que les parametres des etapes de construction apparaissent dans un menu deroulant,
+ * comme Options avancees pour Reglages auto »). Les controles sont CLONES depuis la fenetre de l'outil (memes options, memes libelles) : plus de
+ * fenetre a ouvrir. Chaque changement memorise le choix dans window._chantierPrereglage, applique apres la generation. */
+function _bs3dSauver() {
+  const v = (id) => document.getElementById('ws3d-stg-' + id)?.value;
+  window._chantierPrereglage = { count: v('count'), mode: v('mat-mode'), material: v('material'), scaffold: v('mat-scaffold'), frame: v('mat-frame'), planks: v('mat-planks'), formwork: v('mat-formwork') };
+  _bs3dLibelleCase(window._chantierPrereglage.count);
+}
+function _bs3dPanneau() {
+  let det = document.getElementById('ws-3d-stages-opts');
+  if (det) return det;
+  const cb = document.getElementById('ws-3d-buildstages');
+  const ligne = cb && cb.closest('.form-row');
+  const source = document.getElementById('bs3d-count')?.parentElement;
+  if (!ligne || !source) return null;
+  det = document.createElement('details');
+  det.id = 'ws-3d-stages-opts'; det.open = true; det.style.cssText = 'margin-top:6px; font-size:12px;';
+  const sm = document.createElement('summary');
+  sm.style.cssText = 'cursor:pointer; color:var(--text-muted);';
+  sm.textContent = '\u2699\uFE0F ' + _i18nT('Construction stages options');
+  const corps = source.cloneNode(true);
+  corps.style.margin = '6px 0';
+  corps.querySelectorAll('[id]').forEach((el) => { el.id = el.id.replace(/^bs3d-/, 'ws3d-stg-'); });
+  det.append(sm, corps);
+  ligne.insertAdjacentElement('afterend', det);
+  const g = (id) => document.getElementById('ws3d-stg-' + id);
+  g('count')?.addEventListener('input', (e) => { const el = g('count-val'); if (el) el.textContent = e.target.value; _bs3dSauver(); });
+  g('mat-mode')?.addEventListener('change', (e) => {
+    const manuel = e.target.value === 'manual';
+    const auto = g('mat-auto-row'), lignes = g('mat-manual-rows');
+    if (auto) auto.style.display = manuel ? 'none' : '';
+    if (lignes) { lignes.classList.toggle('hidden', !manuel); lignes.style.display = manuel ? 'grid' : 'none'; }
+    _bs3dSauver();
+  });
+  corps.querySelectorAll('select').forEach((s) => s.addEventListener('change', _bs3dSauver));
+  return det;
 }
 document.getElementById('ws-3d-buildstages')?.addEventListener('change', (e) => {
-  if (!e.target.checked) { window._chantierPrereglage = null; return; }
-  _bs3dPrereglage = true;
-  const st = document.getElementById('bs3d-start');
-  if (st && !st.dataset.htmlOrigine) { st.dataset.htmlOrigine = st.innerHTML; st.textContent = 'OK'; }
-  document.getElementById('modal-stages3d-options')?.classList.remove('hidden');
+  const det = _bs3dPanneau();
+  if (det) det.style.display = e.target.checked ? '' : 'none';
+  if (!e.target.checked) { window._chantierPrereglage = null; _bs3dLibelleCase(0); return; }
+  if (!window._chantierPrereglage) {   // premiere ouverture : les valeurs historiques de la case (3 etapes, materiaux automatiques)
+    const c = document.getElementById('ws3d-stg-count'), cv = document.getElementById('ws3d-stg-count-val');
+    if (c) c.value = '3'; if (cv) cv.textContent = '3';
+  }
+  _bs3dSauver();
 });
 
 function _chantierApresGeneration(p, meshPath) {
   const cur = state.currentProject;
   const mp = meshPath || (cur && cur.meshes && cur.meshes[0] && cur.meshes[0].path) || null;
-  if (!cur || !p || cur.name !== p.name || !mp) {
-    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".'), 'error', 7000);
+  // 25/10 : la comparaison stricte des noms echouait quand le serveur renvoie le nom sous une autre forme (espaces / underscores) apres le rechargement :
+  // « Les etapes de construction n'ont pas ete lancees » alors que le projet etait bien ouvert. Meme equivalence que reloadCurrentProject.
+  const _memeNom = cur && p && (cur.name === p.name || _nomsEquivalents(cur.name, p.name));
+  if (!cur || !p || !_memeNom || !mp) {
+    const _raison = !cur ? 'no project open' : !p ? 'no launch project' : !_memeNom ? 'project changed (' + cur.name + ' / ' + p.name + ')' : 'mesh path unknown';
+    console.warn('[chantier] etapes non lancees :', _raison);
+    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".') + ' [' + _raison + ']', 'error', 9000);
     return;
   }
   cur.previewMeshPath = mp;
@@ -5766,12 +5814,6 @@ function _chantierApresGeneration(p, meshPath) {
 
 document.getElementById('bs3d-start')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
-  if (_bs3dPrereglage) {
-    const v = (id) => document.getElementById(id)?.value;
-    window._chantierPrereglage = { count: v('bs3d-count'), mode: v('bs3d-mat-mode'), material: v('bs3d-material'), scaffold: v('bs3d-mat-scaffold'), frame: v('bs3d-mat-frame'), planks: v('bs3d-mat-planks'), formwork: v('bs3d-mat-formwork') };
-    _bs3dFinPrereglage();
-    return;
-  }
   const p = state.currentProject;
   let mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
@@ -13825,9 +13867,8 @@ const MESH_TOOL_SCHEMAS = {
   },
   watertight: {
     title: 'Watertight',
-    subtitle: 'Add a CLOSED inner shell inside the model so it becomes watertight (printable). Your mesh and its texture are not touched: the shell stays strictly inside. Parts thinner than a few voxels get no shell. Higher resolution = tighter shell, slower.',
+    subtitle: 'Add a CLOSED inner skin just behind the surface so the model becomes watertight (printable). Your mesh and its texture are not touched: the skin stays strictly inside, and empty rooms stay visible through doors. Parts thinner than a few voxels get no skin. Higher resolution = tighter skin, slower.',
     needsImage: false,
-    confirm: 'Watertight adds a closed grey shell inside the mesh. The outside and the texture stay exactly as they are. Continue?',
     params: [
       // 256 = plafond reel de la coque interieure (watertight_seal.coque_interieure).
       { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 256, step: 8, default: 192 },
@@ -22661,7 +22702,7 @@ function _jobStepIndex(j) {
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
-  if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
+  if (/(mesh edit|save mesh|sculpt|watertight|decimate|subdivid|^center|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
   if (/(rig|skeleton|re-?skin)/i.test(n)) return 3;
   if (/(^animate|animation)/i.test(n)) return 4;
   return 0;

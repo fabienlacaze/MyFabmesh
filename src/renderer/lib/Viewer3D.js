@@ -20,6 +20,7 @@
  *   viewer.dispose(); // when unmounting
  */
 import { majLOD, preparerLOD, geometriePleine } from './lod-maillage.js';
+import { centrerRotation } from './centre-rotation.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Filtrage anisotrope + mipmaps des textures (2026-10-15) : importer ce module suffit a l'activer pour tout chargement
@@ -144,6 +145,7 @@ export class Viewer3D {
     this.controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     this.controls.screenSpacePanning = true;
     this.controls.zoomToCursor = true;
+    centrerRotation(this.controls, this.canvas);   // rotation autour du centre du modele (25/10)
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     // Middle (wheel) button drag rotates too — users expect to grab the
     // wheel and orbit; the OrbitControls default maps MIDDLE to dolly/zoom.
