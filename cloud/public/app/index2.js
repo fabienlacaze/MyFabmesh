@@ -21335,6 +21335,7 @@ async function lancerRigIA(options = {}) {
       // is still being polled successfully every 5s.
       const r = await API.autoRigAI({
         meshPath: meshPathToUse,
+        projectName: p.name,
         engine: rigEngine,
         ...(points ? { points } : {}),
         ...(points && Array.isArray(options.liens) ? { liens: options.liens } : {}),
@@ -21771,9 +21772,9 @@ function _reglagesVarianteForme(force, graine, guide, typeObjet, sujetProjet) {
 }
 var ALLURES_PROCEDURALES = ['idle', 'walk', 'run', 'turn_left', 'turn_right',
   // ajoutes le 2026-09-28 : calcules par le moteur, gratuits (attaque et mort etaient de l'IA, en chantier)
-  'trot', 'walk_back', 'jump', 'eat', 'lie_down', 'attack', 'hit', 'death'];
+  'trot', 'walk_back', 'jump', 'eat', 'drink', 'lie_down', 'attack', 'hit', 'death'];
 var NOMS_ALLURES = { idle: 'Idle', walk: 'Walk', run: 'Run', turn_left: 'Turn left', turn_right: 'Turn right',
-  trot: 'Trot', walk_back: 'Walk back', jump: 'Jump', eat: 'Eat', lie_down: 'Lie down', attack: 'Attack', hit: 'Hit', death: 'Death' };
+  trot: 'Trot', walk_back: 'Walk back', jump: 'Jump', eat: 'Eat', drink: 'Drink', lie_down: 'Lie down', attack: 'Attack', hit: 'Hit', death: 'Death' };
 var _ICONES_ANIM = { idle: '😴', walk: '🚶', run: '🏃', attack: '⚔️', death: '💀', fly: '✈️', locomotion: '🐾', turn_left: '↰', turn_right: '↱',
   swim: '🐟', swim_fast: '🐟', swim_left: '↰', swim_right: '↱', slither: '🐍', slither_fast: '🐍', slither_left: '↰', slither_right: '↱' };
 function _iconeAnim(t) { return (_ICONES_ANIM || {})[t] || '🎬'; }
@@ -21790,7 +21791,7 @@ var TYPES_ANIM = [
   { v: 'idle', libelle: '😴 Idle' }, { v: 'walk', libelle: '🚶 Walk' }, { v: 'trot', libelle: '🐎 Trot' }, { v: 'run', libelle: '🏃 Run' },
   { v: 'jump', libelle: '🦘 Jump' }, { v: 'walk_back', libelle: '↩ Walk back' },
   { v: 'turn_left', libelle: '↰ Turn left' }, { v: 'turn_right', libelle: '↱ Turn right' },
-  { v: 'eat', libelle: '🌿 Eat' }, { v: 'lie_down', libelle: '🛌 Lie down' },
+  { v: 'eat', libelle: '🌿 Eat' }, { v: 'drink', libelle: '💧 Drink' }, { v: 'lie_down', libelle: '🛌 Lie down' },
   { v: 'attack', libelle: '⚔️ Attack' }, { v: 'hit', libelle: '💥 Hit' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
 ];
 var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', crawl: 'Crawl', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide',
@@ -21818,7 +21819,7 @@ var _apercuAnim = null;
 // par projet). Le moteur nomme alors les clips en consequence (swim, slither…).
 var LIBELLES_MODE = {
   nage: { idle: '🐟 Idle (hover)', walk: '🐟 Swim', run: '🐟 Swim fast', turn_left: '↰ Swim left', turn_right: '↱ Swim right' },
-  reptation: { idle: '🐍 Idle', walk: '🐍 Slither', run: '🐍 Slither fast', turn_left: '↰ Slither left', turn_right: '↱ Slither right' },
+  reptation: { idle: '🐍 Idle', walk: '🐍 Slither', run: '🐍 Slither fast', turn_left: '↰ Slither left', turn_right: '↱ Slither right', attack: '⚔️ Strike', eat: '🐁 Swallow prey', drink: '💧 Drink' },
   vol: { idle: '🦅 Hover', walk: '🦅 Fly', run: '💨 Fly fast', turn_left: '↰ Bank left', turn_right: '↱ Bank right' },
 };
 var VARIANTES_MODE = {
@@ -21839,6 +21840,8 @@ var DESCRIPTIONS_MODE = {
     walk__crawl: 'Crawls in up-and-down waves, like a caterpillar or a worm.', run: 'Fast slither.', run__sprint: 'Very fast slither.',
     turn_left: 'Slithers while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
     turn_right: 'Slithers while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+    attack: 'Coils into an S, then strikes with the head.', attack__strong: 'Wide, heavy strike.', attack__quick: 'Lightning-fast strike.',
+    eat: 'Snaps at the prey, then swallows it in waves.', drink: 'Lowers the head to the water and laps.',
   },
   vol: {
     idle: 'Hovers in place, wings beating.', walk: 'Flies forward, wings beating steadily.', walk__slow: 'Slow, relaxed flight.',
@@ -21916,7 +21919,7 @@ function _remplirMenuTypes() {
   // un poisson ou un serpent ne vole pas, ne trotte pas, ne se couche pas : ses 5 allures seulement ;
   // une creature a pattes : les animations de SON espece (user 28/09 : « il faut trier en fonction de l'espece »)
   const permis = _animsPermises();
-  const types = TYPES_ANIM.filter((x) => (m === 'pattes' ? permis.includes(x.v) : ['idle', 'walk', 'run', 'turn_left', 'turn_right'].includes(x.v)));
+  const types = TYPES_ANIM.filter((x) => (m === 'pattes' ? permis.includes(x.v) : (m === 'reptation' ? ['idle', 'walk', 'run', 'turn_left', 'turn_right', 'attack', 'eat', 'drink'] : ['idle', 'walk', 'run', 'turn_left', 'turn_right']).includes(x.v)));
   // la liste « a generer » perd ce que cette espece ne sait pas faire
   const avantSel = _animSelection.length;
   _animSelection = _animSelection.filter((e) => types.some((x) => x.v === e.type));

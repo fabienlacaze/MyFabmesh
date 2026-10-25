@@ -3075,7 +3075,7 @@
          JOB DETAILS MODAL
          ============================================================ -->
     <div id="modal-job-details" class="modal-overlay hidden">
-      <div class="modal-card fen-3d fen-detail">
+      <div class="modal-card" style="max-width: 480px;">
         <button class="settings-close-x" id="job-details-close-x" title="Minimize (the task keeps running in the panel)" style="position:absolute; top:14px; right:14px; z-index:11;">&#9660;</button>
         <div id="job-gpu-monitor" class="job-gpu-monitor">
           <div class="jgm-row"><span class="jgm-label">VRAM</span><span class="jgm-val" id="jgm-vram">--</span></div>
@@ -3083,15 +3083,13 @@
           <div class="jgm-row"><span class="jgm-label">TEMP</span><span class="jgm-val" id="jgm-temp">--</span></div>
           <div class="jgm-row"><span class="jgm-label">RAM</span><span class="jgm-val" id="jgm-ram">--</span></div>
         </div>
-        <div class="fen-tete job-details-head">
+        <div class="job-details-head">
+          <img id="jd-ref-img" alt="" />
           <div class="job-details-head-text">
             <h2 id="job-details-title">Running task</h2>
             <p class="modal-subtitle" id="job-details-subtitle">--</p>
           </div>
         </div>
-        <div class="fen-corps">
-          <div class="fen-apercu"><img id="jd-ref-img" alt="" /></div>
-          <div class="fen-form">
         <div class="job-details-stats">
           <div class="jd-row"><span class="jd-label">Status</span><span class="jd-value" id="jd-status">Running</span></div>
           <div class="jd-row"><span class="jd-label">Started</span><span class="jd-value" id="jd-started">--</span></div>
@@ -3119,8 +3117,6 @@
           </span>
         </div>
         <div id="jd-error-box" class="jd-error-box hidden"></div>
-          </div>
-        </div>
         <div class="modal-actions" style="flex-wrap:wrap;">
           <button class="primary-btn" id="job-details-goto-step" style="display:none; white-space:nowrap; background:linear-gradient(135deg,#7c3aed,#a855f7);">&#8594; Go to generation</button>
           <button class="primary-btn" id="job-details-open-settings" style="display:none; background:linear-gradient(135deg,#6a5acd,#9370db);">&#9881; Open Settings</button>

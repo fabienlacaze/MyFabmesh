@@ -1629,3 +1629,74 @@
   }
   if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
 })();
+
+
+/* ANIMATIONS SANS PATTES (26/10) : attaque, manger, boire pour un serpent (menu du mode Reptation) */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
+      "Strike": [
+          "Frappe",
+          "Ataque",
+          "\u6251\u51fb",
+          "\u0935\u093e\u0930",
+          "\u0636\u0631\u0628\u0629"
+      ],
+      "Swallow prey": [
+          "Avaler une proie",
+          "Tragar una presa",
+          "\u541e\u98df\u730e\u7269",
+          "\u0936\u093f\u0915\u093e\u0930 \u0928\u093f\u0917\u0932\u0928\u093e",
+          "\u0627\u0628\u062a\u0644\u0627\u0639 \u0641\u0631\u064a\u0633\u0629"
+      ],
+      "Drink": [
+          "Boire",
+          "Beber",
+          "\u559d\u6c34",
+          "\u092a\u093e\u0928\u0940 \u092a\u0940\u0928\u093e",
+          "\u0634\u0631\u0628"
+      ],
+      "Coils into an S, then strikes with the head.": [
+          "S'enroule en S, puis frappe de la t\u00eate.",
+          "Se enrosca en S y luego golpea con la cabeza.",
+          "\u76d8\u6210S\u5f62\uff0c\u7136\u540e\u7528\u5934\u90e8\u6251\u51fb\u3002",
+          "S \u0906\u0915\u093e\u0930 \u092e\u0947\u0902 \u0915\u0941\u0902\u0921\u0932\u0940 \u092e\u093e\u0930\u0924\u093e \u0939\u0948, \u092b\u093f\u0930 \u0938\u093f\u0930 \u0938\u0947 \u0935\u093e\u0930 \u0915\u0930\u0924\u093e \u0939\u0948\u0964",
+          "\u064a\u062a\u0644\u0648\u0651\u0649 \u0639\u0644\u0649 \u0634\u0643\u0644 S \u062b\u0645 \u064a\u0636\u0631\u0628 \u0628\u0631\u0623\u0633\u0647."
+      ],
+      "Snaps at the prey, then swallows it in waves.": [
+          "Happe la proie, puis l'avale par ondulations.",
+          "Atrapa la presa y luego la traga con ondulaciones.",
+          "\u54ac\u4f4f\u730e\u7269\uff0c\u7136\u540e\u4ee5\u6ce2\u6d6a\u5f0f\u8815\u52a8\u541e\u4e0b\u3002",
+          "\u0936\u093f\u0915\u093e\u0930 \u0915\u094b \u092a\u0915\u0921\u093c\u0924\u093e \u0939\u0948, \u092b\u093f\u0930 \u0932\u0939\u0930\u094b\u0902 \u092e\u0947\u0902 \u0928\u093f\u0917\u0932\u0924\u093e \u0939\u0948\u0964",
+          "\u064a\u0645\u0633\u0643 \u0628\u0627\u0644\u0641\u0631\u064a\u0633\u0629 \u062b\u0645 \u064a\u0628\u062a\u0644\u0639\u0647\u0627 \u0628\u062d\u0631\u0643\u0627\u062a \u0645\u0648\u062c\u064a\u0629."
+      ],
+      "Lowers the head to the water and laps.": [
+          "Baisse la t\u00eate vers l'eau et lape.",
+          "Baja la cabeza hacia el agua y lame.",
+          "\u4f4e\u5934\u9760\u8fd1\u6c34\u9762\u8206\u6c34\u3002",
+          "\u0938\u093f\u0930 \u092a\u093e\u0928\u0940 \u0915\u0940 \u0913\u0930 \u091d\u0941\u0915\u093e\u0915\u0930 \u091a\u093e\u091f\u0924\u093e \u0939\u0948\u0964",
+          "\u064a\u062e\u0641\u0636 \u0631\u0623\u0633\u0647 \u0646\u062d\u0648 \u0627\u0644\u0645\u0627\u0621 \u0648\u064a\u0644\u0639\u0642\u0647."
+      ],
+      "Wide, heavy strike.": [
+          "Frappe ample et lourde.",
+          "Golpe amplio y pesado.",
+          "\u5927\u5e45\u5ea6\u7684\u91cd\u51fb\u3002",
+          "\u091a\u094c\u0921\u093c\u093e, \u092d\u093e\u0930\u0940 \u0935\u093e\u0930\u0964",
+          "\u0636\u0631\u0628\u0629 \u0648\u0627\u0633\u0639\u0629 \u0648\u062b\u0642\u064a\u0644\u0629."
+      ],
+      "Lightning-fast strike.": [
+          "Frappe fulgurante.",
+          "Golpe fulminante.",
+          "\u95ea\u7535\u822c\u7684\u6251\u51fb\u3002",
+          "\u092c\u093f\u091c\u0932\u0940 \u091c\u0948\u0938\u093e \u0924\u0947\u091c\u093c \u0935\u093e\u0930\u0964",
+          "\u0636\u0631\u0628\u0629 \u062e\u0627\u0637\u0641\u0629."
+      ]
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();
