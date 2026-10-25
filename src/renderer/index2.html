@@ -1664,18 +1664,18 @@
          AUTO INPAINT MODAL (CLIPSeg target + replacement)
          ============================================================ -->
     <div id="modal-auto-inpaint" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Auto Inpaint</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Name what to replace &mdash; it is found and repainted.</p>
-        <div class="modal-with-image">
-          <div class="modal-image-side" style="position:relative;">
+        <div class="modal-with-image fen-corps">
+          <div class="modal-image-side fen-apercu" style="position:relative;">
             <img id="ai-source-img" alt="" />
             <div id="ai-detect-spinner" style="display:none; position:absolute; inset:0; flex-direction:column; gap:12px; align-items:center; justify-content:center; background:rgba(0,0,0,0.25); border-radius:inherit;">
               <div style="width:42px; height:42px; border:4px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
               <div id="ai-detect-label" style="color:#fff; font-size:13px; font-weight:500; letter-spacing:0.3px; text-shadow:0 1px 4px rgba(0,0,0,0.7); text-align:center; max-width:80%;">Detecting target&hellip;</div>
             </div>
           </div>
-          <div class="modal-form-side">
+          <div class="modal-form-side fen-form">
             <label>Find</label>
             <input type="text" id="ai-target" placeholder="hat, shirt, background, sword..." />
             <div class="prompt-lang-hint" data-pour="ai-target" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
@@ -1701,18 +1701,18 @@
          HABITS SEULS (CLIPSeg + SDXL, reserve au type « character »)
          ============================================================ -->
     <div id="modal-outfit" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Outfit only</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">The character&rsquo;s clothes alone, on a transparent background.</p>
-        <div class="modal-with-image">
-          <div class="modal-image-side" style="position:relative;">
+        <div class="modal-with-image fen-corps">
+          <div class="modal-image-side fen-apercu" style="position:relative;">
             <img id="of-source-img" alt="" />
             <div id="of-spinner" style="display:none; position:absolute; inset:0; flex-direction:column; gap:12px; align-items:center; justify-content:center; background:rgba(0,0,0,0.25); border-radius:inherit;">
               <div style="width:42px; height:42px; border:4px solid rgba(255,255,255,0.25); border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
               <div id="of-spinner-label" style="color:#fff; font-size:13px; font-weight:500; letter-spacing:0.3px; text-shadow:0 1px 4px rgba(0,0,0,0.7); text-align:center; max-width:80%;">Extracting&hellip;</div>
             </div>
           </div>
-          <div class="modal-form-side">
+          <div class="modal-form-side fen-form">
             <label>Output</label>
             <select id="of-mode" style="display:none;">
               <option value="ensemble" selected>Whole outfit</option>
@@ -3417,14 +3417,14 @@
          MODIFY IMAGE MODAL (img2img)
          ============================================================ -->
     <div id="modal-modify-image" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Modify image</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Describe the changes. The composition is kept.</p>
-        <div class="modal-with-image">
-          <div class="modal-image-side">
+        <div class="modal-with-image fen-corps">
+          <div class="modal-image-side fen-apercu">
             <img id="mod-source-img" alt="" />
           </div>
-          <div class="modal-form-side">
+          <div class="modal-form-side fen-form">
             <label>What to change</label>
             <textarea id="mod-prompt" rows="3" placeholder="make it red, add details, anime style..."></textarea>
             <small id="mod-retrait-hint" class="fen-note" hidden></small>
@@ -3448,13 +3448,13 @@
          amount of variation (img2img strength + N random seeds).
          ============================================================ -->
     <div id="modal-variant" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Variant</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <div class="modal-with-image">
-          <div class="modal-image-side">
+        <div class="modal-with-image fen-corps">
+          <div class="modal-image-side fen-apercu">
             <img id="var-source-img" alt="" />
           </div>
-          <div class="modal-form-side var-form">
+          <div class="modal-form-side fen-form var-form">
             <label>What should change?</label>
             <div class="var-modes" id="var-mode-group">
               <label class="var-mode"><input type="radio" name="var-mode" id="var-tex-mode" checked /><span><b>Colours &amp; materials</b><small>Same shape</small></span></label>
@@ -3666,13 +3666,13 @@
   <script type="module" src="index2.js"></script>
   <!-- Resolution modal -->
   <div id="modal-resolution" class="modal-overlay hidden">
-    <div class="modal-card modal-card-wide">
+    <div class="modal-card fen-3d">
       <div class="fen-tete"><h2>Resolution</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-      <div class="modal-with-image">
-        <div class="modal-image-side">
+      <div class="modal-with-image fen-corps">
+        <div class="modal-image-side fen-apercu">
           <img id="res-preview" alt="" />
         </div>
-        <div class="modal-form-side">
+        <div class="modal-form-side fen-form">
           <label>Size</label>
           <div class="res-tailles"><span id="res-current"></span><span id="res-arrow" style="display:none;">&rarr;</span><span id="res-target" style="display:none;"></span></div>
           <label>Change</label>
