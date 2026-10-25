@@ -3252,41 +3252,45 @@
          DRAW MASK MODAL (ported from legacy)
          ============================================================ -->
     <div id="mask-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
+      <div class="modal-card fen-3d fen-editeur-2d">
         <div class="fen-tete"><h2>Draw Mask (paint the area to replace or remove)</h2><button id="mask-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Left: paint - Right: erase - Wheel: zoom - Middle/Alt: pan</div>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:13px; white-space:nowrap;">Brush:</span>
-            <input type="range" id="mask-brush-size" min="5" max="200" value="50" style="flex:1; min-width:60px;" />
-            <span id="mask-brush-val" style="min-width:24px; font-size:13px;">50</span>
-          </label>
-          <div style="display:flex; gap:4px; flex-shrink:0;">
-            <button id="mask-brush-mode" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Paint mode (B)">&#128396;&#65039;</button>
-            <button id="mask-eraser-mode" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Eraser mode (E) — radius follows brush size">&#129529;</button>
-            <span class="vz-sep" aria-hidden="true"></span>
-            <button id="mask-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-            <button id="mask-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-            <span class="vz-sep" aria-hidden="true"></span>
-            <button id="mask-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-            <button id="mask-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <span class="vz-sep" aria-hidden="true"></span>
-            <button id="mask-clear" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+        <p class="modal-subtitle vz-aide">Left: paint - Right: erase - Wheel: zoom - Middle/Alt: pan</p>
+        <div class="fen-corps">
+          <div id="mask-canvas-container" class="fen-apercu">
+            <canvas id="mask-base-canvas" style="position: absolute; left: 0; top: 0;"></canvas>
+            <canvas id="mask-overlay-canvas" style="position: absolute; left: 0; top: 0; cursor: none; pointer-events: auto; opacity: 0.55;"></canvas>
+            <div id="mask-brush-cursor" style="position: fixed; pointer-events: none; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.7); display: none; z-index: 1000;">
+              <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+            </div>
+          </div>
+          <div class="fen-form">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Brush</span><span id="mask-brush-val" class="fen-valeur">50</span></div>
+              <input type="range" id="mask-brush-size" min="5" max="200" value="50" />
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Tools</span></div>
+              <div class="fen-outils">
+                <button id="mask-brush-mode" class="secondary-btn tool-btn" title="Paint mode (B)">&#128396;&#65039;</button>
+                <button id="mask-eraser-mode" class="secondary-btn tool-btn" title="Eraser mode (E) — radius follows brush size">&#129529;</button>
+                <span class="vz-sep" aria-hidden="true"></span>
+                <button id="mask-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+                <button id="mask-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+                <span class="vz-sep" aria-hidden="true"></span>
+                <button id="mask-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+                <button id="mask-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+                <span class="vz-sep" aria-hidden="true"></span>
+                <button id="mask-clear" class="secondary-btn tool-btn" title="Reset">&#8634;</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><label class="fen-label" for="mask-prompt">Replace with</label></div>
+              <input type="text" id="mask-prompt" placeholder="Describe what to put in the masked area — leave empty to just remove it" />
+              <div class="prompt-lang-hint" data-pour="mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+            </div>
           </div>
         </div>
-        <div id="mask-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px;">
-          <canvas id="mask-base-canvas" style="position: absolute; left: 0; top: 0;"></canvas>
-          <canvas id="mask-overlay-canvas" style="position: absolute; left: 0; top: 0; cursor: none; pointer-events: auto; opacity: 0.55;"></canvas>
-          <div id="mask-brush-cursor" style="position: fixed; pointer-events: none; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.7); display: none; z-index: 1000;">
-            <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
-          </div>
-        </div>
-                <div class="prompt-lang-hint" data-pour="mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
         <div class="modal-actions fen-pied-editeur">
-          <div style="display:flex; align-items:center; gap:10px; flex:1 1 auto; min-width:0;">
-          <label for="mask-prompt" style="font-size: 14px; color: var(--text-muted); white-space: nowrap;">Replace with:</label>
-          <input type="text" id="mask-prompt" placeholder="Describe what to put in the masked area — leave empty to just remove it" style="flex: 1; padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;" />
-        </div>
           <button id="mask-cancel" class="ghost-btn">Cancel</button>
           <button id="mask-apply" class="primary-btn">Apply Inpaint</button>
         </div>
