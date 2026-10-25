@@ -1518,6 +1518,8 @@
     "View and history": ["Vue et historique", "Vista e historial", "视图和历史", "दृश्य और इतिहास", "العرض والسجل"],
     // LOT W07 : editeur Paint Tools au gabarit commun
     "Paint on the image. Right-drag to pan, wheel to zoom, Ctrl+wheel to change the brush size.": ["Peignez sur l'image. Clic droit maintenu = déplacer, molette = zoom, Ctrl + molette = taille du pinceau.", "Pinta sobre la imagen. Arrastre derecho = mover, rueda = zoom, Ctrl + rueda = tamaño del pincel.", "在图像上绘制。右键拖动 = 平移，滚轮 = 缩放，Ctrl + 滚轮 = 画笔大小。", "छवि पर पेंट करें। दायाँ-खींचें = खिसकाएँ, व्हील = ज़ूम, Ctrl + व्हील = ब्रश का आकार।", "ارسم على الصورة. سحب أيمن = تحريك، العجلة = تكبير، Ctrl + العجلة = حجم الفرشاة."],
+    /* LOT W14 */
+    "Choose what changes and how far. The preview shows the current image.": ["Choisissez ce qui change et jusqu'où. L'aperçu montre l'image actuelle.", "Elija qué cambia y hasta qué punto. La vista previa muestra la imagen actual.", "选择要改变的内容和程度。预览显示当前图像。", "चुनें कि क्या बदले और कितना। पूर्वावलोकन वर्तमान छवि दिखाता है।", "اختر ما الذي يتغير وإلى أي مدى. تعرض المعاينة الصورة الحالية."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

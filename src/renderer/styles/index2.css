@@ -5300,3 +5300,9 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-modify-image .modal-actions { display: flex; gap: 12px; }
 #modal-modify-image .modal-actions .primary-btn { flex: 1 1 auto; }
 #modal-modify-image .modal-actions .ghost-btn { flex: 0 0 auto; }
+/* ===== LOT W14 : Variant (gabarit fen-3d : apercu a gauche, reglages en colonne a droite, pied pleine largeur) ===== */
+#modal-variant .fen-apercu-image, #variant-modal .fen-apercu-image { display: flex; align-items: center; justify-content: center; }
+#modal-variant .fen-apercu-image img, #variant-modal .fen-apercu-image img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+#modal-variant .modal-card.fen-3d .modal-actions, #variant-modal .modal-card.fen-3d .modal-actions { justify-content: stretch; }
+#modal-variant .modal-actions .ghost-btn, #variant-modal .modal-actions .ghost-btn { min-width: 0; flex: 0 0 auto; }
+#modal-variant .modal-actions .primary-btn, #variant-modal .modal-actions .primary-btn { flex: 1 1 auto; }
