@@ -1906,7 +1906,9 @@ button.tool-active {
   white-space: normal;       /* allow long labels to wrap instead of being cut */
   line-height: 1.15;
   min-height: 30px;
-  word-break: break-word;
+  word-break: normal;        /* 25/10 : jamais un mot coupe au milieu (« Subdivise r ») ; ajuste-boutons.js reduit la police a la place */
+  overflow-wrap: normal;
+  hyphens: none;
 }
 .step-tools-row {
   display: flex;
@@ -4760,6 +4762,10 @@ input.fen-valeur { width: 11ch; padding: 2px 6px; text-align: right; font: inher
 .modal-with-image { grid-template-columns: minmax(300px, 1.15fr) minmax(260px, 1fr); }
 .modal-image-side { min-height: 380px; }
 .fen-echelle { display: flex; justify-content: space-between; margin-top: 3px; font-size: 13px; color: var(--text-muted); }
+/* Modify : ligne d'aide sous la consigne (retrait / remplacement detecte) et curseur sans effet (2026-10-20) */
+#mod-retrait-hint { display: block; line-height: 1.35; }
+#mod-retrait-hint[hidden] { display: none; }
+.fen-inactif { opacity: 0.45; }
 .fen-facultatif { font-weight: 400; font-size: 13px; color: var(--text-muted); margin-left: 4px; text-transform: none; letter-spacing: normal; }
 .res-tailles { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; }
 /* champs du formulaire a leur hauteur naturelle : la regle globale « input[type=text], select { flex: 1 } »

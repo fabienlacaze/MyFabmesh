@@ -13503,6 +13503,66 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
     return err(502, `mask preview failed (credit refunded): ${e instanceof Error ? e.message : String(e)}`);
   }
 }
+// >>> REFUS RETRAIT MINEUR (2026-10-22, relecture securite) : MEME LOGIQUE dans src/main/main.js et cloud/src/worker.ts
+// (tests/main/retrait-mineur-serveur.test.mjs compare les deux sur le meme corpus, et au module client lib/retrait-image.js).
+// Le moteur de retrait detecte ce que le texte nomme et le REPEINT, sans classificateur d'image en sortie ; le refus des vetements du module
+// client est lexical (un mot inconnu passe) et un client modifie peut l'ignorer. Le SERVEUR refuse donc tout retrait / remplacement dont un
+// texte (cible, remplacement, consigne traduite, consigne tapee) nomme une personne qui est ou peut etre mineure. Seule exception, pour l'outil
+// Auto Inpaint LUI-MEME (aucune consigne de Modify jointe) : effacer la personne entiere, sans remplacement (« Find: the boy ») reste permis,
+// comme avant ce chantier. Une consigne de Modify qui nomme un enfant n'est jamais routee par le client : jointe ici, elle est refusee, quelle
+// que soit la cible (client modifie). Homoglyphes (cyrillique, grec) et accents
+// sont ramenes a l'ASCII avant la recherche (« dress » ecrit avec un e cyrillique, « girl » avec un i accentue).
+const _RM_CONFUSABLES = (() => {
+  const t: Record<string, string> = {};
+  const paires = [[0x430, 'a'], [0x435, 'e'], [0x451, 'e'], [0x456, 'i'], [0x457, 'i'], [0x458, 'j'], [0x43e, 'o'], [0x440, 'p'], [0x441, 'c'],
+    [0x443, 'y'], [0x445, 'x'], [0x455, 's'], [0x4bb, 'h'], [0x501, 'd'], [0x261, 'g'], [0x43a, 'k'], [0x43c, 'm'], [0x442, 't'], [0x432, 'b'],
+    [0x3b1, 'a'], [0x3b5, 'e'], [0x3b9, 'i'], [0x3bf, 'o'], [0x3c1, 'p'], [0x3c5, 'u'], [0x3bd, 'v'], [0x3ba, 'k'], [0x3c4, 't'], [0x3c7, 'x'],
+    [0x3b3, 'y'], [0x3c9, 'w'], [0x131, 'i'], [0x1d00, 'a'], [0x0251, 'a'], [0x0131, 'i']] as [number, string][];
+  for (const [c, l] of paires) t[String.fromCharCode(c)] = l;
+  return t;
+})();
+const _RM_MINEURS = ['child', 'children', 'childs', 'childlike', 'kid', 'kids', 'kiddo', 'kiddie', 'kiddies', 'kiddy', 'baby', 'babies', 'infant',
+  'infants', 'toddler', 'toddlers', 'newborn', 'newborns', 'preteen', 'preteens', 'pre teen', 'pre teens', 'tween', 'tweens', 'teen', 'teens',
+  'teenage', 'teenaged', 'teenager', 'teenagers', 'minor', 'minors', 'underage', 'under age', 'juvenile', 'juveniles', 'prepubescent', 'pubescent',
+  'schoolgirl', 'schoolgirls', 'schoolboy', 'schoolboys', 'schoolchild', 'schoolchildren', 'schoolkid', 'schoolkids', 'girl', 'girls', 'boy',
+  'boys', 'girlie', 'lass', 'lassie', 'lad', 'lads', 'daughter', 'daughters', 'son', 'sons', 'niece', 'nieces', 'nephew', 'nephews', 'youngster',
+  'youngsters', 'youth', 'youths', 'young', 'younger', 'youngest', 'little one', 'little ones', 'kindergartener', 'kindergartner', 'pupil',
+  'pupils', 'loli', 'lolis', 'lolita', 'lolitas', 'shota', 'shotas', 'cub', 'cubs', 'kinder',
+  // consigne tapee en francais ou en espagnol (accents deja retires)
+  'enfant', 'enfants', 'fillette', 'fillettes', 'fille', 'filles', 'garcon', 'garcons', 'garconnet', 'bebe', 'bebes', 'ado', 'ados',
+  'adolescent', 'adolescente', 'adolescents', 'adolescentes', 'gamin', 'gamine', 'gamins', 'gamines', 'mineur', 'mineure', 'mineurs', 'mineures',
+  'ecolier', 'ecoliere', 'ecoliers', 'ecolieres', 'collegien', 'collegienne', 'collegiens', 'collegiennes', 'nino', 'nina', 'ninos', 'ninas',
+  'nene', 'nena', 'chico', 'chica', 'chicos', 'chicas', 'menor', 'menores', 'colegiala', 'colegialas', 'colegial', 'muchacha', 'muchacho'];
+const _RM_RE_MINEUR = new RegExp('(?:^| )(?:' + _RM_MINEURS.join('|') + ')(?: s)?(?= |$)');
+const _RM_NB = '(?:[0-9]|1[0-7]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)';
+const _RM_RE_AGE = new RegExp('(?:^| )' + _RM_NB + ' ?(?:yo|y o|yrs?|years?|year olds?|years? olds?|yr olds?|ans|anos)(?= |$)'
+  + '|(?:^| )(?:aged?|age of) ' + _RM_NB + '(?= |$)');
+const _RM_PERSONNE_SEULE = new Set(['the', 'a', 'an', 'this', 'that', 'little', 'small', 'tiny', 'young', 'cute', 'le', 'la', 'les', 'un', 'une',
+  'petit', 'petite', 'jeune', 'el', 'los', 'las', 'una', 'pequeno', 'pequena']);
+/** Texte ramene a des mots ASCII en minuscules separes par une espace (accents, homoglyphes, invisibles, ponctuation retires). */
+function _rmPlier(x: unknown): string {
+  let s = typeof x === 'string' ? x : '';
+  try { s = s.normalize('NFKD'); } catch (_) { /* moteur sans normalize */ }
+  s = s.toLowerCase();
+  let r = '';
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    if (c >= 0x300 && c <= 0x36f) continue;                                   // accents combinants
+    if (c === 0xad || (c >= 0x200b && c <= 0x200f) || c === 0x2060 || c === 0xfeff) continue;   // invisibles : « gi​rl »
+    r += _RM_CONFUSABLES[ch] || ch;
+  }
+  return r.replace(/'/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+/** Raison du refus (texte), ou null si le retrait peut partir. consignes : consigne de Modify traduite et tapee ([] pour l'outil Auto Inpaint). */
+function refusRetraitMineur(cible: unknown, remplacement: unknown, consignes: unknown[]): string | null {
+  const autres = (Array.isArray(consignes) ? consignes : []).map(_rmPlier).filter(Boolean);
+  const plies = [_rmPlier(cible), _rmPlier(remplacement), ...autres].filter(Boolean);
+  if (!plies.some((t) => _RM_RE_MINEUR.test(t) || _RM_RE_AGE.test(t))) return null;
+  const motsCible = _rmPlier(cible).split(' ').filter((w) => w && !_RM_PERSONNE_SEULE.has(w));
+  const personneSeule = !autres.length && !_rmPlier(remplacement) && motsCible.length > 0 && motsCible.every((w) => _RM_RE_MINEUR.test(w));
+  return personneSeule ? null : 'This edit is not available when the instruction mentions a child or a young person.';
+}
+// <<< REFUS RETRAIT MINEUR
 
 /** Auto-inpaint HTTP handler — desktop "Auto Inpaint" tool. NSFW
  *  pre-filter applied to the user-supplied prompt; credits refunded
@@ -13513,7 +13573,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   if (!env.MODAL_IMAGE_OP_URL) {
     return err(503, 'auto-inpaint backend unavailable');
   }
-  const { imagePath, imageUrl, targetText: cibleRecue, prompt, dilate, projectName, langueVerifiee } = await req.json() as {
+  const { imagePath, imageUrl, targetText: cibleRecue, prompt, dilate, projectName, consigne, consigneOriginale, langueVerifiee } = await req.json() as {
     /** Nom du projet, transmis par les deux clients et jusqu’ici ignore. */
     projectName?: string;
     imagePath?: string;
@@ -13521,34 +13581,54 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     targetText?: string;
     prompt?: string;
     dilate?: number;
+    /** Consigne COMPLETE de « Modify image » (traduite en anglais) et telle que tapee : verifiees comme /api/modify-image les verifie, JAMAIS
+     *  envoyees a Modal. Absentes pour l'outil Auto Inpaint lui-meme. */
+    consigne?: string;
+    consigneOriginale?: string;
     langueVerifiee?: boolean;
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
   if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
-  if (!cibleRecue) return err(400, 'targetText required');
-  let targetText = String(cibleRecue);
+  let targetText = String(cibleRecue ?? '').trim();   // rognee UNE fois : la chaine verifiee est la chaine envoyee
+  if (!targetText) return err(400, 'targetText required');
+  const consignes = [consigne, consigneOriginale]
+    .map((x) => (typeof x === 'string' ? x.trim() : ''))
+    .filter((x, i, tous) => x && tous.indexOf(x) === i);
+  if (consignes.some((x) => x.length > 1000)) return err(400, 'consigne too long');   // une consigne de Modify tient en 200 caracteres
 
   // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
   const COST_PER_INPAINT = await getPrice(env, 'auto_inpaint');
   const cost = COST_PER_INPAINT;
   let rawPrompt = (prompt ?? '').toString().trim();
-  // 2026-10-13 (MODERATION-04) : le texte CIBLE (ce que CLIPSeg cherche, puis le negatif de la passe de remplissage) n'etait
-  // filtre que par le plancher de Modal. Il passe desormais le MEME filtre que le prompt ; et le PLANCHER voit les deux
-  // ensemble (« child » en cible et « naked » en remplacement ne sont rien separement), comme celui de Modal. Le filtre
-  // general reste champ par champ (« bed » en cible + « child's toy » en remplacement n'est pas une combinaison). Borne de
-  // longueur pour les deux.
+  // 2026-10-13 (MODERATION-04) : le texte CIBLE (ce que CLIPSeg cherche) passe le MEME filtre que le remplacement, et le PLANCHER voit les deux
+  // ensemble. 2026-10-22 : la consigne complete de « Modify image » et chaque champ SEUL passent aussi (voir _verifierTextesRetrait).
   const cible = targetText.trim();
   const trop = _refusLongueur(cible, 300) || _refusLongueur(rawPrompt);
   if (trop) return trop;
   const envUnrestricted = env.FABMESH_UNRESTRICTED === '1';
   const userState = await getParentalState(env, user.id);
   const unrestricted = envUnrestricted || !!userState.unrestricted;
-  {
-    // [texte, unrestricted] : `true` = plancher seul (checkPromptSafety ne garde alors que le plancher, jamais levable).
-    const controles: [string, boolean][] = [[cible, unrestricted], [rawPrompt, unrestricted], [rawPrompt ? `${cible} ${rawPrompt}` : '', true]];
+  // UNE PERSONNE MINEURE NOMMEE (2026-10-22) : voir refusRetraitMineur ; avant tout debit et tout appel a Modal.
+  // ALERTE EXPLOITANT CONSERVEE (2e relecture securite) : le filtre general (qui alerte l'exploitant et rend la categorie du refus,
+  // `minor-safety`) passe AVANT ce refus lexical, qui ne le court-circuite donc jamais.
+  const refuserMineur = (c: string, r: string): Response | null => {
+    const refusMineur = refusRetraitMineur(c, r, consignes);
+    if (!refusMineur) return null;
+    return json({ ok: false, success: false, error: refusMineur, blocked: true }, { status: 400 });
+  };
+  // Verifie les chaines EXACTES qui partiront (ou viennent d'etre traduites) : texte joint (filtre habituel), CHAQUE champ seul
+  // (le filtre recolle les lettres isolees PAR-DESSUS la jointure), consignes, puis le PLANCHER sur cible + remplacement ensemble
+  // (`true` = plancher seul, jamais levable).
+  const verifierTextes = async (c: string, r: string): Promise<Response | null> => {
+    const joint = [c, r].filter(Boolean).join('. ');
+    const controles: [string, boolean][] = [[joint, unrestricted], [c, unrestricted], [r, unrestricted], ...consignes.map((x): [string, boolean] => [x, unrestricted]),
+      [r ? `${c} ${r}` : '', true]];
+    const vus = new Set<string>();
     for (const [texte, libre] of controles) {
-      if (!texte) continue;
+      const cle = `${libre ? 1 : 0}|${texte}`;
+      if (!texte || vus.has(cle)) continue;
+      vus.add(cle);
       const safety = await _checkPromptSafetyAlerte(env, user.id, texte, libre);
       if (!safety.safe) {
         return json({ ok: false, success: false,
@@ -13556,6 +13636,11 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
           blocked: safety.blocked }, { status: 400 });
       }
     }
+    return null;
+  };
+  {
+    const v = await verifierTextes(cible, rawPrompt);
+    if (v) return v;
   }
   if (rawPrompt || LangueTexte.morceauxEtrangers(targetText).length) {
     // FILET DE LANGUE (lot 2 de l'audit de la langue) : la CIBLE part a CLIPSeg, qui ne comprend que l'anglais (TRADUCTION-04) ; le
@@ -13569,15 +13654,19 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
     if (f.refus) return f.refus;
     targetText = f.textes[0];
     if (rawPrompt) rawPrompt = f.textes[1];
-    // Le PLANCHER voit aussi la cible et le remplacement TRADUITS ensemble : la chaine envoyee a Modal est la chaine verifiee.
+    // La chaine envoyee a Modal est la chaine verifiee : le texte TRADUIT repasse par le refus « mineur » ET par tout le filtre
+    // (« enfant » devient « child » apres la traduction : le refus lexical ne le voyait pas avant).
     if (f.traduit) {
-      const apres = await _checkPromptSafetyAlerte(env, user.id, rawPrompt ? `${targetText} ${rawPrompt}` : targetText, true);
-      if (!apres.safe) {
-        return json({ ok: false, success: false,
-          error: apres.reason ?? 'prompt blocked by content filter',
-          blocked: apres.blocked }, { status: 400 });
-      }
+      const v2 = await verifierTextes(targetText.trim(), rawPrompt);
+      if (v2) return v2;
     }
+  }
+  targetText = targetText.trim();
+  // Refus lexical « mineur » sur les chaines FINALES (celles qui partent a Modal) : sur le texte d'origine d'un client francophone, « son » (= his)
+  // ou « fils » seraient pris pour un enfant ; apres traduction, la liste anglaise voit la bonne chaine.
+  {
+    const m = refuserMineur(targetText, rawPrompt);
+    if (m) return m;
   }
 
   const estimatedTotal = 0.08;

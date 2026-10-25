@@ -31,7 +31,7 @@ const OUTILS_EDITION = {
 
 // modules ES dans des .js : copies .mjs temporaires
 const dossier = mkdtempSync(join(tmpdir(), 'traduction-outils-'));
-let LT, COMPO;
+let LT, COMPO, RETRAIT;
 try {
   const c1 = join(dossier, 'langue-texte.mjs');
   writeFileSync(c1, readFileSync(join(RACINE, 'src/renderer/lib/langue-texte.js'), 'utf-8'));
@@ -39,6 +39,9 @@ try {
   const c2 = join(dossier, 'composeur-intention.mjs');
   writeFileSync(c2, readFileSync(join(RACINE, 'src/renderer/lib/composeur-intention.js'), 'utf-8'));
   COMPO = await import(pathToFileURL(c2).href);
+  const c3 = join(dossier, 'retrait-image.mjs');
+  writeFileSync(c3, readFileSync(join(RACINE, 'src/renderer/lib/retrait-image.js'), 'utf-8'));
+  RETRAIT = await import(pathToFileURL(c3).href);
 } finally {
   rmSync(dossier, { recursive: true, force: true });
 }
@@ -52,6 +55,10 @@ const DECLARATIONS = [
   'ASSET_TYPE_PROMPTS', 'ASSET_STYLE_PROMPTS', 'ASSET_TYPE_PREFIXES', 'ASSET_TYPE_PREFIXES_ANCIENS', 'AIDE_PROMPT_EN', 'CHAMPS_PROMPT_SANS_TRADUCTION', '_traductionActivePour', '_texteAideLangue', 'TRANSLATING_MSG',
   // negations de l'utilisateur (piste N, fusionnee le 20/10) : les gestionnaires les appellent
   '_sansNegations', '_negativeExtraDe', '_optionsAffichage', '_optionsPose', '_epurerDemande', '_retirerPolitesseFin', '_DEMANDE_EN', '_DEMANDE_FR',
+  // Modify image : retrait confie a Auto Inpaint (modify-retrait) ; le gestionnaire de Apply est _modAppliquer
+  'modPromptEl', 'modRetraitAide', '_modRetrait', '_modRetraitSeq', '_modClic', '_modClicValide', '_modRetraitMinuterie', '_modCacheTrad', '_modLangueAnglais',
+  '_modEnCloud', '_modRetraitActif', '_modAnglais', '_modAfficherRetrait', '_modMajRetrait', '_modPlanifierRetrait', '_modDecision', '_modConfirmerPrix',
+  '_modMessageEchec', '_modLancerRetrait', '_modAppliquer',
   // outils
   '_stripColorWords', '_RC_COLOR_WORDS', '_ageBuildPrompt', '_ageStrength', '_preremplirPrompt',
   // New project (mode Auto)
@@ -221,7 +228,8 @@ function monter(plateforme, opts = {}) {
     pushJob: () => ({ id: 'travail-1' }),
     completeJob() {}, customError() {}, renderJobs() {}, reloadCurrentProject: async () => {},
     editTarget: (p) => (p ? p.selectedImagePath : null),
-    modifyModal: page.document.getElementById('modal-modify'), modStrength: { value: '60' },
+    modifyModal: page.document.getElementById('modal-modify'), modStrength: { value: '60', disabled: false, title: '', classList: { toggle() {} } }, modStrengthVal: null,
+    analyserRetrait: RETRAIT.analyserRetrait, estRoute: RETRAIT.estRoute, fabConfirm: async () => true, _precisionRel: () => 0.585,
     _rcSelectedColor: '', _npIaType: null, _npTypeMotsCles: null, _aiFirstDetectDone: false,
     _isCloudMode: () => false,
     _reglagesVarianteForme: (_force, _graine, guide, _type, texte) => ({ prompt: guide || texte, cnScale: 0.5, gris: 0, neg: '', motifs: 0 }),

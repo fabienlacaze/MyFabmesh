@@ -125,8 +125,14 @@ test('auto-inpaint : le texte CIBLE passe le filtre, et le plancher voit cible +
   // legitime : le filtre general reste champ par champ (« bed » en cible, jouet d'enfant en remplacement)
   const m3 = monde();
   const w3 = charger([...COMMUN, 'handleAutoInpaint'], m3.doublures);
-  const r3 = await w3.handleAutoInpaint(requete('/api/auto-inpaint', { imageUrl: 'https://site/r2/x.png', targetText: 'bed', prompt: "child's toy box" }), m3.env);
+  const r3 = await w3.handleAutoInpaint(requete('/api/auto-inpaint', { imageUrl: 'https://site/r2/x.png', targetText: 'bed', prompt: "a wooden toy box" }), m3.env);
   assert.equal(r3.status, 200);
+  // « child's toy box » (deploy-2510 : passait) est REFUSE depuis le refus « personne mineure nommee » de Modify retrait (2026-10-22) : tout retrait ou
+  // remplacement qui nomme un enfant est refuse, meme innocent (choix de securite des relecteurs, voir AGENT_LOG 2026-10-25)
+  const m3b = monde();
+  const w3b = charger([...COMMUN, 'handleAutoInpaint'], m3b.doublures);
+  const r3b = await w3b.handleAutoInpaint(requete('/api/auto-inpaint', { imageUrl: 'https://site/r2/x.png', targetText: 'bed', prompt: "child's toy box" }), m3b.env);
+  assert.equal(r3b.status, 400);
   // cible trop longue
   const m4 = monde();
   const w4 = charger([...COMMUN, 'handleAutoInpaint'], m4.doublures);

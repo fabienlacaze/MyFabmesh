@@ -58,6 +58,13 @@ function transpiler(code) {
  *  Rend { nom: valeur, ..., ev(expression) } ; `ev` evalue une expression DANS la fermeture (lire ou ecrire une variable `let` du worker). */
 export function chargerDepuisSource(src, noms, doublures = {}) {
   const { sf, index } = analyser(src);
+  // handleAutoInpaint depend du refus « personne mineure nommee » (2026-10-22) : ses declarations sont ajoutees d'office quand elles existent
+  // (un WORKER_SRC plus ancien n'en a pas), sauf si le test les a deja nommees ou les double lui-meme.
+  if (noms.includes('handleAutoInpaint')) {
+    const dep = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE', '_RM_PERSONNE_SEULE']
+      .filter((n) => index.has(n) && !noms.includes(n) && !Object.prototype.hasOwnProperty.call(doublures, n));
+    noms = [...noms, ...dep];
+  }
   const manquants = noms.filter((n) => !index.has(n));
   if (manquants.length) throw new Error('declaration(s) introuvable(s) dans worker.ts : ' + manquants.join(', '));
   const conflit = noms.filter((n) => Object.prototype.hasOwnProperty.call(doublures, n));
