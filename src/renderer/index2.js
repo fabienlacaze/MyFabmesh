@@ -12418,6 +12418,59 @@ function _meshGenEnCours(nomProjet) {
   if (queuedJobs.some((q) => q && q.displayName === nom)) return true;
   return state.jobs.some((j) => j && j.status === 'running' && String(j.name || '').replace(' (resumed)', '') === nom);
 }
+// 25/10 (user : "un avertissement avant de lancer la 3D quand l'image source fait moins de 512 px, avec le choix d'agrandir d'abord ; l'agrandissement
+// est payant, evidemment") : une source de 225 px donnait une carapace plate et une queue en ruban, sans aucun message.
+// Rend 'annuler', {nouveau: <chemin de l'image agrandie>} ou null (image assez grande, illisible, ou "generer quand meme").
+async function _avertirSourceTropPetite(imagePath, projectName) {
+  const T = (s) => (window.FabI18n && window.FabI18n.t ? window.FabI18n.t(s) : s);
+  const dims = await new Promise((res) => {
+    try {
+      const im = new Image();
+      im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight });
+      im.onerror = () => res(null);
+      im.src = String(imagePath);
+    } catch (_) { res(null); }
+  });
+  if (!dims || !dims.w || !dims.h || Math.min(dims.w, dims.h) >= 512) return null;
+  const echelle = Math.min(dims.w, dims.h) < 256 ? 4 : 2;
+  const base = (typeof window._prixDe === 'function') ? window._prixDe('upscale') : null;
+  const prix = (typeof base === 'number' && base > 0) ? base + (echelle === 4 ? 1 : 0) : null;   // x2 = prix de la grille, x4 = +1 (worker)
+  const choix = await new Promise((resolve) => {
+    const fond = document.createElement('div');
+    fond.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
+    const boite = document.createElement('div');
+    boite.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:460px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
+    boite.innerHTML =
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px;">&#9888; ' + T('Small source image') + '</div>' +
+      '<div style="font-size:13px;line-height:1.45;opacity:.9;margin-bottom:16px;">' + T('The source image is only') + ' <b>' + dims.w + ' &times; ' + dims.h + ' px</b>. ' +
+        T('The 3D model will look blurry and incomplete (flat shells, thin parts, invented details). Enlarging the image first gives a much better result.') + '</div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">' +
+        '<button id="sp-annuler" class="ghost-btn" style="padding:8px 14px;">' + T('Cancel') + '</button>' +
+        '<button id="sp-quand-meme" class="ghost-btn" style="padding:8px 14px;">' + T('Generate anyway') + '</button>' +
+        '<button id="sp-agrandir" class="primary-btn" style="padding:8px 14px;">' + T('Enlarge, then generate') +
+          (prix ? ' <span class="credit-badge" style="margin-left:6px;">' + prix + '</span>' : '') + '</button></div>';
+    fond.appendChild(boite); document.body.appendChild(fond);
+    const fin = (v) => { fond.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') fin('annuler'); };
+    document.addEventListener('keydown', onKey);
+    boite.querySelector('#sp-annuler').addEventListener('click', () => fin('annuler'));
+    boite.querySelector('#sp-quand-meme').addEventListener('click', () => fin('quand-meme'));
+    boite.querySelector('#sp-agrandir').addEventListener('click', () => fin('agrandir'));
+    fond.addEventListener('click', (e) => { if (e.target === fond) fin('annuler'); });
+  });
+  if (choix === 'annuler') return 'annuler';
+  if (choix !== 'agrandir') return null;
+  showToast(T('Enlarging the image…'), 'info', 3000);
+  try {
+    const r = await API.imageQuickEdit({ imagePath, operation: 'upscale', params: { scale: echelle }, projectName });
+    if (r && r.success && r.newPath) return { nouveau: r.newPath };
+    showToast(T('Could not enlarge the image.') + ' ' + String((r && r.error) || '').slice(0, 80), 'error', 5000);
+  } catch (e) {
+    showToast(T('Could not enlarge the image.') + ' ' + String((e && e.message) || e).slice(0, 80), 'error', 5000);
+  }
+  return 'annuler';
+}
+
 document.getElementById('ws-generate-mesh').addEventListener('click', async () => {
   const p = state.currentProject;
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
@@ -12430,6 +12483,15 @@ document.getElementById('ws-generate-mesh').addEventListener('click', async () =
     console.log(`[mesh] Generate 3D: ${p.name} deja en cours ou en attente -> ${proceed ? 'lancer quand meme' : 'annule'}`);
     if (!proceed) return;
   }
+  // Source trop petite : avertissement + agrandissement propose (payant sur le site), AVANT toute depense (25/10).
+  try {
+    const verdictSource = await _avertirSourceTropPetite(p.selectedImagePath, p.name);
+    if (verdictSource === 'annuler') return;
+    if (verdictSource && verdictSource.nouveau) {
+      p.selectedImagePath = verdictSource.nouveau;
+      try { if (typeof _saveProjectMeta === 'function') _saveProjectMeta(p); } catch (_) {}
+    }
+  } catch (e) { console.warn('[mesh-click] controle de la taille de la source ignore :', e); }
   const engine = document.getElementById('ws-3d-engine').value;
   const quality = document.getElementById('ws-3d-quality')?.value || 'standard';
   const triLevel = document.getElementById('ws-3d-triangles')?.value || '0';
