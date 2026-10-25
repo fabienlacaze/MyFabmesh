@@ -668,7 +668,16 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
             const rythme = statusText === 'starting' ? '0.9s' : statusText === 'running' ? '1.2s'
                          : statusText === 'warm' ? '2.4s' : '';
             const anim = rythme ? ` animation:pulse ${rythme} ease-in-out infinite;` : '';
-            return `<div style="display:grid; grid-template-columns:10px 1fr auto; gap:8px; align-items:center;">
+            // 25/10 (user : « quand je passe la souris sur le statut, une infobulle explique ») : sens de chaque etat.
+            const _INFOBULLES = {
+              cold: 'Cold: no container is running. The next call waits for it to start, several minutes for a large model.',
+              starting: 'Starting: a container is booting but is not ready yet.',
+              warm: 'Warm: a container is on and free. Your next generation starts right away. It stays warm 5 minutes after the last call.',
+              running: "Running: a calculation is in progress in this container (yours or another user's). Not a problem, the container is simply busy.",
+              unavailable: 'Unavailable: this service is not deployed on the cloud.',
+            };
+            const _bulle = (_INFOBULLES[statusText] ? _t(_INFOBULLES[statusText]) : '').replace(/"/g, '&quot;');
+            return `<div title="${_bulle}" style="display:grid; grid-template-columns:10px 1fr auto; gap:8px; align-items:center; cursor:help;">
                 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${dot};${anim}"></span>
                 <span><strong style="color:var(--text-1);">${s.label}</strong><br>
                   <span style="color:var(--text-2); font-size:10px;">${s.desc}</span></span>
