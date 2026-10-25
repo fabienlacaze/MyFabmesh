@@ -1374,6 +1374,8 @@
     "Enlarge, then generate": ["Agrandir puis générer", "Ampliar y luego generar", "先放大再生成", "पहले बड़ा करें, फिर जनरेट करें", "كبّر ثم ولّد"],
     "Enlarging the image…": ["Agrandissement de l'image…", "Ampliando la imagen…", "正在放大图像…", "छवि बड़ी की जा रही है…", "جارٍ تكبير الصورة…"],
     "Could not enlarge the image.": ["Impossible d'agrandir l'image.", "No se pudo ampliar la imagen.", "无法放大图像。", "छवि को बड़ा नहीं किया जा सका।", "تعذّر تكبير الصورة."],
+    "description written by the AI, turn Auto off to edit it": ["description rédigée par l'IA, décoche Auto pour la modifier", "descripción redactada por la IA, desactiva Auto para editarla", "描述由 AI 撰写，关闭“自动”后可修改", "विवरण AI ने लिखा है, बदलने के लिए ऑटो बंद करें", "الوصف كتبه الذكاء الاصطناعي، أوقف «تلقائي» لتعديله"],
+    "description written by the local AI, turn Auto off to edit it": ["description rédigée par l'IA locale, décoche Auto pour la modifier", "descripción redactada por la IA local, desactiva Auto para editarla", "描述由本地 AI 撰写，关闭“自动”后可修改", "विवरण स्थानीय AI ने लिखा है, बदलने के लिए ऑटो बंद करें", "الوصف كتبه الذكاء الاصطناعي المحلي، أوقف «تلقائي» لتعديله"],
     "Could not open this step.": ["Impossible d'ouvrir cette étape.", "No se pudo abrir este paso.", "无法打开此步骤。", "यह चरण नहीं खुल सका।", "تعذّر فتح هذه الخطوة."],
     // --- mode Vol et bouton « moteur rapide » (25/10) ---
     "🦅 Flies": ["🦅 Vole", "🦅 Vuela", "🦅 飞行", "🦅 उड़ता है", "🦅 يطير"],

@@ -2091,7 +2091,7 @@ const _NP_TYPES = [
   ['vehicle', 'car voiture truck camion tank moto motorcycle bike velo bus tractor tracteur van scooter train locomotive spaceship vaisseau kart jeep taxi ambulance excavator bulldozer'],
   ['building', 'house maison castle chateau tower tour temple church eglise cathedral cathedrale building batiment hut cabane barn grange lighthouse phare bridge pont skyscraper gratte-ciel shop boutique fort ruin ruine mosque mosquee pagoda pagode manoir villa cabin windmill moulin palace palais'],
   ['insect', 'insect insecte bug beetle scarabee spider araignee ant fourmi butterfly papillon bee abeille wasp guepe scorpion mantis mante fly mouche dragonfly libellule cricket grillon centipede'],
-  ['animal', 'dog chien cat chat horse cheval wolf loup bear ours lion tiger tigre bird oiseau fish poisson snake serpent rabbit lapin fox renard deer cerf cow vache pig cochon sheep mouton elephant monkey singe eagle aigle owl hibou chouette shark requin husky frog grenouille turtle tortue duck canard chicken poule'],
+  ['animal', 'dog chien cat chat horse cheval wolf loup bear ours lion tiger tigre bird oiseau fish poisson snake serpent rabbit lapin fox renard deer cerf cow vache pig cochon sheep mouton elephant monkey singe eagle aigle owl hibou chouette shark requin husky frog grenouille turtle tortue duck canard chicken poule cacatoes cockatoo perroquet parrot ara macaw perruche parakeet canari canary toucan colibri hummingbird flamant flamingo cygne swan oie goose dinde turkey paon peacock pigeon colombe dove corbeau crow raven vautour vulture faucon falcon hawk pelican pingouin penguin manchot albatros mouette seagull heron cigogne stork autruche ostrich emeu kiwi ane donkey mule mulet chevre goat lama llama alpaga alpaca chameau camel girafe giraffe zebre zebra hippopotame hippo rhinoceros rhino gorille gorilla chimpanze chimpanzee panda koala kangourou kangaroo ecureuil squirrel hamster souris mouse rat raton racoon raccoon loutre otter castor beaver herisson hedgehog taupe mole chauve-souris leopard jaguar panthere panther guepard cheetah lynx hyene hyena coyote dingo buffle buffalo bison yak antilope antelope gazelle chamois renne reindeer elan moose phoque seal otarie walrus morse dauphin dolphin baleine whale orque orca lezard lizard iguane iguana crocodile alligator gecko cameleon chameleon salamandre salamander crapaud toad dinosaure dinosaur raptor cobra python vipere viper saumon salmon thon tuna carpe carp truite trout poulpe octopus pieuvre calamar squid meduse jellyfish hippocampe seahorse crabe crab homard lobster'],
   ['creature', 'dragon monster monstre demon beast bete creature golem ghost fantome zombie slime troll ogre alien hydra griffin griffon kraken wyvern gargoyle'],
   ['character', 'knight chevalier warrior guerrier orc elf elfe dwarf nain wizard magicien mage witch sorciere soldier soldat girl fille boy garcon man homme woman femme hero heros princess princesse king roi queen reine robot character personnage pirate ninja samurai goblin gobelin archer paladin assassin villager villageois human humain astronaut astronaute cyborg android'],
   ['prop', 'chair chaise table lamp lampe sofa canape bed lit desk bureau shelf etagere vase barrel tonneau baril chest coffre box boite crate caisse bottle bouteille cup tasse mug book livre clock horloge furniture meuble mobilier candle bougie lantern lanterne potion key cle coin piece helmet casque hat chapeau bag sac backpack tool outil pot jar bocal mirror miroir armchair fauteuil stool tabouret bench banc door porte'],
@@ -2186,6 +2186,8 @@ function _npAutoSync() {
   document.getElementById('np-auto-row')?.classList.toggle('on', actif);
   selT.disabled = actif; selS.disabled = actif;
   selT.style.opacity = selS.style.opacity = actif ? '0.6' : '';
+  // 25/10 (user : « grise aussi le prompt quand c'est en mode auto ») : la description est ecrite par l'IA, grisee et verrouillee ; decocher Auto pour la modifier.
+  if (desc) { desc.readOnly = actif; desc.style.opacity = actif ? '0.6' : ''; }
   if (!actif) { _npAutoInfo(_i18nT('Choose the type and style yourself')); return; }
   const nom = document.getElementById('np-name')?.value || '';
   const texteNp = ((_npDescAuto(desc) ? '' : desc.value) + ' ' + nom).trim();
@@ -2249,7 +2251,7 @@ async function _npRediger() {
     desc.dataset.auto = '1';
     if (!_npTypeMotsCles && r.type) _npIaType = { nom, type: r.type };
     _npAutoSync();
-    _npAutoInfo(_npResume() + ' — ' + _i18nT('description written by the AI, edit it freely'));
+    _npAutoInfo(_npResume() + ' — ' + _i18nT('description written by the AI, turn Auto off to edit it'));
   } else {
     _npAutoSync();
   }
