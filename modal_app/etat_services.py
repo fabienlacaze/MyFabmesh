@@ -55,11 +55,13 @@ _ETAT_FONCTIONS: dict = {}
 
 def _etat_service(cle: str) -> dict:
     app_nom, classe, nom = _SERVICES_ETAT[cle]
-    fn = _ETAT_FONCTIONS.get(cle)
-    if fn is None:
+    # 25/10 : l'objet etait garde pour toute la vie du conteneur ; apres un `modal deploy` il pointait l'ANCIENNE version de la fonction
+    # (compteurs a zero : le panneau affichait « froid » partout alors que des conteneurs tournaient). Il est donc relu toutes les 90 s.
+    fn, ne_le = _ETAT_FONCTIONS.get(cle, (None, 0.0))
+    if fn is None or time.time() - ne_le > 90:
         fn = (getattr(modal.Cls.from_name(app_nom, classe)(), nom) if classe
               else modal.Function.from_name(app_nom, nom))
-        _ETAT_FONCTIONS[cle] = fn
+        _ETAT_FONCTIONS[cle] = (fn, time.time())
     s = fn.get_current_stats()
     if s.num_running_inputs > 0:
         etat = "busy"
