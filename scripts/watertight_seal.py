@@ -93,12 +93,22 @@ def coque_interieure(monde, resolution=192, marge=3, faces_max=40000):
         from trimesh.visual.material import PBRMaterial
         # Gris OPAQUE sans couleurs de sommets RGBA (elles font passer le contenu pour transparent dans three.js)
         coque.visual = trimesh.visual.TextureVisuals(
-            material=PBRMaterial(name="etanche_coque", baseColorFactor=[0.47, 0.47, 0.5, 1.0],
-                                 metallicFactor=0.0, roughnessFactor=0.9, doubleSided=True))
+            material=PBRMaterial(name="etanche_coque", baseColorFactor=[0.28, 0.28, 0.3, 1.0],
+                                 metallicFactor=0.0, roughnessFactor=1.0, doubleSided=True))
     except Exception as e:
         log(f"materiau: {e}")
     try:
         coque.fix_normals()
+    except Exception:
+        pass
+    # Normales DE SOMMET calculees et lissees : sans elles, le GLB n'en porte pas et la coque s'affiche en facettes plates
+    # aux couleurs heurtees (constate le 25/10 a travers la porte d'une hutte). Gris plus sombre et mat : elle ne doit pas attirer l'oeil.
+    try:
+        trimesh.smoothing.filter_laplacian(coque, iterations=2, lamb=0.5, volume_constraint=False)
+    except Exception:
+        pass
+    try:
+        _ = coque.vertex_normals
     except Exception:
         pass
     return coque, pitch
