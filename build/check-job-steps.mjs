@@ -35,8 +35,6 @@ const TEMOINS = [
   // l'ancien nom reste un temoin pour les travaux deja enregistres.
   ['Outfit only: orc', 1], ['Habits seuls: orc', 1], ['Recolor: orc', 1], ['Age change: orc', 1],
   ['Generate 3D: orc', 2], ['Refine mesh: orc', 2], ['Resize: orc', 2],
-  // Outils de maillage dont le nom est « <operation>: <projet> » (25/10 : « Subdivision » n'avait pas de bouton « Aller a »)
-  ['subdivide: orc', 2], ['decimate: orc', 2], ['center: orc', 2], ['smooth: orc', 2],
   // Etapes de construction : 2D (outil image) a l'etape 1, 3D a l'etape 2. Le
   // bureau nommait la 3D « Construction stages 3D » : etape Image (2026-09-30).
   ['Construction stages: orc', 1], ['3D construction stages: orc', 2],
