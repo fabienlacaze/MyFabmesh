@@ -1501,6 +1501,8 @@
     "Zoom out": ["Zoom arrière", "Alejar", "缩小", "ज़ूम आउट", "تصغير"],
     "Fullscreen": ["Plein écran", "Pantalla completa", "全屏", "पूर्ण स्क्रीन", "ملء الشاشة"],
     "Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom": ["Glisser gauche = peindre · glisser droit = déplacer · glisser molette = tourner · molette = zoom", "Arrastre izquierdo = pintar · derecho = mover · rueda pulsada = girar · rueda = zoom", "左键拖动 = 绘制 · 右键拖动 = 平移 · 中键拖动 = 旋转 · 滚轮 = 缩放", "बायाँ-खींचें = पेंट · दायाँ-खींचें = खिसकाएँ · बीच का बटन खींचें = घुमाएँ · व्हील = ज़ूम", "سحب أيسر = رسم · سحب أيمن = تحريك · سحب العجلة = تدوير · العجلة = تكبير"],
+    // LOT W07 : editeur Paint Tools au gabarit commun
+    "Paint on the image. Right-drag to pan, wheel to zoom, Ctrl+wheel to change the brush size.": ["Peignez sur l'image. Clic droit maintenu = déplacer, molette = zoom, Ctrl + molette = taille du pinceau.", "Pinta sobre la imagen. Arrastre derecho = mover, rueda = zoom, Ctrl + rueda = tamaño del pincel.", "在图像上绘制。右键拖动 = 平移，滚轮 = 缩放，Ctrl + 滚轮 = 画笔大小。", "छवि पर पेंट करें। दायाँ-खींचें = खिसकाएँ, व्हील = ज़ूम, Ctrl + व्हील = ब्रश का आकार।", "ارسم على الصورة. سحب أيمن = تحريك، العجلة = تكبير، Ctrl + العجلة = حجم الفرشاة."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
