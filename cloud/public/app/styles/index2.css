@@ -4935,3 +4935,57 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ══ LOT B2 (25/10, user : « cette dimension et cette disposition est celle que je veux partout ») : Recolor, Age, Style,
+   Multi-views et la fenetre de lancement (Sym. auto, Realiste, Remove BG...) prennent le gabarit de « Boucher les trous » :
+   grande carte, apercu a GAUCHE a la taille commune, reglages EN COLONNE a droite, pied « Annuler » + action pleine largeur. ══ */
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options, #modal-lancement) > .modal-card {
+  width: min(1700px, 97vw); max-width: 97vw; height: min(94vh, 1000px);
+  display: flex; flex-direction: column; box-sizing: border-box;
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-with-image,
+#modal-lancement .fen-corps {
+  flex: 1 1 0; min-height: 0; display: grid; gap: 20px; margin-top: 12px;
+  grid-template-columns: var(--vz-w-corps) minmax(0, 1fr);
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-image-side,
+#modal-lancement .fen-apercu {
+  box-sizing: content-box; width: var(--vz-w-corps); height: var(--vz-h-corps); min-height: 0;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-image-side img,
+#lct-image { max-width: 100%; max-height: 100%; object-fit: contain; }
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-form-side,
+#modal-lancement .fen-form {
+  gap: 14px; min-width: 0; min-height: 0; overflow-y: auto; justify-content: flex-start;
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-form-side label:not(.opt-ligne) {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0;
+  font-size: 13px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-2);
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-form-side .slider-val {
+  font-size: 14px; font-weight: 600; color: var(--accent); text-transform: none; letter-spacing: normal;
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-form-side input[type=range] { width: 100%; }
+#modal-style .sty-liste { max-height: none; }
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options, #modal-lancement) .modal-actions {
+  margin-top: 16px; flex-wrap: nowrap;
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options, #modal-lancement) .modal-actions .ghost-btn {
+  flex: 0 0 auto; min-width: 0; padding: 0 16px;
+}
+:is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options, #modal-lancement) .modal-actions .primary-btn {
+  flex: 1 1 auto;
+}
+/* lancement sans image (Skeleton points...) : carte etroite, une colonne */
+#modal-lancement > .modal-card:has(.fen-corps.sans-apercu) { width: 460px; height: auto; }
+#modal-lancement .fen-corps.sans-apercu { grid-template-columns: 1fr; }
+@media (max-width: 900px) {
+  :is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options, #modal-lancement) > .modal-card {
+    height: auto; max-height: 94vh; overflow-y: auto;
+  }
+  :is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-with-image,
+  #modal-lancement .fen-corps { grid-template-columns: 1fr; }
+  :is(#modal-recolor, #modal-age, #modal-style, #modal-multiview-options) .modal-image-side,
+  #modal-lancement .fen-apercu { width: 100%; height: 50vh; }
+}
