@@ -19,7 +19,10 @@ for (const [nom, h, j, c] of cotes) {
     for (const id of ['lct-titre', 'lct-fermer', 'lct-corps', 'lct-apercu', 'lct-image', 'lct-annuler', 'lct-lancer'])
       assert.ok(bloc.includes('id="' + id + '"'), id);
     const js = fs.readFileSync(j, 'utf8');
-    assert.match(js, /classList\.toggle\('fen-3d', !!src\)/);
+    // 25/10 : toujours le gabarit commun ; sans image, un pictogramme (#lct-picto) tient l'apercu
+    assert.match(js, /classList\.add\('fen-3d'\)/);
+    assert.doesNotMatch(js, /classList\.toggle\('fen-3d', !!src\)/);
+    assert.ok(bloc.includes('id="lct-picto"'), 'lct-picto');
     const css = fs.readFileSync(c, 'utf8');
     assert.match(css, /#modal-lancement \.modal-card\.fen-3d \.modal-actions \.primary-btn \{ flex: 1 1 auto; \}/);
   });
