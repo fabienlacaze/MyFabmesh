@@ -60,6 +60,23 @@ def _points_in_polys(pts2, polys):
     return (cnt % 2) == 1
 
 
+def _fusionner_parties_couleur(parts):
+    """Fusionne les pieces a couleurs de face (poutres, planches, echafaudage : plus de 1 200 maillages par etape) en UN SEUL
+    maillage ; les pieces texturees restent telles quelles. Une etape ne compte plus que quelques noeuds au lieu de ~1 500 :
+    le visualiseur ne bloquait plus sur « LOADING MESH » (25/10). Au moindre doute, les pieces d'origine sont gardees."""
+    import trimesh
+    try:
+        couleur = [g for g in parts if getattr(getattr(g, 'visual', None), 'kind', None) == 'face']
+        autres = [g for g in parts if g not in couleur]
+        if len(couleur) < 2:
+            return parts
+        fusion = trimesh.util.concatenate(couleur)
+        return autres + [fusion]
+    except Exception as e:
+        print(f'[construction3d] fusion des pieces ignoree : {e}', flush=True)
+        return parts
+
+
 def build_stages(glb_bytes: bytes, n_stages: int = 5, materials=None):
     """Fabricate the construction stages. `materials` is either a single
     material name (AUTO mode) or a dict {scaffold, frame, planks, formwork}
@@ -357,6 +374,7 @@ def build_stages(glb_bytes: bytes, n_stages: int = 5, materials=None):
         set_palette(FW_MAT); parts += formwork_at(yline)
         set_palette(FR_MAT); parts += frame_at(yline, frameH=0.10 * H)
         set_palette(SC_MAT); parts += scaffold_to(yline)
+        parts = _fusionner_parties_couleur(parts)
         out_scene = trimesh.Scene()
         for k, g in enumerate(parts):
             out_scene.add_geometry(g, node_name=f"g{k}")

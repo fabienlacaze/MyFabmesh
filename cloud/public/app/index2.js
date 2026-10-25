@@ -10018,6 +10018,7 @@ async function showStep2Preview(mesh) {
   if (!buffer) {
     setViewerLoading('step2-preview', false);
     console.error('[mesh-viewer] readMeshFile returned null for', mesh.path);
+    try { showToast(_i18nTf('Could not display this model ({x}): {y}', String(mesh.path || '').split('?')[0].split('/').pop(), 'download failed (empty or refused file)'), 'error', 12000); } catch (_) {}
     return;
   }
   // Stale-request guard: user switched mesh while this was loading.
@@ -10088,7 +10089,12 @@ async function showStep2Preview(mesh) {
       }
     };
     requestAnimationFrame(_capture);
-  }, (err) => { console.error('GLTF parse error', err); });
+  }, (err) => {
+    console.error('GLTF parse error', err);
+    // 25/10 : plus d'echec muet (le rond « Loading mesh » restait indefiniment) : message exact + nom du fichier
+    try { setViewerLoading('step2-preview', false); } catch (_) {}
+    try { showToast(_i18nTf('Could not display this model ({x}): {y}', String(mesh.path || '').split('?')[0].split('/').pop(), (err && err.message) || String(err)), 'error', 12000); } catch (_) {}
+  });
 }
 
 // Walk a loaded GLTF scene and force NEAREST filtering on every base
