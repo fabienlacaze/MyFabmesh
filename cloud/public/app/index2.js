@@ -1074,6 +1074,54 @@ function showToast(message, type = 'info', durationMs = 3000) {
     setTimeout(() => toast.remove(), 300);
   }, durationMs);
 }
+
+// FEATURE B — toast de complétion NON-bloquant avec un bouton d'action. Remplace
+// l'ancien "saut auto" (scrollIntoView) à la fin d'une génération/import : la vue
+// ne saute plus toute seule — l'utilisateur clique le bouton pour scroller vers
+// (et faire pulser) l'élément fraîchement généré. Se ferme au clic ou après ~15s.
+// Réutilise #toast-container pour rester cohérent avec showToast.
+function showGoToToast(targetEl, message, label, onGo) {
+  if (!targetEl) return;
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none;';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.style.cssText = 'background:rgba(22,163,74,0.95); color:white; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; pointer-events:auto; box-shadow:0 4px 12px rgba(0,0,0,0.3); transition:opacity 0.3s; max-width:520px; display:flex; align-items:center; gap:12px;';
+  const span = document.createElement('span');
+  span.textContent = message || (_i18nT('Item generated') + ' ✅');
+  const btn = document.createElement('button');
+  btn.textContent = label || _i18nT('Go to the generated item');
+  btn.style.cssText = 'background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.55); border-radius:6px; padding:5px 12px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; flex:none;';
+  let hideTimer = null, removeTimer = null;
+  const dismiss = () => {
+    clearTimeout(hideTimer); clearTimeout(removeTimer);
+    toast.style.opacity = '0';
+    removeTimer = setTimeout(() => { try { toast.remove(); } catch (_) {} }, 300);
+  };
+  btn.addEventListener('click', () => {
+    try {
+      if (typeof onGo === 'function') {
+        onGo();
+      } else {
+        // Comportement d'origine du scrollIntoView remplacé, différé au clic.
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        targetEl.classList.add('pulse-highlight');
+        setTimeout(() => { try { targetEl.classList.remove('pulse-highlight'); } catch (_) {} }, 1500);
+      }
+    } catch (_) {}
+    dismiss();
+  });
+  toast.appendChild(span);
+  toast.appendChild(btn);
+  container.appendChild(toast);
+  hideTimer = setTimeout(dismiss, 15000);
+  return toast;
+}
+
 // expose for cloud-overrides.js (classic script, no module scope)
 window.showToast = showToast;
 window.customError = customError;   // pour index2-edit-tools.js (script classique)
@@ -6938,11 +6986,8 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
           const editStage = imgCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            imgCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            imgCard.classList.add('pulse-highlight');
-            setTimeout(() => imgCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(imgCard, _i18nT('Image generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
@@ -20011,11 +20056,8 @@ document.getElementById('ws-generate-rig')?.addEventListener('click', async () =
           const editStage = rigCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            rigCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            rigCard.classList.add('pulse-highlight');
-            setTimeout(() => rigCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(rigCard, _i18nT('Rig generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false);
@@ -20104,11 +20146,8 @@ async function lancerRigIA(options = {}) {
           const editStage = rigCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            rigCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            rigCard.classList.add('pulse-highlight');
-            setTimeout(() => rigCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(rigCard, _i18nT('Rig generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
@@ -21850,9 +21889,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       animCard.classList.remove('collapsed', 'disabled');
       const editStage = animCard.querySelector('.stage-edit');
       if (editStage) editStage.open = true;
-      animCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      animCard.classList.add('pulse-highlight');
-      setTimeout(() => animCard.classList.remove('pulse-highlight'), 1500);
+      // plus de saut auto (comme le bureau) : message + bouton
+      showGoToToast(animCard, _i18nT('Item generated') + ' ✅', _i18nT('Go to the generated item'));
     }
   });
 });
@@ -26441,11 +26479,8 @@ window.addEventListener('drop', async (e) => {
           const editStage = imgCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            imgCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            imgCard.classList.add('pulse-highlight');
-            setTimeout(() => imgCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(imgCard, _i18nT('Image generated') + ' ✅', _i18nT('Go to the imported item'));
         }
         try { showToast('✓ Imported as new image version', 'success'); } catch (_) {}
       } else if (kind === 'mesh') {
