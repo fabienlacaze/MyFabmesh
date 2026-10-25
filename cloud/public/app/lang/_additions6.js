@@ -1507,6 +1507,10 @@
     "Aspect ratio": ["Format", "Proporción", "宽高比", "आस्पेक्ट अनुपात", "نسبة الأبعاد"],
     "History": ["Historique", "Historial", "历史", "इतिहास", "السجل"],
     "View": ["Vue", "Vista", "视图", "दृश्य", "عرض"],
+    /* LOT W04 : Cut / Copy / Paste */
+    "Selection shape": ["Forme de sélection", "Forma de selección", "选择形状", "चयन का आकार", "شكل التحديد"],
+    "Cut and paste": ["Couper et coller", "Cortar y pegar", "剪切和粘贴", "काटें और चिपकाएँ", "قص ولصق"],
+    "View and history": ["Vue et historique", "Vista e historial", "视图和历史", "दृश्य और इतिहास", "العرض والسجل"],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

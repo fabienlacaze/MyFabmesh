@@ -4964,3 +4964,9 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-crop .fen-groupe-boutons .secondary-btn { padding: 6px 12px; font-size: 14px; width: auto; height: auto; margin: 0; }
 #modal-crop .modal-actions .primary-btn { flex: 1 1 auto; }
 #modal-crop .modal-actions.fen-pied-editeur { margin-top: 16px; }
+/* ══ LOT W04 (25/10) : Cut / Copy / Paste (#select-modal) adopte le gabarit .fen-3d : apercu a gauche, boutons en colonne a droite, pied Annuler + action pleine largeur ══ */
+.fen-apercu-canevas { position: absolute; inset: 0; overflow: hidden; background: #1a1a2e; }
+.fen-rangee { display: flex; flex-wrap: wrap; gap: 6px; }
+.fen-rangee .tool-btn { padding: 4px 10px; font-size: 14px; }
+.fen-rangee .fen-danger { color: #ff8080; border-color: rgba(255, 80, 80, 0.4); }
+#select-modal .modal-actions .primary-btn { flex: 1 1 auto; }
