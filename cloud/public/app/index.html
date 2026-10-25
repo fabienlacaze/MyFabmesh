@@ -3301,50 +3301,59 @@
          CLONE STAMP MODAL (ported from legacy)
          ============================================================ -->
     <div id="clone-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
+      <div class="modal-card fen-3d fen-2d">
         <div class="fen-tete"><h2>Clone Stamp</h2><button id="clone-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div class="vz-aide" style="font-size: 13px; color: var(--text-muted);">Ctrl+click: source - Left: clone - Right-drag: pan - Wheel: zoom</div>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:13px; white-space:nowrap;">Brush:</span>
-            <input type="range" id="clone-brush-size" min="5" max="200" value="50" style="flex:1; min-width:60px;" />
-            <span id="clone-brush-val" style="min-width:24px; font-size:13px;">50</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:4px; min-width:0; flex:1 1 140px;">
-            <span style="font-size:13px; white-space:nowrap;">Hard:</span>
-            <input type="range" id="clone-hardness" min="0" max="100" value="50" style="flex:1; min-width:60px;" />
-            <span id="clone-hardness-val" style="min-width:24px; font-size:13px;">50</span>
-          </label>
-          <div style="display:flex; gap:4px; flex-shrink:0;">
-            <button id="clone-flip-toggle" class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px;" title="Flip mode">Flip: Off</button>
-            <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px;" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
-            <span class="vz-sep" aria-hidden="true"></span>
-            <button id="clone-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-            <button id="clone-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-            <span class="vz-sep" aria-hidden="true"></span>
-            <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-            <button id="clone-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-            <span class="vz-sep" aria-hidden="true"></span>
-            <button id="clone-reset" class="secondary-btn tool-btn" title="Reset">&#8634;&nbsp;Clear</button>
+        <p class="modal-subtitle vz-aide">Ctrl+click: source - Left: clone - Right-drag: pan - Wheel: zoom</p>
+        <div class="fen-corps">
+          <div id="clone-canvas-container" class="fen-apercu fen-apercu-2d">
+            <canvas id="clone-canvas" style="cursor: none; position: absolute; left: 0; top: 0;"></canvas>
+            <div id="clone-brush-cursor" style="position: fixed; pointer-events: none; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.7); display: none; z-index: 1000;">
+              <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+            </div>
+            <div id="clone-source-marker" style="position: fixed; pointer-events: none; border: 2px solid #00ff00; border-radius: 50%; background: rgba(0,255,0,0.15); display: none; z-index: 999; box-sizing: border-box;">
+              <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:#00ff00; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
+            </div>
+            <div id="clone-status" class="fen-apercu-etat">No source point set</div>
+          </div>
+          <div class="fen-form">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Brush</span><span id="clone-brush-val" class="fen-valeur">50</span></div>
+              <input type="range" id="clone-brush-size" min="5" max="200" value="50" />
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Hardness</span><span id="clone-hardness-val" class="fen-valeur">50</span></div>
+              <input type="range" id="clone-hardness" min="0" max="100" value="50" />
+            </div>
+            <div class="fen-champ">
+              <span class="fen-label">Source</span>
+              <div class="fen-groupe-btns">
+                <button id="clone-flip-toggle" class="secondary-btn tool-btn" title="Flip mode">Flip: Off</button>
+                <button id="clone-source-toggle" class="secondary-btn tool-btn tool-active" title="Source = modified image (your edits are clonable). Click for Original.">Source: Modified</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <span class="fen-label">View</span>
+              <div class="fen-groupe-btns">
+                <button id="clone-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+                <button id="clone-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <span class="fen-label">History</span>
+              <div class="fen-groupe-btns">
+                <button id="clone-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+                <button id="clone-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+                <span class="vz-sep" aria-hidden="true"></span>
+                <button id="clone-reset" class="secondary-btn tool-btn" title="Reset">&#8634;&nbsp;Clear</button>
+              </div>
+            </div>
+            <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 14px; font-weight: 600;"></div>
           </div>
         </div>
-        <div id="clone-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%;">
-          <canvas id="clone-canvas" style="cursor: none; position: absolute; left: 0; top: 0;"></canvas>
-          <div id="clone-brush-cursor" style="position: fixed; pointer-events: none; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.7); display: none; z-index: 1000;">
-            <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:white; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
-          </div>
-          <div id="clone-source-marker" style="position: fixed; pointer-events: none; border: 2px solid #00ff00; border-radius: 50%; background: rgba(0,255,0,0.15); display: none; z-index: 999; box-sizing: border-box;">
-            <div style="position:absolute; left:50%; top:50%; width:4px; height:4px; background:#00ff00; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px rgba(0,0,0,0.8);"></div>
-          </div>
+        <div class="modal-actions fen-pied-editeur">
+          <button id="clone-cancel" class="ghost-btn">Cancel</button>
+          <button id="clone-save" class="primary-btn">Save as new version</button>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span id="clone-status" style="font-size:13px; color:var(--text-muted);">No source point set</span>
-          <div class="modal-actions fen-pied-editeur">
-            <button id="clone-cancel" class="ghost-btn">Cancel</button>
-            <button id="clone-save" class="primary-btn">Save as new version</button>
-          </div>
-        </div>
-        <div id="clone-error" style="display:none; padding: 8px 12px; background: rgba(255,68,68,0.15); border: 1px solid var(--error); border-radius: 4px; color: var(--error); font-size: 14px; font-weight: 600;"></div>
       </div>
     </div>
 
