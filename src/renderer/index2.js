@@ -21754,7 +21754,7 @@ const _DELAI_ARCHIVAGE_MS = 4000;
 state.jobsTermines = (() => {
   try {
     const a = JSON.parse(localStorage.getItem(_CLE_JOBS_TERMINES) || '[]');
-    return Array.isArray(a) ? a.slice(0, 50) : [];
+    return Array.isArray(a) ? a.slice(0, 200) : [];
   } catch (_) { return []; }
 })();
 state.jobsOnglet = 'encours';
@@ -21811,7 +21811,7 @@ document.addEventListener('error', (e) => {
 }, true);
 
 function _sauverJobsTermines() {
-  try { localStorage.setItem(_CLE_JOBS_TERMINES, JSON.stringify((state.jobsTermines || []).slice(0, 50))); } catch (_) {}
+  try { localStorage.setItem(_CLE_JOBS_TERMINES, JSON.stringify((state.jobsTermines || []).slice(0, 200))); } catch (_) {}
 }
 
 /** Place un travail termine dans l'historique (jamais une sous-tache). */
@@ -21834,7 +21834,7 @@ function _archiverJob(j) {
     sourceImageUrl: vignette,
     errorMessage: j.errorMessage ? String(j.errorMessage).slice(0, 300) : null,
   };
-  state.jobsTermines = [entree, ...(state.jobsTermines || [])].slice(0, 50);
+  state.jobsTermines = [entree, ...(state.jobsTermines || [])].slice(0, 200);
   _sauverJobsTermines();
 }
 
