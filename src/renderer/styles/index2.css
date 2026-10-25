@@ -5161,3 +5161,11 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ══ LOT W28 (25/10) : fenetres d'options sans visualiseur (Explosion, Etapes de construction 3D) au gabarit .fen-3d —
+   apercu illustre a gauche, reglages en colonne a droite, pied : Annuler (petit) puis action sur toute la largeur restante. ══ */
+.fen-apercu.fen-apercu-pictos { display: flex; align-items: center; justify-content: center; }
+.fen-apercu.fen-apercu-pictos svg { opacity: .55; max-width: 40%; height: auto; }
+.modal-card.fen-3d .modal-actions .ghost-btn { min-width: 0; flex: 0 0 auto; }
+.modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-explode-options .fen-form, #modal-stages3d-options .fen-form { overflow-y: auto; }
