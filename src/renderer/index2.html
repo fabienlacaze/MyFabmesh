@@ -3417,23 +3417,28 @@
          MODIFY IMAGE MODAL (img2img)
          ============================================================ -->
     <div id="modal-modify-image" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Modify image</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Describe the changes. The composition is kept.</p>
-        <div class="modal-with-image">
-          <div class="modal-image-side">
+        <div class="fen-corps">
+          <!-- apercu a GAUCHE, reglages en colonne a DROITE (gabarit commun .fen-3d) -->
+          <div class="fen-apercu fen-apercu-image">
             <img id="mod-source-img" alt="" />
           </div>
-          <div class="modal-form-side">
-            <label>What to change</label>
-            <textarea id="mod-prompt" rows="3" placeholder="make it red, add details, anime style..."></textarea>
-            <small id="mod-retrait-hint" class="fen-note" hidden></small>
-            <div class="prompt-lang-hint" data-pour="mod-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
-            <select id="mod-engine" style="display:none;"><option value="local-sdxl" selected>MyFabmesh.AI</option></select>
-            <label>Strength <span id="mod-strength-val" class="slider-val">55%</span></label>
-            <input type="range" id="mod-strength" min="30" max="95" value="55" />
-            <div class="fen-echelle"><span>Keeps the original</span><span>Redraws more</span></div>
-            <small id="mod-strength-hint" hidden></small>
+          <div class="fen-form">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">What to change</span></div>
+              <textarea id="mod-prompt" rows="3" placeholder="make it red, add details, anime style..."></textarea>
+              <small id="mod-retrait-hint" class="fen-note" hidden></small>
+              <div class="prompt-lang-hint" data-pour="mod-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+              <select id="mod-engine" style="display:none;"><option value="local-sdxl" selected>MyFabmesh.AI</option></select>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Strength</span><span id="mod-strength-val" class="fen-valeur">55%</span></div>
+              <input type="range" id="mod-strength" min="30" max="95" value="55" />
+              <div class="fen-echelle"><span>Keeps the original</span><span>Redraws more</span></div>
+              <small id="mod-strength-hint" hidden></small>
+            </div>
           </div>
         </div>
         <div class="modal-actions">

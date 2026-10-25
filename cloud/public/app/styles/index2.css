@@ -4935,3 +4935,13 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ===== LOT W13 : fenetre Modify (image) au gabarit .fen-3d : apercu a gauche, reglages a droite, pied pleine largeur ===== */
+#modal-modify-image .fen-apercu-image { display: flex; align-items: center; justify-content: center; }
+#modal-modify-image .fen-apercu-image img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+#modal-modify-image .fen-apercu-image img:not([src]), #modal-modify-image .fen-apercu-image img[src=""] { display: none; }
+#modal-modify-image .fen-form textarea { width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical; }
+#modal-modify-image .fen-form input[type="range"] { width: 100%; }
+#modal-modify-image .modal-actions { display: flex; gap: 12px; }
+#modal-modify-image .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-modify-image .modal-actions .ghost-btn { flex: 0 0 auto; }
