@@ -126,9 +126,15 @@
     // Previously a 404 returned {"error":"not found"} silently — no
     // success/ok flag — and the delete-version handler treated it as
     // a no-op.
-    let body_;
-    try { body_ = await r.json(); } catch { body_ = {}; }
+    let body_, texteBrut = '';
+    try { texteBrut = await r.text(); body_ = JSON.parse(texteBrut); } catch { body_ = {}; }
     if (!r.ok) {
+      // 25/10 : un refus sans JSON (page de la passerelle, coupure) ne disait que « HTTP 503 » : on garde la route, l'identifiant de requete et le debut de la reponse.
+      if (!(body_ && body_.error)) {
+        const extrait = String(texteBrut || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+        const rayon = r.headers.get('cf-ray') || '';
+        body_ = { ...body_, error: `HTTP ${r.status} sur ${String(url).split('?')[0]}` + (extrait ? ` : ${extrait}` : ' (reponse vide ou non JSON)') + (rayon ? ` [cf-ray ${rayon}]` : '') };
+      }
       // Code du refus (worker.ts, avecCodeRefus) retenu pour la traduction a l'affichage (lib/textes-serveur.js).
       try { if (window.FabMessages) window.FabMessages.retenir(body_); } catch (_) {}
       return { ok: false, success: false, status: r.status, error: (body_ && body_.error) || `HTTP ${r.status}`, ...body_ };
