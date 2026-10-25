@@ -15,9 +15,11 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+import { centrerRotation } from './lib/centre-rotation.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
+import { creerBarreVues3D } from './lib/barre-vues-3d.js';   // barre commune des visualiseurs des fenetres d'outils (25/10)
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
   positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
@@ -251,6 +253,12 @@ async function uploadClientMeshResult(bytes, opType, extra = {}) {
     || (window.state && window.state.currentProject && window.state.currentProject.name) || '';
   const qs = new URLSearchParams({ op: String(opType || ''), project: projectName });
   if (extra && extra.light && extra.full) { qs.set('light', '1'); qs.set('full', extra.full); }
+  // 25/10 : historique de generation = maillage d'origine + reglages de l'outil (sans eux : « Parametres non traces », aucune chaine en amont)
+  try {
+    const parent = (extra && extra.parent) || (window.state && window.state.currentProject && window.state.currentProject.previewMeshPath) || '';
+    if (parent && /^https?:/i.test(String(parent))) qs.set('from', String(parent));
+    if (extra && extra.params && typeof extra.params === 'object') qs.set('params', JSON.stringify(extra.params).slice(0, 1400));
+  } catch (_) {}
   const r = await fetch('/api/mesh-op/client-result?' + qs.toString(), {
     method: 'POST',
     credentials: 'include',
@@ -1776,7 +1784,7 @@ function renderAllMeshesGrid() {
       <div class="project-card" style="cursor:pointer; padding:8px;" data-project="${escapeHtml(it.project.name)}">
         <div style="font-size:13px; font-weight:600; padding:4px 4px 6px;">${escapeHtml(it.project.name)}</div>
         ${/^https?:/i.test(url)
-          ? `<model-viewer src="${escapeHtml(url)}" loading="lazy" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
+          ? `<model-viewer src="${escapeHtml(url)}" loading="lazy" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:var(--vz-vignette-h); background:#0a0a0e; border-radius:6px;"></model-viewer>`
           : `<div style="height:200px; background:#0a0a0e; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:11px; border-radius:6px;">${escapeHtml(fname || '(no preview)')}</div>`}
         <div class="project-card-meta" style="font-size:11px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
       </div>
@@ -1819,7 +1827,7 @@ function renderAllRigsGrid() {
           <span style="font-size:13px; font-weight:600;">${escapeHtml(it.project.name)}</span>
         </div>
         ${/^https?:/i.test(url)
-          ? `<model-viewer src="${escapeHtml(url)}" loading="lazy" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:200px; background:#0a0a0e; border-radius:6px;"></model-viewer>`
+          ? `<model-viewer src="${escapeHtml(url)}" loading="lazy" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" style="width:100%; height:var(--vz-vignette-h); background:#0a0a0e; border-radius:6px;"></model-viewer>`
           : `<div style="height:200px; background:#0a0a0e; display:flex; align-items:center; justify-content:center; color:var(--text-2); font-size:11px; border-radius:6px;">${escapeHtml(fname || '(no preview)')}</div>`}
         <div class="project-card-meta" style="font-size:11px; padding:6px 4px 0;">${escapeHtml(fname)}</div>
       </div>
@@ -2095,6 +2103,7 @@ function _sourisVisualiseur(controls, domEl) {
     controls.screenSpacePanning = true;
     controls.enableZoom = true;
     controls.zoomToCursor = true;
+    centrerRotation(controls, domEl);   // la molette enfoncee tourne autour du CENTRE du modele (25/10)
     if (domEl && !domEl.__souris25) {
       domEl.__souris25 = true;
       domEl.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -3269,25 +3278,7 @@ function _autoPickSourceForCreateNew(card) {
         if (placeholder) placeholder.style.display = 'none';
         if (preview) {
           const filename = escapeHtml(_maskAiNames((rig.filename || url).split(/[/\\]/).pop() || 'rig.glb'));
-          preview.style.position = 'relative';
-          preview.style.minHeight = '200px';
-          preview.innerHTML = `
-            <model-viewer src="${url}"
-                          camera-controls touch-action="pan-y"
-                          shadow-intensity="1" exposure="1"
-                          auto-rotate auto-rotate-delay="3000"
-                          style="position:absolute; inset:0; width:100%; height:100%; background:#0a0a0e; border-radius:6px;">
-            </model-viewer>
-            <div style="position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:10px; color:var(--text-2); pointer-events:none; padding:0 8px; word-break:break-all;">${filename}</div>
-          `;
-          try { setViewerLoading('ws-anim-source-preview', true, 'Loading rig…'); } catch (_) {}
-          const mv = preview.querySelector('model-viewer');
-          if (mv) {
-            const clear = () => { try { setViewerLoading('ws-anim-source-preview', false); } catch (_) {} };
-            mv.addEventListener('load', clear, { once: true });
-            mv.addEventListener('error', clear, { once: true });
-            setTimeout(clear, 10000);
-          }
+          _apercuRigSourceAnim(preview, url, filename);
         }
         const genBtn = document.getElementById('ws-generate-anim');
         if (genBtn) { genBtn.disabled = false; genBtn.title = ''; }
@@ -4972,6 +4963,98 @@ document.getElementById('ws-multiview-bar')?.addEventListener('click', (e) => {
 // MESH VIEWER CONTROLS (toolbar logic shared between mini + lightbox)
 // ============================================================
 // State per viewer: a Set of options. Each viewer has its own state.
+// Apercu du rig SOURCE de l'etape Animation (25/10) : Viewer-like three.js, comme le bureau (parite) ; remplace <model-viewer>,
+// dont la souris ne suit pas le schema commun des visualiseurs 3D (clic droit = deplacer, molette enfoncee = tourner).
+function _apercuRigSourceAnim(preview, url, filename) {
+  preview.style.position = 'relative';
+  preview.style.minHeight = '200px';
+  preview.innerHTML = `
+    <canvas id="ws-anim-rig-canvas" style="position:absolute; inset:0; width:100%; height:100%; background:#0a0a0e; border-radius:6px; display:block;"></canvas>
+    <div style="position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:12px; color:var(--text-2); pointer-events:none; padding:0 8px; word-break:break-all;">${filename}</div>
+  `;
+  try { setViewerLoading('ws-anim-source-preview', true, 'Loading rig…'); } catch (_) {}
+  const clearLoading = () => { try { setViewerLoading('ws-anim-source-preview', false); } catch (_) {} };
+  try {
+    const canvas = document.getElementById('ws-anim-rig-canvas');
+    if (!canvas) { clearLoading(); return; }
+    const w = canvas.clientWidth || 300, h = canvas.clientHeight || 200;
+    const renderer = _mkRenderer({ canvas, antialias: true }, canvas.parentElement);
+    if (!renderer) { clearLoading(); return; }
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.setSize(w, h, false);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0e);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(2, 3, 2); scene.add(sun);
+    const cam = new THREE.PerspectiveCamera(35, w / h, 0.001, 1000);
+    cam.position.set(2, 1, 2);
+    const ctl = new OrbitControls(cam, canvas);
+    _sourisVisualiseur(ctl, canvas);
+    ctl.enableDamping = true;
+    creerBarreVues3D(canvas.parentElement, { camera: cam, controls: ctl, scene });   // barre commune (25/10)
+    new GLTFLoader().load(url, (g) => {
+      const root = g.scene; scene.add(root);
+      // Culling coupe + boite prise sur les os (la boite d'un SkinnedMesh est celle de la pose de repos, souvent vide).
+      let sk = null;
+      root.traverse(o => {
+        if (o.isMesh || o.isSkinnedMesh) {
+          o.frustumCulled = false;
+          if (o.geometry) { o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere(); }
+        }
+        if (o.isSkinnedMesh && !sk) sk = o.skeleton;
+      });
+      const box = new THREE.Box3();
+      if (sk) {
+        const v = new THREE.Vector3();
+        sk.bones.forEach(b => { b.updateMatrixWorld(true); v.setFromMatrixPosition(b.matrixWorld); box.expandByPoint(v); });
+      } else {
+        box.setFromObject(root);
+      }
+      const sz = new THREE.Vector3(); box.getSize(sz);
+      const c = new THREE.Vector3(); box.getCenter(c);
+      const d = Math.max(sz.x, sz.y, sz.z) || 1;
+      cam.position.set(c.x + d * 1.8, c.y + d * 1.0, c.z + d * 1.8);
+      cam.near = Math.max(d * 0.001, 0.001);
+      cam.far = d * 100;
+      cam.updateProjectionMatrix();
+      ctl.target.copy(c); ctl.update();
+      if (sk) {
+        const helper = new THREE.SkeletonHelper(root);
+        helper.material.linewidth = 2;
+        helper.material.color = new THREE.Color(0xff8800);
+        scene.add(helper);
+      }
+      clearLoading();
+    }, undefined, (err) => {
+      console.error('[anim-source] GLB load error:', err);
+      clearLoading();
+    });
+    (function tick() {
+      // Canevas retire du DOM (autre rig, autre projet) : on arrete la boucle et on rend le contexte WebGL.
+      if (!canvas.isConnected) {
+        try { ctl.dispose(); renderer.dispose(); renderer.forceContextLoss(); } catch (_) {}
+        return;
+      }
+      requestAnimationFrame(tick);
+      ctl.update();
+      renderer.render(scene, cam);
+    })();
+    window.addEventListener('resize', () => {
+      const nw = canvas.clientWidth, nh = canvas.clientHeight;
+      if (nw > 0 && nh > 0) { renderer.setSize(nw, nh, false); cam.aspect = nw / nh; cam.updateProjectionMatrix(); }
+    });
+  } catch (err) {
+    console.error('[anim-source] preview init failed:', err);
+    clearLoading();
+  }
+}
+
+// Libelles de la frise : etapes d'explosion INTACT -> EXPLODED, etapes de construction SCAFFOLD -> FINAL (parite bureau, 25/10).
+function _stageKindLabels(stages) {
+  const explode = /_explode_stages/i.test(String((stages && stages[0] && stages[0].path) || ''));
+  return explode ? { first: _i18nT('INTACT'), last: _i18nT('EXPLODED') } : { first: _i18nT('SCAFFOLD'), last: _i18nT('FINAL') };
+}
 function createMeshViewerControls(toolbarEl, getViewer) {
   if (!toolbarEl) return;
   // viewer = { scene, camera, controls, model, renderer, gridHelper, skelHelper, lightDir }
@@ -5750,7 +5833,7 @@ async function openMeshLightbox(meshPath, kind) {
           b.className = 'stage-btn' + (_normPath(s.path) === _normPath(meshPath) ? ' stage-active' : '');
           b.dataset.path = s.path;
           const pct = Math.round((s.progress != null ? s.progress : s.index / last) * 100);
-          b.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%')}</span>`;
+          b.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${s.index === last ? _stageKindLabels(st).last : (s.index === 0 ? _stageKindLabels(st).first : pct + '%')}</span>`;
           b.onclick = (ev) => { ev.stopPropagation(); openMeshLightbox(s.path, kind); };
           bar.appendChild(b);
         }
@@ -5822,6 +5905,7 @@ async function _lb3dLoadAt(meshPath) {
   }
   // Clear previous model
   if (lb3dModel) { lb3dScene.remove(lb3dModel); lb3dModel = null; }
+  document.getElementById('lb3d-loading')?.classList.remove('hidden');  // spinner while the mesh (re)loads into the fullscreen scene
   const ext = (meshPath.split('.').pop() || '').toLowerCase();
   function fitAndApply(obj) {
     if (jeton !== _lb3dJeton) return;   // un chargement plus recent a ete demande
@@ -5900,6 +5984,7 @@ async function _lb3dLoadAt(meshPath) {
       if (animCount > 0) extras2.push({ label: 'Animations', value: animCount });
       renderViewerInfo(infoEl2, _lb3dPaths[_lb3dIndex] || '', extras2);
     }
+    document.getElementById('lb3d-loading')?.classList.add('hidden');
   }
   try {
     if (ext === 'fbx') {
@@ -5907,18 +5992,20 @@ async function _lb3dLoadAt(meshPath) {
       const url = _toFileUrl(meshPath);
       const loader = new FBXLoader();
       loader.load(url, fitAndApply, undefined, (err) => {
+        document.getElementById('lb3d-loading')?.classList.add('hidden');
         console.error('FBX load error in lightbox', err);
         customError('Could not load FBX: ' + (err?.message || err), 'Lightbox error');
       });
     } else {
       // GLB / GLTF binary path
       const buffer = await API.readMeshFile(meshPath);
-      if (!buffer) { customError('Could not read mesh file', 'Lightbox error'); return; }
+      if (!buffer) { document.getElementById('lb3d-loading')?.classList.add('hidden'); customError('Could not read mesh file', 'Lightbox error'); return; }
       const loader = new GLTFLoader();
       loader.parse(buffer, '', (gltf) => { _applyMeshTextureFilter(gltf.scene); fitAndApply(gltf.scene); },
-        (err) => console.error('GLTF parse error in lightbox', err));
+        (err) => { document.getElementById('lb3d-loading')?.classList.add('hidden'); console.error('GLTF parse error in lightbox', err); });
     }
   } catch (e) {
+    document.getElementById('lb3d-loading')?.classList.add('hidden');
     console.error('openMeshLightbox failed', e);
   }
   startLb3dLoop();
@@ -6236,14 +6323,6 @@ function lightboxShowAt(idx) {
   document.getElementById('lightbox-2-img').src = _bust(_toFileUrl(path_));
   updateLightboxBottom(path_);
   updateLightboxNavButtons();
-}
-function updateLightboxBottom(imgPath) {
-  const fn = document.getElementById('lightbox-2-filename');
-  if (fn) fn.textContent = _nomLisible(imgPath) + `  ·  ${_lightboxIndex + 1} / ${_lightboxImages.length}`;
-  // Update the "Use for 3D" button label/state
-  const useBtn = document.getElementById('lightbox-2-use-3d');
-  if (useBtn) {
-    const p = state.currentProject;
   _syncLbStagesBarActive();
 }
 
@@ -6260,7 +6339,7 @@ function _renderLbStagesBar(stages) {
     btn.dataset.path = s.path;
     btn.dataset.stage = String(s.index);
     const pct = Math.round((s.progress != null ? s.progress : (s.index / last)) * 100);
-    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    const lbl = s.index === last ? _stageKindLabels(stages).last : (s.index === 0 ? _stageKindLabels(stages).first : pct + '%');
     btn.innerHTML = '<span class="stage-num">' + (s.index + 1) + '</span><span class="stage-lbl">' + lbl + '</span>';
     bar.appendChild(btn);
   }
@@ -6272,7 +6351,7 @@ function _syncLbStagesBarActive() {
   const cur = _lightboxImages[_lightboxIndex];
   bar.querySelectorAll('.stage-btn').forEach(b =>
     b.classList.toggle('stage-active', _normPath(b.dataset.path) === _normPath(cur)));
-    const isAlready = p && p.selectedImagePath === imgPath;
+}
 document.getElementById('lb-stages-bar')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.stage-btn');
   if (!btn) return;
@@ -6282,6 +6361,14 @@ document.getElementById('lb-stages-bar')?.addEventListener('click', (e) => {
   const p = state.currentProject;
   if (p) { p._activeStage = btn.dataset.path; p._activeStageKey = parseInt(btn.dataset.stage, 10); }
 });
+function updateLightboxBottom(imgPath) {
+  const fn = document.getElementById('lightbox-2-filename');
+  if (fn) fn.textContent = _nomLisible(imgPath) + `  ·  ${_lightboxIndex + 1} / ${_lightboxImages.length}`;
+  // Update the "Use for 3D" button label/state
+  const useBtn = document.getElementById('lightbox-2-use-3d');
+  if (useBtn) {
+    const p = state.currentProject;
+    const isAlready = p && p.selectedImagePath === imgPath;
     useBtn.classList.toggle('used-state', isAlready);
     useBtn.textContent = isAlready ? '\u2713 Used for 3D generation \u2192' : 'Use this image for 3D \u2192';
   }
@@ -6320,14 +6407,6 @@ document.getElementById('lightbox-2-use-3d')?.addEventListener('click', async (e
   // assigns selectedImagePath, marks the thumb, scrolls + collapses + opens Create new
   document.getElementById('ws-use-for-3d-btn')?.click();
 });
-document.getElementById('lightbox-2').addEventListener('click', (e) => {
-  // Close when clicking the background (not the image / nav / bottom bar)
-  if (e.target.id === 'lightbox-2' || e.target.id === 'lightbox-2-close') closeLightbox();
-});
-document.addEventListener('keydown', (e) => {
-  const lbVisible = !document.getElementById('lightbox-2').classList.contains('hidden');
-  if (!lbVisible) return;
-  if (e.key === 'Escape') closeLightbox();
 // Visionneuse 2D (harmonisation 25/10) : molette = zoom (x1.15, de 0.2 a 10), clic droit maintenu = deplacer,
 // comme dans les visualiseurs 3D. Remise a zero a chaque nouvelle image et a la fermeture.
 const _lbView = { z: 1, x: 0, y: 0, pan: false, ox: 0, oy: 0, dist: 0, bloque: false };
@@ -6390,9 +6469,17 @@ function _lbZoomAt(f, cx, cy) {
     _lbApplyView();
   });
 })();
+document.getElementById('lightbox-2').addEventListener('click', (e) => {
+  // Close when clicking the background (not the image / nav / bottom bar)
+  if (_lbView.bloque) { _lbView.bloque = false; return; }
+  if (e.target.id === 'lightbox-2' || e.target.id === 'lightbox-2-close') closeLightbox();
+});
+document.addEventListener('keydown', (e) => {
+  const lbVisible = !document.getElementById('lightbox-2').classList.contains('hidden');
+  if (!lbVisible) return;
+  if (e.key === 'Escape') closeLightbox();
   else if (e.key === 'ArrowLeft') lightboxShowAt(_lightboxIndex - 1);
   else if (e.key === 'ArrowRight') lightboxShowAt(_lightboxIndex + 1);
-  if (_lbView.bloque) { _lbView.bloque = false; return; }
 });
 
 // Persist prompt edits to localStorage so they survive a reload
@@ -7875,6 +7962,7 @@ function _symApplyView() {
     symState.zoom = Math.max(0.2, Math.min(10, symState.zoom * factor));
     _symApplyView();
   }, { passive: false });
+  container.addEventListener('contextmenu', (e) => e.preventDefault());
   container.addEventListener('mousedown', (e) => {
     if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) {   // clic droit maintenu = deplacer (25/10)
       symState.panning = true;
@@ -7883,7 +7971,6 @@ function _symApplyView() {
       e.preventDefault();
     }
   });
-  container.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousemove', (e) => {
     if (symState.panning && symState.panStart) {
       symState.panX = e.clientX - symState.panStart.x;
@@ -8110,6 +8197,7 @@ if (_symOverlay) {
   }
 
   _symOverlay.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.altKey) return;   // les autres boutons deplacent la vue
     const p = _symCanvasCoords(e);
     const axPx = symState.axisX * symState.w;
     if (e.shiftKey) {
@@ -8118,7 +8206,6 @@ if (_symOverlay) {
     } else if (e.ctrlKey || e.metaKey) {
       // Ctrl+drag = move axis (works in both modes)
       symState.dragging = true;
-    if (e.button !== 0 || e.altKey) return;   // les autres boutons deplacent la vue
     } else if (symState.mode === 'full' && Math.abs(p.x - axPx) < 20) {
       // Near axis in full mode = drag axis
       symState.dragging = true;
@@ -8572,6 +8659,7 @@ document.getElementById('ws-crop-btn')?.addEventListener('click', () => {
     // Reset preset buttons
     document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
     document.getElementById('crop-preset-free')?.classList.add('tool-active');
+    cropState.hist = []; cropState.redo = []; _cropBtns();
   };
   img.src = _bust(_toFileUrl(cropState.imgPath));
 });
@@ -8580,7 +8668,6 @@ function _cropDrawOverlay() {
   const overlay = document.getElementById('crop-overlay');
   if (!overlay) return;
   const ctx = overlay.getContext('2d');
-    cropState.hist = []; cropState.redo = []; _cropBtns();
   const w = cropState.w, h = cropState.h;
   ctx.clearRect(0, 0, w, h);
   // Darken outside crop area
@@ -8632,6 +8719,8 @@ function _cropUpdateLabel() {
     return { x: (e.clientX - rect.left) * sx / cropState.w, y: (e.clientY - rect.top) * sx / cropState.h };
   }
   ov.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    _cropPush();
     const p = _coords(e);
     cropState.x1 = p.x; cropState.y1 = p.y;
     cropState.x2 = p.x; cropState.y2 = p.y;
@@ -8640,8 +8729,6 @@ function _cropUpdateLabel() {
   ov.addEventListener('mousemove', (e) => {
     if (!cropState.dragging) return;
     const p = _coords(e);
-    if (e.button !== 0) return;
-    _cropPush();
     cropState.x2 = Math.max(0, Math.min(1, p.x));
     cropState.y2 = Math.max(0, Math.min(1, p.y));
     // Enforce aspect ratio if set
@@ -8664,14 +8751,6 @@ function _cropUpdateLabel() {
   });
 })();
 
-// Presets
-function _cropSetPreset(aspect, id) {
-  /* AUTO CENTER (2026-10-02, rapport d'essais du 01/10 : « Auto center remplace le ratio choisi par un carre (819 x 819) : le 16:9 est perdu »).
-   * Avant : le cadre repartait a 80 % de l'image ET le ratio verrouille etait efface. Maintenant « Auto center » ne fait que RECENTRER : le ratio
-   * choisi (1:1, 4:3, 16:9) est conserve ; en mode libre, la taille du cadre est conservee (80 % de l'image si aucun cadre n'a encore ete trace). */
-  const recentrer = (aspect === 'center');
-  if (recentrer) aspect = cropState.aspect;
-  const ratioVerrouille = (typeof aspect === 'number' && aspect > 0);
 // Historique du cadre (annuler / refaire, 20 niveaux), recentrage et loupe (harmonisation des editeurs 2D, 25/10)
 cropState.hist = []; cropState.redo = []; cropState.loupe = true;
 function _cropSnap() { return { x1: cropState.x1, y1: cropState.y1, x2: cropState.x2, y2: cropState.y2, aspect: cropState.aspect }; }
@@ -8747,9 +8826,17 @@ document.getElementById('crop-loupe-toggle')?.classList.add('tool-active');
   ov.addEventListener('mouseleave', () => { const l = document.getElementById('clone-loupe'); if (l) l.style.display = 'none'; });
 })();
 
+// Presets
+function _cropSetPreset(aspect, id) {
+  _cropPush();
+  /* AUTO CENTER (2026-10-02, rapport d'essais du 01/10 : « Auto center remplace le ratio choisi par un carre (819 x 819) : le 16:9 est perdu »).
+   * Avant : le cadre repartait a 80 % de l'image ET le ratio verrouille etait efface. Maintenant « Auto center » ne fait que RECENTRER : le ratio
+   * choisi (1:1, 4:3, 16:9) est conserve ; en mode libre, la taille du cadre est conservee (80 % de l'image si aucun cadre n'a encore ete trace). */
+  const recentrer = (aspect === 'center');
+  if (recentrer) aspect = cropState.aspect;
+  const ratioVerrouille = (typeof aspect === 'number' && aspect > 0);
   document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
   if (recentrer && ratioVerrouille) {
-  _cropPush();
     const marque = [[1, 'crop-preset-1-1'], [4 / 3, 'crop-preset-4-3'], [16 / 9, 'crop-preset-16-9']].find(([r]) => Math.abs(r - aspect) < 0.01);
     document.getElementById(marque ? marque[1] : id)?.classList.add('tool-active');
   } else {
@@ -9104,6 +9191,7 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
       resetBtn: document.getElementById('blur-reset'),
       loupeBtn: document.getElementById('blur-loupe-toggle'),
       brushCursor: document.getElementById('blur-brush-cursor'),
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (aucune autre fonction ici)
       brushSizeGetter: () => blurState.brushSize,
       onPaint: (ctx, x, y, _lastPt, mgr) => {
         const r = blurState.brushSize / 2;
@@ -9112,7 +9200,6 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
         const ay = Math.max(0, Math.round(y - r));
         const aw = Math.min(mgr.w - ax, Math.round(r * 2));
         const ah = Math.min(mgr.h - ay, Math.round(r * 2));
-      rightClickPan: true,   // clic droit maintenu = deplacer la vue (aucune autre fonction ici)
         if (aw <= 0 || ah <= 0) return;
         const tmp = document.createElement('canvas');
         tmp.width = aw; tmp.height = ah;
@@ -9177,6 +9264,8 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
   }
 });
 
+document.getElementById('blur-fit')?.addEventListener('click', () => { if (_blurMgr && _blurMgr.recenter) _blurMgr.recenter(); });
+
 // Mode toggle
 document.getElementById('blur-mode-blur')?.addEventListener('click', () => {
   blurState.mode = 'blur';
@@ -9185,8 +9274,6 @@ document.getElementById('blur-mode-blur')?.addEventListener('click', () => {
 });
 document.getElementById('blur-mode-sharpen')?.addEventListener('click', () => {
   blurState.mode = 'sharpen';
-document.getElementById('blur-fit')?.addEventListener('click', () => { if (_blurMgr && _blurMgr.recenter) _blurMgr.recenter(); });
-
   document.getElementById('blur-mode-sharpen')?.classList.add('tool-active');
   document.getElementById('blur-mode-blur')?.classList.remove('tool-active');
 });
@@ -9730,6 +9817,7 @@ document.getElementById('ws-paint-btn')?.addEventListener('click', () => {
       resetBtn: document.getElementById('paint-reset'),
       loupeBtn: document.getElementById('paint-loupe-toggle'),
       brushCursor: document.getElementById('paint-brush-cursor'),
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (la pipette et les outils sont au clic gauche)
       brushSizeGetter: () => paintState.brushSize,
       onMouseDown: (ctx, x, y, e, mgr) => {
         if (paintState.eyedropping) {
@@ -9738,7 +9826,6 @@ document.getElementById('ws-paint-btn')?.addEventListener('click', () => {
           paintState.color = hex;
           document.getElementById('paint-color').value = hex;
           paintState.eyedropping = false;
-      rightClickPan: true,   // clic droit maintenu = deplacer la vue (la pipette et les outils sont au clic gauche)
           document.getElementById('paint-eyedropper')?.classList.remove('tool-active');
           document.getElementById('paint-canvas').style.cursor = 'none';
           return false;
@@ -10117,17 +10204,21 @@ function initWsThree() {
   // Renderer needs preserveDrawingBuffer → patch after construction.
   // (Viewer3D's renderer was created without it; recreate using the
   // same canvas with the flag on.)
-  _wsV.renderer.dispose();
-  _wsV.renderer = new THREE.WebGLRenderer({
+  // Garde WebGL du bureau : on ne detruit l'ancien renderer QU'APRES en avoir cree un neuf (sans WebGL : encart, pas de plantage).
+  const _r2 = _mkRenderer({
     canvas, antialias: true, alpha: false  /* canvas OPAQUE : la scene peint deja son fond, rien ne doit transparaitre de la page. Avec alpha:true, un materiau pourtant declare OPAQUE dont la texture baseColor porte un canal alpha (WebP TRELLIS-2) ecrit cet alpha dans le framebuffer, et le navigateur compositait le maillage en semi-transparent par-dessus la page. */, preserveDrawingBuffer: true,
-  });
-  _wsV.renderer.setSize(canvas.clientWidth || 320, canvas.clientHeight || 260, false);
-  _wsV.renderer.setPixelRatio(window.devicePixelRatio);
-  _wsV.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  _wsV.renderer.toneMappingExposure = _wsV.expositionParDefaut || 1.3;   // et non 1.0 : le banc de lumieres est regle pour cette valeur
+  }, canvas?.parentElement);
+  if (_r2) {
+    try { _wsV.renderer?.dispose(); } catch (_) {}
+    _wsV.renderer = _r2;
+    _wsV.renderer.setSize(canvas.clientWidth || 320, canvas.clientHeight || 260, false);
+    _wsV.renderer.setPixelRatio(window.devicePixelRatio);
+    _wsV.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    _wsV.renderer.toneMappingExposure = _wsV.expositionParDefaut || 1.3;   // et non 1.0 : le banc de lumieres est regle pour cette valeur
     // Le renderer vient d'etre remplace : la carte d'environnement etait liee
     // a l'ancien contexte, il faut la refabriquer sinon le PBR metallique rend noir.
     _wsV.rebuildEnvironment && _wsV.rebuildEnvironment();
+  }
   wsRenderer = _wsV.renderer;
   wsScene = _wsV.scene;
   wsCamera = _wsV.camera;
@@ -10937,30 +11028,7 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
     if (preview) {
       const filename = escapeHtml(_maskAiNames((rig.filename || rig.url || '').split(/[/\\]/).pop() || 'rig.glb'));
       const url = rig.url || rig.path;
-      // model-viewer with absolute fill so the parent's CSS height
-      // (stage-source-img class) drives the canvas size. position:relative
-      // on the host so the absolute child is contained.
-      preview.style.position = 'relative';
-      preview.style.minHeight = '200px';
-      preview.innerHTML = `
-        <model-viewer src="${url}"
-                      camera-controls touch-action="pan-y"
-                      shadow-intensity="1" exposure="1"
-                      auto-rotate auto-rotate-delay="3000"
-                      style="position:absolute; inset:0; width:100%; height:100%; background:#0a0a0e; border-radius:6px;">
-        </model-viewer>
-        <div style="position:absolute; bottom:6px; left:0; right:0; text-align:center; font-size:10px; color:var(--text-2); pointer-events:none; padding:0 8px; word-break:break-all;">${filename}</div>
-      `;
-      // Spinner while <model-viewer> fetches + parses the GLB.
-      try { setViewerLoading('ws-anim-source-preview', true, 'Loading rig…'); } catch (_) {}
-      const mv = preview.querySelector('model-viewer');
-      if (mv) {
-        const clear = () => { try { setViewerLoading('ws-anim-source-preview', false); } catch (_) {} };
-        mv.addEventListener('load', clear, { once: true });
-        mv.addEventListener('error', clear, { once: true });
-        // Safety net: clear after 10s no matter what so the spinner never gets stuck.
-        setTimeout(clear, 10000);
-      }
+      _apercuRigSourceAnim(preview, url, filename);
     }
     const genBtn = document.getElementById('ws-generate-anim');
     if (genBtn) {
@@ -12347,9 +12415,8 @@ const MESH_TOOL_SCHEMAS = {
   },
   watertight: {
     title: 'Watertight',
-    subtitle: 'Add a CLOSED inner shell inside the model so it becomes watertight (printable). Your mesh and its texture are not touched: the shell stays strictly inside. Parts thinner than a few voxels get no shell. Higher resolution = tighter shell, slower.',
+    subtitle: 'Add a CLOSED inner skin just behind the surface so the model becomes watertight (printable). Your mesh and its texture are not touched: the skin stays strictly inside, and empty rooms stay visible through doors. Parts thinner than a few voxels get no skin. Higher resolution = tighter skin, slower.',
     needsImage: false,
-    confirm: 'Watertight adds a closed grey shell inside the mesh. The outside and the texture stay exactly as they are. Continue?',
     params: [
       // 256 = plafond reel de la coque interieure (watertight_seal.coque_interieure).
       { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 256, step: 8, default: 192 },
@@ -12634,7 +12701,7 @@ async function _mtApplyOnDevice(opType) {
       );
     });
     const bytes = new Uint8Array(arrayBuffer);
-    const data = await uploadClientMeshResult(bytes, opType);
+    const data = await uploadClientMeshResult(bytes, opType, { params: mtState.vals || null });
     const newUrl = data.path || data.newPath || data.mesh_url;
     // pas « free » : client-result facture l'enregistrement (mesh_op_simple / manual_tool)
     showToast(_i18nTf('{x} done', _i18nT(opType)), 'success');
@@ -12885,6 +12952,7 @@ async function _mtInitViewport() {
   mtState.scene.add(fill);
   mtState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   mtState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(container, mtState);   // barre commune : Reset camera, vues, zoom (25/10)
   const tick = () => {
     if (!document.getElementById('modal-mesh-tool')?.classList.contains('hidden')) {
       mtState.controls?.update();
@@ -14206,7 +14274,6 @@ document.getElementById('ws-mesh-aligntex-btn')?.addEventListener('click', () =>
 // viewer + fullscreen, versioned like desktop (<stem>_chantier3d_<ts>).
 // ============================================================
 document.getElementById('ws-mesh-stages3d-btn')?.addEventListener('click', () => {
-  _bs3dFinPrereglage();   // l'outil lui-meme : fenetre normale (pas le mode prereglage de la creation)
   const p = state.currentProject;
   const mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast('Generate or select a mesh first.', 'error'); return; }
@@ -14218,7 +14285,6 @@ document.getElementById('bs3d-count')?.addEventListener('input', (e) => {
 });
 document.getElementById('bs3d-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
-  if (_bs3dPrereglage) { _bs3dFinPrereglage(); const cb = document.getElementById('ws-3d-buildstages'); if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); } }
 });
 // AUTO (one preset everywhere) vs MANUAL (per-component material) toggle
 document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
@@ -14236,28 +14302,76 @@ document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
  * le maillage qui vient d'etre livre, facture a son propre tarif. Rien n'est
  * lance si l'utilisateur a change de projet entre-temps : l'outil agit sur le
  * maillage AFFICHE, ce serait celui d'un autre projet. */
-/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » :
- * cocher la case ouvre la meme fenetre (nombre d'etapes, mode et materiaux) ; « OK » memorise le choix, applique apres la generation. */
+/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » (panneau deroulant sous la case). */
 window._chantierPrereglage = null;
-let _bs3dPrereglage = false;
-function _bs3dFinPrereglage() {
-  _bs3dPrereglage = false;
-  const st = document.getElementById('bs3d-start');
-  if (st && st.dataset.htmlOrigine) { st.innerHTML = st.dataset.htmlOrigine; delete st.dataset.htmlOrigine; }
+// Libelle de la case : « (3 versions) » devient le nombre CHOISI (25/10, capture : 5 etapes choisies, « 3 versions » affiche)
+function _bs3dLibelleCase(n) {
+  const cb = document.getElementById('ws-3d-buildstages');
+  const lab = cb && cb.closest('label');
+  if (!lab) return;
+  const noeud = Array.from(lab.childNodes).reverse().find((x) => x.nodeType === 3 && x.textContent.trim());
+  if (!noeud) return;
+  if (lab.dataset.libelleOrigine == null) lab.dataset.libelleOrigine = noeud.textContent;
+  noeud.textContent = n ? ' ' + _i18nTf('Construction stages ({x} versions)', String(n)) + ' ' : lab.dataset.libelleOrigine;
+}
+/* PANNEAU DEROULANT sous la case (25/10, demande du user : « que les parametres des etapes de construction apparaissent dans un menu deroulant,
+ * comme Options avancees pour Reglages auto »). Les controles sont CLONES depuis la fenetre de l'outil (memes options, memes libelles) : plus de
+ * fenetre a ouvrir. Chaque changement memorise le choix dans window._chantierPrereglage, applique apres la generation. */
+function _bs3dSauver() {
+  const v = (id) => document.getElementById('ws3d-stg-' + id)?.value;
+  window._chantierPrereglage = { count: v('count'), mode: v('mat-mode'), material: v('material'), scaffold: v('mat-scaffold'), frame: v('mat-frame'), planks: v('mat-planks'), formwork: v('mat-formwork') };
+  _bs3dLibelleCase(window._chantierPrereglage.count);
+}
+function _bs3dPanneau() {
+  let det = document.getElementById('ws-3d-stages-opts');
+  if (det) return det;
+  const cb = document.getElementById('ws-3d-buildstages');
+  const ligne = cb && cb.closest('.form-row');
+  const source = document.getElementById('bs3d-count')?.parentElement;
+  if (!ligne || !source) return null;
+  det = document.createElement('details');
+  det.id = 'ws-3d-stages-opts'; det.open = true; det.style.cssText = 'margin-top:6px; font-size:12px;';
+  const sm = document.createElement('summary');
+  sm.style.cssText = 'cursor:pointer; color:var(--text-muted);';
+  sm.textContent = '\u2699\uFE0F ' + _i18nT('Construction stages options');
+  const corps = source.cloneNode(true);
+  corps.style.margin = '6px 0';
+  corps.querySelectorAll('[id]').forEach((el) => { el.id = el.id.replace(/^bs3d-/, 'ws3d-stg-'); });
+  det.append(sm, corps);
+  ligne.insertAdjacentElement('afterend', det);
+  const g = (id) => document.getElementById('ws3d-stg-' + id);
+  g('count')?.addEventListener('input', (e) => { const el = g('count-val'); if (el) el.textContent = e.target.value; _bs3dSauver(); });
+  g('mat-mode')?.addEventListener('change', (e) => {
+    const manuel = e.target.value === 'manual';
+    const auto = g('mat-auto-row'), lignes = g('mat-manual-rows');
+    if (auto) auto.style.display = manuel ? 'none' : '';
+    if (lignes) { lignes.classList.toggle('hidden', !manuel); lignes.style.display = manuel ? 'grid' : 'none'; }
+    _bs3dSauver();
+  });
+  corps.querySelectorAll('select').forEach((s) => s.addEventListener('change', _bs3dSauver));
+  return det;
 }
 document.getElementById('ws-3d-buildstages')?.addEventListener('change', (e) => {
-  if (!e.target.checked) { window._chantierPrereglage = null; return; }
-  _bs3dPrereglage = true;
-  const st = document.getElementById('bs3d-start');
-  if (st && !st.dataset.htmlOrigine) { st.dataset.htmlOrigine = st.innerHTML; st.textContent = 'OK'; }
-  document.getElementById('modal-stages3d-options')?.classList.remove('hidden');
+  const det = _bs3dPanneau();
+  if (det) det.style.display = e.target.checked ? '' : 'none';
+  if (!e.target.checked) { window._chantierPrereglage = null; _bs3dLibelleCase(0); return; }
+  if (!window._chantierPrereglage) {   // premiere ouverture : les valeurs historiques de la case (3 etapes, materiaux automatiques)
+    const c = document.getElementById('ws3d-stg-count'), cv = document.getElementById('ws3d-stg-count-val');
+    if (c) c.value = '3'; if (cv) cv.textContent = '3';
+  }
+  _bs3dSauver();
 });
 
 function _chantierApresGeneration(p, meshPath) {
   const cur = state.currentProject;
   const mp = meshPath || (cur && cur.meshes && cur.meshes[0] && cur.meshes[0].path) || null;
-  if (!cur || !p || cur.name !== p.name || !mp) {
-    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".'), 'error', 7000);
+  // 25/10 : la comparaison stricte des noms echouait quand le serveur renvoie le nom sous une autre forme (espaces / underscores) apres le rechargement :
+  // « Les etapes de construction n'ont pas ete lancees » alors que le projet etait bien ouvert. Meme equivalence que reloadCurrentProject.
+  const _memeNom = cur && p && (cur.name === p.name || _nomsEquivalents(cur.name, p.name));
+  if (!cur || !p || !_memeNom || !mp) {
+    const _raison = !cur ? 'no project open' : !p ? 'no launch project' : !_memeNom ? 'project changed (' + cur.name + ' / ' + p.name + ')' : 'mesh path unknown';
+    console.warn('[chantier] etapes non lancees :', _raison);
+    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".') + ' [' + _raison + ']', 'error', 9000);
     return;
   }
   cur.previewMeshPath = mp;
@@ -14271,12 +14385,6 @@ function _chantierApresGeneration(p, meshPath) {
 
 document.getElementById('bs3d-start')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
-  if (_bs3dPrereglage) {
-    const v = (id) => document.getElementById(id)?.value;
-    window._chantierPrereglage = { count: v('bs3d-count'), mode: v('bs3d-mat-mode'), material: v('bs3d-material'), scaffold: v('bs3d-mat-scaffold'), frame: v('bs3d-mat-frame'), planks: v('bs3d-mat-planks'), formwork: v('bs3d-mat-formwork') };
-    _bs3dFinPrereglage();
-    return;
-  }
   const p = state.currentProject;
   let mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast('Generate or select a mesh first.', 'error'); return; }
@@ -14582,7 +14690,8 @@ function openResizeTool() {
   if (!modal || !canvas || !vp) return;
   modal.classList.remove('hidden');
 
-  const renderer = new THREE.WebGLRenderer({ alpha: false  /* canvas OPAQUE : la scene peint deja son fond, rien ne doit transparaitre de la page. Avec alpha:true, un materiau pourtant declare OPAQUE dont la texture baseColor porte un canal alpha (WebP TRELLIS-2) ecrit cet alpha dans le framebuffer, et le navigateur compositait le maillage en semi-transparent par-dessus la page. */, canvas, antialias: true });
+  const renderer = _mkRenderer({ alpha: false  /* canvas OPAQUE : la scene peint deja son fond, rien ne doit transparaitre de la page. Avec alpha:true, un materiau pourtant declare OPAQUE dont la texture baseColor porte un canal alpha (WebP TRELLIS-2) ecrit cet alpha dans le framebuffer, et le navigateur compositait le maillage en semi-transparent par-dessus la page. */, canvas, antialias: true }, vp);
+  if (!renderer) return;   // garde WebGL du bureau : encart dans le conteneur, pas de plantage (25/10)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b0b14);
   const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 5000);
@@ -14592,6 +14701,7 @@ function openResizeTool() {
   _sourisVisualiseur(controls, renderer.domElement);
   controls.enableDamping = true;
   Object.assign(rzState, { renderer, scene, camera, controls });
+  creerBarreVues3D(vp, rzState, { zoom: false });   // barre discrete : vues + reset (25/10)
 
   const resize = () => {
     const w = vp.clientWidth || 640, h = vp.clientHeight || 420;
@@ -14724,7 +14834,7 @@ function _showMeshStagesBar(stages) {
     btn.className = 'stage-btn' + (s.index === last ? ' stage-active' : '');
     btn.dataset.path = s.path;
     const pct = Math.round((s.progress != null ? s.progress : s.index / last) * 100);
-    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    const lbl = s.index === last ? _stageKindLabels(stages).last : (s.index === 0 ? _stageKindLabels(stages).first : pct + '%');
     btn.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${lbl}</span>`;
     bar.appendChild(btn);
   }
@@ -14925,6 +15035,7 @@ async function _peInitViewport() {
   peState.scene.add(fill);
   peState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   peState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(wrap, peState);   // barre commune : Reset camera, vues, zoom (25/10)
   peState.raycaster = new THREE.Raycaster();
   peState.pointer = new THREE.Vector2();
   const tick = () => {
@@ -16512,6 +16623,7 @@ async function _pmInitViewport() {
   fill.position.set(-5, 3, -5); pmState.scene.add(fill);
   pmState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   pmState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(wrap, pmState);   // barre commune : Reset camera, vues, zoom (25/10)
   pmState.raycaster = new THREE.Raycaster();
   pmState.pointer = new THREE.Vector2();
   const tick = () => {
@@ -17095,7 +17207,7 @@ function openPaintMesh(opts = {}) {
       if (subtitle) subtitle.textContent = 'Strokes go on the emissive map (T_emissive). Toggle off to paint the diffuse instead.';
     } else {
       if (title)    title.textContent = '🎨 Paint Mesh';
-      if (subtitle) subtitle.textContent = "Paint directly on the mesh's diffuse texture. Left-click + drag to paint, right-click to orbit.";
+      if (subtitle) subtitle.textContent = "Paint directly on the mesh's diffuse texture. Left-drag: paint · Right-drag: pan · Middle-drag: rotate.";
     }
     tBtn?.classList.toggle('tool-active', pmState.emissiveMode);
     if (tBtn) {
@@ -17334,6 +17446,7 @@ async function openMaterialAdjust() {
     _matViewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     _matViewer.renderer.toneMappingExposure = 1.0;
     _matViewer.startTickLoop();
+    creerBarreVues3D(canvas.parentElement, _matViewer, { cible: () => _matModel });   // barre commune (25/10)
   }
   // Wait one frame so the canvas has a layout size, then resize.
   await new Promise(r => requestAnimationFrame(r));
@@ -17860,6 +17973,7 @@ async function _meInitViewport() {
 
   // Grid
   meState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(container, meState);   // barre commune : Reset camera, vues, zoom (25/10)
 
   // Render loop
   function tick() {
@@ -21663,6 +21777,7 @@ async function _majApercuAnim() {
   if (!rig) { montrer(_i18nT('Choose a rig in step 3 to see the preview.')); return; }
   try {
     if (!_apercuAnim) _apercuAnim = creerApercu(canvas);
+    creerBarreVues3D(canvas.parentElement, () => _apercuAnim?.vue3d?.() || null);   // barre commune (25/10)
     if (!_apercuAnim.pret() || _apercuAnim.cleChargee() !== rig.cle) montrer(_i18nT('Loading preview…'));
     const ok = await _apercuAnim.chargerRig(rig.cle, rig.lire);
     if (!ok) { montrer(_i18nT('Preview unavailable.')); return; }
@@ -23832,7 +23947,7 @@ function _jobStepIndex(j) {
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
-  if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
+  if (/(mesh edit|save mesh|sculpt|watertight|decimate|subdivid|^center|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
   if (/(rig|skeleton|re-?skin)/i.test(n)) return 3;
   if (/(^animate|animation)/i.test(n)) return 4;
   return 0;
@@ -30446,7 +30561,7 @@ function _ptsModeAjout(actif) {
   if (consigne) {
     consigne.textContent = _i18nT(_pts.ajout
       ? 'Click the mesh where the new point goes (Esc to cancel).'
-      : 'Drag any point. Right-drag pans, wheel zooms.');
+      : 'Drag any point. Right-drag pans, middle-drag rotates, wheel zooms.');
   }
 }
 

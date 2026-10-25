@@ -14,9 +14,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Viewer3D } from './lib/Viewer3D.js';
+import { centrerRotation } from './lib/centre-rotation.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
+import { creerBarreVues3D } from './lib/barre-vues-3d.js';   // barre commune des visualiseurs des fenetres d'outils (25/10)
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
   positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
@@ -2084,6 +2086,7 @@ function _sourisVisualiseur(controls, domEl) {
     controls.screenSpacePanning = true;
     controls.enableZoom = true;
     controls.zoomToCursor = true;
+    centrerRotation(controls, domEl);   // la molette enfoncee tourne autour du CENTRE du modele (25/10)
     if (domEl && !domEl.__souris25) {
       domEl.__souris25 = true;
       domEl.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -5266,7 +5269,7 @@ function _showStagesBar(dir, stages) {
     btn.dataset.stage = String(s.index);
     btn.dataset.path = s.path;
     const pct = Math.round((s.progress != null ? s.progress : (s.index / last)) * 100);
-    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    const lbl = s.index === last ? _stageKindLabels(stages).last : (s.index === 0 ? _stageKindLabels(stages).first : pct + '%');
     // Labelled button like the multi-view bar (number + phase), not a tiny digit.
     btn.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${lbl}</span>`;
     btn.title = s.index === last
@@ -5306,7 +5309,6 @@ document.getElementById('ws-stages-bar')?.addEventListener('click', (e) => {
 // scaffold) from the displayed mesh, then switch stages via a bar over the mesh
 // preview (mirrors the image stages bar). CPU-only worker → no GPU gate.
 document.getElementById('ws-mesh-stages3d-btn')?.addEventListener('click', () => {
-  _bs3dFinPrereglage();   // l'outil lui-meme : fenetre normale (pas le mode prereglage de la creation)
   const p = state.currentProject;
   const mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
@@ -5584,6 +5586,7 @@ function openResizeTool() {
   _sourisVisualiseur(controls, renderer.domElement);
   controls.enableDamping = true;
   Object.assign(rzState, { renderer, scene, camera, controls });
+  creerBarreVues3D(vp, rzState, { zoom: false });   // barre discrete : vues + reset (25/10)
 
   const resize = () => {
     const w = vp.clientWidth || 640, h = vp.clientHeight || 420;
@@ -5713,7 +5716,6 @@ document.getElementById('bs3d-count')?.addEventListener('input', (e) => {
 });
 document.getElementById('bs3d-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
-  if (_bs3dPrereglage) { _bs3dFinPrereglage(); const cb = document.getElementById('ws-3d-buildstages'); if (cb) { cb.checked = false; cb.dispatchEvent(new Event('change')); } }
 });
 // AUTO (one preset everywhere) vs MANUAL (per-component material) toggle
 document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
@@ -5731,28 +5733,76 @@ document.getElementById('bs3d-mat-mode')?.addEventListener('change', (e) => {
  * le maillage qui vient d'etre livre, facture a son propre tarif. Rien n'est
  * lance si l'utilisateur a change de projet entre-temps : l'outil agit sur le
  * maillage AFFICHE, ce serait celui d'un autre projet. */
-/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » :
- * cocher la case ouvre la meme fenetre (nombre d'etapes, mode et materiaux) ; « OK » memorise le choix, applique apres la generation. */
+/* 25/10 (demande du user) : la case « Construction stages » de la creation 3D a les MEMES reglages que l'outil « Etapes de construction 3D » (panneau deroulant sous la case). */
 window._chantierPrereglage = null;
-let _bs3dPrereglage = false;
-function _bs3dFinPrereglage() {
-  _bs3dPrereglage = false;
-  const st = document.getElementById('bs3d-start');
-  if (st && st.dataset.htmlOrigine) { st.innerHTML = st.dataset.htmlOrigine; delete st.dataset.htmlOrigine; }
+// Libelle de la case : « (3 versions) » devient le nombre CHOISI (25/10, capture : 5 etapes choisies, « 3 versions » affiche)
+function _bs3dLibelleCase(n) {
+  const cb = document.getElementById('ws-3d-buildstages');
+  const lab = cb && cb.closest('label');
+  if (!lab) return;
+  const noeud = Array.from(lab.childNodes).reverse().find((x) => x.nodeType === 3 && x.textContent.trim());
+  if (!noeud) return;
+  if (lab.dataset.libelleOrigine == null) lab.dataset.libelleOrigine = noeud.textContent;
+  noeud.textContent = n ? ' ' + _i18nTf('Construction stages ({x} versions)', String(n)) + ' ' : lab.dataset.libelleOrigine;
+}
+/* PANNEAU DEROULANT sous la case (25/10, demande du user : « que les parametres des etapes de construction apparaissent dans un menu deroulant,
+ * comme Options avancees pour Reglages auto »). Les controles sont CLONES depuis la fenetre de l'outil (memes options, memes libelles) : plus de
+ * fenetre a ouvrir. Chaque changement memorise le choix dans window._chantierPrereglage, applique apres la generation. */
+function _bs3dSauver() {
+  const v = (id) => document.getElementById('ws3d-stg-' + id)?.value;
+  window._chantierPrereglage = { count: v('count'), mode: v('mat-mode'), material: v('material'), scaffold: v('mat-scaffold'), frame: v('mat-frame'), planks: v('mat-planks'), formwork: v('mat-formwork') };
+  _bs3dLibelleCase(window._chantierPrereglage.count);
+}
+function _bs3dPanneau() {
+  let det = document.getElementById('ws-3d-stages-opts');
+  if (det) return det;
+  const cb = document.getElementById('ws-3d-buildstages');
+  const ligne = cb && cb.closest('.form-row');
+  const source = document.getElementById('bs3d-count')?.parentElement;
+  if (!ligne || !source) return null;
+  det = document.createElement('details');
+  det.id = 'ws-3d-stages-opts'; det.open = true; det.style.cssText = 'margin-top:6px; font-size:12px;';
+  const sm = document.createElement('summary');
+  sm.style.cssText = 'cursor:pointer; color:var(--text-muted);';
+  sm.textContent = '\u2699\uFE0F ' + _i18nT('Construction stages options');
+  const corps = source.cloneNode(true);
+  corps.style.margin = '6px 0';
+  corps.querySelectorAll('[id]').forEach((el) => { el.id = el.id.replace(/^bs3d-/, 'ws3d-stg-'); });
+  det.append(sm, corps);
+  ligne.insertAdjacentElement('afterend', det);
+  const g = (id) => document.getElementById('ws3d-stg-' + id);
+  g('count')?.addEventListener('input', (e) => { const el = g('count-val'); if (el) el.textContent = e.target.value; _bs3dSauver(); });
+  g('mat-mode')?.addEventListener('change', (e) => {
+    const manuel = e.target.value === 'manual';
+    const auto = g('mat-auto-row'), lignes = g('mat-manual-rows');
+    if (auto) auto.style.display = manuel ? 'none' : '';
+    if (lignes) { lignes.classList.toggle('hidden', !manuel); lignes.style.display = manuel ? 'grid' : 'none'; }
+    _bs3dSauver();
+  });
+  corps.querySelectorAll('select').forEach((s) => s.addEventListener('change', _bs3dSauver));
+  return det;
 }
 document.getElementById('ws-3d-buildstages')?.addEventListener('change', (e) => {
-  if (!e.target.checked) { window._chantierPrereglage = null; return; }
-  _bs3dPrereglage = true;
-  const st = document.getElementById('bs3d-start');
-  if (st && !st.dataset.htmlOrigine) { st.dataset.htmlOrigine = st.innerHTML; st.textContent = 'OK'; }
-  document.getElementById('modal-stages3d-options')?.classList.remove('hidden');
+  const det = _bs3dPanneau();
+  if (det) det.style.display = e.target.checked ? '' : 'none';
+  if (!e.target.checked) { window._chantierPrereglage = null; _bs3dLibelleCase(0); return; }
+  if (!window._chantierPrereglage) {   // premiere ouverture : les valeurs historiques de la case (3 etapes, materiaux automatiques)
+    const c = document.getElementById('ws3d-stg-count'), cv = document.getElementById('ws3d-stg-count-val');
+    if (c) c.value = '3'; if (cv) cv.textContent = '3';
+  }
+  _bs3dSauver();
 });
 
 function _chantierApresGeneration(p, meshPath) {
   const cur = state.currentProject;
   const mp = meshPath || (cur && cur.meshes && cur.meshes[0] && cur.meshes[0].path) || null;
-  if (!cur || !p || cur.name !== p.name || !mp) {
-    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".'), 'error', 7000);
+  // 25/10 : la comparaison stricte des noms echouait quand le serveur renvoie le nom sous une autre forme (espaces / underscores) apres le rechargement :
+  // « Les etapes de construction n'ont pas ete lancees » alors que le projet etait bien ouvert. Meme equivalence que reloadCurrentProject.
+  const _memeNom = cur && p && (cur.name === p.name || _nomsEquivalents(cur.name, p.name));
+  if (!cur || !p || !_memeNom || !mp) {
+    const _raison = !cur ? 'no project open' : !p ? 'no launch project' : !_memeNom ? 'project changed (' + cur.name + ' / ' + p.name + ')' : 'mesh path unknown';
+    console.warn('[chantier] etapes non lancees :', _raison);
+    showToast(_i18nT('Construction stages were not started: open the project, select the mesh and use "3D construction stages".') + ' [' + _raison + ']', 'error', 9000);
     return;
   }
   cur.previewMeshPath = mp;
@@ -5766,12 +5816,6 @@ function _chantierApresGeneration(p, meshPath) {
 
 document.getElementById('bs3d-start')?.addEventListener('click', () => {
   document.getElementById('modal-stages3d-options')?.classList.add('hidden');
-  if (_bs3dPrereglage) {
-    const v = (id) => document.getElementById(id)?.value;
-    window._chantierPrereglage = { count: v('bs3d-count'), mode: v('bs3d-mat-mode'), material: v('bs3d-material'), scaffold: v('bs3d-mat-scaffold'), frame: v('bs3d-mat-frame'), planks: v('bs3d-mat-planks'), formwork: v('bs3d-mat-formwork') };
-    _bs3dFinPrereglage();
-    return;
-  }
   const p = state.currentProject;
   let mp = p && (p.previewMeshPath || p.selectedMeshPath);
   if (!mp) { showToast(_i18nT('Pick or generate a mesh first.'), 'error'); return; }
@@ -7385,7 +7429,7 @@ function _renderLbStagesBar(stages) {
     btn.dataset.path = s.path;
     btn.dataset.stage = String(s.index);
     const pct = Math.round((s.progress != null ? s.progress : (s.index / last)) * 100);
-    const lbl = s.index === last ? 'FINAL' : (s.index === 0 ? 'CHANTIER' : pct + '%');
+    const lbl = s.index === last ? _stageKindLabels(stages).last : (s.index === 0 ? _stageKindLabels(stages).first : pct + '%');
     btn.innerHTML = `<span class="stage-num">${s.index + 1}</span><span class="stage-lbl">${lbl}</span>`;
     bar.appendChild(btn);
   }
@@ -7454,13 +7498,6 @@ document.getElementById('lightbox-2-use-3d')?.addEventListener('click', async (e
   // assigns selectedImagePath, marks the thumb, scrolls + collapses + opens Create new
   document.getElementById('ws-use-for-3d-btn')?.click();
 });
-document.getElementById('lightbox-2').addEventListener('click', (e) => {
-  // Close when clicking the background (not the image / nav / bottom bar)
-  if (e.target.id === 'lightbox-2' || e.target.id === 'lightbox-2-close') closeLightbox();
-});
-document.addEventListener('keydown', (e) => {
-  const lbVisible = !document.getElementById('lightbox-2').classList.contains('hidden');
-  if (!lbVisible) return;
 // Visionneuse 2D (harmonisation 25/10) : molette = zoom (x1.15, de 0.2 a 10), clic droit maintenu = deplacer,
 // comme dans les visualiseurs 3D. Remise a zero a chaque nouvelle image et a la fermeture.
 const _lbView = { z: 1, x: 0, y: 0, pan: false, ox: 0, oy: 0, dist: 0, bloque: false };
@@ -7523,9 +7560,16 @@ function _lbZoomAt(f, cx, cy) {
     _lbApplyView();
   });
 })();
+document.getElementById('lightbox-2').addEventListener('click', (e) => {
+  // Close when clicking the background (not the image / nav / bottom bar)
+  if (_lbView.bloque) { _lbView.bloque = false; return; }
+  if (e.target.id === 'lightbox-2' || e.target.id === 'lightbox-2-close') closeLightbox();
+});
+document.addEventListener('keydown', (e) => {
+  const lbVisible = !document.getElementById('lightbox-2').classList.contains('hidden');
+  if (!lbVisible) return;
   if (e.key === 'Escape') closeLightbox();
   else if (e.key === 'ArrowLeft') lightboxShowAt(_lightboxIndex - 1);
-  if (_lbView.bloque) { _lbView.bloque = false; return; }
   else if (e.key === 'ArrowRight') lightboxShowAt(_lightboxIndex + 1);
 });
 
@@ -9495,6 +9539,7 @@ function _symApplyView() {
     symState.zoom = Math.max(0.2, Math.min(10, symState.zoom * factor));
     _symApplyView();
   }, { passive: false });
+  container.addEventListener('contextmenu', (e) => e.preventDefault());
   container.addEventListener('mousedown', (e) => {
     if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) {   // clic droit maintenu = deplacer (25/10)
       symState.panning = true;
@@ -9502,7 +9547,6 @@ function _symApplyView() {
       container.style.cursor = 'grabbing';
       e.preventDefault();
     }
-  container.addEventListener('contextmenu', (e) => e.preventDefault());
   });
   window.addEventListener('mousemove', (e) => {
     if (symState.panning && symState.panStart) {
@@ -9709,6 +9753,7 @@ if (_symOverlay) {
   }
 
   _symOverlay.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.altKey) return;   // les autres boutons deplacent la vue
     const p = _symCanvasCoords(e);
     const axPx = symState.axisX * symState.w;
     if (e.shiftKey) {
@@ -9716,7 +9761,6 @@ if (_symOverlay) {
       symState.rotating = true;
     } else if (e.ctrlKey || e.metaKey) {
       // Ctrl+drag = move axis (works in both modes)
-    if (e.button !== 0 || e.altKey) return;   // les autres boutons deplacent la vue
       symState.dragging = true;
     } else if (symState.mode === 'full' && Math.abs(p.x - axPx) < 20) {
       // Near axis in full mode = drag axis
@@ -10117,6 +10161,7 @@ document.getElementById('ws-crop-btn')?.addEventListener('click', () => {
     // Reset preset buttons
     document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
     document.getElementById('crop-preset-free')?.classList.add('tool-active');
+    cropState.hist = []; cropState.redo = []; _cropBtns();
   };
   img.src = 'file:///' + cropState.imgPath.replace(/\\/g, '/') + '?t=' + Date.now();
 });
@@ -10124,7 +10169,6 @@ document.getElementById('ws-crop-btn')?.addEventListener('click', () => {
 function _cropDrawOverlay() {
   const overlay = document.getElementById('crop-overlay');
   if (!overlay) return;
-    cropState.hist = []; cropState.redo = []; _cropBtns();
   const ctx = overlay.getContext('2d');
   const w = cropState.w, h = cropState.h;
   ctx.clearRect(0, 0, w, h);
@@ -10177,6 +10221,8 @@ function _cropUpdateLabel() {
     return { x: (e.clientX - rect.left) * sx / cropState.w, y: (e.clientY - rect.top) * sx / cropState.h };
   }
   ov.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    _cropPush();
     const p = _coords(e);
     cropState.x1 = p.x; cropState.y1 = p.y;
     cropState.x2 = p.x; cropState.y2 = p.y;
@@ -10184,8 +10230,6 @@ function _cropUpdateLabel() {
   });
   ov.addEventListener('mousemove', (e) => {
     if (!cropState.dragging) return;
-    if (e.button !== 0) return;
-    _cropPush();
     const p = _coords(e);
     cropState.x2 = Math.max(0, Math.min(1, p.x));
     cropState.y2 = Math.max(0, Math.min(1, p.y));
@@ -10209,13 +10253,6 @@ function _cropUpdateLabel() {
   });
 })();
 
-// Presets
-function _cropSetPreset(aspect, id) {
-  /* AUTO CENTER (2026-10-02, rapport d'essais du 01/10 : « Auto center remplace le ratio choisi par un carre (819 x 819) : le 16:9 est perdu »).
-   * Avant : le cadre repartait a 80 % de l'image ET le ratio verrouille etait efface. Maintenant « Auto center » ne fait que RECENTRER : le ratio
-   * choisi (1:1, 4:3, 16:9) est conserve ; en mode libre, la taille du cadre est conservee (80 % de l'image si aucun cadre n'a encore ete trace). */
-  const recentrer = (aspect === 'center');
-  if (recentrer) aspect = cropState.aspect;
 // Historique du cadre (annuler / refaire, 20 niveaux), recentrage et loupe (harmonisation des editeurs 2D, 25/10)
 cropState.hist = []; cropState.redo = []; cropState.loupe = true;
 function _cropSnap() { return { x1: cropState.x1, y1: cropState.y1, x2: cropState.x2, y2: cropState.y2, aspect: cropState.aspect }; }
@@ -10291,9 +10328,16 @@ document.getElementById('crop-loupe-toggle')?.classList.add('tool-active');
   ov.addEventListener('mouseleave', () => { const l = document.getElementById('clone-loupe'); if (l) l.style.display = 'none'; });
 })();
 
+// Presets
+function _cropSetPreset(aspect, id) {
+  _cropPush();
+  /* AUTO CENTER (2026-10-02, rapport d'essais du 01/10 : « Auto center remplace le ratio choisi par un carre (819 x 819) : le 16:9 est perdu »).
+   * Avant : le cadre repartait a 80 % de l'image ET le ratio verrouille etait efface. Maintenant « Auto center » ne fait que RECENTRER : le ratio
+   * choisi (1:1, 4:3, 16:9) est conserve ; en mode libre, la taille du cadre est conservee (80 % de l'image si aucun cadre n'a encore ete trace). */
+  const recentrer = (aspect === 'center');
+  if (recentrer) aspect = cropState.aspect;
   const ratioVerrouille = (typeof aspect === 'number' && aspect > 0);
   document.querySelectorAll('[id^="crop-preset-"]').forEach(b => b.classList.remove('tool-active'));
-  _cropPush();
   if (recentrer && ratioVerrouille) {
     const marque = [[1, 'crop-preset-1-1'], [4 / 3, 'crop-preset-4-3'], [16 / 9, 'crop-preset-16-9']].find(([r]) => Math.abs(r - aspect) < 0.01);
     document.getElementById(marque ? marque[1] : id)?.classList.add('tool-active');
@@ -10628,6 +10672,7 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
       resetBtn: document.getElementById('blur-reset'),
       loupeBtn: document.getElementById('blur-loupe-toggle'),
       brushCursor: document.getElementById('blur-brush-cursor'),
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (aucune autre fonction ici)
       brushSizeGetter: () => blurState.brushSize,
       onPaint: (ctx, x, y, _lastPt, mgr) => {
         const r = blurState.brushSize / 2;
@@ -10635,7 +10680,6 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
         const ax = Math.max(0, Math.round(x - r));
         const ay = Math.max(0, Math.round(y - r));
         const aw = Math.min(mgr.w - ax, Math.round(r * 2));
-      rightClickPan: true,   // clic droit maintenu = deplacer la vue (aucune autre fonction ici)
         const ah = Math.min(mgr.h - ay, Math.round(r * 2));
         if (aw <= 0 || ah <= 0) return;
         const tmp = document.createElement('canvas');
@@ -10692,6 +10736,8 @@ document.getElementById('ws-blur-btn')?.addEventListener('click', async () => {
   await _blurMgr.loadImage('file:///' + tgt.replace(/\\/g, '/') + '?t=' + Date.now());
 });
 
+document.getElementById('blur-fit')?.addEventListener('click', () => { if (_blurMgr && _blurMgr.recenter) _blurMgr.recenter(); });
+
 // Mode toggle
 document.getElementById('blur-mode-blur')?.addEventListener('click', () => {
   blurState.mode = 'blur';
@@ -10699,8 +10745,6 @@ document.getElementById('blur-mode-blur')?.addEventListener('click', () => {
   document.getElementById('blur-mode-sharpen')?.classList.remove('tool-active');
 });
 document.getElementById('blur-mode-sharpen')?.addEventListener('click', () => {
-document.getElementById('blur-fit')?.addEventListener('click', () => { if (_blurMgr && _blurMgr.recenter) _blurMgr.recenter(); });
-
   blurState.mode = 'sharpen';
   document.getElementById('blur-mode-sharpen')?.classList.add('tool-active');
   document.getElementById('blur-mode-blur')?.classList.remove('tool-active');
@@ -11204,6 +11248,7 @@ document.getElementById('ws-paint-btn')?.addEventListener('click', () => {
       resetBtn: document.getElementById('paint-reset'),
       loupeBtn: document.getElementById('paint-loupe-toggle'),
       brushCursor: document.getElementById('paint-brush-cursor'),
+      rightClickPan: true,   // clic droit maintenu = deplacer la vue (la pipette et les outils sont au clic gauche)
       brushSizeGetter: () => paintState.brushSize,
       onMouseDown: (ctx, x, y, e, mgr) => {
         if (paintState.eyedropping) {
@@ -11211,7 +11256,6 @@ document.getElementById('ws-paint-btn')?.addEventListener('click', () => {
           const hex = '#' + [px[0], px[1], px[2]].map(v => v.toString(16).padStart(2, '0')).join('');
           paintState.color = hex;
           document.getElementById('paint-color').value = hex;
-      rightClickPan: true,   // clic droit maintenu = deplacer la vue (la pipette et les outils sont au clic gauche)
           paintState.eyedropping = false;
           document.getElementById('paint-eyedropper')?.classList.remove('tool-active');
           document.getElementById('paint-canvas').style.cursor = 'none';
@@ -12459,6 +12503,7 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
           const ctl = new OrbitControls(cam, canvas);
           _sourisVisualiseur(ctl, canvas);
  ctl.enableDamping = true;
+          creerBarreVues3D(canvas.parentElement, { camera: cam, controls: ctl, scene });   // barre commune (25/10)
           new GLTFLoader().load(url, (g) => {
             const root = g.scene; scene.add(root);
             // Disable frustum culling + grab bbox from skeleton bones
@@ -13973,9 +14018,8 @@ const MESH_TOOL_SCHEMAS = {
   },
   watertight: {
     title: 'Watertight',
-    subtitle: 'Add a CLOSED inner shell inside the model so it becomes watertight (printable). Your mesh and its texture are not touched: the shell stays strictly inside. Parts thinner than a few voxels get no shell. Higher resolution = tighter shell, slower.',
+    subtitle: 'Add a CLOSED inner skin just behind the surface so the model becomes watertight (printable). Your mesh and its texture are not touched: the skin stays strictly inside, and empty rooms stay visible through doors. Parts thinner than a few voxels get no skin. Higher resolution = tighter skin, slower.',
     needsImage: false,
-    confirm: 'Watertight adds a closed grey shell inside the mesh. The outside and the texture stay exactly as they are. Continue?',
     params: [
       // 256 = plafond reel de la coque interieure (watertight_seal.coque_interieure).
       { id: 'resolution', label: 'Resolution', type: 'range', min: 48, max: 256, step: 8, default: 192 },
@@ -14227,6 +14271,7 @@ async function _mtInitViewport() {
   mtState.scene.add(dir);
   mtState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   mtState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(container, mtState);   // barre commune : Reset camera, vues, zoom (25/10)
   const tick = () => {
     if (!document.getElementById('modal-mesh-tool')?.classList.contains('hidden')) {
       mtState.controls?.update();
@@ -15274,6 +15319,7 @@ async function _peInitViewport() {
   peState.scene.add(fill);
   peState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   peState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(wrap, peState);   // barre commune : Reset camera, vues, zoom (25/10)
   peState.raycaster = new THREE.Raycaster();
   peState.pointer = new THREE.Vector2();
   const tick = () => {
@@ -16526,6 +16572,7 @@ async function _pmInitViewport() {
   fill.position.set(-5, 3, -5); pmState.scene.add(fill);
   pmState.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
   pmState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(wrap, pmState);   // barre commune : Reset camera, vues, zoom (25/10)
   pmState.raycaster = new THREE.Raycaster();
   pmState.pointer = new THREE.Vector2();
   const tick = () => {
@@ -17107,7 +17154,7 @@ function openPaintMesh(opts = {}) {
       if (subtitle) subtitle.textContent = 'Strokes go on the emissive map (T_emissive). Toggle off to paint the diffuse instead.';
     } else {
       if (title)    title.textContent = '🎨 Paint Mesh';
-      if (subtitle) subtitle.textContent = "Paint directly on the mesh's diffuse texture. Left-click + drag to paint, right-click to orbit.";
+      if (subtitle) subtitle.textContent = "Paint directly on the mesh's diffuse texture. Left-drag: paint · Right-drag: pan · Middle-drag: rotate.";
     }
     tBtn?.classList.toggle('tool-active', pmState.emissiveMode);
     if (tBtn) {
@@ -17333,6 +17380,7 @@ async function openMaterialAdjust() {
     _matViewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     _matViewer.renderer.toneMappingExposure = 1.0;
     _matViewer.startTickLoop();
+    creerBarreVues3D(canvas.parentElement, _matViewer, { cible: () => _matModel });   // barre commune (25/10)
   }
   // Wait one frame so the canvas has a layout size, then resize.
   await new Promise(r => requestAnimationFrame(r));
@@ -17808,6 +17856,7 @@ async function _meInitViewport() {
 
   // Grid
   meState.scene.add(new THREE.GridHelper(2, 20, 0x444466, 0x333355));
+  creerBarreVues3D(container, meState);   // barre commune : Reset camera, vues, zoom (25/10)
 
   // Render loop
   function tick() {
@@ -20695,6 +20744,7 @@ async function _majApercuAnim() {
   if (!rig) { montrer(_i18nT('Choose a rig in step 3 to see the preview.')); return; }
   try {
     if (!_apercuAnim) _apercuAnim = creerApercu(canvas);
+    creerBarreVues3D(canvas.parentElement, () => _apercuAnim?.vue3d?.() || null);   // barre commune (25/10)
     if (!_apercuAnim.pret() || _apercuAnim.cleChargee() !== rig.cle) montrer(_i18nT('Loading preview…'));
     const ok = await _apercuAnim.chargerRig(rig.cle, rig.lire);
     if (!ok) { montrer(_i18nT('Preview unavailable.')); return; }
@@ -22809,7 +22859,7 @@ function _jobStepIndex(j) {
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
-  if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
+  if (/(mesh edit|save mesh|sculpt|watertight|decimate|subdivid|^center|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
   if (/(rig|skeleton|re-?skin)/i.test(n)) return 3;
   if (/(^animate|animation)/i.test(n)) return 4;
   return 0;
@@ -30405,7 +30455,7 @@ function _ptsModeAjout(actif) {
   if (consigne) {
     consigne.textContent = _i18nT(_pts.ajout
       ? 'Click the mesh where the new point goes (Esc to cancel).'
-      : 'Drag any point. Right-drag pans, wheel zooms.');
+      : 'Drag any point. Right-drag pans, middle-drag rotates, wheel zooms.');
   }
 }
 

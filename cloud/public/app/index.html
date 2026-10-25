@@ -907,7 +907,7 @@
                       <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
                       <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
                         <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
-                        <span title="Explode parts (segmented / fractured mesh)">&#128165;</span>
+                        <span title="Explode parts (segmented mesh)">&#128165;</span>
                         <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:90px;" />
                       </span>
                     </div>
@@ -1087,7 +1087,7 @@
                       <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
                       <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
                         <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
-                        <span title="Explode parts (segmented / fractured mesh)">&#128165;</span>
+                        <span title="Explode parts (segmented mesh)">&#128165;</span>
                         <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:90px;" />
                       </span>
                     </div>
@@ -1432,30 +1432,30 @@
         <div class="lm-fs-subviewer" data-pane="a">
           <canvas id="lm-fs-canvas" data-pane="a"></canvas>
           <div class="lm-fs-view-toolbar" data-pane="a">
+            <button data-view="iso"    title="Isometric">Iso</button>
             <button data-view="front"  title="Front view">Front</button>
             <button data-view="back"   title="Back view">Back</button>
             <button data-view="left"   title="Left side">Left</button>
             <button data-view="right"  title="Right side">Right</button>
             <button data-view="top"    title="Top view">Top</button>
             <button data-view="bottom" title="Bottom view">Bottom</button>
-            <button data-view="iso"    title="Isometric">Iso</button>
           </div>
           <div class="lm-fs-pane-label" id="lm-fs-pane-label-a">FRONT</div>
         </div>
         <div class="lm-fs-subviewer" data-pane="b">
           <canvas id="lm-fs-canvas-b" data-pane="b"></canvas>
           <div class="lm-fs-view-toolbar" data-pane="b">
+            <button data-view="iso"    title="Isometric">Iso</button>
             <button data-view="front"  title="Front view">Front</button>
             <button data-view="back"   title="Back view">Back</button>
             <button data-view="left"   title="Left side">Left</button>
             <button data-view="right"  title="Right side">Right</button>
             <button data-view="top"    title="Top view">Top</button>
             <button data-view="bottom" title="Bottom view">Bottom</button>
-            <button data-view="iso"    title="Isometric">Iso</button>
           </div>
           <div class="lm-fs-pane-label" id="lm-fs-pane-label-b">RIGHT</div>
         </div>
-        <div id="lm-fs-instruction">Drag any point. Right-drag pans, wheel zooms.</div>
+        <div id="lm-fs-instruction">Drag any point. Right-drag pans, middle-drag rotates, wheel zooms.</div>
         <!-- Options de placement du point selectionne (ajout ET glisser). -->
         <div id="pts-ajout-options" class="pts-ajout-options pts-options-bulle" hidden>
               <label title="On: a point you add or drag lands on the mesh under the cursor. Off: it goes where you point, even outside the mesh."><input type="checkbox" id="pts-ajout-coller" checked /> Stick to the mesh</label>
@@ -1504,6 +1504,10 @@
       <div id="lightbox-3d-info" class="viewer-info-overlay"></div>
       <div id="lb3d-stages-bar" class="stages-bar hidden"></div>
       <canvas id="lightbox-3d-canvas"></canvas>
+      <div id="lb3d-loading" class="hidden" style="position:absolute; inset:0; display:flex; flex-direction:column; gap:14px; align-items:center; justify-content:center; pointer-events:none; z-index:9505;">
+        <div style="width:48px; height:48px; border:4px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+        <div style="color:#fff; font-size:13px; text-shadow:0 1px 4px rgba(0,0,0,0.7);">Loading mesh&hellip;</div>
+      </div>
       <div id="lb3d-toolbox" class="lb-toolbox">
         <div class="lb-toolbox-group-label">GEOMETRY</div>
         <button class="lb-tool-btn" data-lb3d-tool="smooth" title="Smooth">&#10024;&nbsp;Smooth</button>
@@ -1562,7 +1566,13 @@
           <option value="gray">Gray</option>
         </select>
         <button data-act="shadows" title="Toggle shadows">Shadows</button>
-        <input type="range" data-act="light" min="0" max="200" value="100" title="Light intensity" />
+        <span class="light-label" title="Light intensity">&#9728;</span>
+        <input type="range" data-act="light" min="0" max="500" value="100" title="Light intensity" />
+        <span class="seg-explode-wrap" data-explode-wrap style="display:none;align-items:center;gap:5px;margin-left:6px;">
+          <button data-act="segcolors" class="active" title="Show / hide segmentation part colours">&#128065;</button>
+          <span title="Explode parts (segmented mesh)">&#128165;</span>
+          <input type="range" data-act="explode" min="0" max="100" value="0" step="1" title="Explode parts" style="width:110px;" />
+        </span>
       </div>
     </div>
 
@@ -1925,7 +1935,7 @@
           <!-- apercu 3D a GAUCHE, reglages a DROITE (gabarit commun des fenetres d'outils) -->
           <div id="mt-viewport" class="fen-apercu">
             <canvas id="mt-canvas" style="width:100%; height:100%; display:block;"></canvas>
-            <div id="mt-preview-status" class="fen-apercu-etat">Drag to rotate · wheel to zoom</div>
+            <div id="mt-preview-status" class="fen-apercu-etat">Right-drag to pan · middle-drag to rotate · wheel to zoom</div>
           </div>
           <div id="mt-body" class="fen-form"></div>
         </div>
@@ -1949,7 +1959,7 @@
           <!-- apercu 3D a GAUCHE, reglages a DROITE (gabarit commun des fenetres d'outils) -->
           <div class="fen-apercu">
             <canvas id="mat-canvas" style="width:100%; height:100%; display:block;"></canvas>
-            <div id="mat-preview-status" class="fen-apercu-etat">Drag to rotate · wheel to zoom</div>
+            <div id="mat-preview-status" class="fen-apercu-etat">Right-drag to pan · middle-drag to rotate · wheel to zoom</div>
           </div>
           <div class="fen-form">
             <div class="fen-champ">
@@ -2001,18 +2011,18 @@
         <div style="display:flex; gap:12px;">
           <!-- Left: large viewer -->
           <div style="flex:1; min-width:0;">
-            <div id="at-preview-canvas-wrap" style="width:100%; height:560px; background:#1b1b1b; border-radius:6px; position:relative;">
+            <div id="at-preview-canvas-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#1b1b1b; border-radius:6px; position:relative;">
               <canvas id="at-preview-canvas" style="width:100%; height:100%; display:block;"></canvas>
               <div id="at-preview-status" style="position:absolute; top:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc; display:none;"></div>
               <!-- View buttons row, bottom of viewer -->
               <div id="at-view-buttons" style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:4px; background:rgba(0,0,0,0.7); padding:4px 6px; border-radius:6px;">
+                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Iso</button>
                 <button data-view="front" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Front</button>
-                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Right</button>
                 <button data-view="back"  class="ghost-btn" style="padding:3px 10px; font-size:11px;">Back</button>
                 <button data-view="left"  class="ghost-btn" style="padding:3px 10px; font-size:11px;">Left</button>
+                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Right</button>
                 <button data-view="top"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Top</button>
                 <button data-view="bottom" class="ghost-btn" style="padding:3px 10px; font-size:11px;">Bottom</button>
-                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:11px;">Iso</button>
               </div>
             </div>
           </div>
@@ -2086,7 +2096,7 @@
             <button id="pm-close-x" class="settings-close-x" title="Close">&#10005;</button>
           </div>
         </div>
-        <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag to paint, right-drag to orbit.</p>
+        <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag: paint · Right-drag: pan · Middle-drag: rotate.</p>
         <div style="display:flex; flex:1 1 0; gap:12px; min-height:560px;">
           <!-- Left: brush tools (Paint Tools-style sidebar) -->
           <div style="display:flex; flex-direction:column; gap:10px; width:140px; flex-shrink:0; padding:8px 0;">
@@ -2142,7 +2152,7 @@
             </div>
           </div>
           <!-- Right: 3D viewer -->
-          <div id="pm-viewport-wrap" style="flex:1 1 0; position:relative; background:#0b0b14; border-radius:6px; overflow:hidden; min-height:560px;">
+          <div id="pm-viewport-wrap" style="flex:1 1 0; position:relative; background:#0b0b14; border-radius:6px; overflow:hidden; min-height:var(--vz-h-corps);">
             <canvas id="pm-canvas" style="width:100%; height:100%; display:block; cursor:crosshair;"></canvas>
             <div id="pm-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Loading mesh…</div>
           </div>
@@ -2171,7 +2181,7 @@
           <div class="fen-apercu rrx-apercu">
             <!-- ETAPE 1 de « Reshape a region » (2026-10-19) : visualiseur 3D pour tourner le modele jusqu'a la zone voulue -->
             <div id="rrx-3d-stage" style="display:none; position:relative; width:min(100%, calc(min(88vh, 920px) - 210px)); aspect-ratio:1; background:#1b1b1b; border-radius:4px; overflow:hidden;">
-              <canvas id="rrx-3d-canvas" style="position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; touch-action:none;"></canvas>
+              <canvas id="rrx-3d-canvas" style="position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;"></canvas>
               <div id="rrx-3d-loading" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.62); color:#ddd; font-size:13px;"></div>
             </div>
             <div id="rrx-stage" style="position:relative; width:min(100%, calc(min(88vh, 920px) - 210px)); aspect-ratio:1; background:#111; border-radius:4px; overflow:hidden;">
@@ -2183,6 +2193,8 @@
           <div id="rrx-3d-panel" class="fen-form modal-form-side rrx-form" style="display:none">
             <div id="rrx-3d-aide">Turn the model until you see the part to rebuild, then press Use this view.</div>
             <div id="rrx-3d-presets" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;">
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="0" title="Reset camera">&#10227;</button>
+              <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="45" data-rrx-pitch="30">Iso</button>
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="0">Front</button>
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="180" data-rrx-pitch="0">Back</button>
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="-90" data-rrx-pitch="0">Left</button>
@@ -2191,7 +2203,7 @@
               <button type="button" class="ghost-btn fen-petit" data-rrx-yaw="0" data-rrx-pitch="-89.9">Bottom</button>
             </div>
             <div id="rrx-3d-info" class="fen-facultatif" style="font-size:12px;"></div>
-            <div class="fen-facultatif" style="font-size:12px; margin-top:10px;">Drag to turn the model, scroll to zoom. Zoom is only for looking: the next step shows the whole model from this angle.</div>
+            <div class="fen-facultatif" style="font-size:12px; margin-top:10px;">Middle-drag: rotate · right-drag: pan · wheel: zoom. Zoom is only for looking: the next step shows the whole model from this angle.</div>
           </div>
           <div id="rrx-form" class="fen-form modal-form-side rrx-form">
             <div id="rrx-vue-nom" class="fen-facultatif" style="display:none; font-size:12px; margin-bottom:8px;"></div>
@@ -2227,9 +2239,9 @@
         <div style="display:flex; gap:12px;">
           <!-- Left: 3D viewer where the user paints -->
           <div style="flex:1; min-width:0;">
-            <div id="pe-viewport-wrap" style="width:100%; height:560px; background:#0b0b14; border-radius:6px; position:relative;">
+            <div id="pe-viewport-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:6px; position:relative;">
               <canvas id="pe-canvas" style="width:100%; height:100%; display:block; cursor: crosshair;"></canvas>
-              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Orbit with right-click.</div>
+              <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:11px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.</div>
             </div>
           </div>
           <!-- Right: brush controls -->
@@ -2245,7 +2257,7 @@
               <div class="prompt-lang-hint" data-pour="pe-mask-prompt" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
               <label style="display:flex; justify-content:space-between; font-size:11px;">Strength <span id="pe-mask-strength-val" class="slider-val">0.8</span></label>
               <input type="range" id="pe-mask-strength" min="0.3" max="1" step="0.05" value="0.8" style="width:100%;" />
-              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Orbit with right-click, zoom with the wheel.</div>
+              <div style="font-size:10px; color:var(--text-2); line-height:1.4;">Paint the area in <b>white</b> on the mesh (left-click + drag). Right-drag pans, middle-drag rotates, wheel zooms.</div>
             </div>
             <!-- 3D clone-stamp mode — shown only when opened from "3D clone stamp". -->
             <div id="pe-clone-panel" style="display:none; flex-direction:column; gap:8px; padding:8px; background:#0f1e2e; border:1px solid #2a7fb8; border-radius:6px;">
@@ -3072,10 +3084,10 @@
         <div class="fen-tete"><h2>&#128207; Resize / dimension</h2><button type="button" class="settings-close-x" id="rz-close" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Drag the gizmo or type sizes and angles. Apply creates a new version.</p>
         <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
-          <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:56vh; background:#0b0b14; border-radius:10px; overflow:hidden;">
+          <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:10px; overflow:hidden;">
             <canvas id="rz-canvas" style="width:100%; height:100%; display:block;"></canvas>
             <div id="rz-readout" style="position:absolute; top:10px; left:12px; font-size:12px; line-height:1.5; color:#dfe6ff; background:rgba(0,0,0,0.55); padding:8px 10px; border-radius:8px; pointer-events:none; font-family:monospace;">…</div>
-            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:11px; color:#8a93b2; pointer-events:none;">Drag gizmo · orbit with right-drag · wheel to zoom</div>
+            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:11px; color:#8a93b2; pointer-events:none;">Drag gizmo · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
           </div>
           <div style="flex:0 0 240px; display:flex; flex-direction:column; gap:12px;">
             <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-1);">
@@ -3739,7 +3751,7 @@
     <!-- Taille FIXE (2026-09-27, user : « la page doit etre plus grande, on ne voit
          rien ») : sans largeur ni hauteur, la fenetre se reduisait a son contenu.
          Meme gabarit que le bureau (92 vw x 92 vh). -->
-    <div class="modal-content" style="width:94vw; height:92vh; max-width:1700px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:600px; overflow:hidden;">
+    <div class="modal-content" style="width:92vw; height:92vh; max-width:1600px; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width:min(600px, 100vw); overflow:hidden;">
       <div class="fen-tete">
         <h2 id="mesh-edit-title">Mesh Edit</h2>
         <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">

@@ -17,7 +17,7 @@ let bureau = null;
 try { bureau = require(cheminSlugBureau); } catch (_) { bureau = null; }
 
 /** Fonctions du correctif : absentes de l'ancien code, ou les tests echouent alors par COMPORTEMENT (pas au chargement). */
-const AIDES = ['_TRANSLIT_NOM_PROJET', '_estNomAscii', '_empreinteNomProjet', '_partieLisibleNomProjet', 'slugNonLatin', '_ancienSlugProjet', 'slugProjet', '_tableSegmentsProjets'];
+const AIDES = ['_TRANSLIT_NOM_PROJET', '_estNomAscii', '_empreinteNomProjet', '_partieLisibleNomProjet', 'slugNonLatin', '_ancienSlugProjet', 'slugProjet', '_tableSegmentsProjets', '_paramsPourHistorique'];
 const charger = (noms, doublures = {}) => chargerFonctions([...noms, ...AIDES].filter((n, i, t) => existe(n) && t.indexOf(n) === i), doublures);
 
 /** Paires de l'audit (memes longueurs : meme ancien segment) + temoins. */
