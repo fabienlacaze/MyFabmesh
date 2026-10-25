@@ -1695,9 +1695,12 @@
          ============================================================ -->
     <!-- RECOLORIER LE MAILLAGE (25/10, demande du user : « les memes boutons que Recolorier pour la 3D ») : memes choix que « Recolor » de l'image. -->
     <div id="modal-recolor3d" class="modal-overlay hidden">
-      <div class="modal-card">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Recolor</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <div class="modal-form-side">
+        <p class="modal-subtitle">Changes the colours of the whole model, or of one part of it.</p>
+        <div class="fen-corps">
+          <div class="fen-apercu fen-apercu-pictos" aria-hidden="true"><svg viewBox="0 0 64 64" width="220" height="220"><polygon points="32,6 54,18 32,30 10,18" fill="#a855f7"/><polygon points="10,18 32,30 32,56 10,44" fill="#f0617d"/><polygon points="54,18 32,30 32,56 54,44" fill="#38bdf8"/></svg></div>
+        <div class="modal-form-side fen-form">
           <label>What to change</label>
           <select id="r3-mode" style="display:none;">
             <option value="general">Whole model</option>
@@ -1718,6 +1721,7 @@
             <input type="range" id="r3-strength" min="20" max="100" value="100" />
           </div>
           <small id="r3-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:12px; line-height:1.4;"></small>
+        </div>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="r3-cancel">Cancel</button>
@@ -1882,7 +1886,7 @@
         </div>
         <p id="lct-texte" class="modal-subtitle lct-texte"></p>
         <div class="fen-corps" id="lct-corps">
-          <div class="fen-apercu" id="lct-apercu"><img id="lct-image" alt="" /></div>
+          <div class="fen-apercu" id="lct-apercu"><img id="lct-image" alt="" /><svg id="lct-picto" style="display:none" viewBox="0 0 64 64" width="220" height="220"><polygon points="32,6 54,18 32,30 10,18" fill="#a855f7"/><polygon points="10,18 32,30 32,56 10,44" fill="#f0617d"/><polygon points="54,18 32,30 32,56 54,44" fill="#38bdf8"/></svg></div>
           <div class="fen-form">
             <p class="fen-note">A new version is created &mdash; the original is kept.</p>
           </div>

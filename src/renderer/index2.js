@@ -33667,9 +33667,14 @@ function _ouvrirLancement(def, boutonPrix) {
     document.getElementById('lct-titre').textContent = def.titreBrut || t(def.titre);
     document.getElementById('lct-texte').textContent = t(def.texte);
     const src = def.apercu === 'image' ? _lctImageCourante() : '';
-    document.getElementById('lct-corps').classList.toggle('sans-apercu', !src);
-    m.querySelector('.lct-carte').classList.toggle('fen-3d', !!src);   // LOT W23 : gabarit 3D (apercu grand a gauche, pied pleine largeur) seulement avec apercu
-    document.getElementById('lct-apercu').hidden = !src;
+    // 25/10 (user : « TOUTES les fenetres au meme gabarit ») : toujours la fenetre commune ; sans image a montrer, un pictogramme tient l'apercu.
+    document.getElementById('lct-corps').classList.remove('sans-apercu');
+    m.querySelector('.lct-carte').classList.add('fen-3d');
+    document.getElementById('lct-apercu').hidden = false;
+    document.getElementById('lct-apercu').classList.toggle('fen-apercu-pictos', !src);
+    document.getElementById('lct-image').style.display = src ? '' : 'none';
+    const _pic = document.getElementById('lct-picto');
+    if (_pic) _pic.style.display = src ? 'none' : '';
     if (src) document.getElementById('lct-image').src = src;
     const lancer = document.getElementById('lct-lancer');
     const annuler = document.getElementById('lct-annuler');

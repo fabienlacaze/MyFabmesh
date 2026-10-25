@@ -1553,3 +1553,18 @@
   }
   if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
 })();
+
+/* HARMONISATION FINALE (25/10) : phrase d'aide de la fenetre Recolor (maillage) */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
+    "Changes the colours of the whole model, or of one part of it.": ["Change les couleurs de tout le mod\u00e8le, ou d'une seule partie.", "Cambia los colores de todo el modelo, o de una sola parte.", "\u66f4\u6539\u6574\u4e2a\u6a21\u578b\u6216\u5176\u4e2d\u4e00\u4e2a\u90e8\u5206\u7684\u989c\u8272\u3002", "\u092a\u0942\u0930\u0947 \u092e\u0949\u0921\u0932 \u092f\u093e \u0909\u0938\u0915\u0947 \u0915\u093f\u0938\u0940 \u090f\u0915 \u092d\u093e\u0917 \u0915\u0947 \u0930\u0902\u0917 \u092c\u0926\u0932\u0924\u093e \u0939\u0948\u0964", "\u064a\u063a\u064a\u0651\u0631 \u0623\u0644\u0648\u0627\u0646 \u0627\u0644\u0646\u0645\u0648\u0630\u062c \u0643\u0627\u0645\u0644\u0627\u064b \u0623\u0648 \u062c\u0632\u0621 \u0648\u0627\u062d\u062f \u0645\u0646\u0647."]
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();

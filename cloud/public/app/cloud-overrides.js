@@ -1232,6 +1232,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       .modal-card, .modal-card-wide,
       #mask-modal > .modal-content,
       #modal-mesh-tool > .modal-content { position: relative; }
+      #modal-lancement:has(#lct-credits:not([hidden])) .modal-balance-badge { display: none; }
       .modal-balance-badge {
         position: absolute;
         top: 16px;
@@ -1296,6 +1297,18 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     _ensureCostBadgeStyle();
     _ensureModalBalanceStyle();
     for (const modalId of MODALES_SOLDE) _injectModalBalanceBadge(document.getElementById(modalId));
+    // 25/10 (user : « meme en-tete partout ») : TOUTES les fenetres au gabarit commun (.fen-3d) portent la pastille du solde,
+    // y compris les outils gratuits ; la fenetre de lancement garde sa propre pastille (prix) quand il y en a un.
+    document.querySelectorAll('.modal-card.fen-3d').forEach((c) => { if (c.parentElement) _injectModalBalanceBadge(c.parentElement); });
+    // Fenetres creees a la demande (editeur de poids de peau...) : la pastille suit.
+    try {
+      new MutationObserver((muts) => {
+        for (const m of muts) for (const n of m.addedNodes) {
+          if (n.nodeType !== 1) continue;
+          if (n.querySelector && n.querySelector('.modal-card.fen-3d')) { _injectModalBalanceBadge(n); _refreshModalBalances(); }
+        }
+      }).observe(document.body, { childList: true });
+    } catch (_) {}
     for (const [btnId, cle] of Object.entries(MODAL_TARIFS)) _injectModalCostBadge(btnId, cle);
     // First refresh — fills the "…" with the actual balance. The
     // refresh function is exported on window so the existing topbar
