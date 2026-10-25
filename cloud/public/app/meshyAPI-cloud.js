@@ -3388,13 +3388,13 @@
     // scripts/explode_mesh_3d.py via /api/mesh-op op_type='explode'. Outputs ONE
     // GLB with part_XX submeshes driven by the viewer's explode slider (no baked
     // stages). `fill` is accepted for desktop parity but ignored (thin shards).
-    generateExplode3d: async ({ meshPath, meshUrl, fragments, projectName } = {}) => {
+    generateExplode3d: async ({ meshPath, meshUrl, fragments, mode, projectName } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };
       try {
         const r = await postJSON('/api/mesh-op', {
           meshUrl: url, opType: 'explode',
-          params: { fragments: Number(fragments) || 24 },
+          params: { fragments: Number(fragments) || 24, mode: ['voronoi', 'slices', 'wedges', 'blocks', 'regions'].includes(mode) ? mode : 'voronoi' },
           projectName: projectName || window.state?.currentProject?.name || null,
         });
         if (r?.success || r?.ok) {

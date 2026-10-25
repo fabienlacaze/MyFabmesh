@@ -5288,7 +5288,7 @@ document.getElementById('ex3d-start')?.addEventListener('click', () => {
     { Éclats: fragments, Plein: fill ? 'oui' : 'non', Source: String(mp).split(/[\\/]/).pop() }, 6000, { projectName: p.name });
   (async () => {
     try {
-      const r = await API.generateExplode3d({ meshPath: String(mp), fragments, fill });
+      const r = await API.generateExplode3d({ meshPath: String(mp), fragments, fill, mode: document.querySelector('input[name="ex3d-mode"]:checked')?.value || 'voronoi' });   // type de decoupe (25/10)
       if (r && r.success && r.newPath) {
         completeJob(job.id, true);
         await reloadCurrentProject();
@@ -12834,6 +12834,7 @@ function _openSegmentGranularityModal() {
     const segCloud = _isCloudMode();
     box.innerHTML =
       '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">&#9986; Segment parts</div>' +
+      '<div style="text-align:center;margin:2px 0 12px;"><svg viewBox="0 0 120 64" width="150" height="80" aria-hidden="true"><circle cx="60" cy="9" r="7" fill="#f0617d"/><rect x="50" y="19" width="20" height="20" rx="3" fill="#a855f7"/><rect x="36" y="20" width="11" height="19" rx="3" fill="#38bdf8"/><rect x="73" y="20" width="11" height="19" rx="3" fill="#38bdf8"/><rect x="50" y="42" width="9" height="19" rx="3" fill="#fbbf24"/><rect x="61" y="42" width="9" height="19" rx="3" fill="#fbbf24"/><rect x="92" y="34" width="22" height="12" rx="3" fill="#34d399"/><circle cx="97" cy="52" r="5" fill="#fb923c"/><circle cx="109" cy="52" r="5" fill="#fb923c"/></svg></div>' +   // illustration : pieces colorees (25/10)
       '<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:16px;">' +
         'Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). ' +
         (segCloud ? 'Runs in the MyFabmesh cloud. ' : 'Runs locally on your GPU, ~1&nbsp;min. ') +
@@ -20340,6 +20341,18 @@ document.getElementById('ws-anim-gen-more-btn')?.addEventListener('click', () =>
     customError(_i18nT('You need a rigged mesh first. Generate a Rig in Step 3, then come back.'), _i18nT('No rig available'));
     return;
   }
+  // 25/10 (user : « Ajouter une animation » doit reprendre les menus de « Creer une animation ») : on ouvre la zone « Create new »
+  // de l'etape Animation, avec ses menus (mouvement, espece, animation, variante), son apercu et sa liste. Une seule interface.
+  try {
+    const carte = document.getElementById('step-card-animation');
+    const zone = carte && carte.querySelector('.stage-create');
+    if (carte && zone) {
+      carte.classList.remove('collapsed');
+      zone.open = true;
+      requestAnimationFrame(() => requestAnimationFrame(() => { try { _defilerVersCarte(zone); } catch (_) { zone.scrollIntoView({ block: 'start' }); } }));
+      return;
+    }
+  } catch (_) { /* repli : l'ancienne fenetre a cases */ }
   const existants = new Set();
   (p.animations || []).filter((a) => a.batchId === _selectedBatch).forEach((a) => {
     const t = String(a.type || '').toLowerCase();
@@ -22227,7 +22240,8 @@ window._navigateToJobStep = async function(jobId, jobObj) {
   const j = jobObj || state.jobs.find(x => x.id === jobId);
   if (!j) return;
   const stepIdx = _jobStepIndex(j);
-  if (!stepIdx) return;
+  // 25/10 : un travail sans etape reconnue ne disait RIEN (« Aller a ne fait rien ») ; on dit lequel et pourquoi.
+  if (!stepIdx) { try { showToast(_i18nT('No step matches this job.') + ' (' + String(j.name || '').slice(0, 60) + ')', 'error', 5000); } catch (_) {} return; }
   const targetName = _jobProjectName(j);
   const cur = state.currentProject && state.currentProject.name;
   if (targetName && targetName !== cur) {
@@ -22242,7 +22256,7 @@ window._navigateToJobStep = async function(jobId, jobObj) {
   }
   const cardId = ['step-card-image','step-card-mesh','step-card-rig','step-card-animation'][stepIdx - 1];
   const card = document.getElementById(cardId);
-  if (!card) return;
+  if (!card) { try { showToast(_i18nT('Could not open this step.') + ' (' + cardId + ')', 'error', 5000); } catch (_) {} return; }
   card.classList.remove('collapsed');
   // Replie les AUTRES etapes (user : « en depliant le bon menu et en repliant
   // les mauvais »).

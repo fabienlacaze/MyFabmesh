@@ -9661,7 +9661,8 @@ ipcMain.handle('mesh-resize', async (_event, { meshPath, sx, sy, sz, qx, qy, qz,
 // stages handler: a NEW mesh version is created so the original stays intact.
 ipcMain.handle('generate-explode-3d', async (event, opts) => {
   try {
-    const { meshPath, fragments, fill } = (opts || {});
+    const { meshPath, fragments, fill, mode: modeBrut } = (opts || {});
+    const mode = ['voronoi', 'slices', 'wedges', 'blocks', 'regions'].includes(modeBrut) ? modeBrut : 'voronoi';   // type de decoupe (25/10)
     if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
     if (!isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
     const frags = Math.max(4, Math.min(200, parseInt(fragments, 10) || 24));
@@ -9674,7 +9675,7 @@ ipcMain.handle('generate-explode-3d', async (event, opts) => {
     // `fill` accepté pour parité mais ignoré côté cloud (comme le shim web).
     if (isCloudMode()) {
       safeSend('ai3d-progress', '[Explode] Fracture Voronoi (cloud)…');
-      const r = await cloudFallback.meshOp({ meshPath, opType: 'explode', params: { fragments: frags }, outPath, projectName: stem });
+      const r = await cloudFallback.meshOp({ meshPath, opType: 'explode', params: { fragments: frags, mode }, outPath, projectName: stem });
       if (!r.success) {
         return { success: false, error: r.error || 'cloud explode failed',
                  ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
@@ -9689,7 +9690,7 @@ ipcMain.handle('generate-explode-3d', async (event, opts) => {
     if (!fs.existsSync(script)) return { success: false, error: 'explode_mesh_3d.py not found' };
     safeSend('ai3d-progress', '[Explode] Fracturing mesh into shards…');
     const ok = await new Promise((resolve) => {
-      const proc = execFile(_aiPython(), [script, meshPath, outPath, String(frags), fillArg],
+      const proc = execFile(_aiPython(), [script, meshPath, outPath, String(frags), fillArg, mode],
         { timeout: 600000, maxBuffer: 64 * 1024 * 1024 }, (error) => resolve(!error));
       proc.stdout?.on('data', d => safeSend('ai3d-progress', `[Explode] ${d.toString()}`));
       proc.stderr?.on('data', d => safeSend('ai3d-progress', `[Explode] ${d.toString()}`));
