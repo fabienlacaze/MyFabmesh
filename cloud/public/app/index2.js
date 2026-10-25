@@ -2853,7 +2853,7 @@ function _ajusterAuto3D() {
   const manuel = document.getElementById('ws-3d-manual');   // case « Reglages manuels » (decochee = automatique), 25/10
   const note = document.getElementById('ws-3d-auto-note');
   if (!manuel) return;
-  if (manuel.checked) { if (note) note.textContent = 'Manual settings. Untick "Manual settings" to let the app choose.'; return; }
+  if (manuel.checked) { if (note) note.textContent = ''; return; }   // reglages manuels : le resume automatique n'a plus lieu d'etre
   const at = document.getElementById('ws-asset-type')?.value || 'character';
   const visible = (id) => {
     const cb = document.getElementById(id);
@@ -2904,10 +2904,12 @@ function _ajusterAuto3D() {
     // decoche = elles se replient (user, 2026-09-27).
     const det = document.getElementById('ws-3d-trellis2-opts');
     if (det) det.open = manuel.checked;
+    if (typeof _ws3dEngineSync === 'function') _ws3dEngineSync();   // visibles seulement en reglages manuels
     if (!manuel.checked) _applyAssetOptionsProfile(document.getElementById('ws-asset-type')?.value || 'character');
     else _ajusterAuto3D();
   });
   _ajusterAuto3D();
+  if (typeof _ws3dEngineSync === 'function') _ws3dEngineSync();
 })();
 
 /* CONSTRUCTION STAGES : seulement pour ce qui se CONSTRUIT (2026-09-27, user :
@@ -4551,8 +4553,9 @@ function _ws3dEngineSync() {
   if (qHint) qHint.style.display = legacy ? '' : 'none';
   if (sf3dHint) sf3dHint.style.display = legacy ? '' : 'none';
   // Advanced TRELLIS-2 options apply to native_3d.
+  // 25/10 (user : « options avancees visibles que si je clique sur reglages manuels ») : moteur natif ET case « Reglages manuels » cochee
   if (trellis2Opts) trellis2Opts.style.display =
-    (eng === 'native_3d') ? '' : 'none';
+    (eng === 'native_3d' && document.getElementById('ws-3d-manual')?.checked) ? '' : 'none';
 }
 document.getElementById('ws-3d-engine')?.addEventListener('change', _ws3dEngineSync);
 _ws3dEngineSync();
