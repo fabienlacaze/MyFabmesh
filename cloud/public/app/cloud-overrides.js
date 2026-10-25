@@ -1068,6 +1068,22 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           0 1px 2px rgba(0,0,0,0.5);
       }
       .cloud-cost-badge::before { margin-right: 3px; }
+      /* PASTILLE COMPACTE des boutons d'outils (25/10, demande du user : gagner de la place pour le texte) : eclair plus pres du chiffre, chiffre plus petit,
+         moins de marge interieure. Les autres pastilles (bouton Generer, options 3D) gardent leur taille. */
+      .tool-btn > .cloud-cost-badge,
+      .lb-tool-btn > .cloud-cost-badge,
+      .step-tools-grid > button > .cloud-cost-badge,
+      .step-tools-row > button > .cloud-cost-badge {
+        min-width: 0;
+        height: 20px;
+        padding: 0 6px 0 4px;
+        gap: 1px;
+        font-size: 12px;
+      }
+      .tool-btn > .cloud-cost-badge::before,
+      .lb-tool-btn > .cloud-cost-badge::before,
+      .step-tools-grid > button > .cloud-cost-badge::before,
+      .step-tools-row > button > .cloud-cost-badge::before { font-size: 11px; margin-right: 1px; }
       .credit-badge.lg::before { font-size: 15px; }
       .credit-badge.icon-only::before { font-size: 12px; }
       /* Legacy .generate-cost-bolt — the inline ⚡ span used inside
