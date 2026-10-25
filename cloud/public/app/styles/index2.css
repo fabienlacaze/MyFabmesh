@@ -1841,7 +1841,9 @@ button.tool-active {
   white-space: normal;       /* allow long labels to wrap instead of being cut */
   line-height: 1.15;
   min-height: 30px;
-  word-break: break-word;
+  word-break: normal;        /* 25/10 : jamais un mot coupe au milieu (« Subdivise r ») ; ajuste-boutons.js reduit la police a la place */
+  overflow-wrap: normal;
+  hyphens: none;
 }
 .step-tools-row {
   display: flex;
