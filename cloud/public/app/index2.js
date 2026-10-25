@@ -9856,7 +9856,7 @@ const _OP_LABEL = {
 };
 const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment)(?:_\d{6,})?$/i;
 // MASQUAGE des noms d'IA internes à l'affichage (exigence produit) — miroir desktop.
-const _AI_NAME_RE = /(native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
+const _AI_NAME_RE = /(qwen|z-image|zimage|native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
 function _maskAiNames(s) {
   if (!s) return s;
   return String(s)
@@ -10025,7 +10025,7 @@ async function showGenerationHistory(startPath) {
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
     skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
-    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
+    moteur: 'Engine', prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
   };
   const fmtVal = (k, v) => {
     if (v === true) return '✓';
@@ -10045,7 +10045,11 @@ async function showGenerationHistory(startPath) {
       // seulement les choix UTILISES (user 29/09) : un reglage desactive n'est pas liste
       if (v === undefined || v === null || v === '' || v === false || v === 0) continue;
       const lib = GH_LIBELLES[k] ? _i18nT(GH_LIBELLES[k]) : k;
-      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(_maskAiNames(fmtVal(k, v)))}</span></div>`);
+      // le moteur du menu s'affiche par son NIVEAU (Rapide / Meilleur), jamais par le nom du modele (les anciennes lignes portent encore 'zimage' / 'qwen')
+      const valeur = k === 'moteur'
+        ? _i18nT({ fast: 'Fast (Turbo ⚡)', zimage: 'Fast (Turbo ⚡)', best: 'Best (highest quality)', qwen: 'Best (highest quality)' }[String(v).toLowerCase()] || 'Auto')
+        : _maskAiNames(fmtVal(k, v));
+      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k === 'moteur' ? 'engine' : k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(valeur)}</span></div>`);
     }
     if (!rows.length) return '';
     return `<details class="gh-details"><summary>${escapeHtml(_i18nT('Parameters'))} (${rows.length})</summary><div class="gh-params">${rows.join('')}</div></details>`;

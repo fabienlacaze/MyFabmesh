@@ -13193,7 +13193,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
         await insertUserAsset(env, user.id, projectName, kind, r2_path, null,
           { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
             // reglages complets pour l'historique des generations (2026-09-29)
-            steps: moteurImage ? undefined : (turbo ? 4 : (steps || 30)), count: n, turbo: (!moteurImage && !!turbo) || undefined, moteur: moteurImage, tpose: useTpose || undefined,
+            steps: moteurImage ? undefined : (turbo ? 4 : (steps || 30)), count: n, turbo: (!moteurImage && !!turbo) || undefined,
+            // jamais le nom du modele dans ce qui est montre a l'utilisateur (secret industriel) : le niveau du menu seulement
+            moteur: moteurImage ? (moteurImage === 'qwen' ? 'best' : 'fast') : undefined, tpose: useTpose || undefined,
             negative_extra: negatifs.length ? negatifs : undefined,
             full_prompt: String(promptEnrichi || '').slice(0, 1500),
             // langue(s) traduite(s) par le filet du serveur (lot 2 de l'audit de la langue) : le support sait ce qui est arrive
