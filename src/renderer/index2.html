@@ -2398,19 +2398,24 @@
          material.map. UI is patterned on the 2D Paint Tools sidebar.
          ============================================================ -->
     <div id="modal-paint-mesh" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div class="fen-tete"><h2 id="pm-title">🎨 Paint Mesh</h2></div>
+      <div class="modal-card fen-3d">
+        <div class="fen-tete">
+          <div><h2 id="pm-title">🎨 Paint Mesh</h2></div>
           <div style="display:flex; gap:6px; align-items:center;">
             <button id="pm-toggle-emissive" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:13px;" title="Toggle the emissive layer (paint glow on top of the diffuse)">💡 Emissive</button>
             <button id="pm-close-x" class="settings-close-x" title="Close">&#10005;</button>
           </div>
         </div>
         <p id="pm-subtitle" class="modal-subtitle" style="margin-bottom:8px;">Paint on the mesh. Left-drag: paint · Right-drag: pan · Middle-drag: rotate.</p>
-        <div style="display:flex; flex:1 1 0; gap:12px; min-height:560px;">
+        <div class="fen-corps">
+          <!-- apercu 3D a GAUCHE, reglages a DROITE (gabarit commun) -->
+          <div id="pm-viewport-wrap" class="fen-apercu">
+            <canvas id="pm-canvas" style="width:100%; height:100%; display:block; cursor:crosshair;"></canvas>
+            <div id="pm-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Loading mesh…</div>
+          </div>
           <!-- Left: brush tools (Paint Tools-style sidebar) -->
-          <div style="display:flex; flex-direction:column; gap:10px; width:140px; flex-shrink:0; padding:8px 0;">
-            <div style="display:flex; flex-direction:column; gap:4px;">
+          <div class="fen-form lotc1-colonne">
+            <div class="lotc1-outils">
               <span style="font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Draw</span>
               <button id="pm-tool-pen"    class="secondary-btn tool-btn tool-active" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">✎ Pen</button>
               <button id="pm-tool-spray"  class="secondary-btn tool-btn" style="padding:4px 8px; font-size:13px; text-align:left; width:100%;">💨 Spray</button>
@@ -2461,11 +2466,6 @@
               Painted onto the current map at its native resolution.
             </div>
           </div>
-          <!-- Right: 3D viewer -->
-          <div id="pm-viewport-wrap" style="flex:1 1 0; position:relative; background:#0b0b14; border-radius:6px; overflow:hidden; min-height:var(--vz-h-corps);">
-            <canvas id="pm-canvas" style="width:100%; height:100%; display:block; cursor:crosshair;"></canvas>
-            <div id="pm-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Loading mesh…</div>
-          </div>
         </div>
         <div class="modal-actions">
           <button class="ghost-btn" id="pm-cancel">Cancel</button>
@@ -2480,17 +2480,15 @@
          emissiveIntensity). Same UX as the cloud version.
          ============================================================ -->
     <div id="modal-paint-emissive" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>💡 Paint Emissive</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle" style="margin-bottom:8px;">Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.</p>
-        <div style="display:flex; gap:12px;">
-          <div style="flex:1; min-width:0;">
-            <div id="pe-viewport-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:6px; position:relative;">
+        <div class="fen-corps">
+          <div id="pe-viewport-wrap" class="fen-apercu">
               <canvas id="pe-canvas" style="width:100%; height:100%; display:block; cursor: crosshair;"></canvas>
               <div id="pe-status" style="position:absolute; bottom:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc;">Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.</div>
             </div>
-          </div>
-          <div style="width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:10px;">
+          <div class="fen-form lotc1-colonne">
             <!-- Region re-texture (mask) mode — shown only when opened from
                  "Re-texture a region"; peints a white UV mask, then SDXL
                  inpaints only that area (uvMask:true → no back-face bleed). -->
