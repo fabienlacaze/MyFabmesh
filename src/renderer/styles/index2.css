@@ -5161,3 +5161,14 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ============================================================
+ * LOT W06 (25/10) : Symmetrize au gabarit commun (apercu a gauche, reglages a droite, pied pleine largeur).
+ * ============================================================ */
+#modal-symmetrize .modal-card.fen-3d { padding: 20px 24px; }
+#modal-symmetrize .sym-conteneur { position: absolute; inset: 0; overflow: hidden; background: #1a1a2e; }
+#modal-symmetrize .fen-groupe-btn { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#modal-symmetrize .fen-groupe-btn > .secondary-btn { flex: 1 1 0; height: 38px; padding: 0 10px; margin: 0; width: auto; }
+#modal-symmetrize .fen-outils-rangee { flex-wrap: nowrap; gap: 4px; }
+#modal-symmetrize .fen-outils-rangee > .secondary-btn { flex: 0 0 auto; width: 34px; padding: 0; }
+#modal-symmetrize .modal-actions .primary-btn { flex: 1 1 auto; }
