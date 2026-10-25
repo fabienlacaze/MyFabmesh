@@ -151,8 +151,10 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
   const soleil = new THREE.DirectionalLight(0xffffff, 1.4); soleil.position.set(1, 2, 1.5); scene.add(soleil);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 1000);
   const ctrl = new OrbitControls(camera, canvas);
-  // clic gauche = pinceau ; molette = zoom ; clic du milieu (ou Maj + clic droit) = TRANSLATER la vue ; clic droit = tourner
-  ctrl.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+  // 25/10 (souris commune des visualiseurs 3D) : clic DROIT = pinceau (maintenu = en continu) ; clic gauche + glisser = deplacer la camera ;
+  // molette = zoom ; molette enfoncee + glisser = tourner le modele.
+  ctrl.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null };
+  ctrl.zoomToCursor = true;
   ctrl.screenSpacePanning = true;
   let vivant = true;
   const matsEpais = [];                                   // materiaux des traits epais (resolution a jour a chaque redimensionnement)
@@ -521,7 +523,7 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (ev) => {
-    if (ev.button !== 0 || essai) return;
+    if (ev.button !== 2 || essai) return;   // clic droit = pinceau (25/10)
     const b = toucher(ev); if (!b) return;
     if (pinceau === 'choisir') {
       const f = b.h.face, W = b.d.wts.array;

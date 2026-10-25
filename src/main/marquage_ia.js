@@ -181,7 +181,7 @@ const CANAUX_SORTIE_GLB = {
   'refine-mesh': {}, 'generate-build-stages': {}, 'run-blender-script': {},
   // outils de maillage
   'mesh-tool': {}, 'mesh-segment': {}, 'mesh-resize': {}, 'generate-explode-3d': {},
-  'generate-construction-stages-3d': {}, 'material-adjust': {}, 'mesh:align-texture': {},
+  'generate-construction-stages-3d': {}, 'material-adjust': {}, 'mesh-recolor': {}, 'mesh:align-texture': {},
   'mesh:region-retex': {}, 'mesh:reshape-region': {}, 'enhance-mesh-texture': {}, 'detail-synth': {},
   // rig
   'auto-rig-ai': {}, 'auto-rig': {}, 'animate-ai': {},

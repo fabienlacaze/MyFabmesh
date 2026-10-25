@@ -140,6 +140,11 @@ export class Viewer3D {
     // Controls
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = opts.damping !== false;
+    // 25/10 : souris des visualiseurs 3D = clic gauche + glisser : deplacer la camera ; molette : zoom ; molette enfoncee + glisser : tourner ; clic droit : outil.
+    this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null };
+    this.controls.screenSpacePanning = true;
+    this.controls.zoomToCursor = true;
+    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     // Middle (wheel) button drag rotates too — users expect to grab the
     // wheel and orbit; the OrbitControls default maps MIDDLE to dolly/zoom.
     this.controls.mouseButtons = {

@@ -3140,7 +3140,7 @@ const OPERATIONS_CONNUES: string[] = [
   ...['rectify', 'quality_plus', 'ultra_q', 'ultra_hd', 'smooth', 'max_tris', 'multiref', 'refine', 'face_fix'].map((o) => `mesh-option:${o}`),
   // outils de maillage executes par le serveur
   ...['smooth', 'decimate', 'center', 'fix_normals', 'fill_holes', 'subdivide', 'material', 'material_adjust', 'retex_swap', 'watertight', 'align_texture',
-      'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex', 'name_parts'].map((o) => `mesh-op:${o}`),
+      'resize', 'explode', 'texture_var', 'enhance_tex', 'region_retex', 'name_parts', 'recolor'].map((o) => `mesh-op:${o}`),
   // outils de maillage executes dans le navigateur
   ...['smooth', 'decimate', 'subdivide', 'fix_normals', 'fill_holes', 'center', 'paint_emissive', 'paint_mesh', 'clone3d', 'skin_paint'].map((o) => `mesh-op-client:${o}`),
   // outils manuels du navigateur (debites a l'enregistrement ou a l'ouverture)
@@ -14216,10 +14216,21 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     'align_texture',  // vraie reprojection depuis le 2026-09-28 (texture_project.py) — params: {image_url, translate_x/y/z, mesh_scale, rot_y, vis_thresh, frame_fix, skip_vflip}
     'resize',      // orientation + per-axis scale (manual Resize/dimension tool) — params: {sx,sy,sz, qx,qy,qz,qw optional}
     'explode',     // Voronoi fracture -> part_XX submeshes (explode slider) — params: {fragments}
+    'recolor',     // recolorier la texture (tout / une zone UV) en gardant la lumiere — params: {color, intensity, uv_mask}
   ]);
   const op = (opType ?? '').toLowerCase();
   if (!allowed.has(op)) {
     return err(400, `opType must be one of ${Array.from(allowed).join(', ')}`);
+  }
+  // « Recolorier » 3D (25/10) : couleur #rrggbb, intensite 0..1, masque UV (data URL PNG) borne a 8 Mo — rien d'autre ne part vers Modal
+  if (op === 'recolor') {
+    const pr = (params ?? {}) as Record<string, unknown>;
+    if (!/^#[0-9a-fA-F]{6}$/.test(String(pr.color ?? ''))) return err(400, 'recolor needs params.color as #rrggbb');
+    const intensite = Number(pr.intensity ?? 1);
+    if (!Number.isFinite(intensite) || intensite < 0 || intensite > 1) return err(400, 'recolor intensity must be between 0 and 1');
+    const masque = pr.uv_mask == null ? '' : String(pr.uv_mask);
+    if (masque.length > 8_000_000) return err(400, 'recolor mask too large');
+    if (masque && !/^(data:image\/png;base64,)?[A-Za-z0-9+/=]+$/.test(masque.slice(0, 200))) return err(400, 'recolor mask must be a PNG');
   }
   // retex_swap reads payload.params.image_url — surface a clearer
   // 400 if it's missing instead of letting Modal noop the op.

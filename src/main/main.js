@@ -3264,6 +3264,7 @@ const _POIGNEES_MOTEUR_LOCAL = new Set([
   'image-to-3d-trellis',
   'img2img',
   'material-adjust',
+  'mesh-recolor',
   'mesh-resize',
   'mesh-tool',
   'mesh:align-texture',
@@ -13743,6 +13744,49 @@ ipcMain.handle('material-adjust', async (_event, {
       }
     });
   });
+});
+
+// Recolorier la TEXTURE du maillage (25/10) : tout le modele ou une zone (masque UV). Memes parametres que l'operation `recolor` de Modal.
+ipcMain.handle('mesh-recolor', async (_event, { meshPath, color, intensity, maskDataUrl } = {}) => {
+  try {
+    if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
+    if (!isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+    if (!/^#[0-9a-fA-F]{6}$/.test(String(color || ''))) return { success: false, error: 'color must be #rrggbb' };
+    const k = Math.max(0, Math.min(1, Number(intensity ?? 1)));
+    if (!Number.isFinite(k)) return { success: false, error: 'intensity must be between 0 and 1' };
+    const ext = path.extname(meshPath);
+    const base = path.basename(meshPath, ext).replace(/_recolor_\d+$/i, '');
+    const outPath = path.join(path.dirname(meshPath), `${base}_recolor_${Date.now()}${ext}`);
+    if (isCloudMode()) {
+      const params = { color, intensity: k, ...(maskDataUrl ? { uv_mask: String(maskDataUrl) } : {}) };
+      const r = await cloudFallback.meshOp({ meshPath, opType: 'recolor', params, outPath, projectName: base });
+      if (!r.success) return { success: false, error: r.error || 'cloud recolor failed', ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+      writeMeta(outPath, { kind: 'op', op: 'recolor', parent: meshPath, params: { color, intensity: k, zone: !!maskDataUrl, cloud: true, r2_url: r.resultUrl } });
+      return { success: true, newPath: outPath, filename: path.basename(outPath), size: fs.statSync(outPath).size };
+    }
+    const script = path.join(SCRIPTS_DIR, 'mesh_recolor.py');
+    if (!fs.existsSync(script)) return { success: false, error: 'mesh_recolor.py not found' };
+    const args = [script, meshPath, outPath, '--color', color, '--intensity', String(k)];
+    let masquePath = null;
+    if (maskDataUrl) {
+      masquePath = path.join(os.tmpdir(), `recolor_mask_${Date.now()}.png`);
+      fs.writeFileSync(masquePath, Buffer.from(String(maskDataUrl).replace(/^data:image\/png;base64,/, ''), 'base64'));
+      args.push('--mask', masquePath);
+    }
+    return await new Promise((resolve) => {
+      execFile(_aiPython(), args, { timeout: 180000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
+        try { if (masquePath) fs.unlinkSync(masquePath); } catch (_) {}
+        if (error || !fs.existsSync(outPath)) {
+          resolve({ success: false, error: (String(stdout || '').match(/ERREUR (.*)/) || [])[1] || (error && error.message) || 'Output file not created', stderr });
+          return;
+        }
+        writeMeta(outPath, { kind: 'op', op: 'recolor', parent: meshPath, params: { color, intensity: k, zone: !!maskDataUrl } });
+        resolve({ success: true, newPath: outPath, filename: path.basename(outPath), size: fs.statSync(outPath).size });
+      });
+    });
+  } catch (e) {
+    return { success: false, error: e && e.message };
+  }
 });
 
 // ============================================================

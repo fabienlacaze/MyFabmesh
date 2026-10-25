@@ -859,6 +859,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-fillholes-btn':    'mesh_op_simple',
     'ws-mesh-watertight-btn':   'mesh_op_simple',     // au-dela de 256 : watertight_hd (prix exact dans sa fenetre)
     'ws-mesh-material-btn':     'mesh_op_simple',
+    'ws-mesh-recolor-btn':      'mesh_op_simple',     // Recolor (recolorer la texture, tout ou une zone)
     'ws-mesh-retexture-btn':    'mesh_op_simple',     // retex_swap
     'ws-mesh-explode-btn':      'mesh_op_simple',
     'ws-mesh-resize-btn':       'mesh_op_simple',

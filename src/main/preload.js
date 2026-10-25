@@ -231,6 +231,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   nameParts: (opts) => ipcRenderer.invoke('name-parts', opts),
   getLineageMeta: (filePath) => ipcRenderer.invoke('get-lineage-meta', { filePath }),
   materialAdjust: (opts) => ipcRenderer.invoke('material-adjust', opts),
+  recolorMesh: (opts) => ipcRenderer.invoke('mesh-recolor', opts),   // recolorier la texture (25/10)
   alignTexture: (opts) => ipcRenderer.invoke('mesh:align-texture', opts),
   renderMeshFront: (opts) => ipcRenderer.invoke('mesh:render-front', opts),
   reshapeRegion: (opts) => ipcRenderer.invoke('mesh:reshape-region', opts),

@@ -831,6 +831,39 @@ def material_adjust(glb_bytes: bytes,
     return _export(scene)
 
 
+def recolor(glb_bytes: bytes, color: str = '#3b82f6', intensity: float = 1.0, uv_mask_b64: str | None = None) -> bytes:
+    """« Recolorier » (25/10, demande du user : les memes boutons que Recolorier de l'image, pour la 3D). La luminance de chaque texel de la
+    texture couleur est gardee, la couleur est remplacee ; `intensity` melange avec l'original ; `uv_mask_b64` (PNG en base64, blanc = zone,
+    meme repere que le masque de « Re-texture a region ») limite l'effet a une partie. Ne touche ni la forme, ni les UV, ni les autres cartes.
+    Noyau : modal_app/recolor_atlas.py (= scripts/recolor_atlas.py, bureau)."""
+    import base64
+    import io
+    from PIL import Image
+    from modal_app.recolor_atlas import recolorer_image
+
+    scene = _load_scene(glb_bytes)
+    masque_brut = None
+    if uv_mask_b64:
+        data = uv_mask_b64.split(',', 1)[1] if uv_mask_b64.startswith('data:') else uv_mask_b64
+        masque_brut = Image.open(io.BytesIO(base64.b64decode(data))).convert('L')
+    vus = set()
+    nb = 0
+    for m in _meshes(scene):
+        mat = getattr(getattr(m, 'visual', None), 'material', None)
+        tex = getattr(mat, 'baseColorTexture', None) if mat is not None else None
+        if tex is None or id(mat) in vus:
+            continue
+        vus.add(id(mat))
+        masque = masque_brut.resize(tex.size, Image.LANCZOS) if masque_brut is not None else None
+        mat.baseColorTexture = recolorer_image(tex, color, float(intensity), masque)
+        nb += 1
+    if nb == 0:
+        raise ValueError('recolor: ce maillage n\'a pas de texture couleur a recolorier')
+    print(f'[mesh-op] recolor : {nb} texture(s), couleur {color}, intensite {float(intensity):.2f}'
+          + (' (zone)' if masque_brut is not None else ''), flush=True)
+    return _export(scene)
+
+
 def subdivide(glb_bytes: bytes, iterations: int = 1) -> bytes:
     """Loop subdivision — quadruples face count per iteration. Cap to
     1 iteration by default; >1 can balloon memory on dense meshes."""
@@ -1702,6 +1735,7 @@ OPS = {
     'subdivide':       subdivide,
     'align_texture':   align_texture,
     'material':        normalize_material,
+    'recolor':         recolor,    # recolorier la texture (tout / une zone UV) en gardant la lumiere (25/10)
     'material_adjust': material_adjust,  # 6-slider PBR tweak (mirror of scripts/mesh_material_adjust.py)
     'retex_swap':      retex_swap_atlas,
     'resize':          resize,     # orientation + per-axis scale (manual Resize/dimension tool)
@@ -1748,6 +1782,9 @@ def _executer(op_type: str, glb_bytes: bytes, params: dict | None = None):
                              vis_thresh=float(p.get('vis_thresh', 0.5) or 0.5),
                              frame_fix=bool(p.get('frame_fix', True)),
                              skip_vflip=bool(p.get('skip_vflip', True))), None
+    if op_type == 'recolor':
+        return recolor(glb_bytes, color=str(p.get('color', '#3b82f6')), intensity=float(p.get('intensity', 1.0)),
+                       uv_mask_b64=p.get('uv_mask') or None), None
     if op_type == 'material_adjust':
         return material_adjust(glb_bytes,
             brightness=float(p.get('brightness', 1.0)),

@@ -974,6 +974,7 @@
                         <button id="ws-mesh-aligntex-btn" class="ghost-btn tool-btn" title="Stick images (logos, patches, labels) onto the mesh">&#127919;&nbsp;Decals</button>
                         <button id="ws-mesh-paint-mesh-btn" class="ghost-btn tool-btn" title="Paint directly on the mesh — toggle 💡 Emissive inside for the glow layer">&#127912;&nbsp;Paint Mesh</button>
                         <button id="ws-mesh-material-btn" class="ghost-btn tool-btn" title="Adjust material brightness, saturation, contrast, emissive, metallic, roughness">&#10024;&nbsp;Material adjust</button>
+                        <button id="ws-mesh-recolor-btn" class="ghost-btn tool-btn" title="Change the colour of the model, keeping its lighting: the whole model, or one part painted on it.">&#127912;&nbsp;Recolor</button>
                       </div>
                     </div>
                   </div>
@@ -1664,6 +1665,39 @@
     <!-- ============================================================
          HABITS SEULS (CLIPSeg + SDXL, reserve au type « character »)
          ============================================================ -->
+    <!-- RECOLORIER LE MAILLAGE (25/10, demande du user : « les memes boutons que Recolorier pour la 3D ») : memes choix que « Recolor » de l'image. -->
+    <div id="modal-recolor3d" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="fen-tete"><h2>Recolor</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <div class="modal-form-side">
+          <label>What to change</label>
+          <select id="r3-mode" style="display:none;">
+            <option value="general">Whole model</option>
+            <option value="zone">One part</option>
+            <option value="whole-style">Style</option>
+          </select>
+          <div class="choix" data-pour="r3-mode">
+            <button type="button" class="choix-btn" data-valeur="general"><b>Whole model</b><small>One colour</small></button>
+            <button type="button" class="choix-btn" data-valeur="zone"><b>One part</b><small>Painted on the model</small></button>
+            <button type="button" class="choix-btn" data-valeur="whole-style"><b>Style</b><small>From a prompt</small></button>
+          </div>
+          <div class="r3-f-color">
+            <label style="margin-top:10px;">Colour</label>
+            <div id="r3-swatches" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>
+          </div>
+          <div class="r3-f-color">
+            <label style="margin-top:12px;">Strength <span id="r3-strength-val" class="slider-val">100%</span></label>
+            <input type="range" id="r3-strength" min="20" max="100" value="100" />
+          </div>
+          <small id="r3-hint" class="modal-subtitle" style="display:block; margin-top:8px; font-size:12px; line-height:1.4;"></small>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="r3-cancel">Cancel</button>
+          <button class="primary-btn" id="r3-go">Recolor</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-recolor" class="modal-overlay hidden">
       <div class="modal-card modal-card-wide">
         <div class="fen-tete"><h2>Recolor</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>

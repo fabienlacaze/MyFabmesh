@@ -84,7 +84,7 @@ function _mkRenderer(opts, hostEl) {
 const _CLOUD_LOGIN_METHODS = [
   'generateImages', 'imageTo3D', 'imageToTrellis',
   'removeBackground', 'img2img', 'maskInpaint', 'autoInpaint', 'imageQuickEdit',
-  'meshTool', 'meshSegment', 'materialAdjust', 'resizeMesh',
+  'meshTool', 'meshSegment', 'materialAdjust', 'recolorMesh', 'resizeMesh',
   'generateExplode3d', 'generateConstructionStages3d',
   'autoRigAI', 'animKimodo', 'animateAI', 'animMotion',
   // Outils cloud qui manquaient (2026-09-30) : sans session, l'erreur « Sign
@@ -2072,6 +2072,24 @@ function renderProjectsBulkBar() {
 //    (pas installe, RAM insuffisante), les mots-cles suffisent et la description reste a taper. Une description TAPEE par
 //    l'utilisateur n'est jamais reecrite.
 // ============================================================
+/* SOURIS DES VISUALISEURS 3D (25/10, demande du user) :
+ *   clic DROIT = action 1 (peindre, poser, selectionner... selon l'outil) ; maintenu = en continu ;
+ *   clic GAUCHE = action 2 (s'il y en a une) ; maintenu + mouvement = deplacement (translation X / Y) de la camera ;
+ *   molette = zoom de la camera ; clic MOLETTE maintenu + mouvement = rotation du modele.
+ * Le menu contextuel du navigateur est supprime sur le canevas (le clic droit appartient a l'outil). */
+function _sourisVisualiseur(controls, domEl) {
+  try {
+    controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null };
+    controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+    controls.screenSpacePanning = true;
+    controls.enableZoom = true;
+    controls.zoomToCursor = true;
+    if (domEl && !domEl.__souris25) {
+      domEl.__souris25 = true;
+      domEl.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+  } catch (_) { /* un contexte sans THREE.MOUSE garde ses reglages d'origine */ }
+}
 const _NP_TYPES = [
   ['icon', 'icon icone icons logo bouton button widget pictogramme'],
   ['weapon', 'sword epee axe hache bow arc gun pistol rifle fusil pistolet dagger dague spear lance shield bouclier hammer marteau crossbow arbalete katana blade lame knife couteau scythe faux'],
@@ -5562,6 +5580,7 @@ function openResizeTool() {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.15));
   const dl = new THREE.DirectionalLight(0xffffff, 1.4); dl.position.set(3, 5, 4); scene.add(dl);
   const controls = new OrbitControls(camera, renderer.domElement);
+  _sourisVisualiseur(controls, renderer.domElement);
   controls.enableDamping = true;
   Object.assign(rzState, { renderer, scene, camera, controls });
 
@@ -12252,8 +12271,9 @@ document.getElementById('ws-use-for-anim-btn')?.addEventListener('click', () => 
           sun.position.set(2, 3, 2); scene.add(sun);
           const cam = new THREE.PerspectiveCamera(35, w / h, 0.001, 1000);
           cam.position.set(2, 1, 2);
-          const ctl = new OrbitControls(cam, canvas); ctl.enableDamping = true;
-          ctl.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
+          const ctl = new OrbitControls(cam, canvas);
+          _sourisVisualiseur(ctl, canvas);
+ ctl.enableDamping = true;
           new GLTFLoader().load(url, (g) => {
             const root = g.scene; scene.add(root);
             // Disable frustum culling + grab bbox from skeleton bones
@@ -14013,10 +14033,8 @@ async function _mtInitViewport() {
   mtState.camera.position.set(0, 0.5, 2);
   try {
     mtState.controls = new OrbitControls(mtState.camera, canvas);
+    _sourisVisualiseur(mtState.controls, canvas);
     mtState.controls.enableDamping = true;
-    mtState.controls.mouseButtons = {
-      LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN,
-    };
   } catch (e) { console.error('[mesh-tool] OrbitControls error:', e); }
   mtState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -14480,6 +14498,7 @@ async function _atInitViewport() {
     atState.camera.position.set(0, 0.4, 2.0);
     try {
       atState.controls = new OrbitControls(atState.camera, canvas);
+      _sourisVisualiseur(atState.controls, canvas);
       atState.controls.enableDamping = true;
     } catch (e) {
       try {
@@ -14488,9 +14507,6 @@ async function _atInitViewport() {
         atState.controls.enableDamping = true;
       } catch (_) { /* ignore */ }
     }
-    if (atState.controls) atState.controls.mouseButtons = {
-      LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN,
-    };
     atState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
     const dir = new THREE.DirectionalLight(0xffffff, 1.0);
     dir.position.set(5, 8, 5);
@@ -15060,12 +15076,9 @@ async function _peInitViewport() {
   peState.camera.position.set(0, 0.5, 2);
   try {
     peState.controls = new OrbitControls(peState.camera, canvas);
+    _sourisVisualiseur(peState.controls, canvas);
     peState.controls.enableDamping = true;
-    peState.controls.mouseButtons = {
-      LEFT: null,
-      MIDDLE: THREE.MOUSE.ROTATE,
-      RIGHT: THREE.MOUSE.PAN,
-    };
+    _sourisVisualiseur(peState.controls, canvas);   // 25/10 : clic droit = outil, gauche = deplacement, molette enfoncee = rotation
   } catch (e) { console.error('[paint-emissive] OrbitControls error:', e); }
   peState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -15227,7 +15240,7 @@ function _pcSetSource(clientX, clientY) {
       peState.cloneSrcMarker.scale.setScalar(Math.max(peState.brushSize * 0.5 * unitsPerPx, 1e-4));
     }
   } catch (_) {}
-  showToast(_i18nT('Source set — left-click and drag to clone.'), 'success', 1800);
+  showToast(_i18nT('Source set — right-click and drag to clone.'), 'success', 1800);
 }
 
 // Fast raycast for a client-space point, reusing a cached canvas rect and the
@@ -15726,24 +15739,29 @@ function _peConfigureModeUI() {
   const status = $('pe-status');
   if (cloneMode) {
     if (h2) h2.textContent = '🩹 ' + _i18nT('3D Clone Stamp');
-    if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+click = set the source, then left-click and drag = clone. Orbit (right-click), zoom, magnifier, undo/redo.');
+    if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+left-click = set the source, then right-click and drag = clone. Pan (left-drag), rotate (middle-drag), zoom, magnifier, undo/redo.');
     if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
-    if (status) status.textContent = _i18nT('Ctrl+click = source · left-click + drag = clone · right-click = orbit · wheel = zoom');
+    if (status) status.textContent = _i18nT('Ctrl+left-click = source · right-click + drag = clone · left-drag = pan · middle-drag = rotate · wheel = zoom');
+  } else if (maskMode && peState.recolor) {
+    if (h2) h2.textContent = '🎨 ' + _i18nT('Recolor a part');
+    if (sub) sub.textContent = _i18nT('Paint the part to recolor straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then apply.');
+    if (apply) apply.textContent = '🎨 ' + _i18nT('Recolor');
+    if (status) status.textContent = _i18nT('Right-click + drag = paint the area (white). Left-drag = pan. Middle-drag = rotate. Wheel = zoom.');
   } else if (maskMode && peState.reshape) {
     if (h2) h2.textContent = '🖌 ' + _i18nT('Reshape a region (draw)');
     if (sub) sub.textContent = _i18nT('Paint the part to rebuild straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe what should replace it.');
     if (apply) apply.textContent = '🧬 ' + _i18nT('Rebuild this part');
-    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
+    if (status) status.textContent = _i18nT('Right-click + drag = paint the area (white). Left-drag = pan. Middle-drag = rotate. Wheel = zoom.');
   } else if (maskMode) {
     if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area');
     if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
     if (apply) apply.textContent = '✨ ' + _i18nT('Apply re-texture');
-    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-click = orbit. Wheel = zoom.');
+    if (status) status.textContent = _i18nT('Right-click + drag = paint the area (white). Left-drag = pan. Middle-drag = rotate. Wheel = zoom.');
   } else {
     if (h2) h2.textContent = '💡 Paint Emissive';
     if (sub) sub.innerHTML = 'Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.';
     if (apply) apply.textContent = '💾 Save new version';
-    if (status) status.textContent = 'Left-click + drag on the mesh to paint. Orbit with right-click.';
+    if (status) status.textContent = 'Right-click + drag on the mesh to paint. Left-drag = pan, middle-drag = rotate.';
   }
 }
 
@@ -15760,6 +15778,8 @@ function openPaintEmissive(opts = {}) {
   // Reshape (draw) : meme peinture de zone, mais la zone est RECONSTRUITE en 3D
   // (auto inpaint 3D) au lieu d'etre re-texturee (2026-09-28).
   peState.reshape = maskMode && !!opts.reshape;
+  // Recolorier une partie (25/10) : meme peinture de zone, mais la zone est RECOLOREE (couleur + intensite choisies dans la fenetre « Recolor »)
+  peState.recolor = maskMode && opts.recolor ? opts.recolor : null;
   peState.retexMeshPath = meshPath;
   peState.cloneSource = null; peState.cloneSource3D = null; peState.cloneSourceScreen = null;
   peState.cloneOffsetScreen = null; peState.cloneSrcSnaps = null;
@@ -15897,8 +15917,9 @@ function openPaintEmissive(opts = {}) {
       else _peStampAtPointer(px, py);
     };
     const down = (e) => {
-      if (e.button !== 0) return;
-      if (peState.cloneMode && (e.ctrlKey || e.metaKey)) { _pcSetSource(e.clientX, e.clientY); return; }
+      // 25/10 : clic DROIT = action 1 (peindre / cloner, maintenu = en continu) ; clic GAUCHE = action 2 (Ctrl + clic : source du tampon) ; le reste = camera.
+      if (peState.cloneMode && e.button === 0 && (e.ctrlKey || e.metaKey)) { _pcSetSource(e.clientX, e.clientY); return; }
+      if (e.button !== 2) return;
       peState.isPainting = true;
       cv.setPointerCapture(e.pointerId);
       if (peState.cloneMode) _pcStampClone(e.clientX, e.clientY, true);
@@ -15947,7 +15968,9 @@ function openPaintEmissive(opts = {}) {
     btn.disabled = true;
     btn.textContent = peState.maskMode ? (peState.reshape ? 'Rebuilding…' : 'Re-texture…') : 'Saving…';
     try {
-      if (peState.maskMode && peState.reshape) {
+      if (peState.maskMode && peState.recolor) {
+        await _peApplyRecolor();
+      } else if (peState.maskMode && peState.reshape) {
         await _peApplyReshape();
       } else if (peState.maskMode) {
         await _peApplyMaskRetex();
@@ -16016,6 +16039,40 @@ async function _peApplyReshape() {
 // Region-retex apply: the painted white-on-black canvas IS the UV/atlas mask.
 // Export it and call regionRetex with uvMask:true — the backend applies it
 // straight to the atlas (no screen→UV projection, no back-face bleed).
+// « Recolorier une partie » (25/10) : la zone peinte (blanc sur noir, repere de l'atlas, comme « Re-texture an area ») limite la recoloration.
+async function _peApplyRecolor() {
+  const meshPath = peState.retexMeshPath;
+  if (!meshPath) throw new Error('no mesh');
+  let best = null, bestScore = -1;
+  peState.canvases?.forEach((entry) => {
+    const d = entry.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+    let s = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i] > 40 || d[i + 1] > 40 || d[i + 2] > 40) s++; }
+    if (s > bestScore) { bestScore = s; best = entry; }
+  });
+  if (!best || bestScore <= 0) { showToast(_i18nT('Paint the part to recolor first (in white).'), 'error'); throw new Error('empty mask'); }
+  const mc = document.createElement('canvas'); mc.width = PE_TEX_SIZE; mc.height = PE_TEX_SIZE;
+  const mctx = mc.getContext('2d');
+  mctx.fillStyle = '#000000'; mctx.fillRect(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  const src = best.ctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE).data;
+  const out = mctx.getImageData(0, 0, PE_TEX_SIZE, PE_TEX_SIZE);
+  for (let i = 0; i < src.length; i += 4) {
+    if (src[i] > 40 || src[i + 1] > 40 || src[i + 2] > 40) { out.data[i] = out.data[i + 1] = out.data[i + 2] = out.data[i + 3] = 255; }
+  }
+  mctx.putImageData(out, 0, 0);
+  const p = state.currentProject;
+  const job = pushJob(`Recolor 3D: ${p ? p.name : ''}`, null, { Colour: peState.recolor.color, Strength: Math.round(peState.recolor.intensity * 100) + '%', Zone: 'painted' }, 20000, { projectName: p ? p.name : undefined });
+  const r = await window.meshyAPI.recolorMesh({ meshPath, color: peState.recolor.color, intensity: peState.recolor.intensity, maskDataUrl: mc.toDataURL('image/png'), projectName: p ? p.name : undefined });
+  if (r && r.success) {
+    completeJob(job.id, true);
+    showToast(_i18nT('Part recolored') + ' ✅', 'success');
+    try { await reloadCurrentProject(); } catch (_) {}
+  } else {
+    completeJob(job.id, false, (r && r.error) || 'unknown');
+    throw new Error((r && r.error) || 'unknown');
+  }
+}
+
 async function _peApplyMaskRetex() {
   const meshPath = peState.retexMeshPath;
   if (!meshPath) throw new Error('no mesh');
@@ -16273,8 +16330,9 @@ async function _pmInitViewport() {
   pmState.camera.position.set(0, 0.5, 2);
   try {
     pmState.controls = new OrbitControls(pmState.camera, canvas);
+    _sourisVisualiseur(pmState.controls, canvas);
     pmState.controls.enableDamping = true;
-    pmState.controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+    _sourisVisualiseur(pmState.controls, canvas);   // 25/10 : clic droit = outil, gauche = deplacement, molette enfoncee = rotation
   } catch (e) { console.error('[paint-mesh] OrbitControls:', e); }
   pmState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -16520,7 +16578,7 @@ async function _pmLoadMesh(meshPath) {
       pmState.origModel.traverse((o) => { if (o.isMesh && o.geometry) pmState.tris += o.geometry.index ? o.geometry.index.count / 3 : (o.geometry.attributes.position?.count || 0) / 3; });
       await _pmSetupCanvasAndBind();
       const status = document.getElementById('pm-status');
-      if (status) status.textContent = 'Ready — left-click to paint, right-click to orbit.';
+      if (status) status.textContent = 'Ready — right-click to paint, left-drag to pan, middle-drag to rotate.';
       try { setViewerLoading('pm-viewport-wrap', false); } catch (_) {}
     };
     // Maillage DEJA affiche dans le viewer de l'etape Mesh : on en prend une copie au lieu de le retelecharger et de le
@@ -16917,7 +16975,7 @@ function openPaintMesh(opts = {}) {
     await _pmInitViewport();
     const cv = pmState.renderer.domElement;
     cv.onpointerdown = (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 2) return;   // clic droit = pinceau / decalque (25/10, souris commune des visualiseurs 3D)
       if (pmState.tool === 'decal') { _pmDecalPoser(e.clientX, e.clientY); return; }
       pmState.isPainting = true;
       cv.setPointerCapture(e.pointerId);
@@ -17283,6 +17341,77 @@ document.getElementById('mat-apply-btn')?.addEventListener('click', async () => 
   }
 });
 document.getElementById('ws-mesh-material-btn')?.addEventListener('click', openMaterialAdjust);
+
+// ============================================================
+// RECOLORIER LE MAILLAGE (25/10, demande du user : « les memes boutons que Recolorier pour la 3D »)
+//   Tout le modele : la texture couleur est teintee, la lumiere de chaque texel est conservee (noyau recolor_atlas, operation `recolor`).
+//   Une partie     : la zone se PEINT sur le modele 3D (meme visualiseur que « Re-texturer une zone »), puis seule cette zone est recoloree.
+//   Style          : renvoie vers « Texture variants » (decrire le style en texte).
+// ============================================================
+const _r3 = { couleur: '#2f7ce0' };
+function _r3MeshCourant() {
+  const p = state.currentProject;
+  return p && (p.previewMeshPath || p.selectedMeshPath);
+}
+(function _construireR3Pastilles() {
+  const box = document.getElementById('r3-swatches');
+  if (!box) return;
+  const COLS = [['red', '#e23b3b'], ['orange', '#f08a23'], ['yellow', '#f2c10e'], ['green', '#2eb84d'], ['blue', '#2f7ce0'], ['purple', '#9b51e0'], ['pink', '#f06ab0'], ['brown', '#8a5a2b'], ['gold', '#d4af37'], ['silver', '#c8ccd4'], ['black', '#2a2a2a'], ['white', '#eeeeee']];
+  const marquer = () => box.querySelectorAll('button').forEach((x) => { x.style.boxShadow = (x.dataset.css === _r3.couleur) ? '0 0 0 2px var(--accent)' : ''; });
+  COLS.forEach(([mot, css]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.title = mot; b.dataset.css = css;
+    b.style.cssText = 'width:26px;height:26px;border-radius:6px;border:2px solid var(--border);cursor:pointer;flex:none;background:' + css + ';';
+    b.addEventListener('click', () => { _r3.couleur = css; marquer(); });
+    box.appendChild(b);
+  });
+  marquer();
+})();
+function _r3Mode() { return document.getElementById('r3-mode')?.value || 'general'; }
+function _r3AppliquerMode() {
+  const m = _r3Mode();
+  const style = m === 'whole-style';
+  document.querySelectorAll('#modal-recolor3d .r3-f-color').forEach((el) => { el.style.display = style ? 'none' : ''; });
+  const hint = document.getElementById('r3-hint'), go = document.getElementById('r3-go');
+  if (hint) hint.textContent = _i18nT(m === 'general' ? 'The whole texture is tinted, the lighting is kept.'
+    : (m === 'zone' ? 'Next, paint the part to recolor straight on the 3D model.' : 'Describe the new look with Texture variants.'));
+  if (go) go.textContent = _i18nT(m === 'zone' ? 'Paint the part' : (style ? 'Open Texture variants' : 'Recolor'));
+}
+document.getElementById('r3-mode')?.addEventListener('change', _r3AppliquerMode);
+document.querySelectorAll('#modal-recolor3d .choix-btn').forEach((b) => b.addEventListener('click', () => setTimeout(_r3AppliquerMode, 0)));
+document.getElementById('r3-strength')?.addEventListener('input', (e) => {
+  const v = document.getElementById('r3-strength-val'); if (v) v.textContent = e.target.value + '%';
+});
+document.getElementById('r3-cancel')?.addEventListener('click', () => document.getElementById('modal-recolor3d')?.classList.add('hidden'));
+document.getElementById('ws-mesh-recolor-btn')?.addEventListener('click', () => {
+  if (!_r3MeshCourant()) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
+  document.getElementById('modal-recolor3d')?.classList.remove('hidden');
+  _r3AppliquerMode();
+});
+document.getElementById('r3-go')?.addEventListener('click', async () => {
+  const p = state.currentProject;
+  const mp = _r3MeshCourant();
+  if (!p || !mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
+  const mode = _r3Mode();
+  const intensite = (parseInt(document.getElementById('r3-strength')?.value, 10) || 100) / 100;
+  const fermer = () => document.getElementById('modal-recolor3d')?.classList.add('hidden');
+  if (mode === 'whole-style') { fermer(); document.getElementById('ws-mesh-texvar-btn')?.click(); return; }
+  if (mode === 'zone') {
+    fermer();
+    openPaintEmissive({ maskMode: true, recolor: { color: _r3.couleur, intensity: intensite }, meshPath: mp });
+    return;
+  }
+  fermer();
+  const job = pushJob(`Recolor 3D: ${p.name}`, null, { Colour: _r3.couleur, Strength: Math.round(intensite * 100) + '%', Source: String(mp).split(/[\\/]/).pop().split('?')[0] }, 20000, { projectName: p.name });
+  try {
+    const r = await window.meshyAPI.recolorMesh({ meshPath: mp, color: _r3.couleur, intensity: intensite, projectName: p.name });
+    if (r && r.success) { completeJob(job.id, true); await reloadCurrentProject(); showToast(_i18nT('Model recolored') + ' ✅', 'success', 3000); }
+    else { completeJob(job.id, false, (r && r.error) || 'unknown'); customError((r && r.error) || 'unknown', 'Recolor 3D — failed'); }
+  } catch (e) {
+    completeJob(job.id, false, e?.message || String(e));
+    customError(e?.message || String(e), 'Recolor 3D — error');
+  }
+});
 document.getElementById('at-cancel')?.addEventListener('click', () => {
   document.getElementById('modal-align-texture')?.classList.add('hidden');
 });
@@ -17460,6 +17589,7 @@ async function _meInitViewport() {
 
   try {
     meState.controls = new OrbitControls(meState.camera, canvas);
+    _sourisVisualiseur(meState.controls, canvas);
     meState.controls.enableDamping = true;
   } catch (e) {
     console.error('[mesh-edit] OrbitControls error:', e);
@@ -17476,13 +17606,6 @@ async function _meInitViewport() {
     // Left button stays FREE for the brush (paint / sculpt / select directly
     // on the mesh — no more "click next to the mesh to rotate"). Rotate with
     // the MIDDLE (wheel) button drag, pan with right, scroll wheel zooms.
-    try {
-      meState.controls.mouseButtons = {
-        LEFT: null,
-        MIDDLE: THREE.MOUSE.ROTATE,
-        RIGHT: THREE.MOUSE.PAN,
-      };
-    } catch (_) {}
   }
 
   // Lights
@@ -17714,7 +17837,7 @@ function _meDragPlaneAxis(e) {
   }
 }
 function _meMouseDown(e) {
-  if (e.button !== 0 || e.altKey) return;
+  if (e.button !== 2 || e.altKey) return;   // clic droit = outil (25/10, souris commune des visualiseurs 3D)
   // Move gizmo owns all pointer interaction (TransformControls has its own
   // listeners) — never start a brush stroke while it's up.
   if (meState.moveActive) return;
@@ -20842,8 +20965,9 @@ function _bootAnimResultViewer(canvas, anim, w, h) {
     sun.position.set(2, 3, 2); scene.add(sun);
     const cam = new THREE.PerspectiveCamera(35, w / h, 0.001, 1000);
     cam.position.set(2, 1, 2);
-    const ctl = new OrbitControls(cam, canvas); ctl.enableDamping = true;
-    ctl.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
+    const ctl = new OrbitControls(cam, canvas);
+    _sourisVisualiseur(ctl, canvas);
+ ctl.enableDamping = true;
     let mixer = null, action = null, raf = 0, disposed = false;
     let clipOriginal = null, racineAnim = null;   // pour basculer « In place »
     let aideSquelette = null;                      // bouton « Bones »
@@ -22333,7 +22457,7 @@ function _jobStepIndex(j) {
   // Mesh-editor saves ("Save mesh edit: …" from Sculpt/Paint/Select) + manual
   // mesh tools — they produce a new mesh version, so the "Go to generated
   // item" button must appear and jump to the mesh step.
-  if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment)/i.test(n)) return 2;
+  if (/(mesh edit|save mesh|sculpt|watertight|decimate|set[- ]?pivot|fix[- ]?normals|segment|recolor 3d)/i.test(n)) return 2;
   if (/(rig|skeleton|re-?skin)/i.test(n)) return 3;
   if (/(^animate|animation)/i.test(n)) return 4;
   return 0;
@@ -22463,7 +22587,19 @@ window._navigateToJobStep = async function(jobId, jobObj) {
 // Translate a job title for DISPLAY only — the stored job.name stays English so
 // the step-matching regex (_jobStepIndex) keeps working. Handles "Prefix: value"
 // templates ("Generate 3D: dropped") via tf(), else a plain t() lookup.
+/* 25/10 (user : « il y a du trellis... » : « trellis2_retex: prehistoric barracks » dans la liste des travaux finis) : le nom STOCKE d'un travail peut
+ * etre la cle interne de l'operation (« trellis2_retex », « cntile », « fill_holes »...). A l'affichage, la cle devient son libelle lisible
+ * (_OP_LABEL, traduit) ; jamais un nom de moteur. Le nom stocke reste inchange (les motifs de _jobStepIndex le lisent). */
+function _nomTravailLisible(name) {
+  const m = String(name || '').match(/^([a-z0-9_]+): (.+)$/);
+  if (m && Object.prototype.hasOwnProperty.call(_OP_LABEL, m[1])) {
+    const lib = (typeof _i18nT === 'function') ? _i18nT(_OP_LABEL[m[1]]) : _OP_LABEL[m[1]];
+    return String(lib).charAt(0).toUpperCase() + String(lib).slice(1) + ': ' + m[2];
+  }
+  return name || '';
+}
 function _displayJobName(name) {
+  name = _nomTravailLisible(name);
   const I = window.FabI18n;
   if (!I || I.lang === 'en' || !name) return name || '';
   const m = String(name).match(/^(.*?): (.+)$/);
@@ -28243,7 +28379,9 @@ function bindLandmarkRaycaster(canvas, getModel, getCamera, getControls) {
     const model = getModel();
     const camera = getCamera();
     const controls = getControls?.();
-    if (e.button !== 0 || !model || !camera) return;
+    if (!model || !camera) return;
+    // 25/10 : pose d'un repere armee = clic DROIT (action 1) ; glisser un repere existant = clic GAUCHE (action 2) ; le reste = camera.
+    if (lmActive ? e.button !== 2 : e.button !== 0) return;
 
     // CASE 1: a landmark is armed in the sidebar → place it at the click point
     if (lmActive) {
@@ -28483,8 +28621,8 @@ function initLmFullscreen() {
   lmFsRenderer.toneMappingExposure = 1.4;
   lmFsCamera = new THREE.PerspectiveCamera(45, 1, 0.01, 5000);
   lmFsControls = new OrbitControls(lmFsCamera, canvasA);
+  _sourisVisualiseur(lmFsControls, canvasA);
   lmFsControls.enableDamping = true;
-  lmFsControls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
   // Clear the "active view" button highlight when the user actually ROTATES
   // the camera — not on any mousedown. We detect a real rotation by comparing
   // the current camera azimuth/polar to the snapshot we took the last time a
@@ -28502,8 +28640,8 @@ function initLmFullscreen() {
     lmFsRendererB.toneMappingExposure = 1.0;
     lmFsCameraB = new THREE.PerspectiveCamera(45, 1, 0.01, 5000);
     lmFsControlsB = new OrbitControls(lmFsCameraB, canvasB);
+    _sourisVisualiseur(lmFsControlsB, canvasB);
     lmFsControlsB.enableDamping = true;
-    lmFsControlsB.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     lmFsControlsB.addEventListener('change', () => {
       _checkLmFsPresetDrift('b');
     });
@@ -30094,7 +30232,7 @@ function _ptsSurvolerOsListe(i) {
 function _ptsLierCanevas(canevas, camera) {
   if (!canevas) return;
   canevas.addEventListener('pointerdown', (e) => {
-    if (!_pts.actif || e.button !== 0 || !lmFsModel) return;
+    if (!_pts.actif || e.button !== (_pts.ajout ? 2 : 0) || !lmFsModel) return;   // ajout = clic droit (action 1), glisser un point / un os = clic gauche (25/10)
     const cam = camera();
     if (!cam) return;
     if (_pts.ajout) {
@@ -31994,6 +32132,7 @@ const _CLOUD_TOOL_TARIFS = {
   'ws-mesh-explode-btn': 'mesh_op_simple',
   'ws-mesh-resize-btn': 'mesh_op_simple',
   'ws-mesh-material-btn': 'mesh_op_simple',   // material_adjust
+  'ws-mesh-recolor-btn': 'mesh_op_simple',    // recolor
   'ws-mesh-stages3d-btn': 'construction3d',   // /api/construction-stages-3d
   'ws-mesh-segment-btn': 'mesh_segment',      // /api/mesh-segment
   // Outils de texture du site, passes par le worker en mode Cloud du bureau

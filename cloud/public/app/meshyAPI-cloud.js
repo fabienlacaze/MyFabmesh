@@ -3750,6 +3750,23 @@
         return { success: false, ok: false, error: String(e) };
       }
     },
+    // Recolorier la TEXTURE du maillage (25/10) : tout le modele, ou une zone (masque UV peint sur le maillage). Lumiere conservee.
+    recolorMesh: async ({ meshPath, meshUrl, color, intensity = 1, maskDataUrl = null, projectName } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url) return { success: false, ok: false, error: 'meshPath or meshUrl required' };
+      try {
+        const r = await postJSON('/api/mesh-op', {
+          meshUrl: url, opType: 'recolor', projectName: projectName || null,
+          params: { color: String(color || ''), intensity: Number(intensity), ...(maskDataUrl ? { uv_mask: maskDataUrl } : {}) },
+        });
+        if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+        if (r?.success) {
+          const newPath = r.path || r.newPath || r.mesh_url || r.url;
+          return { success: true, ok: true, newPath, path: newPath, filename: _basename(newPath) || `${_stripExt(_basename(url) || 'mesh')}_recolor_${Date.now()}.glb`, mesh_url: newPath };
+        }
+        return { success: false, ok: false, error: r?.error || 'recolor failed' };
+      } catch (e) { return { success: false, ok: false, error: String(e?.message || e) }; }
+    },
   });
 
   /* ──────────────────────────────────────────────────────────────────
