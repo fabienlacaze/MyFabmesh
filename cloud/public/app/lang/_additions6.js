@@ -1501,6 +1501,8 @@
     "Zoom out": ["Zoom arrière", "Alejar", "缩小", "ज़ूम आउट", "تصغير"],
     "Fullscreen": ["Plein écran", "Pantalla completa", "全屏", "पूर्ण स्क्रीन", "ملء الشاشة"],
     "Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom": ["Glisser gauche = peindre · glisser droit = déplacer · glisser molette = tourner · molette = zoom", "Arrastre izquierdo = pintar · derecho = mover · rueda pulsada = girar · rueda = zoom", "左键拖动 = 绘制 · 右键拖动 = 平移 · 中键拖动 = 旋转 · 滚轮 = 缩放", "बायाँ-खींचें = पेंट · दायाँ-खींचें = खिसकाएँ · बीच का बटन खींचें = घुमाएँ · व्हील = ज़ूम", "سحب أيسر = رسم · سحب أيمن = تحريك · سحب العجلة = تدوير · العجلة = تكبير"],
+    /* LOT W14 */
+    "Choose what changes and how far. The preview shows the current image.": ["Choisissez ce qui change et jusqu'où. L'aperçu montre l'image actuelle.", "Elija qué cambia y hasta qué punto. La vista previa muestra la imagen actual.", "选择要改变的内容和程度。预览显示当前图像。", "चुनें कि क्या बदले और कितना। पूर्वावलोकन वर्तमान छवि दिखाता है।", "اختر ما الذي يتغير وإلى أي مدى. تعرض المعاينة الصورة الحالية."],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

@@ -3448,13 +3448,14 @@
          amount of variation (img2img strength + N random seeds).
          ============================================================ -->
     <div id="modal-variant" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Variant</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <div class="modal-with-image">
-          <div class="modal-image-side">
+        <p class="modal-subtitle">Choose what changes and how far. The preview shows the current image.</p>
+        <div class="fen-corps">
+          <div class="fen-apercu fen-apercu-image">
             <img id="var-source-img" alt="" />
           </div>
-          <div class="modal-form-side var-form">
+          <div class="modal-form-side var-form fen-form">
             <label>What should change?</label>
             <div class="var-modes" id="var-mode-group">
               <label class="var-mode"><input type="radio" name="var-mode" id="var-tex-mode" checked /><span><b>Colours &amp; materials</b><small>Same shape</small></span></label>
