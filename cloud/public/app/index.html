@@ -1776,20 +1776,25 @@
     </div>
 
     <div id="modal-age" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide">
+      <div class="modal-card fen-3d fen-2d">
         <div class="fen-tete"><h2>Age</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Younger or older &mdash; the shape and pose are kept.</p>
-        <div class="modal-with-image">
-          <div class="modal-image-side" style="position:relative;">
+        <div class="fen-corps">
+          <!-- apercu a GAUCHE, reglages a DROITE (gabarit commun des fenetres d'outils) -->
+          <div class="fen-apercu fen-apercu-image">
             <img id="age-source-img" alt="" />
           </div>
-          <div class="modal-form-side">
-            <label>Age <span id="age-val" class="slider-val">Neutral</span></label>
-            <input type="range" id="age-slider" min="-100" max="100" value="0" />
-            <div class="fen-echelle"><span>&#128118; Younger</span><span>Older &#128116;</span></div>
-            <label>Guide <span class="fen-facultatif">(optional)</span></label>
-            <input type="text" id="age-guide" placeholder="e.g. grey beard, smooth skin" />
-            <div class="prompt-lang-hint" data-pour="age-guide" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+          <div class="fen-form">
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Age</span><span id="age-val" class="fen-valeur slider-val">Neutral</span></div>
+              <input type="range" id="age-slider" min="-100" max="100" value="0" />
+              <div class="fen-echelle"><span>&#128118; Younger</span><span>Older &#128116;</span></div>
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Guide <span class="fen-facultatif">(optional)</span></span></div>
+              <input type="text" id="age-guide" placeholder="e.g. grey beard, smooth skin" />
+              <div class="prompt-lang-hint" data-pour="age-guide" data-i18n-skip translate="no" dir="auto" style="display:none;"></div>
+            </div>
           </div>
         </div>
         <div class="modal-actions">
