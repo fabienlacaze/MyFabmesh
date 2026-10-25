@@ -5184,3 +5184,9 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #clone-modal .modal-actions.fen-pied-editeur .ghost-btn { flex: 0 0 auto; min-width: 0; height: 38px; padding: 0 18px; }
 #clone-modal .modal-actions.fen-pied-editeur .primary-btn { flex: 1 1 0; }
 #clone-modal .fen-apercu-etat { bottom: 6px; }
+/* ===== LOT W03 : Crop (gabarit commun .fen-3d, colonne de droite, pied pleine largeur) ===== */
+#modal-crop .fen-apercu { background: #1a1a2e; }
+#modal-crop .fen-groupe-boutons { display: flex; flex-wrap: wrap; gap: 8px; }
+#modal-crop .fen-groupe-boutons .secondary-btn { padding: 6px 12px; font-size: 14px; width: auto; height: auto; margin: 0; }
+#modal-crop .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-crop .modal-actions.fen-pied-editeur { margin-top: 16px; }

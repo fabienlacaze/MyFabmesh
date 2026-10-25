@@ -3593,29 +3593,43 @@
     </div>
   </div>
 
-  <!-- Crop modal -->
+  <!-- Crop modal (LOT W03 : gabarit commun .fen-3d, apercu a gauche, reglages en colonne a droite) -->
   <div id="modal-crop" class="modal hidden">
-    <div class="modal-content" style="width:95vw; height:95vh; max-width:95vw; max-height:95vh; padding:16px; display:flex; flex-direction:column; gap:10px; min-width: min(600px, 100vw);">
+    <div class="modal-card fen-3d fen-2d">
       <div class="fen-tete"><h2>Crop</h2><button id="crop-close-x" class="settings-close-x">&#10005;</button></div>
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <button id="crop-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-        <button id="crop-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-        <span class="vz-sep" aria-hidden="true"></span>
-        <button id="crop-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-        <button id="crop-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-        <span class="vz-sep" aria-hidden="true"></span>
-        <button id="crop-preset-free" class="secondary-btn tool-active" style="padding:4px 10px; font-size:13px;">Free</button>
-        <button id="crop-preset-1-1" class="secondary-btn" style="padding:4px 10px; font-size:13px;">1:1</button>
-        <button id="crop-preset-4-3" class="secondary-btn" style="padding:4px 10px; font-size:13px;">4:3</button>
-        <button id="crop-preset-16-9" class="secondary-btn" style="padding:4px 10px; font-size:13px;">16:9</button>
-        <button id="crop-preset-center" class="secondary-btn" style="padding:4px 10px; font-size:13px;">Auto center</button>
-        <span style="flex:1;"></span>
-        <span id="crop-size-label" style="font-size:13px; color:var(--text-2);"></span>
-      </div>
-      <div style="font-size:12px; color:var(--text-3);">Drag to select the crop area. Use presets for fixed aspect ratios.</div>
-      <div id="crop-canvas-container" style="position:relative; flex:1 1 0; overflow:hidden; background:#1a1a2e; border-radius:4px; min-height:400px; cursor:crosshair;">
-        <canvas id="crop-canvas" style="position:absolute; left:0; top:0;"></canvas>
-        <canvas id="crop-overlay" style="position:absolute; left:0; top:0;"></canvas>
+      <p class="modal-subtitle">Drag to select the crop area. Use presets for fixed aspect ratios.</p>
+      <div class="fen-corps">
+        <div id="crop-canvas-container" class="fen-apercu" style="cursor:crosshair;">
+          <canvas id="crop-canvas" style="position:absolute; left:0; top:0;"></canvas>
+          <canvas id="crop-overlay" style="position:absolute; left:0; top:0;"></canvas>
+        </div>
+        <div class="fen-form">
+          <div class="fen-champ">
+            <span class="fen-label">Aspect ratio</span>
+            <div class="fen-groupe-boutons">
+              <button id="crop-preset-free" class="secondary-btn tool-active">Free</button>
+              <button id="crop-preset-1-1" class="secondary-btn">1:1</button>
+              <button id="crop-preset-4-3" class="secondary-btn">4:3</button>
+              <button id="crop-preset-16-9" class="secondary-btn">16:9</button>
+              <button id="crop-preset-center" class="secondary-btn">Auto center</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">View</span>
+            <div class="fen-groupe-boutons">
+              <button id="crop-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+              <button id="crop-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+            </div>
+          </div>
+          <div class="fen-champ">
+            <span class="fen-label">History</span>
+            <div class="fen-groupe-boutons">
+              <button id="crop-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+              <button id="crop-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+            </div>
+          </div>
+          <span id="crop-size-label" class="fen-note"></span>
+        </div>
       </div>
       <div class="modal-actions fen-pied-editeur">
         <button id="crop-cancel" class="ghost-btn">Cancel</button>
