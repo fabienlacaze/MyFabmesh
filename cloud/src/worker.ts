@@ -11656,7 +11656,7 @@ async function callModalText2Image(env: Env, userId: string, input: CogInput, fo
  *     50 KB is almost certainly a placeholder, not a real generation.
  *  3. PNG IHDR width check (when PNG) — placeholders are often 256x or
  *     512x; real outputs are always 1024x or 1024+. Reject < 768. */
-function _assertImageBytes(buf: ArrayBuffer, source: string, masque = false): void {
+function _assertImageBytes(buf: ArrayBuffer, source: string, masque = false, sansLargeur = false): void {
   if (buf.byteLength < 256) {
     throw new Error(`${source} returned ${buf.byteLength} bytes — too small to be a real image (likely content-filtered placeholder).`);
   }
@@ -11680,7 +11680,7 @@ function _assertImageBytes(buf: ArrayBuffer, source: string, masque = false): vo
   }
   // PNG IHDR width sanity check. IHDR follows the 8-byte signature at
   // bytes 8-12 (length+'IHDR'), then width at bytes 16-19 big-endian.
-  if (isPng && buf.byteLength >= 24) {
+  if (isPng && !sansLargeur && buf.byteLength >= 24) {
     const v = new DataView(buf, 16, 4);
     const w = v.getUint32(0, false);
     if (w > 0 && w < 768) {
@@ -12139,7 +12139,7 @@ async function callModalImageOp(env: Env, userId: string, input: {
   // Un MASQUE (segment : Detect, apercu du masque) est noir et blanc, donc leger (6 a 31 Ko mesures) : le plancher
   // de taille des vraies images le prenait pour un placeholder du filtre de contenu (2026-09-29, Detect « head » en
   // echec deux fois). On ne garde que le controle des octets d'image.
-  _assertImageBytes(buf, `Modal image_op (${input.op})`, input.op === 'segment');
+  _assertImageBytes(buf, `Modal image_op (${input.op})`, input.op === 'segment', true);   // 25/10 : une edition rend la taille de l'entree, une petite image est legitime
   if (env.MESHES && env.R2_PUBLIC_URL) {
     const tag = input.op === 'modify' ? 'modified'
       : input.op === 'recolor' ? 'recolor'
