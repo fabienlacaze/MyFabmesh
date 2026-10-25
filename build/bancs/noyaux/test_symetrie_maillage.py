@@ -177,5 +177,47 @@ class Scene(unittest.TestCase):
         self.assertEqual(len(res.geometry), 2)
 
 
+    def test_zone_sur_une_seule_piece(self):
+        a = blob(2)
+        b = trimesh.creation.box(extents=[0.5, 0.5, 0.5])
+        b.apply_translation([0.3, 0, 0])
+        sc = trimesh.Scene()
+        sc.add_geometry(a, node_name='a')
+        sc.add_geometry(b, node_name='b')
+        C = a.vertices[np.argmin(a.vertices[:, 0])]
+        res, st = S.symetriser_scene(sc, {'point': [0.1, 0, 0], 'normal': [1, 0, 0], 'keep': 'neg', 'mode': 'mask',
+                                          'stamps': [[C[0], C[1], C[2], 0.5, 1]]})
+        self.assertEqual(len(res.geometry), 2)
+        self.assertGreater(st['miroir'], 0)
+        self.assertTrue(any(len(g.vertices) == len(b.vertices) and np.allclose(g.vertices, b.vertices) for g in res.geometry.values()))   # la piece non peinte reste intacte
+        with self.assertRaises(ValueError):
+            S.symetriser_scene(sc, {'point': [0.1, 0, 0], 'normal': [1, 0, 0], 'keep': 'neg', 'mode': 'mask', 'stamps': [[50, 50, 50, 0.1, 1]]})
+
+    def test_face_plate_sur_le_plan(self):
+        cube = trimesh.creation.box(extents=[1, 1, 1])
+        cube.apply_translation([0.5, 0, 0])      # faces x=0 et x=1
+        for garder, ok in (('pos', True), ('neg', False)):
+            if ok:
+                V, F, A, N, st = S.symetriser_tableaux(cube.vertices, cube.faces, None, None, (0, 0, 0), (1, 0, 0), garder)
+                w = souder(V, F)
+                self.assertEqual(aretes_de_bord(w), (0, 0))
+                self.assertAlmostEqual(abs(w.volume), 2.0, places=5)
+            else:
+                with self.assertRaises(ValueError):
+                    S.symetriser_tableaux(cube.vertices, cube.faces, None, None, (0, 0, 0), (1, 0, 0), garder)
+        V, F, A, N, st = S.symetriser_tableaux(cube.vertices, cube.faces, None, None, (1, 0, 0), (1, 0, 0), 'neg')
+        w = souder(V, F)
+        self.assertEqual(aretes_de_bord(w), (0, 0))
+        self.assertAlmostEqual(abs(w.volume), 2.0, places=5)
+
+    def test_zone_tranche_equivaut_au_balayage_complet(self):
+        rng = np.random.default_rng(1)
+        C = rng.random((5000, 3))
+        st = [[0.5, 0.5, 0.5, 0.3, 1], [0.5, 0.5, 0.5, 0.1, 0], [0.9, 0.1, 0.2, 0.2, 1]]
+        ref = np.zeros(len(C), bool)
+        for x, y, z, r, s in st:
+            ref[((C - [x, y, z]) ** 2).sum(axis=1) <= r * r] = s >= 0.5
+        self.assertTrue((S.region_faces(C, st) == ref).all())
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

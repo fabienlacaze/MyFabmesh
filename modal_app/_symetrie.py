@@ -32,14 +32,26 @@ def region_faces(centres, stamps, reflechir=None):
     les centres des tampons sont d'abord reflechis par le plan (zone miroir)."""
     import numpy as np
     sel = np.zeros(len(centres), dtype=bool)
+    if not len(centres):
+        return sel
+    # Centres tries le long de l'axe le plus etendu : chaque tampon ne regarde que sa tranche (au lieu de tout le maillage).
+    ax = int(np.argmax(centres.max(axis=0) - centres.min(axis=0)))
+    ordre = np.argsort(centres[:, ax], kind='stable')
+    xs = centres[ordre, ax]
     for s in stamps or []:
         c = np.array(s[:3], dtype=np.float64)
         if reflechir is not None:
             p, nn = reflechir
             c = c - 2.0 * float(np.dot(c - p, nn)) * nn
         r = float(s[3])
-        lo = np.all(centres >= c - r, axis=1) & np.all(centres <= c + r, axis=1)
-        idx = np.nonzero(lo)[0]
+        i0 = int(np.searchsorted(xs, c[ax] - r, side='left'))
+        i1 = int(np.searchsorted(xs, c[ax] + r, side='right'))
+        if i1 <= i0:
+            continue
+        idx = ordre[i0:i1]
+        sous = centres[idx]
+        lo = np.all(sous >= c - r, axis=1) & np.all(sous <= c + r, axis=1)
+        idx = idx[lo]
         if not len(idx):
             continue
         dd = centres[idx] - c
@@ -57,7 +69,9 @@ def _normaliser(M):
 def _couper_demi_espace(V, F, A, N, point, nn, eps):
     """Garde ce qui est du cote positif du plan (distance signee > 0). Les triangles a cheval sont decoupes ; les
     sommets nouveaux (et ceux deja a moins de eps du plan, ramenes SUR le plan) sont marques « sur le plan ».
-    Rend (V, F, A, N, sur_plan, plats) : plats = triangles entierement dans le plan (gardes une seule fois)."""
+    Rend (V, F, A, N, sur_plan, plats) : les triangles entierement dans le plan (face plate qui coincide avec le plan,
+    paroi de fermeture d'un demi-modele) sont ECARTES : gardes une fois ils laisseraient une paroi interne a une
+    seule face (aretes non manifold) ; plats est donc toujours vide."""
     import numpy as np
     V = V.copy()
     d = (V - point) @ nn
@@ -143,11 +157,10 @@ def _couper_demi_espace(V, F, A, N, point, nn, eps):
     # on ne garde que les sommets utilises
     utilise = np.zeros(len(Vt), dtype=bool)
     utilise[Fn.ravel()] = True
-    utilise[plats.ravel()] = True
     remap = -np.ones(len(Vt), dtype=np.int64)
     remap[utilise] = np.arange(int(utilise.sum()))
     return (Vt[utilise], remap[Fn], None if At is None else At[utilise], None if Nt is None else Nt[utilise],
-            sur[utilise], remap[plats])
+            sur[utilise], np.zeros((0, 3), dtype=np.int64))
 
 
 def _reflechir(P, point, nn):
@@ -204,7 +217,7 @@ def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0),
     stats = {'gardees': 0, 'miroir': 0, 'retirees': 0}
     if str(mode).lower() != 'mask':
         Vc, Fc, Ac, Nc, sur, plats = _couper_demi_espace(V, F, A, N, point, nn, eps)
-        if not len(Fc) and not len(plats):
+        if not len(Fc):
             raise ValueError('Nothing to mirror: the kept side of the plane has no surface.')
         Vc, Fm, Am, Nm, Vm, Nc = _miroir(Vc, Fc, Ac, Nc, sur, plats, point, nn, True)
         Vo = np.concatenate([Vc, Vm])
@@ -272,6 +285,8 @@ def symetriser_scene(scene, params):
     sortie = trimesh.Scene()
     total = {'gardees': 0, 'miroir': 0, 'retirees': 0}
     n_ok = 0
+    dernier = None
+    masque = str(p.get('mode', 'full')).lower() == 'mask'
     for nom, g in geoms.items():
         if not hasattr(g, 'faces') or len(g.faces) == 0:
             continue
@@ -291,6 +306,11 @@ def symetriser_scene(scene, params):
                 g.vertices, g.faces, A, N, p.get('point', (0, 0, 0)), p.get('normal', (1, 0, 0)),
                 p.get('keep', 'pos'), p.get('mode', 'full'), p.get('stamps'))
         except ValueError as e:
+            dernier = e
+            if masque and len(geoms) > 1 and p.get('stamps') and ('Paint the area' in str(e) or 'Nothing to mirror' in str(e)):
+                # zone peinte absente de cette piece : elle reste telle quelle (sa part de la zone, s'il y en a, est ailleurs)
+                sortie.add_geometry(g.copy(), node_name=nom, geom_name=nom)
+                continue
             if 'Nothing to mirror' in str(e) and len(geoms) > 1:
                 continue            # une autre piece du modele a de la matiere de ce cote
             raise
@@ -307,6 +327,8 @@ def symetriser_scene(scene, params):
         m.metadata = dict(getattr(g, 'metadata', {}) or {})
         sortie.add_geometry(m, node_name=nom, geom_name=nom)
     if not n_ok:
+        if masque and dernier is not None:
+            raise dernier
         raise ValueError('Nothing to mirror: the kept side of the plane has no surface.')
     return sortie, total
 # --- NOYAU PARTAGE : FIN ---
