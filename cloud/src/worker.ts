@@ -296,6 +296,20 @@ async function r2GetText(env: Env, key: string): Promise<string | null> {
  *  Used by handleGenerate AND all Modal forwarders that take user-supplied
  *  imageUrl/meshUrl fields. Rejects non-https and unknown hosts.
  *  Hostname is matched against a strict allow-list (exact or suffix). */
+/** Nom de l'hote REFUSE par isTrustedAssetHost, pour le message d'erreur (25/10 : « meshUrl host not allowed » seul ne disait pas quelle URL posait probleme).
+ *  Jamais la requete ni le chemin : une URL signee contient une signature. */
+function _hoteRefuse(u: unknown): string {
+  const s = String(u ?? '').trim();
+  if (!s) return 'empty URL';
+  try {
+    const p = new URL(s);
+    if (p.protocol !== 'https:') return `${p.protocol} (not https)`;
+    return p.hostname.toLowerCase();
+  } catch {
+    return /^\//.test(s) ? 'relative URL (no host)' : 'invalid URL';
+  }
+}
+
 function isTrustedAssetHost(env: Env, u: string): boolean {
   try {
     const parsed = new URL(u);
@@ -13223,7 +13237,7 @@ async function handleGenerateBackView(req: Request, env: Env): Promise<Response>
     langueVerifiee?: boolean;
   };
   if (!frontImageUrl) return err(400, 'frontImageUrl required for back-view generation');
-  if (!isTrustedAssetHost(env, frontImageUrl)) return err(400, 'frontImageUrl host not allowed');
+  if (!isTrustedAssetHost(env, frontImageUrl)) return err(400, 'frontImageUrl host not allowed: ' + _hoteRefuse(frontImageUrl));
   let hint = (prompt ?? promptHint ?? '').toString().slice(0, 400);
 
   // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
@@ -13344,7 +13358,7 @@ async function handleModifyImage(req: Request, env: Env): Promise<Response> {
   };
   if (!imageUrl) return err(400, 'imageUrl required');
   // SSRF guard: only forward URLs from our trusted upstreams to Modal.
-  if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(imageUrl));
   let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required');
   const trop = _refusLongueur(rawPrompt);   // 2026-10-13 (MODERATION-07)
@@ -13436,7 +13450,7 @@ async function handleSegmentPreview(req: Request, env: Env): Promise<Response> {
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
   if (!cibleRecue) return err(400, 'targetText required');
   let targetText = String(cibleRecue);
   const cost = await getPrice(env, 'segment');  // admin-configurable (Pricing tab)
@@ -13592,7 +13606,7 @@ async function handleAutoInpaint(req: Request, env: Env): Promise<Response> {
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
   let targetText = String(cibleRecue ?? '').trim();   // rognee UNE fois : la chaine verifiee est la chaine envoyee
   if (!targetText) return err(400, 'targetText required');
   const consignes = [consigne, consigneOriginale]
@@ -13740,7 +13754,7 @@ async function handleTexVariant(req: Request, env: Env): Promise<Response> {
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
 
   // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
   const cost = await getPrice(env, 'tex_variant');
@@ -13835,7 +13849,7 @@ async function handleRecolor(req: Request, env: Env): Promise<Response> {
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
   let rawPrompt = (prompt ?? '').toString().trim();
   if (!rawPrompt) return err(400, 'prompt required (ex : « cape rouge »)');
   const trop = _refusLongueur(rawPrompt);   // 2026-10-13 (MODERATION-07)
@@ -13934,7 +13948,7 @@ async function handleOutfit(req: Request, env: Env): Promise<Response> {
     };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
 
   const veutEnsemble = ensemble ?? true;
   const veutPieces = parPiece ?? false;
@@ -14019,7 +14033,7 @@ async function handleMaskInpaint(req: Request, env: Env): Promise<Response> {
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
   if (!maskDataUrl) return err(400, 'maskDataUrl required');
   /* Masque decode et VERIFIE avant le filet de langue (troisieme relecture du lot 2, 14/10, B3) : un masque invalide etait refuse APRES la
    * traduction du « Replace with », sans debit — des refus gratuits qui consommaient les compteurs de traduction. Le depot dans R2 reste
@@ -14139,7 +14153,7 @@ async function handleFaceFixImage(req: Request, env: Env): Promise<Response> {
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
 
   const COST_PER = await getPrice(env, 'face_fix_image');
   const estimatedTotal = 0.05;
@@ -14267,7 +14281,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   if (!finalUrl) return err(400, 'meshUrl or meshId required');
   // SSRF guard: meshUrl is user-controlled here (caller can pass any string).
   // Only allow trusted upstreams so we don't make Modal fetch arbitrary hosts.
-  if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(finalUrl));
   // retex_swap also takes a user-supplied params.image_url — same SSRF risk.
   // 2026-10-03 (CLOUD-05) : verifie pour TOUTE operation qui recoit params.image_url, pas
   // seulement ces deux-la (le champ est transmis a Modal quelle que soit l'operation).
@@ -14421,7 +14435,7 @@ async function _opAtlasGpu(req: Request, env: Env, conf: {
   const meshUrl = String(corps.meshUrl ?? '');
   const projectName = corps.projectName ? String(corps.projectName) : undefined;
   if (!meshUrl) return err(400, 'meshUrl required');
-  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(meshUrl));
   const projectSlug = slugProjet((projectName || 'untitled').toString());   // nom non latin : segment unique (2026-10-13)
 
   // Prix lu AVANT le filet de langue : un compte qui ne peut pas payer ne declenche aucun appel du traducteur (revue du lot 2, B3).
@@ -14549,8 +14563,8 @@ async function handleMeshRetexture(req: Request, env: Env): Promise<Response> {
   };
   if (!meshUrl) return err(400, 'meshUrl required');
   if (!imageUrl) return err(400, 'imageUrl required (reference image)');
-  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
-  if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(meshUrl));
+  if (!isTrustedAssetHost(env, imageUrl)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(imageUrl));
   if (backImageUrl && !isTrustedAssetHost(env, backImageUrl)) return err(400, 'backImageUrl host not allowed');
   const palier = ['fast', 'balanced', 'quality', 'ultra_8k'].includes(String(preset)) ? String(preset) : 'fast';
   const graine = Number.isFinite(Number(seed)) ? Math.max(0, Math.min(999_999, Math.floor(Number(seed)))) : 42;
@@ -14863,7 +14877,7 @@ async function handleMeshNameParts(req: Request, env: Env): Promise<Response> {
     meshUrl?: string; assetType?: string; rigUrl?: string; projectName?: string;
   };
   if (!meshUrl) return err(400, 'meshUrl required');
-  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, meshUrl)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(meshUrl));
   if (rigUrl && !isTrustedAssetHost(env, rigUrl)) return err(400, 'rigUrl host not allowed');
   const cleMaillage = r2PathFromPublicUrl(env, meshUrl);
   if (!cleMaillage || !cleMaillage.startsWith(`${user.id}/`) || !cleMaillage.endsWith('.glb')) {
@@ -14966,7 +14980,7 @@ async function handleConstructionStages3d(req: Request, env: Env): Promise<Respo
     finalUrl = (data as { mesh_url?: string } | null)?.mesh_url ?? '';
   }
   if (!finalUrl) return err(400, 'meshUrl or meshId required');
-  if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(finalUrl));
 
   // CPU-only Modal op, but N stages of work — charge 2× a simple mesh op.
   const COST_PER = await getPrice(env, 'construction3d');   // etait 2 x mesh_op_simple
@@ -15142,7 +15156,7 @@ async function handleMeshConvert(req: Request, env: Env): Promise<Response> {
   const src = (meshUrl ?? '').trim();
   if (!src) return err(400, 'meshUrl required');
   // Same SSRF guard as handleMeshOp: meshUrl is user-controlled.
-  if (!isTrustedAssetHost(env, src)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(src));
 
   // QUOTA — lacune introduite AVEC cette route le 2026-08-02, relevee par
   // l'audit du 2026-08-03. J'avais deliberement choisi de ne PAS facturer
@@ -18718,7 +18732,7 @@ async function handleAutoAnim(req: Request, env: Env): Promise<Response> {
   }
   const rigUrl = body.rig_url;
   if (!rigUrl || typeof rigUrl !== 'string') return err(400, 'rig_url required');
-  if (!isTrustedAssetHost(env, rigUrl)) return err(400, 'rig_url host not allowed');
+  if (!isTrustedAssetHost(env, rigUrl)) return err(400, 'rig_url host not allowed: ' + _hoteRefuse(rigUrl));
   const animType = typeof body.anim_type === 'string' ? body.anim_type.slice(0, 32) : 'idle';
   let prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 400) : '';
   /* 24/10 (audit des prompts, m19) : le texte libre partait a Modal sans filtre de contenu ni filet de langue (aucun champ libre dans
@@ -19064,8 +19078,8 @@ async function handleAnimateFromReference(req: Request, env: Env): Promise<Respo
   const refAnimUrl = body.ref_anim_url;
   if (!rigUrl || typeof rigUrl !== 'string') return err(400, 'rig_url required');
   if (!refAnimUrl || typeof refAnimUrl !== 'string') return err(400, 'ref_anim_url required');
-  if (!isTrustedAssetHost(env, rigUrl)) return err(400, 'rig_url host not allowed');
-  if (!isTrustedAssetHost(env, refAnimUrl)) return err(400, 'ref_anim_url host not allowed');
+  if (!isTrustedAssetHost(env, rigUrl)) return err(400, 'rig_url host not allowed: ' + _hoteRefuse(rigUrl));
+  if (!isTrustedAssetHost(env, refAnimUrl)) return err(400, 'ref_anim_url host not allowed: ' + _hoteRefuse(refAnimUrl));
 
   const hint = (body.source_skeleton_id_hint || 'auto')
     .replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || 'auto';
@@ -19450,7 +19464,7 @@ async function handleUpscaleImage(req: Request, env: Env): Promise<Response> {
   };
   const src = imageUrl || imagePath;
   if (!src) return err(400, 'imageUrl or imagePath required');
-  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed');
+  if (!isTrustedAssetHost(env, src)) return err(400, 'imageUrl host not allowed: ' + _hoteRefuse(src));
   const factor = scale === 4 ? 4 : 2;  // only 2 or 4 supported
 
   // Upscale: x2 = base price, x4 = base + 1 (heavier).
@@ -19530,7 +19544,7 @@ async function handleCopyMeshToProject(req: Request, env: Env): Promise<Response
   // check a malicious client could pass an attacker-controlled https URL
   // that the admin model-viewer would then dereference (XSS / data exfil
   // vector). Uses the module-level allow-list (R2 + replicate.delivery).
-  if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed');
+  if (!isTrustedAssetHost(env, finalUrl)) return err(400, 'meshUrl host not allowed: ' + _hoteRefuse(finalUrl));
 
   // Insert a new job row with the same mesh_url but the new project_name.
   // credit_cost = 0 (no GPU work — just a project re-grouping).

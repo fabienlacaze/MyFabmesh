@@ -28,9 +28,9 @@ export function creerApercu(canvas) {
     controles = new OrbitControls(camera, canvas);
     controles.enableDamping = true;
     controles.dampingFactor = 0.12;
-    controles.enablePan = true;   // 25/10 : clic gauche + glisser = deplacer la camera (souris commune des visualiseurs 3D)
-    // 25/10 : souris des visualiseurs 3D = clic gauche + glisser : deplacer la camera ; molette : zoom ; molette enfoncee + glisser : tourner ; clic droit : outil.
-    controles.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null };
+    controles.enablePan = true;   // 25/10 : clic droit + glisser = deplacer la camera (souris commune des visualiseurs 3D)
+    // 25/10 : souris des visualiseurs 3D = clic droit + glisser : deplacer la camera ; molette : zoom ; molette enfoncee + glisser : tourner ; clic gauche : outil.
+    controles.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     controles.screenSpacePanning = true;
     controles.zoomToCursor = true;
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());

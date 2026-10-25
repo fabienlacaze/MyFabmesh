@@ -1,0 +1,125 @@
+{
+  "_lisez_moi": "Dictionnaire des CODES D'ERREUR de MyFabmesh (25/10). Source unique des familles : lue par build/lister-codes-erreur.mjs (docs/codes_erreur.md) ; les memes identifiants (ref) sont affiches dans la fenetre « Error » (_expliquerErreur de index2.js). Ajouter une famille ICI, puis relancer : node build/lister-codes-erreur.mjs",
+  "familles": [
+    {
+      "ref": "E01", "http": "503", "motifs": ["Worker exceeded resource limits"],
+      "titre": "Le serveur du site a manque de ressources",
+      "symptome": "« HTTP 503 … Worker exceeded resource limits » avec un identifiant cf-ray, surtout sur Re-texture a region, Etapes de construction 3D, outils de maillage (gros GLB de 50 a 100 Mo).",
+      "cause": "Un GLB renvoye en base64 dans du JSON par Modal fait coexister dans la memoire du worker Cloudflare (128 Mo) la chaine base64, la chaine atob() et le Uint8Array, et la boucle octet par octet depasse le temps CPU.",
+      "correction": "Verifier que Modal est deploye avec `_rendre_glb` (modal_app/app.py) : le journal doit montrer « [glb] televerse directement dans R2 ». Verifier que le worker envoie `r2_put_url` (handleMeshOp, _opAtlasGpu, handleConstructionStages3d) et que R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY sont poses. Si l'URL PUT est absente, le repli base64 se declenche et l'erreur revient sur les gros fichiers : `python -m modal deploy modal_app/app.py` puis `build/rechauffer_apres_deploy.py`.",
+      "rembourse": true
+    },
+    {
+      "ref": "E02", "http": "400", "motifs": ["prompt required", "\\bprompt\\b.*required"],
+      "titre": "Une description manque",
+      "symptome": "« prompt required » (client ou worker).",
+      "cause": "L'outil exige un texte et le champ est vide. (Cas particulier corrige le 25/10 : Dessiner un masque avec « Remplacer par » vide = supprimer la zone, le champ vide est accepte.)",
+      "correction": "Cote client : verifier le garde du shim (cloud/public/app/meshyAPI-cloud.js) ; cote worker : verifier la route (handleModifyImage, handleMaskInpaint...). Un champ vide ne doit etre refuse que si l'outil ne sait pas en faire quelque chose.",
+      "rembourse": true
+    },
+    {
+      "ref": "E03", "http": "402", "motifs": ["insufficient credits", "not enough credits"],
+      "titre": "Credits insuffisants",
+      "symptome": "« insufficient credits — <outil> costs N » (HTTP 402).",
+      "cause": "Le solde du compte (table profiles.credits) est inferieur au prix de l'etape.",
+      "correction": "Verifier le solde (`node build/fab-web.mjs moi`), le prix applique (`/api/pricing`, surcharges `_meta/pricing.json` dans R2) ; recharger ou offrir des credits depuis /admin2.",
+      "rembourse": true
+    },
+    {
+      "ref": "E04", "http": "429", "motifs": ["limit reached", "daily budget", "quota", "too many"],
+      "titre": "Une limite d'utilisation est atteinte",
+      "symptome": "« daily budget reached », « user limit reached », 429.",
+      "cause": "Plafond global Modal (MAX_DAILY_MODAL_SPEND_USD), plafond par compte (MAX_USER_DAILY_SPEND_USD / MAX_PAID_USER_DAILY_SPEND_USD, 40 appels par jour) ou limite de debit.",
+      "correction": "Lire le message : _spendRefusalMessage() nomme le plafond reel. Compteurs : `_meta/modal_spend/<jour>`, `_meta/userspend_cap/<uid>/<jour>`, `_meta/userdaily/<uid>/<jour>` dans R2. Plafonds : cloud/wrangler.toml (le plafond payant est a 250 $ temporairement depuis le 25/10 : le remettre a 15.00).",
+      "rembourse": true
+    },
+    {
+      "ref": "E05", "http": "401", "motifs": ["unauthorized", "not signed in", "session expired", "invalid login"],
+      "titre": "Session expiree ou absente",
+      "symptome": "HTTP 401 / « unauthorized ».",
+      "cause": "Le cookie mfm-session est absent ou expire, ou la cle API de fab-web est invalide.",
+      "correction": "Se reconnecter. Pour les outils en ligne de commande : `node build/fab-web.mjs cle` (cle API creee dans les reglages du site).",
+      "rembourse": true
+    },
+    {
+      "ref": "E06", "http": "400", "motifs": ["content filter", "blocked by", "prompt blocked"],
+      "titre": "Refus du filtre de contenu",
+      "symptome": "« prompt blocked by content filter ».",
+      "cause": "Le texte ou l'image a ete refuse par le filtre de securite (cloud/src/nsfw_filter.ts, copies generees pour le bureau et Modal).",
+      "correction": "Reformuler. Si c'est un faux positif : ajouter un cas a tests/main/collisions-mots-courants.test.mjs puis corriger cloud/src/nsfw_filter.ts et regenerer les miroirs (`node build/miroir-moderation.mjs --sync`, `python build/moderation_modal/gen_module.py`).",
+      "rembourse": true
+    },
+    {
+      "ref": "E07", "http": "422", "motifs": ["no baked texture", "has no texture", "no texture", "painted area too small", "no hole", "already at 8192"],
+      "titre": "L'outil ne peut rien faire sur ce modele",
+      "symptome": "HTTP 422 avec une explication (pas de texture cuite, zone trop petite, aucun trou...).",
+      "cause": "Refus EXPLIQUE d'une operation qui ne changerait rien ou abimerait le maillage (le worker rembourse).",
+      "correction": "Lire le message : il dit quoi changer (texturer d'abord, peindre une zone plus grande...). Aucune panne a corriger.",
+      "rembourse": true
+    },
+    {
+      "ref": "E08", "http": "524", "motifs": ["\\b524\\b", "timed? ?out", "timeout", "AbortError"],
+      "titre": "L'etape a pris trop de temps",
+      "symptome": "HTTP 524 ou « timeout » (Cloudflare coupe chaque sous-requete a 100 s).",
+      "cause": "Demarrage a froid d'un conteneur Modal (instantane non pret apres un deploiement) ou conteneur sature.",
+      "correction": "`python build/rechauffer_apres_deploy.py --manches 3` apres chaque `modal deploy` ; verifier le maintien a chaud (`scaledown_window=300`) ; lire `modal app logs myfabmesh-cloud --source system`. Le rejeu avec `_cle_rejeu` rattache l'essai au calcul deja lance (un 524 n'annule pas Modal).",
+      "rembourse": true
+    },
+    {
+      "ref": "E09", "http": "", "motifs": ["Failed to fetch", "NetworkError", "network", "ERR_"],
+      "titre": "Probleme de reseau",
+      "symptome": "« Failed to fetch » dans le navigateur.",
+      "cause": "Connexion coupee (VPN, Wi-Fi), rechargement de la page pendant le travail, ou worker injoignable.",
+      "correction": "Verifier la connexion ; `curl -s https://myfabmesh-cloud.fabien65400.workers.dev/api/health` doit repondre 200 ; desactiver le VPN si le message revient (« socket connection closed »).",
+      "rembourse": false
+    },
+    {
+      "ref": "E10", "http": "5xx", "motifs": ["Service .* HTTP", "failed \\(credits refunded\\)", "Modal", "\\b50[0-9]\\b", "\\b502\\b"],
+      "titre": "Un service de calcul a echoue",
+      "symptome": "« <outil> failed (credits refunded) », « Service <op> HTTP 5xx ».",
+      "cause": "Exception ou redemarrage du conteneur Modal qui execute l'etape (memoire GPU, dependance absente, modele non charge).",
+      "correction": "`PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m modal app logs myfabmesh-cloud --since 30m --search \"<mot>\"` : la trace Python donne la cause. Si une dependance manque : build/check_modal_deps.py. Redeployer + rechauffer.",
+      "rembourse": true
+    },
+    {
+      "ref": "E11", "http": "503", "motifs": ["backend unavailable", "not configured", "R2 binding required", "kill switch", "switched off"],
+      "titre": "Service non configure ou coupe",
+      "symptome": "HTTP 503 « <service> backend unavailable (not configured) », « R2 binding required », « Modal is switched off (kill switch) ».",
+      "cause": "Une URL Modal (MODAL_*_URL) ou un secret manque dans l'environnement du worker, le bucket R2 n'est pas lie, ou l'interrupteur « Calcul GPU » de /admin2 est coupe.",
+      "correction": "`cd cloud && npx wrangler secret list` ; poser le secret manquant (l'URL des moteurs d'images doit finir par /text2image) ; /admin2 > Sante > interrupteur Modal ; verifier [[r2_buckets]] dans wrangler.toml.",
+      "rembourse": true
+    },
+    {
+      "ref": "E12", "http": "400", "motifs": ["required", "invalid", "must be", "host not allowed", "too large", "bad request"],
+      "titre": "Requete invalide",
+      "symptome": "HTTP 400 « <champ> required », « host not allowed », « must be … ».",
+      "cause": "Le client a envoye un champ manquant ou hors bornes, ou une URL qui n'est pas d'un hote de confiance (garde SSRF isTrustedAssetHost).",
+      "correction": "Comparer le corps envoye (meshyAPI-cloud.js) a la route (docs/pilotage_web.md). C'est presque toujours un defaut du client : ajouter un test.",
+      "rembourse": true
+    },
+    {
+      "ref": "E13", "http": "403", "motifs": ["forbidden", "not allowed", "banned", "suspended"],
+      "titre": "Acces refuse",
+      "symptome": "HTTP 403.",
+      "cause": "Compte suspendu, route reservee a l'administrateur, ou signature d'URL invalide ou expiree.",
+      "correction": "Verifier le statut du compte (/admin2 > Utilisateurs) ; les URL R2 signees expirent (champ exp) : redemander la ressource.",
+      "rembourse": false
+    },
+    {
+      "ref": "E14", "http": "404", "motifs": ["not found", "no such"],
+      "titre": "Ressource introuvable",
+      "symptome": "HTTP 404.",
+      "cause": "Projet, maillage ou fichier supprime ou deplace ; ancienne URL.",
+      "correction": "Recharger la liste des projets ; verifier la cle dans R2 (voir CLAUDE.md, section 2).",
+      "rembourse": false
+    },
+    {
+      "ref": "E99", "http": "", "motifs": [],
+      "titre": "Erreur inconnue",
+      "symptome": "Message sans correspondance.",
+      "cause": "Cas pas encore classe.",
+      "correction": "Copier l'erreur depuis la fenetre « Error » (bouton « Copier l'erreur »), la rechercher dans docs/codes_erreur.md (inventaire complet), puis ajouter une famille a build/codes_erreur_familles.json si elle revient.",
+      "rembourse": false
+    }
+  ]
+}

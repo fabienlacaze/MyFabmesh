@@ -3319,7 +3319,9 @@
     // formwork} (MANUAL). Note: cloud v1 renders flat per-material
     // palettes (no SDXL style-matched texture pass yet).
     generateConstructionStages3d: async ({ meshPath, meshUrl, stageCount, material, materials, projectName } = {}) => {
-      const url = meshUrl || meshPath;
+      // 25/10 : « meshUrl host not allowed » apres la generation : le chemin pouvait etre RELATIF (/r2/...), que le serveur ne sait pas verifier. URL absolue.
+      let url = meshUrl || meshPath;
+      try { if (url && /^\//.test(String(url))) url = new URL(String(url), window.location.origin).href; } catch (_) {}
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };
       try {
         const r = await postJSON('/api/construction-stages-3d', {

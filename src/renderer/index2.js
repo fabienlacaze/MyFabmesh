@@ -2073,13 +2073,13 @@ function renderProjectsBulkBar() {
 //    l'utilisateur n'est jamais reecrite.
 // ============================================================
 /* SOURIS DES VISUALISEURS 3D (25/10, demande du user) :
- *   clic DROIT = action 1 (peindre, poser, selectionner... selon l'outil) ; maintenu = en continu ;
- *   clic GAUCHE = action 2 (s'il y en a une) ; maintenu + mouvement = deplacement (translation X / Y) de la camera ;
+ *   clic GAUCHE = action de l'outil (peindre, poser, selectionner... selon l'outil) ; maintenu = en continu ;
+ *   clic DROIT maintenu + mouvement = deplacement (translation X / Y) de la camera ;
  *   molette = zoom de la camera ; clic MOLETTE maintenu + mouvement = rotation du modele.
- * Le menu contextuel du navigateur est supprime sur le canevas (le clic droit appartient a l'outil). */
+ * Le menu contextuel du navigateur est supprime sur le canevas (le clic droit sert a deplacer la camera). */
 function _sourisVisualiseur(controls, domEl) {
   try {
-    controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null };
+    controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
     controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
     controls.screenSpacePanning = true;
     controls.enableZoom = true;
@@ -15084,7 +15084,7 @@ async function _peInitViewport() {
     peState.controls = new OrbitControls(peState.camera, canvas);
     _sourisVisualiseur(peState.controls, canvas);
     peState.controls.enableDamping = true;
-    _sourisVisualiseur(peState.controls, canvas);   // 25/10 : clic droit = outil, gauche = deplacement, molette enfoncee = rotation
+    _sourisVisualiseur(peState.controls, canvas);   // 25/10 : clic gauche = outil, droit = deplacement, molette enfoncee = rotation
   } catch (e) { console.error('[paint-emissive] OrbitControls error:', e); }
   peState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -15246,7 +15246,7 @@ function _pcSetSource(clientX, clientY) {
       peState.cloneSrcMarker.scale.setScalar(Math.max(peState.brushSize * 0.5 * unitsPerPx, 1e-4));
     }
   } catch (_) {}
-  showToast(_i18nT('Source set — right-click and drag to clone.'), 'success', 1800);
+  showToast(_i18nT('Source set — left-click and drag to clone.'), 'success', 1800);
 }
 
 // Fast raycast for a client-space point, reusing a cached canvas rect and the
@@ -15745,29 +15745,29 @@ function _peConfigureModeUI() {
   const status = $('pe-status');
   if (cloneMode) {
     if (h2) h2.textContent = '🩹 ' + _i18nT('3D Clone Stamp');
-    if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+left-click = set the source, then right-click and drag = clone. Pan (left-drag), rotate (middle-drag), zoom, magnifier, undo/redo.');
+    if (sub) sub.textContent = _i18nT('Clone one area of the texture onto another. Ctrl+left-click = set the source, then left-click and drag = clone. Pan (right-drag), rotate (middle-drag), zoom, magnifier, undo/redo.');
     if (apply) apply.textContent = '💾 ' + _i18nT('Save new version');
-    if (status) status.textContent = _i18nT('Ctrl+left-click = source · right-click + drag = clone · left-drag = pan · middle-drag = rotate · wheel = zoom');
+    if (status) status.textContent = _i18nT('Ctrl+left-click = source · left-click + drag = clone · right-drag = pan · middle-drag = rotate · wheel = zoom');
   } else if (maskMode && peState.recolor) {
     if (h2) h2.textContent = '🎨 ' + _i18nT('Recolor a part');
     if (sub) sub.textContent = _i18nT('Paint the part to recolor straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then apply.');
     if (apply) apply.textContent = '🎨 ' + _i18nT('Recolor');
-    if (status) status.textContent = _i18nT('Right-click + drag = paint the area (white). Left-drag = pan. Middle-drag = rotate. Wheel = zoom.');
+    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-drag = pan. Middle-drag = rotate. Wheel = zoom.');
   } else if (maskMode && peState.reshape) {
     if (h2) h2.textContent = '🖌 ' + _i18nT('Reshape a region (draw)');
     if (sub) sub.textContent = _i18nT('Paint the part to rebuild straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe what should replace it.');
     if (apply) apply.textContent = '🧬 ' + _i18nT('Rebuild this part');
-    if (status) status.textContent = _i18nT('Right-click + drag = paint the area (white). Left-drag = pan. Middle-drag = rotate. Wheel = zoom.');
+    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-drag = pan. Middle-drag = rotate. Wheel = zoom.');
   } else if (maskMode) {
     if (h2) h2.textContent = '🎨 ' + _i18nT('Re-texture an area');
     if (sub) sub.textContent = _i18nT('Paint the area to re-texture straight on the 3D mesh (orbit, zoom, magnifier, undo/redo), then describe the new look and apply.');
     if (apply) apply.textContent = '✨ ' + _i18nT('Apply re-texture');
-    if (status) status.textContent = _i18nT('Right-click + drag = paint the area (white). Left-drag = pan. Middle-drag = rotate. Wheel = zoom.');
+    if (status) status.textContent = _i18nT('Left-click + drag = paint the area (white). Right-drag = pan. Middle-drag = rotate. Wheel = zoom.');
   } else {
     if (h2) h2.textContent = '💡 Paint Emissive';
     if (sub) sub.innerHTML = 'Paint glow areas (lamps, windows, runes). The painted areas become a separate <code>T_emissive</code> texture wired to <code>emissiveMap</code> on the material.';
     if (apply) apply.textContent = '💾 Save new version';
-    if (status) status.textContent = 'Right-click + drag on the mesh to paint. Left-drag = pan, middle-drag = rotate.';
+    if (status) status.textContent = 'Left-click + drag on the mesh to paint. Right-drag = pan, middle-drag = rotate.';
   }
 }
 
@@ -15925,7 +15925,7 @@ function openPaintEmissive(opts = {}) {
     const down = (e) => {
       // 25/10 : clic DROIT = action 1 (peindre / cloner, maintenu = en continu) ; clic GAUCHE = action 2 (Ctrl + clic : source du tampon) ; le reste = camera.
       if (peState.cloneMode && e.button === 0 && (e.ctrlKey || e.metaKey)) { _pcSetSource(e.clientX, e.clientY); return; }
-      if (e.button !== 2) return;
+      if (e.button !== 0) return;
       peState.isPainting = true;
       cv.setPointerCapture(e.pointerId);
       if (peState.cloneMode) _pcStampClone(e.clientX, e.clientY, true);
@@ -16338,7 +16338,7 @@ async function _pmInitViewport() {
     pmState.controls = new OrbitControls(pmState.camera, canvas);
     _sourisVisualiseur(pmState.controls, canvas);
     pmState.controls.enableDamping = true;
-    _sourisVisualiseur(pmState.controls, canvas);   // 25/10 : clic droit = outil, gauche = deplacement, molette enfoncee = rotation
+    _sourisVisualiseur(pmState.controls, canvas);   // 25/10 : clic gauche = outil, droit = deplacement, molette enfoncee = rotation
   } catch (e) { console.error('[paint-mesh] OrbitControls:', e); }
   pmState.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.0));
   const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -16584,7 +16584,7 @@ async function _pmLoadMesh(meshPath) {
       pmState.origModel.traverse((o) => { if (o.isMesh && o.geometry) pmState.tris += o.geometry.index ? o.geometry.index.count / 3 : (o.geometry.attributes.position?.count || 0) / 3; });
       await _pmSetupCanvasAndBind();
       const status = document.getElementById('pm-status');
-      if (status) status.textContent = 'Ready — right-click to paint, left-drag to pan, middle-drag to rotate.';
+      if (status) status.textContent = 'Ready — left-click to paint, right-drag to pan, middle-drag to rotate.';
       try { setViewerLoading('pm-viewport-wrap', false); } catch (_) {}
     };
     // Maillage DEJA affiche dans le viewer de l'etape Mesh : on en prend une copie au lieu de le retelecharger et de le
@@ -16981,7 +16981,7 @@ function openPaintMesh(opts = {}) {
     await _pmInitViewport();
     const cv = pmState.renderer.domElement;
     cv.onpointerdown = (e) => {
-      if (e.button !== 2) return;   // clic droit = pinceau / decalque (25/10, souris commune des visualiseurs 3D)
+      if (e.button !== 0) return;   // clic gauche = pinceau / decalque (25/10, souris commune des visualiseurs 3D)
       if (pmState.tool === 'decal') { _pmDecalPoser(e.clientX, e.clientY); return; }
       pmState.isPainting = true;
       cv.setPointerCapture(e.pointerId);
@@ -17843,7 +17843,7 @@ function _meDragPlaneAxis(e) {
   }
 }
 function _meMouseDown(e) {
-  if (e.button !== 2 || e.altKey) return;   // clic droit = outil (25/10, souris commune des visualiseurs 3D)
+  if (e.button !== 0 || e.altKey) return;   // clic gauche = outil (25/10, souris commune des visualiseurs 3D)
   // Move gizmo owns all pointer interaction (TransformControls has its own
   // listeners) — never start a brush stroke while it's up.
   if (meState.moveActive) return;
@@ -22141,7 +22141,10 @@ function _archiverJob(j) {
     finiLe: Date.now(),
     projectName: _jobProjectName(j) || null,
     sourceImageUrl: vignette,
-    errorMessage: j.errorMessage ? String(j.errorMessage).slice(0, 300) : null,
+    errorMessage: j.errorMessage ? String(j.errorMessage).slice(0, 2000) : null,
+    errorRaw: j.errorRaw ? String(j.errorRaw).slice(0, 2000) : null,   // texte EXACT recu, avant toute reformulation
+    // 25/10 : parametres du travail, gardes pour la fenetre « Error » (JSON sur : un objet cyclique ne doit jamais casser l'archivage)
+    params: (() => { try { return j.params ? JSON.parse(JSON.stringify(j.params)) : null; } catch (_) { return null; } })(),
   };
   state.jobsTermines = [entree, ...(state.jobsTermines || [])].slice(0, 200);
   _sauverJobsTermines();
@@ -22167,6 +22170,157 @@ function _programmerArchivage(j, delai) {
     renderJobsTermines();
   }, delai);
 }
+
+/* ERREURS DES TRAVAUX (25/10, demande du user : « je ne dois pas pouvoir avoir des echecs sans avoir le contenu exact de l'erreur ; si la generation est en
+ * erreur il faut marquer "error" plutot que "aller a" pour ouvrir une popup avec l'image de l'item, l'historique des parametres utilises et le code erreur et
+ * son explicatif »). Un travail en echec montre « Error » : la fenetre donne l'image, les parametres, le code, l'explication et le message EXACT. */
+function _expliquerErreur(message) {
+  const m = String(message || '');
+  const http = (m.match(/\bHTTP\s*(\d{3})\b/i) || [])[1] || (/\((\d{3})\)/.exec(m) || [])[1] || '';
+  const rayon = (m.match(/\bcf-ray\s*([a-z0-9-]+)/i) || [])[1] || '';
+  let code = http ? 'HTTP ' + http : '';
+  let titre, explication, ref = 'E99';   // ref : identifiant du dictionnaire des codes d'erreur (docs/codes_erreur.md)
+  if (/Worker exceeded resource limits/i.test(m)) {
+    ref = 'E01';
+    code = 'HTTP ' + (http || '503') + ' · Worker exceeded resource limits';
+    titre = 'The site server ran out of resources';
+    explication = 'The site server ran out of memory or time while handling a large model file. Your credits are refunded. Try again; if it fails again, send this code to support.';
+  } else if (/prompt required/i.test(m)) {
+    ref = 'E02';
+    code = code || 'prompt required'; titre = 'A description is missing';
+    explication = 'This tool needs a text description and none was sent. Type one and try again.';
+  } else if (/insufficient credits|\b402\b/i.test(m)) {
+    ref = 'E03';
+    code = code || 'HTTP 402'; titre = 'Not enough credits';
+    explication = 'Your balance does not cover this step. Nothing was charged.';
+  } else if (/limit reached|daily budget|\b429\b/i.test(m)) {
+    ref = 'E04';
+    code = code || 'HTTP 429'; titre = 'A usage limit was reached';
+    explication = 'A daily usage limit (yours or the service\'s) was reached. Nothing was charged; try again later.';
+  } else if (/unauthori[sz]ed|\b401\b|session/i.test(m)) {
+    ref = 'E05';
+    code = code || 'HTTP 401'; titre = 'Your session has expired';
+    explication = 'Sign in again, then retry.';
+  } else if (/content filter|blocked/i.test(m)) {
+    ref = 'E06';
+    code = code || 'content filter'; titre = 'Blocked by the content filter';
+    explication = 'The text or the image was refused by the safety filter. Rephrase and try again.';
+  } else if (/no baked texture|no texture|has no texture/i.test(m)) {
+    ref = 'E07';
+    code = code || 'HTTP 422'; titre = 'No texture to work on';
+    explication = 'This model has no baked color texture for this tool (for example a closed model made of vertex colors). Credits are refunded.';
+  } else if (/\b524\b|timed? ?out|timeout/i.test(m)) {
+    ref = 'E08';
+    code = code || 'HTTP 524'; titre = 'The step took too long';
+    explication = 'The computing service was cold or busy and did not answer in time. Credits are refunded. Retry now: the service is warmer.';
+  } else if (/Failed to fetch|NetworkError|network/i.test(m)) {
+    ref = 'E09';
+    code = code || 'network'; titre = 'Network problem';
+    explication = 'The connection between your browser and the site was cut (VPN, Wi-Fi, or a reload during the job). Check it and retry.';
+  } else if (/host not allowed|\brequired\b|must be|too large/i.test(m)) {
+    ref = 'E12'; code = code || 'HTTP 400'; titre = 'Invalid request';
+    explication = 'The page sent something the site refused (a missing field, or a file address the site does not trust). The exact message below names it. Send it to support.';
+  } else if (/\b5\d\d\b|failed \(credits refunded\)|Service .* HTTP|Modal/i.test(m)) {
+    ref = 'E10';
+    titre = 'A computing service failed';
+    explication = 'The service that runs this step failed or restarted. Credits are refunded. Retry in a minute; if it persists, send the exact message below to support.';
+  } else if (!m.trim() || /^unknown( error)?$/i.test(m.trim()) || /No error message was returned/i.test(m)) {
+    ref = 'E99';
+    code = code || 'no message'; titre = 'No detail was returned';
+    explication = 'The step ended without any message. Open the browser console (F12) or send the job name, time and parameters below to support.';
+  } else {
+    code = code || 'error'; titre = 'Unexpected error';
+    explication = 'This error is not one we know yet. Copy it and send it to support: the exact message below is what we need.';
+  }
+  return { code, rayon, titre, explication, ref };
+}
+function _rapportErreurTravail(e) {
+  const x = _expliquerErreur(e.errorRaw || e.errorMessage);
+  const lignes = [
+    'Job: ' + String(e.name || ''),
+    'Project: ' + String(e.projectName || ''),
+    'When: ' + (e.finiLe ? new Date(e.finiLe).toISOString() : ''),
+    'Code: ' + x.ref + ' ' + x.code + (x.rayon ? ' (cf-ray ' + x.rayon + ')' : ''),
+    'Error: ' + String(e.errorRaw || e.errorMessage || '(no message)'),
+  ];
+  if (e.params && typeof e.params === 'object') {
+    for (const k of Object.keys(e.params)) {
+      const v = e.params[k];
+      if (v === undefined || v === null || v === '') continue;
+      let s; try { s = typeof v === 'object' ? JSON.stringify(v) : String(v); } catch (_) { s = String(v); }
+      lignes.push('  ' + k + ': ' + s.slice(0, 400));
+    }
+  }
+  return lignes.join('\n');
+}
+function _ouvrirErreurTravail(e) {
+  if (!e) return;
+  const x = _expliquerErreur(e.errorRaw || e.errorMessage);
+  const detail = String(e.errorRaw || e.errorMessage || '').trim() || _i18nT('No error message was returned (the step ended without detail).');
+  const duree = e.startedAt && e.finiLe ? fmtDuration(e.finiLe - e.startedAt) : '';
+  let quand = ''; try { quand = new Date(e.finiLe || Date.now()).toLocaleString(_locale()); } catch (_) {}
+  const lignesParams = [];
+  if (e.params && typeof e.params === 'object') {
+    for (const k of Object.keys(e.params)) {
+      const v = e.params[k];
+      if (v === undefined || v === null || v === '' || v === false) continue;
+      let s; try { s = v === true ? '\u2713' : (typeof v === 'object' ? JSON.stringify(v) : String(v)); } catch (_) { s = String(v); }
+      lignesParams.push(`<div class="gh-row"><span class="gh-k">${escapeHtml(k)}</span><span class="gh-v">${escapeHtml(_maskAiNames(s.slice(0, 600)))}</span></div>`);
+    }
+  }
+  const vign = e.sourceImageUrl ? `<img class="gh-thumb" src="${escapeHtml(e.sourceImageUrl)}" alt="">` : '<div class="gh-thumb gh-thumb-empty">&#9888;</div>';
+  const ov = document.createElement('div');
+  ov.className = 'gh-overlay';
+  ov.innerHTML = `
+    <div class="gh-modal">
+      <div class="gh-head">
+        <span class="gh-head-ico" style="color:#ff6b6b;">&#9888;</span>
+        <div class="gh-head-txt">
+          <div class="gh-title">${escapeHtml(_i18nT('Error'))}</div>
+          <div class="gh-sub">${escapeHtml(_displayJobName(e.name))}</div>
+        </div>
+        <button class="gh-close" title="${escapeHtml(_i18nT('Close'))}">&#10005;</button>
+      </div>
+      <div class="gh-body"><div class="gh-timeline">
+        <div class="gh-step" data-kind="op"><div class="gh-card" style="border-color:#ff6b6b55;">
+          ${vign}
+          <div class="gh-info">
+            <div class="gh-step-title">${escapeHtml(_i18nT(x.titre))}</div>
+            <div style="margin:4px 0 8px;"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#ff6b6b22;color:#ff8a8a;font-family:monospace;font-size:12px;">${escapeHtml(x.ref)} · ${escapeHtml(x.code)}${x.rayon ? ' · cf-ray ' + escapeHtml(x.rayon) : ''}</span></div>
+            <div style="font-size:13px;line-height:1.45;margin-bottom:10px;">${escapeHtml(_i18nT(x.explication))}</div>
+            <div class="gh-k" style="margin-bottom:4px;">${escapeHtml(_i18nT('Exact message'))}</div>
+            <pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;background:#0006;padding:8px;border-radius:6px;max-height:160px;overflow:auto;margin:0 0 10px;">${escapeHtml(detail)}</pre>
+            <div class="gh-ts">${escapeHtml([e.projectName, duree, quand].filter(Boolean).join(' \u00b7 '))}</div>
+          </div>
+        </div></div>
+        ${lignesParams.length ? `<div class="gh-step" data-kind="op"><div class="gh-card"><div class="gh-info">
+          <div class="gh-step-title">${escapeHtml(_i18nT('Parameters used'))} (${lignesParams.length})</div>
+          <div class="gh-params">${lignesParams.join('')}</div></div></div></div>` : ''}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding:12px 4px 2px;">
+        <button class="ghost-btn" data-act="copier" style="padding:8px 14px;">${escapeHtml(_i18nT('Copy the error'))}</button>
+        <button class="primary-btn" data-act="fermer" style="padding:8px 14px;">OK</button>
+      </div></div>
+    </div>`;
+  const fermer = () => { try { ov.remove(); } catch (_) {} document.removeEventListener('keydown', onKey); };
+  const onKey = (ev) => { if (ev.key === 'Escape') fermer(); };
+  document.addEventListener('keydown', onKey);
+  ov.addEventListener('click', (ev) => { if (ev.target === ov) fermer(); });
+  ov.querySelector('.gh-close').addEventListener('click', fermer);
+  ov.querySelector('[data-act="fermer"]').addEventListener('click', fermer);
+  ov.querySelector('[data-act="copier"]').addEventListener('click', async (ev) => {
+    const b = ev.currentTarget;
+    try { await navigator.clipboard.writeText(_rapportErreurTravail(e)); b.textContent = _i18nT('Copied'); }
+    catch (_) { try { const ta = document.createElement('textarea'); ta.value = _rapportErreurTravail(e); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); b.textContent = _i18nT('Copied'); } catch (__) {} }
+  });
+  document.body.appendChild(ov);
+}
+window._ouvrirErreurTravailId = function (id) {
+  const j = (state.jobs || []).find((x) => x.id === id);
+  if (!j) return;
+  _ouvrirErreurTravail({ name: j.name, projectName: _jobProjectName(j) || null, sourceImageUrl: j.sourceImageUrl || null, params: j.params || null,
+    errorMessage: j.errorMessage || '', errorRaw: j.errorRaw || null, startedAt: j.startedAt || null, finiLe: Date.now() });
+};
 
 /** Liste « Travaux finis ». Reconstruite seulement quand elle change. */
 function renderJobsTermines() {
@@ -22195,7 +22349,7 @@ function renderJobsTermines() {
           <span class="job-fini-2-icone" aria-hidden="true">${icone}</span>
           ${_iconeCategorieHtml(_jobStepIndex(e), vign)}
           <span class="job-fini-2-nom">${escapeHtml(_displayJobName(e.name))}</span>
-          ${aller ? `<button type="button" class="job-goto-btn" data-fini-goto="${escapeHtml(e.finiId)}">Go to</button>` : ''}
+          ${e.statut === 'echec' ? `<button type="button" class="job-goto-btn job-error-btn" data-fini-erreur="${escapeHtml(e.finiId)}" style="color:#ff8a8a;border-color:#ff6b6b88;">Error</button>` : (aller ? `<button type="button" class="job-goto-btn" data-fini-goto="${escapeHtml(e.finiId)}">Go to</button>` : '')}
         </div>
         <div class="job-fini-2-meta">${escapeHtml([duree, heure].filter(Boolean).join(' \u00b7 '))}</div>
         ${e.errorMessage ? `<div class="job-fini-2-erreur">${escapeHtml(e.errorMessage)}</div>` : ''}
@@ -22324,11 +22478,14 @@ function completeJob(id, success, errorMessage) {
   // Sous-tache terminee : son parent attendait peut-etre qu'elle.
   setTimeout(() => _terminerParentEnAttente(j), 0);
   if (!success && errorMessage) {
+    j.errorRaw = String(errorMessage);   // 25/10 : texte EXACT garde pour la fenetre « Error »
     // Mappe les OOM VRAM/RAM en message FR clair (au lieu d'une stack brute).
     j.errorMessage = (typeof humanizeErrorMessage === 'function')
       ? humanizeErrorMessage(errorMessage)
       : String(errorMessage);
   }
+  // 25/10 : jamais d'echec sans texte (user : « je ne dois pas pouvoir avoir des echecs sans avoir le contenu exact de l'erreur »)
+  if (!success && !j.errorMessage) j.errorMessage = 'No error message was returned (the step ended without detail).';
   // 2026-06-02 liveliness: trigger the one-shot bounce-and-flash on
   // the matching step card so the user gets a satisfying visual cue
   // that something just succeeded. CSS animation is 1.5s; we remove
@@ -22895,7 +23052,7 @@ function renderJobs() {
         <div class="job-item-2-header">
           ${_iconeCategorieHtml(_jobStepIndex(j), sbThumbHtml)}
           <div class="job-item-2-name">${escapeHtml(_displayJobName(j.name))}</div>
-          ${hasStep ? `<button class="job-goto-btn" onclick="event.stopPropagation(); window._navigateToJobStep(${j.id})" title="Jump to this step">Go to</button>` : ''}
+          ${j.status === 'error' ? `<button class="job-goto-btn job-error-btn" onclick="event.stopPropagation(); window._ouvrirErreurTravailId(${j.id})" title="Show the exact error" style="color:#ff8a8a;border-color:#ff6b6b88;">Error</button>` : (hasStep ? `<button class="job-goto-btn" onclick="event.stopPropagation(); window._navigateToJobStep(${j.id})" title="Jump to this step">Go to</button>` : '')}
           ${_boutonPauseHtml(j)}
           ${canCancel ? `<button class="job-cancel-btn" onclick="event.stopPropagation(); window._cancelJob(${j.id})" title="Cancel job">&#10005;</button>` : ''}
         </div>
@@ -23393,6 +23550,13 @@ document.getElementById('jobs-termines-effacer')?.addEventListener('click', () =
   renderJobs();
 });
 document.getElementById('jobs-termines-liste')?.addEventListener('click', (e) => {
+  const be = e.target.closest('[data-fini-erreur]');
+  if (be) {
+    e.stopPropagation();
+    const ent = (state.jobsTermines || []).find(x => x.finiId === be.dataset.finiErreur);
+    if (ent) _ouvrirErreurTravail(ent);
+    return;
+  }
   const b = e.target.closest('[data-fini-goto]');
   if (!b) return;
   e.stopPropagation();
@@ -28397,7 +28561,7 @@ function bindLandmarkRaycaster(canvas, getModel, getCamera, getControls) {
     const controls = getControls?.();
     if (!model || !camera) return;
     // 25/10 : pose d'un repere armee = clic DROIT (action 1) ; glisser un repere existant = clic GAUCHE (action 2) ; le reste = camera.
-    if (lmActive ? e.button !== 2 : e.button !== 0) return;
+    if (e.button !== 0) return;
 
     // CASE 1: a landmark is armed in the sidebar → place it at the click point
     if (lmActive) {
@@ -30248,7 +30412,7 @@ function _ptsSurvolerOsListe(i) {
 function _ptsLierCanevas(canevas, camera) {
   if (!canevas) return;
   canevas.addEventListener('pointerdown', (e) => {
-    if (!_pts.actif || e.button !== (_pts.ajout ? 2 : 0) || !lmFsModel) return;   // ajout = clic droit (action 1), glisser un point / un os = clic gauche (25/10)
+    if (!_pts.actif || e.button !== 0 || !lmFsModel) return;   // ajout = clic droit (action 1), glisser un point / un os = clic gauche (25/10)
     const cam = camera();
     if (!cam) return;
     if (_pts.ajout) {
