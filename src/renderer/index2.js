@@ -33662,6 +33662,7 @@ function _ouvrirLancement(def, boutonPrix) {
     document.getElementById('lct-texte').textContent = t(def.texte);
     const src = def.apercu === 'image' ? _lctImageCourante() : '';
     document.getElementById('lct-corps').classList.toggle('sans-apercu', !src);
+    m.querySelector('.lct-carte').classList.toggle('fen-3d', !!src);   // LOT W23 : gabarit 3D (apercu grand a gauche, pied pleine largeur) seulement avec apercu
     document.getElementById('lct-apercu').hidden = !src;
     if (src) document.getElementById('lct-image').src = src;
     const lancer = document.getElementById('lct-lancer');

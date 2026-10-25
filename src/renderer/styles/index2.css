@@ -5371,3 +5371,12 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
   .modal-card.lct-carte:not(:has(.fen-corps.sans-apercu)) .fen-corps { grid-template-columns: 1fr; }
   #modal-lancement .modal-card.lct-carte:not(:has(.fen-corps.sans-apercu)) .fen-apercu { width: 100%; }
 }
+/* ══ LOT W23 (25/10) : fenetre de lancement = gabarit .fen-3d (apercu a gauche a la taille commune, phrase d'aide sous le titre,
+   pied : Annuler puis action sur toute la largeur restante). Sans apercu : petite carte d'origine. ══ */
+#modal-lancement .modal-card.fen-3d.lct-carte { width: min(1700px, 97vw); max-width: 97vw; height: min(94vh, 1000px); }
+#modal-lancement .modal-card.fen-3d .fen-apercu { display: flex; align-items: center; justify-content: center; }
+#modal-lancement .modal-card.fen-3d #lct-image { max-width: 100%; max-height: 100%; width: 100%; height: 100%; }
+#modal-lancement .modal-card.fen-3d .fen-form { justify-content: flex-start; }
+#modal-lancement .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-lancement .modal-card.lct-carte:not(.fen-3d) { width: 460px; height: auto; }
+#modal-lancement .modal-card.lct-carte:not(.fen-3d) .modal-subtitle { margin: 6px 0 0; }
