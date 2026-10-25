@@ -53,26 +53,48 @@ _ETAT_CACHE: dict = {"t": 0.0, "v": None}
 _ETAT_FONCTIONS: dict = {}
 
 
-def _etat_service(cle: str) -> dict:
-    app_nom, classe, nom = _SERVICES_ETAT[cle]
-    # 25/10 : l'objet etait garde pour toute la vie du conteneur ; apres un `modal deploy` il pointait l'ANCIENNE version de la fonction
-    # (compteurs a zero : le panneau affichait « froid » partout alors que des conteneurs tournaient). Il est donc relu toutes les 90 s.
-    fn, ne_le = _ETAT_FONCTIONS.get(cle, (None, 0.0))
+# 25/10 : « Generation d'images » ne regardait que MyFabmeshPredictor (SDXL) : un conteneur Rapide / Meilleur (application myfabmesh-imagegen)
+# vivant et occupe s'affichait « froid ». Les compteurs de ces classes sont ADDITIONNES a ceux du service.
+_EXTRA_ETAT = {
+    "text2image": [("myfabmesh-imagegen", "ZImageTurbo", "web"), ("myfabmesh-imagegen", "QwenImage", "web")],
+}
+
+
+def _stats_cible(cle: str, app_nom, classe, nom):
+    # l'objet est relu toutes les 90 s : apres un `modal deploy` il pointait l'ANCIENNE version de la fonction (compteurs a zero)
+    cache = (cle, app_nom, classe, nom)
+    fn, ne_le = _ETAT_FONCTIONS.get(cache, (None, 0.0))
     if fn is None or time.time() - ne_le > 90:
         fn = (getattr(modal.Cls.from_name(app_nom, classe)(), nom) if classe
               else modal.Function.from_name(app_nom, nom))
-        _ETAT_FONCTIONS[cle] = (fn, time.time())
-    s = fn.get_current_stats()
-    if s.num_running_inputs > 0:
+        _ETAT_FONCTIONS[cache] = (fn, time.time())
+    return fn.get_current_stats()
+
+
+def _etat_service(cle: str) -> dict:
+    app_nom, classe, nom = _SERVICES_ETAT[cle]
+    cibles = [(app_nom, classe, nom)] + list(_EXTRA_ETAT.get(cle, []))
+    runners = running = headroom = backlog = 0
+    for k, (a, cl, n) in enumerate(cibles):
+        try:
+            s = _stats_cible(cle, a, cl, n)
+        except modal.exception.NotFoundError:
+            if k == 0:
+                raise
+            continue                        # classe annexe absente : on garde ce qui est lu
+        runners += s.num_total_runners
+        running += s.num_running_inputs
+        headroom += s.input_headroom
+        backlog += s.backlog
+    if running > 0:
         etat = "busy"
-    elif s.num_total_runners > 0 and s.input_headroom > 0:
+    elif runners > 0 and headroom > 0:
         etat = "warm"
-    elif s.num_total_runners > 0 or s.backlog > 0:
+    elif runners > 0 or backlog > 0:
         etat = "starting"
     else:
         etat = "cold"
-    return {"etat": etat, "conteneurs": s.num_total_runners,
-            "en_cours": s.num_running_inputs, "attente": s.backlog}
+    return {"etat": etat, "conteneurs": runners, "en_cours": running, "attente": backlog}
 
 
 # FENETRE DE MAINTIEN (2026-10-13, levier L8 de l'etude des couts du 11/10) : 300 s -> 20 s. NON DEPLOYE au moment du commit :
