@@ -2356,6 +2356,105 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
   return { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos };
 }
 
+// ------------------------------------------------------------------ POLISSAGE AUTOMATIQUE (2026-10-25, idee du user : « une IA qui realigne ce qui ne va pas »)
+// Sans modele : un correcteur par OPTIMISATION sous GARDE. Apres le calcul d'un clip, on mesure ses defauts sur CE squelette (a-coups des articulations,
+// pieds qui glissent en appui, os sous le sol), on essaie trois forces de lissage temporel des rotations locales (filtre circulaire : un clip de marche est
+// periodique), et on GARDE le meilleur essai seulement s'il reduit les a-coups sans AUCUN recul sur le glissement des pieds et le sous-sol ; sinon le clip
+// d'origine est rendu a l'octet. Desactivable : globalThis.__polissageAnimation = false. Rend aussi infos.poli = { applique, force, avant, apres }.
+const FORCES_POLISSAGE = [0.35, 0.6, 0.85];
+function _fkMonde(sq, clip) {
+  const { par } = sq, J = par.length, nT = clip.R.length;
+  const ordre = [], E = enfantsDe(par), file = [...sq.racines];
+  while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
+  const D = Array.from({ length: nT }, () => new Array(J)), P = Array.from({ length: nT }, () => new Array(J));
+  const sec = new Map((clip.racinesSec || []).map((r) => [r.j, r.pos]));
+  for (let i = 0; i < nT; i++) {
+    for (const j of ordre) {
+      if (par[j] < 0) {
+        D[i][j] = clip.R[i][j];
+        P[i][j] = j === sq.racine ? clip.racineMonde[i] : (sec.get(j) ? sec.get(j)[i] : sq.P0[j]);
+      } else {
+        D[i][j] = mm(D[i][par[j]], clip.R[i][j]);
+        P[i][j] = add(P[i][par[j]], mv(D[i][par[j]], sub(sq.P0[j], sq.P0[par[j]])));
+      }
+    }
+  }
+  return { D, P };
+}
+function _defautsClip(sq, clip, det) {
+  const { par, P0 } = sq, J = par.length, nT = clip.R.length;
+  const { D, P } = _fkMonde(sq, clip);
+  const H = Math.max(ptpAxe(P0, 1), 1e-6), sol = det.sol;
+  let sousSol = 0;
+  for (let i = 0; i < nT; i++) for (let j = 0; j < J; j++) sousSol = Math.max(sousSol, sol - P[i][j][1]);
+  // a-coups : plus grand changement de VITESSE angulaire d'une image a la suivante, sur les articulations des membres (comme animerAllure)
+  const membres = new Set();
+  for (const p of det.pattes) for (const j of p.chaine.slice(0, -1)) membres.add(j);
+  for (const c of [...det.queues, ...det.tetes]) for (const j of c.slice(0, -1)) membres.add(j);
+  let acoups = 0;
+  for (const j of membres) {
+    if (par[j] < 0) continue;
+    let prec = null;
+    for (let i = 1; i < nT; i++) {
+      const w = angleRot(mm(tr(D[i - 1][j]), D[i][j]));
+      if (prec !== null) acoups = Math.max(acoups, Math.abs(w - prec));
+      prec = w;
+    }
+  }
+  // glissement : vitesse horizontale moyenne du bout de chaque patte pendant l'appui (pied pres du sol), en fraction de la hauteur du corps
+  let gl = 0, ng = 0;
+  for (const p of det.pattes) {
+    for (let i = 1; i < nT; i++) {
+      const a = P[i - 1][p.bout], b = P[i][p.bout];
+      if (Math.min(a[1], b[1]) - sol < 0.04 * H) { gl += Math.hypot(b[0] - a[0], b[2] - a[2]); ng++; }
+    }
+  }
+  return { acoups: acoups * 180 / Math.PI, sousSol: 100 * sousSol / H, glissement: ng ? 100 * (gl / ng) / H : 0 };
+}
+function _lisserClip(sq, clip, force) {
+  const nT = clip.R.length, J = sq.par.length;
+  const R = clip.R.map((Ri) => Ri.map((m) => m.slice()));
+  for (let j = 0; j < J; j++) {
+    if (sq.par[j] < 0) continue;
+    // articulation IMMOBILE sur tout le clip (pieds plantes d'une attente) : on n'y touche pas, sinon le bruit numerique du filtre ajoute des a-coups la ou il n'y en a aucun
+    let mobile = false;
+    for (let i = 1; i < nT && !mobile; i++) for (let k = 0; k < 9; k++) if (Math.abs(clip.R[i][j][k] - clip.R[0][j][k]) > 1e-6) { mobile = true; break; }
+    if (!mobile) continue;
+    for (let i = 0; i < nT; i++) {
+      const a = clip.R[(i - 1 + nT) % nT][j], b = clip.R[i][j], c = clip.R[(i + 1) % nT][j];
+      const m = new Array(9);
+      for (let k = 0; k < 9; k++) m[k] = (1 - force) * b[k] + force * (0.25 * a[k] + 0.5 * b[k] + 0.25 * c[k]);
+      R[i][j] = orthonormer(m);
+    }
+  }
+  return { ...clip, R, infos: { ...clip.infos } };
+}
+function polirClip(sq, clip) {
+  if (globalThis.__polissageAnimation === false || !clip || !clip.R || clip.R.length < 8) return clip;
+  const nom = String(clip.nom || '');
+  if (/^(death|lie_down|idle|eat|attack|hit)/.test(nom)) return clip;   // actions et attente : mouvements uniques ou sans a-coups a corriger (le bruit du filtre y ajouterait 0,2 degre)
+  try {
+    const det = detecterPattes(sq.par, sq.P0, sq.racine);
+    if (!det.pattes.length) return clip;
+    const avant = _defautsClip(sq, clip, det);
+    let meilleur = null;
+    for (const f of FORCES_POLISSAGE) {
+      const essai = _lisserClip(sq, clip, f);
+      if (!essai.R.every((Ri) => Ri.every((m) => m.every(Number.isFinite)))) continue;
+      const apres = _defautsClip(sq, essai, det);
+      // GARDE : aucun recul sur le glissement ni sur le sous-sol ; gain d'a-coups d'au moins 5 %
+      if (apres.glissement > avant.glissement + 0.05 || apres.sousSol > avant.sousSol + 0.1) continue;
+      if (apres.acoups > avant.acoups * 0.95) continue;
+      if (!meilleur || apres.acoups < meilleur.apres.acoups) meilleur = { essai, apres, f };
+    }
+    if (!meilleur) { if (clip.infos) clip.infos.poli = { applique: false, avant: _arr(avant) }; return clip; }
+    meilleur.essai.infos.poli = { applique: true, force: meilleur.f, avant: _arr(avant), apres: _arr(meilleur.apres) };
+    meilleur.essai.infos.acoups_max_deg = +meilleur.apres.acoups.toFixed(1);
+    return meilleur.essai;
+  } catch (e) { return clip; }
+}
+const _arr = (d) => ({ acoups: +d.acoups.toFixed(1), sous_sol_pct: +d.sousSol.toFixed(2), glissement_pct: +d.glissement.toFixed(2) });
+
 /** Calcul protégé : une allure qui échoue ou rend une valeur invalide donne un mouvement minimal. */
 // ------------------------------------------------------------------ mouvement SECONDAIRE (25/10, transversal)
 // Queue, oreilles, cheveux, capes, ailes pendantes, encolure : une chaine libre n'est pas rigide, elle SUIT avec
@@ -2587,7 +2686,11 @@ function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espe
     }
     // mouvement secondaire (queue, oreilles, chaines pendantes) : s'ajoute au calcul de la famille ; echec = clip inchange
     if (fini(c) && allure !== 'death') { try { const c2 = appliquerSecondaire(sq, c, allure, fps); if (c2 && fini(c2)) c = c2; } catch (_) { /* clip de la famille conserve */ } }
-    if (fini(c)) return nommer(c);
+    if (fini(c)) {
+      // polissage automatique (25/10) : lisse les a-coups SEULEMENT si les pieds ne glissent pas davantage et rien ne passe sous le sol
+      const poli = polirClip(sq, c);
+      return nommer(fini(poli) ? poli : c);
+    }
     throw new Error('valeur invalide dans le calcul');
   } catch (e) {
     const det = detecterPattes(sq.par, sq.P0, sq.racine);
