@@ -3384,6 +3384,12 @@ bindStepCardCollapse();
   window.addEventListener('pointerup', () => { painting = false; });
   $('rrx-clear')?.addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); hasPaint = false; });
 
+  /* LOT W09 : valeur affichee a cote de chaque curseur (gabarit commun) */
+  [['rrx-brush', 0], ['rrx-strength', 2]].forEach(([id, dec]) => {
+    const c = $(id), v = $(id + '-val');
+    if (c && v) { const maj = () => { v.textContent = Number(c.value).toFixed(dec); }; c.addEventListener('input', maj); maj(); }
+  });
+
   function close() { modal.classList.add('hidden'); _rrxJeton++; _rrxJetonRendu++; $('rrx-loading').style.display = 'none'; _rrxArreter3d(); _rrxLiberer(); }
   $('rrx-cancel')?.addEventListener('click', close);
   $('rrx-close-x')?.addEventListener('click', close);

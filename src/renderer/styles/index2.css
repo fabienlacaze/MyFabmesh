@@ -5161,3 +5161,13 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ===== LOT W09 : Re-texture / Reshape (etape image) - gabarit commun : apercu a gauche, colonne de droite, pied pleine largeur ===== */
+#modal-region-retex .rrx-apercu { padding: 0; }
+#modal-region-retex .modal-actions { display: flex; align-items: center; gap: 10px; }
+#modal-region-retex .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+#modal-region-retex .modal-actions .primary-btn { flex: 1 1 0; }
+#modal-region-retex .rrx-form { gap: 14px; }
+#modal-region-retex .rrx-form .form-row > input[type=text] { width: 100%; box-sizing: border-box; }
+#modal-region-retex label.rrx-curseur { gap: 6px; }
+#modal-region-retex .rrx-curseur input[type=range] { width: 100%; }
