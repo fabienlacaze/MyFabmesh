@@ -1326,6 +1326,23 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       if (A.roulis) roulis[i] = A.roulis * (sG_[i] - sD_[i]);
     }
   }
+  // Fort hochement de tete (galop : hoche > 0,2) : nodP vient des APPUIS des pattes avant, donc en impulsions (zero hors appui, pic a l'appui) ; multiplie par
+  // hoche il donnait un COUP de tete a chaque foulee (retour du user, 25/10). La tete et l'encolure ont une inertie : on lisse le signal (3 passes de moyenne
+  // glissante circulaire, ecart ~0,09 cycle), on le RETARDE de 0,06 cycle (la tete suit l'epaule, elle ne la precede pas), puis on le remet a -1..1.
+  if (A.hoche != null && A.hoche > 0.2 && A.pas) {
+    const Lc = Math.max(8, Math.round(T * fps)), n = nodP.length;
+    const larg = Math.max(3, (Math.round(0.16 * Lc) | 1));
+    let sig = nodP.slice();
+    for (let pass = 0; pass < 3; pass++) {
+      const out = new Array(n).fill(0), demi = (larg - 1) / 2;
+      for (let i = 0; i < n; i++) { let s_ = 0; for (let k = -demi; k <= demi; k++) s_ += sig[(((i + k) % n) + n) % n]; out[i] = s_ / larg; }
+      sig = out;
+    }
+    const retard = Math.round(0.06 * Lc), dec = new Array(n);
+    for (let i = 0; i < n; i++) dec[i] = sig[(((i - retard) % n) + n) % n];
+    const amp = Math.max(...dec.map(Math.abs), 1e-6);
+    for (let i = 0; i < n; i++) nodP[i] = dec[i] / amp;
+  }
   if (pattes.every((p) => p.ik.length < 3)) for (let i = 0; i < nT; i++) bob[i] = 0;   // pieds rigides : pas de bob
   // --- saut : accroupi pendant l'appui, parabole en l'air (toutes les pattes ensemble)
   // Saut (action « jump », 25/10) : l'appui n'est plus une seule creche. Reception : absorption (genoux
