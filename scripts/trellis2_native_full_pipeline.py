@@ -1174,6 +1174,13 @@ def main():
     _cm.mesurer('glb_built')
     print('LOCAL_TRELLIS2_PROGRESS: 92 brightening', flush=True)
 
+    # 25/10 : materiau double face (triangles retournes de la double peau de TRELLIS = « trous » vus de l'exterieur).
+    try:
+        from acceleration_glb import rendre_double_face
+        rendre_double_face(glb, True, log=log)
+    except Exception as _e:
+        log(f'materiau double face : etape ignoree ({type(_e).__name__}: {_e})')
+
     # Couleurs accordees sur l'IMAGE SOURCE (noyau partage, 2026-09-26) ; repli
     # sur l'eclaircissement adouci si rien n'a pu etre mesure.
     if os.environ.get('FABMESH_TRELLIS2_SKIP_BRIGHTEN') != '1':

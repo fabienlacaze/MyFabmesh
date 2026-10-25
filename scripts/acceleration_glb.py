@@ -1523,3 +1523,35 @@ def webp_rapide(glb_obj, log=None) -> float:
     except Exception:
         pass
     return t
+
+
+def rendre_double_face(glb_obj, actif=True, log=print):
+    """Materiau DOUBLE FACE sur le GLB livre (25/10, user : « il y a d'enormes trous » sur un yacht).
+    Mesure : aucune arete de bord (le maillage est ferme), 25 627 aretes a plus de deux faces et environ la moitie des normales vers l'interieur
+    dans chaque tranche = double peau de TRELLIS : des triangles retournes. Vus de l'exterieur ils sont elimines (face arriere) et laissent voir
+    l'interieur sombre : ce sont les « trous ». Un materiau double face les affiche des deux cotes. Ne change ni la forme ni les UV. Rend le nombre
+    de materiaux modifies. NE LEVE JAMAIS."""
+    if not actif:
+        return 0
+    n = 0
+    try:
+        geoms = list(glb_obj.geometry.values()) if hasattr(glb_obj, 'geometry') else [glb_obj]
+        vus = set()
+        for g in geoms:
+            m = getattr(getattr(g, 'visual', None), 'material', None)
+            if m is None or id(m) in vus:
+                continue
+            vus.add(id(m))
+            if getattr(m, 'doubleSided', False) is not True:
+                m.doubleSided = True
+                n += 1
+        try:
+            log("[mesh] materiau double face : %d materiau(x)" % n)
+        except Exception:
+            pass
+    except Exception as e:
+        try:
+            log("[mesh] materiau double face ignore (%s: %s)" % (type(e).__name__, e))
+        except Exception:
+            pass
+    return n

@@ -3503,16 +3503,17 @@ bindStepCardCollapse();
   // Reshape a region : etape 1 = visualiseur 3D (on tourne le modele jusqu'a la zone voulue), etape 2 = fenetre a plat
   // sur le rendu pris depuis cet angle — la correspondance pixels <-> maillage du rendu orthographique est ce qui
   // permet la coupe (mesh_inpaint.py fait tourner le maillage pour que la zone regarde +Z, puis remet le resultat en place).
-  $('ws-mesh-reshape-btn')?.addEventListener('click', () => {
-    if (!_curMeshPath()) { showToast('Pick a mesh first.', 'error'); return; }
-    open('shape');
-  });
-  // Variante MANUELLE (« comme Draw mask ») : la zone se peint sur le modele 3D.
-  $('ws-mesh-reshape-draw-btn')?.addEventListener('click', () => {
+  // 25/10 (user : « pour remodeler une zone, j'aimerais le meme type de viewer 3D que re-texturer une zone, pas le choix des vues ») :
+  // « Reshape a region » ouvre directement la peinture de zone SUR LE MAILLAGE 3D (meme visualiseur que « Re-texture an area »). Le bouton
+  // « dessiner » faisait deja cela : il est masque, une seule porte d'entree. L'ancien parcours (vue a plat, open('shape')) reste, non branche.
+  const _ouvrirReshape3D = () => {
     const mp = _curMeshPath();
     if (!mp) { showToast('Pick a mesh first.', 'error'); return; }
     if (typeof openPaintEmissive === 'function') openPaintEmissive({ maskMode: true, reshape: true, meshPath: mp });
-  });
+    else open('shape');
+  };
+  $('ws-mesh-reshape-btn')?.addEventListener('click', _ouvrirReshape3D);
+  { const _boutonDessin = $('ws-mesh-reshape-draw-btn'); if (_boutonDessin) { _boutonDessin.style.display = 'none'; _boutonDessin.addEventListener('click', _ouvrirReshape3D); } }
   // 3D clone-stamp: clone a texture region onto another, directly on the mesh.
   $('ws-mesh-clone3d-btn')?.addEventListener('click', () => {
     const mp = _curMeshPath();
@@ -15630,6 +15631,16 @@ function _peStampAtPointer(clientX, clientY) {
     ctx.lineTo(u2x, u2y);
     ctx.closePath();
     ctx.fill();
+    // 25/10 (user : « si j'efface la zone dessinee il reste des points qui ne partent pas ») : le remplissage lisse (anti-aliasing) laisse une
+    // couverture PARTIELLE sur les aretes de chaque triangle ; a la peinture deux triangles voisins s'additionnent (0,5 + 0,5 -> 0,75), a
+    // l'effacement chacun ne retire que 0,5 (0,75 x 0,5 x 0,5 = 0,19) : des points subsistent le long des coutures. Un contour de 2 px, dans la
+    // meme operation, couvre completement les aretes. Peinture a opacite pleine ou gomme seulement (sinon l'opacite doublerait sur le contour).
+    if (peState.brushMode === 'erase' || peState.brushOpacity >= 0.99) {
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = innerColor;
+      ctx.stroke();
+    }
   }
   ctx.restore();
   ctx.globalCompositeOperation = 'source-over';

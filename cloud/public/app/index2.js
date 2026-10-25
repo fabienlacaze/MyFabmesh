@@ -15217,6 +15217,16 @@ function _peStampAtPointer(clientX, clientY) {
     ctx.lineTo(u2x, u2y);
     ctx.closePath();
     ctx.fill();
+    // 25/10 (user : « si j'efface la zone dessinee il reste des points qui ne partent pas ») : le remplissage lisse (anti-aliasing) laisse une
+    // couverture PARTIELLE sur les aretes de chaque triangle ; a la peinture deux triangles voisins s'additionnent (0,5 + 0,5 -> 0,75), a
+    // l'effacement chacun ne retire que 0,5 (0,75 x 0,5 x 0,5 = 0,19) : des points subsistent le long des coutures. Un contour de 2 px, dans la
+    // meme operation, couvre completement les aretes. Peinture a opacite pleine ou gomme seulement (sinon l'opacite doublerait sur le contour).
+    if (peState.brushMode === 'erase' || peState.brushOpacity >= 0.99) {
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = innerColor;
+      ctx.stroke();
+    }
   }
   ctx.restore();
   ctx.globalCompositeOperation = 'source-over';
@@ -15959,12 +15969,18 @@ window.__rendreFaceAPlat = async function (url, taille = 1024) {
     fermer();
     _lancerReshape({ meshPath: mp, frontPath: vue, maskDataUrl, prompt, brut, projet: p, langueVerifiee: _tr.telQuel || undefined, vue: vueAngle });
   });
-  document.getElementById('ws-mesh-reshape-btn')?.addEventListener('click', ouvrir);
-  document.getElementById('ws-mesh-reshape-draw-btn')?.addEventListener('click', () => {
+  // 25/10 (user : « pour remodeler une zone, j'aimerais le meme type de viewer 3D que re-texturer une zone, pas le choix des vues ») :
+  // « Reshape a region » ouvre directement la peinture de zone SUR LE MAILLAGE 3D (meme visualiseur que « Re-texture an area »), sans etape de
+  // choix de vue. Le second bouton (« dessiner ») faisait deja cela : il est masque, il n'y a plus qu'une porte d'entree. `ouvrir` (ancien
+  // parcours : vue a plat) reste dans le code, non branche.
+  const _ouvrirReshape3D = () => {
     const mp = _peMeshCourant();
     if (!mp) { showToast(_i18nT('Pick a mesh first.'), 'error'); return; }
     openPaintEmissive({ maskMode: true, reshape: true, meshPath: mp });
-  });
+  };
+  document.getElementById('ws-mesh-reshape-btn')?.addEventListener('click', _ouvrirReshape3D);
+  const _boutonDessin = document.getElementById('ws-mesh-reshape-draw-btn');
+  if (_boutonDessin) { _boutonDessin.style.display = 'none'; _boutonDessin.addEventListener('click', _ouvrirReshape3D); }
 })();
 
 /** Lance le travail (plusieurs minutes) en tache de fond : tuile « Reshape region », nouvelle version. */

@@ -774,6 +774,12 @@ def generate(
         glb_obj, _ = retirer_dalle_glb(glb_obj, _concerne, log=lambda m: print(m, flush=True))
     except Exception as e:
         print(f'[mesh] dalle de sol : etape ignoree ({type(e).__name__}: {e})', flush=True)
+    # 25/10 : materiau double face (triangles retournes de la double peau de TRELLIS = « trous » vus de l'exterieur) ; ne change ni forme ni UV.
+    try:
+        from modal_app.acceleration_glb import rendre_double_face
+        rendre_double_face(glb_obj, True, log=lambda m: print(m, flush=True))
+    except Exception as e:
+        print(f'[mesh] materiau double face : etape ignoree ({type(e).__name__}: {e})', flush=True)
     t_fin = time.time()
 
     # Couleurs accordees sur l'IMAGE SOURCE (noyau partage) plutot qu'un
