@@ -26,6 +26,8 @@ export const ALLURES = {
   jump: { beta: 0.45, T: [0.9, 0.7], h: 0.35, bob: 0.0, foulee: 0.9, lacet: 0.0, tendu: 0.9, talon: 0.4, pas: true, rapide: true, saut: true },
   // actions, pieds PLANTES : le corps, la tete, les bras suivent des courbes (COURBES_ACTIONS)
   eat: { beta: 1.0, T: [4.0, 4.0], h: 0.0, bob: 0.006, foulee: 0.0, lacet: 0.0, tendu: 0.93, talon: 0.0, pas: false, action: 'eat', regard: 0.25 },
+  // boire (26/10) : meme posture que manger pour une creature a pattes (tete a terre) ; sans pattes : courbes dediees (actionSansPattes)
+  drink: { beta: 1.0, T: [4.5, 4.5], h: 0.0, bob: 0.006, foulee: 0.0, lacet: 0.0, tendu: 0.93, talon: 0.0, pas: false, action: 'eat', regard: 0.25 },
   lie_down: { beta: 1.0, T: [3.0, 3.0], h: 0.0, bob: 0.006, foulee: 0.0, lacet: 0.0, tendu: 0.95, talon: 0.0, pas: false, action: 'lie_down', regard: 0.5 },
   attack: { beta: 1.0, T: [1.4, 1.4], h: 0.0, bob: 0.004, foulee: 0.0, lacet: 0.0, tendu: 0.93, talon: 0.0, pas: false, action: 'attack', regard: 0, queue: 2.0 },
   hit: { beta: 1.0, T: [1.0, 1.0], h: 0.0, bob: 0.004, foulee: 0.0, lacet: 0.0, tendu: 0.95, talon: 0.0, pas: false, action: 'hit', regard: 0, queue: 2.5 },
@@ -262,6 +264,7 @@ export const VARIANTES = {
   walk_back: { normal: {}, slow: { T: 1.3, foulee: 0.8 } },
   jump: { normal: {}, big: { h: 1.4, T: 1.15, foulee: 1.2 }, small: { h: 0.7, T: 0.85, foulee: 0.7 } },
   eat: { normal: {} },
+  drink: { normal: {} },
   lie_down: { normal: {} },
   attack: { normal: {}, strong: { ampleur: 1.4, T: 1.15 }, quick: { T: 0.7 } },
   hit: { normal: {}, strong: { ampleur: 1.6 } },
@@ -2197,7 +2200,7 @@ function queueHorizontale(par, P0, chemin) {
 //     ventre en l'air (poisson : derive vers le haut) ; manger : coup de gueule, onde de deglutition ; saut : ramassement, detente, arc dans
 //     l'air ; se coucher : le corps se relache, spires lentes (serpent) / immobilite (poisson).
 function actionSansPattes(allure, nage, T0, fps, Ltot, V) {
-  if (!['attack', 'hit', 'death', 'eat', 'jump', 'lie_down'].includes(allure)) return null;
+  if (!['attack', 'hit', 'death', 'eat', 'drink', 'jump', 'lie_down'].includes(allure)) return null;
   const fin = allure === 'death' || allure === 'lie_down';
   const nBase = Math.max(8, Math.round(T0 * fps));
   const nT = nBase + (fin ? 1 : 0), Tn = nBase / fps;
@@ -2257,6 +2260,14 @@ function actionSansPattes(allure, nage, T0, fps, Ltot, V) {
     AC.pitch = (i, k) => amplitude * (nage ? -0.4 : -0.55) * bouchee(U(i)) * decroit(k, 0.35) + (nage ? 0 : 0.45) * env(U(i), 0.0, 0.1) * decroit(k, 0.4);
     AC.avance = (i) => (nage ? 0.12 : 0.07) * amplitude * bouchee(U(i));
     AC.lacet = (i, k) => (nage ? 0.0 : 0.4) * env(U(i), 0.6, 1) * Math.sin(2 * Math.PI * (2 * k - 3 * (U(i) - 0.6))) * decroit(k, 0.8);
+    AC.ancre = 0.7;
+  } else if (allure === 'drink') {
+    // la tete descend au contact de l'eau (0-0,18), reste en bas en lapant par petits coups (6 en 4,5 s), le corps presque immobile, puis remonte (0,82-1)
+    const bas = (u) => cles(u, [[0, 0], [0.18, 1], [0.82, 1], [1, 0]]);
+    AC.onde = (i) => 0.2 + 0.8 * (1 - bas(U(i)));
+    AC.pitch = (i, k) => amplitude * (-(nage ? 0.3 : 0.5) * bas(U(i)) + 0.07 * bas(U(i)) * Math.sin(2 * Math.PI * 6 * U(i))) * decroit(k, 0.35);
+    AC.avance = (i) => 0.03 * amplitude * bas(U(i));
+    AC.lacet = (i, k) => 0.12 * bas(U(i)) * Math.sin(2 * Math.PI * (1.5 * k - 0.5 * U(i))) * decroit(k, 0.9);
     AC.ancre = 0.7;
   } else if (allure === 'jump') {
     const arc = (u) => 4 * u * (1 - u);
@@ -2873,7 +2884,7 @@ function _lisserClip(sq, clip, force) {
 function polirClip(sq, clip) {
   if (globalThis.__polissageAnimation === false || !clip || !clip.R || clip.R.length < 8) return clip;
   const nom = String(clip.nom || '');
-  if (/^(death|lie_down|idle|eat|attack|hit)/.test(nom)) return clip;   // actions et attente : mouvements uniques ou sans a-coups a corriger (le bruit du filtre y ajouterait 0,2 degre)
+  if (/^(death|lie_down|idle|eat|drink|attack|hit)/.test(nom)) return clip;   // actions et attente : mouvements uniques ou sans a-coups a corriger (le bruit du filtre y ajouterait 0,2 degre)
   try {
     const det = detecterPattes(sq.par, sq.P0, sq.racine);
     if (!det.pattes.length) return clip;
