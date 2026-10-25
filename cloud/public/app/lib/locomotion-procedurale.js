@@ -2168,6 +2168,206 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
 }
 
 /** Calcul protégé : une allure qui échoue ou rend une valeur invalide donne un mouvement minimal. */
+// ------------------------------------------------------------------ mouvement SECONDAIRE (25/10, transversal)
+// Queue, oreilles, cheveux, capes, ailes pendantes, encolure : une chaine libre n'est pas rigide, elle SUIT avec
+// retard et rebondit. Chaque os candidat est un ressort du second ordre sur son orientation (repere du parent),
+// pilote par l'acceleration de son pivot (inertie : force -a, couple d x (-a) / L) et par l'acceleration angulaire
+// du parent (le corps tourne plus vite que l'os libre). Les os plus loin dans la chaine ont un pivot qui bouge
+// DEJA a cause du ressort du parent : le « fouet » (follow-through) s'en deduit sans phase codee.
+// Reperes : Thomas et Johnston 1981 (« The Illusion of Life », follow-through et overlapping action) ;
+// reponse d'un pendule a une acceleration de son pivot (mecanique classique) ; frequences propres de la queue
+// 1,5-3 Hz, des oreilles 4-6 Hz : reglages a l'oeil sur planches, pas de mesure publiee retenue.
+// amplitude 0 = clip rendu tel quel (meme objet, a l'octet) ; 1 = reglage normal ; la boucle reste fermee.
+export const SECONDAIRE = { amplitude: 1 };
+export function reglerSecondaire(amplitude) { SECONDAIRE.amplitude = Math.max(0, Math.min(2, Number(amplitude) || 0)); return SECONDAIRE.amplitude; }
+const CLASSES_SEC = {
+  //          f : Hz propre (au bout), z : amortissement, g : gain, lim : angle max (rad), micro : derive lente (rad)
+  queue: { f: 1.6, z: 0.50, g: 0.75, lim: 0.50, micro: 0.030 },
+  leger: { f: 4.0, z: 0.40, g: 1.0, lim: 0.60, micro: 0.040 },     // oreilles, cheveux, pendentifs
+  membre: { f: 3.0, z: 0.55, g: 0.35, lim: 0.20, micro: 0.008 },   // bras, ailes, capes : deja pilotes par la famille
+  tete: { f: 3.2, z: 0.60, g: 0.40, lim: 0.12, micro: 0.006 },     // encolure, tete
+  extremite: { f: 4.5, z: 0.50, g: 0.50, lim: 0.35, micro: 0.015 }, // oreilles, machoire, doigts : petites branches d'un membre ou d'une tete
+};
+function rodrigues(s) {
+  const a = Math.hypot(s[0], s[1], s[2]);
+  if (a < 1e-9) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  const x = s[0] / a, y = s[1] / a, z = s[2] / a, c = Math.cos(a), sn = Math.sin(a), k = 1 - c;
+  return [c + x * x * k, x * y * k - z * sn, x * z * k + y * sn, y * x * k + z * sn, c + y * y * k, y * z * k - x * sn, z * x * k - y * sn, z * y * k + x * sn, c + z * z * k];
+}
+function vecRot(m) {                                      // vecteur rotation (axe x angle) d'une matrice
+  const c = Math.max(-1, Math.min(1, (m[0] + m[4] + m[8] - 1) / 2)), a = Math.acos(c);
+  if (a < 1e-7) return [0, 0, 0];
+  const sn = Math.sin(a);
+  if (sn < 1e-4) return [0, 0, 0];                        // proche de pi : jamais d'une image a l'autre
+  const k = a / (2 * sn);
+  return [(m[7] - m[5]) * k, (m[2] - m[6]) * k, (m[3] - m[1]) * k];
+}
+function classerSecondaire(sq, det, H) {
+  const { par, P0 } = sq, J = par.length, E = enfantsDe(par);
+  const cls = new Array(J).fill(null);                    // os -> { type, pos, L }
+  const exclus = new Set();
+  for (const p of det.pattes) { p.chaine.forEach((k) => exclus.add(k)); sousArbre(E, p.chaine[0]).forEach((k) => exclus.add(k)); }
+  for (const p of det.pattes) for (let k = par[p.chaine[0]]; k >= 0; k = par[k]) exclus.add(k);     // ancetres des pattes : colonne
+  exclus.add(det.racine);
+  const chaine = (c, type) => {
+    const n = c.length;
+    c.forEach((j, k) => {
+      if (exclus.has(j) || cls[j] || par[j] < 0) return;
+      let L = 0;                                          // longueur restante jusqu'au bout de la chaine
+      for (let q = k; q < n - 1; q++) L += norm(sub(P0[c[q + 1]], P0[c[q]]));
+      if (k === n - 1) L = Math.max(norm(sub(P0[j], P0[par[j]])) * 0.8, 0.02 * H);
+      cls[j] = { type, pos: n > 1 ? k / (n - 1) : 0, L: Math.max(L, 0.08 * H) };
+    });
+  };
+  det.queues.forEach((c) => chaine(c, 'queue'));
+  det.tetes.forEach((c) => chaine(c, 'tete'));
+  // appendices : sous-arbres hors colonne / pattes / queue / tete (oreilles, cheveux, bras, ailes, capes)
+  for (let j = 0; j < J; j++) {
+    if (cls[j] || exclus.has(j) || par[j] < 0) continue;
+    if (!(exclus.has(par[j]) || cls[par[j]])) continue;                       // racine d'appendice : son parent est dans le tronc
+    const sub_ = sousArbre(E, j);
+    if (sub_.some((k) => exclus.has(k) || cls[k])) continue;
+    const reach = Math.max(...sub_.map((k) => norm(sub(P0[k], P0[par[j]]))));
+    const type = reach < 0.15 * H ? 'leger' : 'membre';
+    const prof = (k) => { let n = 0; for (let q = k; q !== par[j]; q = par[q]) n++; return n; };
+    const pmax = Math.max(...sub_.map(prof));
+    for (const k of sub_) {
+      let L = 0;
+      for (const f of sub_) L = Math.max(L, norm(sub(P0[f], P0[k])));
+      cls[k] = { type, pos: pmax > 1 ? (prof(k) - 1) / (pmax - 1) : 0, L: Math.max(L, 0.08 * H) };
+    }
+    if (type === 'membre') {                                                 // petites branches d'un membre / d'une tete : oreilles, machoire, doigts
+      for (const b of sub_) {
+        if (E[b].length < 2) continue;
+        for (const ch of E[b]) {
+          const st = sousArbre(E, ch);
+          if (Math.max(...st.map((k) => norm(sub(P0[k], P0[b])))) >= 0.12 * H) continue;
+          const pr = (k) => { let n = 0; for (let q = k; q !== b; q = par[q]) n++; return n; }, pm = Math.max(...st.map(pr));
+          for (const k of st) { let L = 0; for (const f of st) L = Math.max(L, norm(sub(P0[f], P0[k]))); cls[k] = { type: 'extremite', pos: pm > 1 ? (pr(k) - 1) / (pm - 1) : 0, L: Math.max(L, 0.08 * H) }; }
+        }
+      }
+    }
+  }
+  return cls;
+}
+/** Applique le mouvement secondaire a un clip calcule (periodique : la derniere image reboucle sur la premiere).
+ *  Rend un NOUVEAU clip (le clip d'origine n'est jamais modifie), ou le clip lui-meme si rien a faire. */
+function appliquerSecondaire(sq, c, allure, fps, amplitude = SECONDAIRE.amplitude) {
+  if (!(amplitude > 0) || allure === 'death' || !c || !c.R || c.R.length < 8) return c;
+  if (['reptation', 'secours', 'rigide', 'nage'].includes(c.infos && c.infos.mode)) return c;
+  const { par, P0 } = sq, J = par.length, N = c.R.length, E = enfantsDe(par);
+  const det = detecterPattes(par, P0, sq.racine);
+  const sol = det.sol, H = Math.max(ptpAxe(P0, 1), 1e-6);
+  const cls = classerSecondaire(sq, det, H);
+  if (!cls.some(Boolean)) return c;
+  const ordre = [], file = [sq.racine, ...sq.racines.filter((r) => r !== sq.racine)];
+  while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
+  const dt = 1 / fps, W = (i) => ((i % N) + N) % N;
+  // direction de repos de chaque os candidat (vers ses enfants, sinon prolongement de celle du parent)
+  const dir0 = (j) => {
+    let d = [0, 0, 0];
+    for (const k of E[j]) d = add(d, sub(P0[k], P0[j]));
+    if (norm(d) < 1e-9) d = sub(P0[j], P0[par[j]]);
+    return norm(d) < 1e-9 ? [0, -1, 0] : mulS(d, 1 / norm(d));
+  };
+  const posSec = new Map((c.racinesSec || []).map((x) => [x.j, x.pos]));
+  const calcul = (k) => {
+    const R = c.R.map((Ri) => Ri.slice());
+    const D = Array.from({ length: N }, () => new Array(J)), Pw = Array.from({ length: N }, () => new Array(J));
+    let nOs = 0;
+    for (const j of ordre) {
+      const cj = cls[j];
+      let Ej = null;
+      if (cj && par[j] >= 0 && k > 0) {
+        const K = CLASSES_SEC[cj.type];
+        // acceleration du pivot (monde) et acceleration angulaire du parent, lissees
+        const pj = D.map((_, i) => add(Pw[i][par[j]], mv(D[i][par[j]], sub(P0[j], P0[par[j]]))));
+        const lis = (V) => V.map((_, i) => { const a = V[W(i - 1)], b = V[i], d = V[W(i + 1)]; return [0.25 * a[0] + 0.5 * b[0] + 0.25 * d[0], 0.25 * a[1] + 0.5 * b[1] + 0.25 * d[1], 0.25 * a[2] + 0.5 * b[2] + 0.25 * d[2]]; });
+        // le personnage AVANCE pendant le clip : la couture de la boucle n'est pas une acceleration. Le trajet est prolonge
+        // par sa translation d'une boucle (nulle pour un clip sur place) ; pour un virage, la couture est remplacee par la moyenne des voisines.
+        const dep = mulS(sub(pj[N - 1], pj[0]), N / (N - 1));
+        const pe = (i) => (i < 0 ? sub(pj[i + N], dep) : i >= N ? add(pj[i - N], dep) : pj[i]);
+        const acc0 = pj.map((_, i) => mulS(add(sub(pe(i + 1), mulS(pj[i], 2)), pe(i - 1)), fps * fps));
+        if (c.infos && /^turn/.test(allure)) acc0[0] = acc0[N - 1] = mulS(add(acc0[1], acc0[N - 2]), 0.5);
+        const acc = lis(lis(acc0));
+        const pasMed = median(D.slice(0, N - 1).map((_, i) => angleRot(mm(D[i + 1][par[j]], tr(D[i][par[j]])))));
+        const ferme = angleRot(mm(D[0][par[j]], tr(D[N - 1][par[j]]))) < 3 * pasMed + 0.02;      // orientation du parent revenue au depart ?
+        const om = D.map((_, i) => (i === N - 1 && !ferme ? [0, 0, 0] : mulS(vecRot(mm(D[W(i + 1)][par[j]], tr(D[i][par[j]]))), fps)));       // vitesse angulaire (monde)
+        if (!ferme) om[N - 1] = mulS(add(om[0], om[N - 2]), 0.5);
+        const alp = lis(lis(om.map((_, i) => mulS(sub(om[i], om[W(i - 1)]), fps))));
+        const d0 = dir0(j);
+        const f0 = K.f * (1 + 0.5 * (1 - cj.pos)), w0 = 2 * Math.PI * f0;      // la base est plus raide que le bout
+        const gain = K.g * (0.6 + 0.4 * cj.pos);
+        const u = D.map((_, i) => {
+          const Dt = tr(D[i][par[j]]);
+          const aL = mv(Dt, acc[i]), alL = mv(Dt, alp[i]);
+          const dl = mv(R[i][j], d0);
+          const lin = mulS(cross(dl, mulS(aL, -1)), 0.9 / cj.L);
+          let dr = add(mulS(lin, gain), mulS(alL, -gain));
+          dr = sub(dr, mulS(dl, dot(dr, dl)));                    // pas de vrille autour de l'axe de l'os : seule la FLEXION se voit
+          const m = norm(dr), cap = 1.5 * w0 * w0 * K.lim;         // pilote sature : jamais plus que la butee
+          return m > 1e-12 ? mulS(dr, cap * Math.tanh(m / cap) / m) : dr;
+        });
+        // derive lente de periode « clip entier » (casse la boucle mecanique, reste periodique) : harmoniques 1 a 3
+        const h = (j * 2654435761) >>> 0, ph = (q) => ((h >>> (3 * q)) & 255) / 255 * 2 * Math.PI;
+        const micro = (i) => {
+          const o = [0, 0, 0];
+          for (let q = 1; q <= 3; q++) for (let ax = 0; ax < 3; ax++) o[ax] += Math.sin(2 * Math.PI * q * i / N + ph(q * 3 + ax - 3) + ax) / (q * 1.3);
+          return mulS(o, K.micro * gain * w0 * w0 * 0.5);
+        };
+        const s = [0, 0, 0], v = [0, 0, 0], trace = [];
+        const sousPas = 4, h_ = dt / sousPas, zw = 2 * K.z * w0;
+        for (let tour = 0; tour < 5; tour++) {
+          for (let i = 0; i < N; i++) {
+            const ui = add(u[i], micro(i));
+            for (let q = 0; q < sousPas; q++) for (let ax = 0; ax < 3; ax++) {
+              v[ax] += (ui[ax] - zw * v[ax] - w0 * w0 * s[ax]) * h_;
+              s[ax] += v[ax] * h_;
+            }
+            if (tour === 4) trace.push(s.slice());
+          }
+        }
+        for (let q = 0; q < sousPas; q++) for (let ax = 0; ax < 3; ax++) {     // une image de plus : etat « image N », qui doit valoir l'image 0
+          v[ax] += (u[0][ax] + micro(0)[ax] - zw * v[ax] - w0 * w0 * s[ax]) * h_;
+          s[ax] += v[ax] * h_;
+        }
+        const e = sub(s, trace[0]);                          // ecart de bouclage, retire en rampe lineaire
+        for (let i = 0; i < N; i++) trace[i] = sub(trace[i], mulS(e, i / N));
+        Ej = trace.map((si) => {
+          const a = norm(si);
+          if (a < 1e-12) return I3();
+          const a2 = K.lim * Math.tanh(a / K.lim) * amplitude * k;        // butee douce : jamais d'angle absurde
+          return rodrigues(mulS(si, a2 / a));
+        });
+        nOs++;
+      }
+      for (let i = 0; i < N; i++) {
+        if (Ej) R[i][j] = mm(Ej[i], R[i][j]);
+        if (par[j] < 0) {
+          D[i][j] = R[i][j];
+          Pw[i][j] = j === sq.racine ? c.racineMonde[i] : (posSec.get(j) ? posSec.get(j)[i] : P0[j]);
+        } else {
+          D[i][j] = mm(D[i][par[j]], R[i][j]);
+          Pw[i][j] = add(Pw[i][par[j]], mv(D[i][par[j]], sub(P0[j], P0[par[j]])));
+        }
+      }
+    }
+    let pire = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < J; j++) pire = Math.max(pire, sol - Pw[i][j][1]);
+    return { R, pire: 100 * pire / H, n: nOs };
+  };
+  const ref = calcul(0);                                    // meme calcul sans ressort : reference des os sous le sol
+  let k = 1, res = null;
+  for (let essai = 0; essai < 5; essai++, k *= 0.6) {
+    const r = calcul(k);
+    if (r.pire <= ref.pire + 0.05) { res = r; break; }
+  }
+  if (!res || !res.n) return c;
+  const infos = { ...c.infos, secondaire: { os: res.n, amplitude: +(amplitude * k).toFixed(2) } };
+  infos.sous_sol_pct = Math.max(c.infos.sous_sol_pct ?? 0, +res.pire.toFixed(1));
+  return { ...c, R: res.R, infos };
+}
+
 function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espece = 'generique') {
   const fini = (c) => c.R.every((Ri) => Ri.every((m) => m.every(Number.isFinite))) && c.racineMonde.every((p) => p.every(Number.isFinite));
   // nom du clip selon ce qu'il est vraiment : « swim » pour un poisson, « slither » pour un serpent
@@ -2196,6 +2396,8 @@ function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espe
         c = c2; c.infos.ampleur = +k.toFixed(2);
       }
     }
+    // mouvement secondaire (queue, oreilles, chaines pendantes) : s'ajoute au calcul de la famille ; echec = clip inchange
+    if (fini(c) && allure !== 'death') { try { const c2 = appliquerSecondaire(sq, c, allure, fps); if (c2 && fini(c2)) c = c2; } catch (_) { /* clip de la famille conserve */ } }
     if (fini(c)) return nommer(c);
     throw new Error('valeur invalide dans le calcul');
   } catch (e) {
