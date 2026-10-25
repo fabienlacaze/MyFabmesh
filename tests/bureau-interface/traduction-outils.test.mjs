@@ -58,7 +58,7 @@ const DECLARATIONS = [
   '_npAutoSync', '_npTexteAnalyse', 'NP_TYPE_NON_DETECTE', '_npTraductions', '_npTradMinuteur', '_npDescAuto', '_npAutoInfo', '_npResume',
   'detecterTypeEtStyle', '_npNormaliser', '_NP_TYPES', '_NP_STYLES', '_npCompter', '_i18nT', '_i18nTf',
   // avertissements avant depense (24/10, chantier ingestion)
-  '_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_confirmerAvertissements', '_verifierAvantDepense',
+  '_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_bridageEquilibre', '_confirmerAvertissements', '_verifierAvantDepense',
 ];
 
 // ------------------------------------------------------------------------------------------------ lecture des fichiers (acorn)

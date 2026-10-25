@@ -859,6 +859,7 @@ function _choixTraductionEchouee(r) {
  * Les regles eteintes du composeur ne sont PAS allumees : le prompt envoye reste identique a l'octet. Detecteur : lib/composeur-intention.js detecterAvertissements. */
 const _TEXTES_AVERTISSEMENT = {
   'texte-long': 'Your description is {x} words long. The image engine reads it in blocks: the end counts less, and the framing, pose and background instructions the app adds after your text are pushed far down and are often ignored. Shorten it to stay faithful, or continue as it is.',
+  'texte-long-bride': 'Your description is {x} words long: the Balanced engine reads about 55 words well (the end counts less and the framing instructions get ignored). Shorten it, or switch to the Fast engine, which reads the whole text.',
   'texte-trop-long': 'Your description is longer than 2,000 characters. The server will refuse it: shorten it before generating.',
   'pose-incompatible-avec-tpose': 'You describe a pose (sitting, riding, crossed arms...) but the T-pose box is checked: the template forces a standing T-pose with open hands.',
   'quantite-deux-personnages-gabarit-un-seul': 'You describe several characters, but the template draws one single character.',
@@ -871,11 +872,18 @@ function _nbMotsAvertissement(...textes) {
   for (const t of textes) n = Math.max(n, String(t || '').split(/\s+/).filter(Boolean).length);
   return n;
 }
+/** Bridage du moteur Equilibre (decision du user, 25/10) : un texte de plus de ~55 mots ne peut plus etre lance tel quel avec ce moteur (il lit par blocs, la fin compte moins) ;
+ *  il faut le raccourcir ou passer sur Rapide / Meilleur, qui lisent tout. Seulement sur le SITE (l'option « Meilleur » existe) : le bureau n'a pas de moteur qui lit tout le texte. */
+function _bridageEquilibre(codes) {
+  const sel = document.getElementById('ws-engine');
+  return !!(codes.includes('texte-long') && sel && [...sel.options].some((o) => o.value === 'qwen-best') && sel.value !== 'local-lightning' && sel.value !== 'qwen-best');
+}
 /** Fenetre « Verifier avant de generer » : 'continuer' | 'decocher' | 'annuler' (Echap, clic a cote, « Modifier mon texte »). Le focus est sur « Modifier mon texte » :
  *  Entree ne depense jamais de credits par megarde. */
 function _confirmerAvertissements(codes, textes) {
   const nbMots = _nbMotsAvertissement(...(textes || []));
-  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], nbMots) : (c === 'negations-en-trop' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], NEG_MAX_LONG, NEG_MAX_LONG) : _i18nT(_TEXTES_AVERTISSEMENT[c])))).filter(Boolean);
+  const bride = _bridageEquilibre(codes);
+  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[bride ? 'texte-long-bride' : c], nbMots) : (c === 'negations-en-trop' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], NEG_MAX_LONG, NEG_MAX_LONG) : _i18nT(_TEXTES_AVERTISSEMENT[c])))).filter(Boolean);
   return new Promise((resolve) => {
     const fond = document.createElement('div');
     fond.className = 'modal-overlay';
@@ -909,7 +917,11 @@ function _confirmerAvertissements(codes, textes) {
     };
     const modifier = bouton('Edit my text', 'ghost-btn', 'annuler');
     if (codes.includes('pose-incompatible-avec-tpose')) bouton('Uncheck T-pose and continue', 'ghost-btn', 'decocher');
-    if (!codes.includes('texte-trop-long')) bouton('Continue anyway', 'primary-btn', 'continuer');
+    // Texte long : le moteur « Fast » lit TOUT le texte (pas de blocs de 75 mots-cles) ; proposition en un clic quand ce moteur existe et n'est pas deja choisi (25/10)
+    const _selMoteur = document.getElementById('ws-engine');
+    if (codes.includes('texte-long') && _selMoteur && _selMoteur.value !== 'local-lightning' && _selMoteur.value !== 'qwen-best'
+        && [..._selMoteur.options].some((o) => o.value === 'qwen-best')) bouton('Use the Fast engine (reads the whole text)', bride ? 'primary-btn' : 'ghost-btn', 'moteur-rapide');
+    if (!codes.includes('texte-trop-long') && !bride) bouton('Continue anyway', 'primary-btn', 'continuer');
     carte.append(tete, corps, pied);
     fond.appendChild(carte);
     const surFond = (e) => { if (e.target === fond) fin('annuler'); };
@@ -933,11 +945,16 @@ async function _verifierAvantDepense(p, texteSaisi, texteAnglais, assetType) {
     let avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
     // Moteurs « Rapide » (Z-Image Turbo) et « Meilleur » (Qwen) : encodeur de TEXTE complet, pas de lecture par blocs de 75 jetons : l'avertissement
     // « description trop longue » (specifique a SDXL) n'a pas lieu d'etre. Le refus serveur des textes de plus de 2 000 caracteres reste signale.
-    const _moteurMenu = document.getElementById('ws-engine')?.value;
-    if (_moteurMenu === 'local-lightning' || _moteurMenu === 'qwen-best') avert = avert.filter((c) => c !== 'texte-long');
+    const _selMenu = document.getElementById('ws-engine'), _moteurMenu = _selMenu?.value;
+    // (SITE seulement : sur le bureau, « local-lightning » est un autre moteur, qui lit par blocs comme les autres)
+    if (_selMenu && _selMenu.querySelector('option[value="qwen-best"]') && (_moteurMenu === 'local-lightning' || _moteurMenu === 'qwen-best')) avert = avert.filter((c) => c !== 'texte-long');
     if (!avert.length) return true;
     const choix = await _confirmerAvertissements(avert, [texteSaisi, texteAnglais]);
     if (choix === 'annuler') return false;
+    if (choix === 'moteur-rapide') {
+      const sel = document.getElementById('ws-engine');
+      if (sel) { sel.value = 'local-lightning'; try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
+    }
     if (choix === 'decocher') {
       const cb = document.getElementById('ws-tpose');
       if (cb) { cb.checked = false; try { cb.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
@@ -20595,6 +20612,7 @@ var _apercuAnim = null;
 var LIBELLES_MODE = {
   nage: { idle: '🐟 Idle (hover)', walk: '🐟 Swim', run: '🐟 Swim fast', turn_left: '↰ Swim left', turn_right: '↱ Swim right' },
   reptation: { idle: '🐍 Idle', walk: '🐍 Slither', run: '🐍 Slither fast', turn_left: '↰ Slither left', turn_right: '↱ Slither right' },
+  vol: { idle: '🦅 Hover', walk: '🦅 Fly', run: '💨 Fly fast', turn_left: '↰ Bank left', turn_right: '↱ Bank right' },
 };
 var VARIANTES_MODE = {
   nage: { idle: ['normal'], walk: ['normal', 'slow', 'brisk', 'crawl'], run: ['normal', 'sprint'], turn_left: ['normal', 'tight', 'wide'], turn_right: ['normal', 'tight', 'wide'] },
@@ -20615,8 +20633,15 @@ var DESCRIPTIONS_MODE = {
     turn_left: 'Slithers while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
     turn_right: 'Slithers while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
   },
+  vol: {
+    idle: 'Hovers in place, wings beating.', walk: 'Flies forward, wings beating steadily.', walk__slow: 'Slow, relaxed flight.',
+    walk__brisk: 'Quick, lively flight.', walk__crawl: 'Flies forward, wings beating steadily.',
+    run: 'Fast flight, deep wing beats, body leaning forward.', run__sprint: 'Full speed, the wings beat hard.',
+    turn_left: 'Flies while banking to the left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
+    turn_right: 'Flies while banking to the right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+  },
 };
-Object.assign(NOMS_ALLURES, { swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
+Object.assign(NOMS_ALLURES, { flight: 'Fly', flight_fast: 'Fly fast', flight_left: 'Bank left', flight_right: 'Bank right', swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
   slither: 'Slither', slither_fast: 'Slither fast', slither_left: 'Slither left', slither_right: 'Slither right' });
 var _modeMenus = null;                         // mode avec lequel les menus ont ete construits
 function _cleModeAnim() { return 'fabmesh.modeAnim.' + (state.currentProject?.name || ''); }
@@ -20674,9 +20699,9 @@ function _remplirMenuTypes() {
   const selMode = document.getElementById('ws-anim-mode');
   const m = _modeAnim();
   if (selMode) {
-    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍' }[_modeDetecte()] || '';
+    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍', vol: '🦅' }[_modeDetecte()] || '';
     const auto = selMode.querySelector('option[value="auto"]');
-    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers' }[_modeDetecte()]) + ')';
+    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers', vol: 'Flies' }[_modeDetecte()]) + ')';
     selMode.value = _modeImpose();
   }
   if (!choix) return;

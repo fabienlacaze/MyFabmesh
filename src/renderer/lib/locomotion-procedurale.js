@@ -471,7 +471,17 @@ const MOTS_REPTATION = new Set(('snake snakes serpent serpents python cobra vipe
  *  - « ver » / « vers » (fr : « vers la maison », es / pt : « ver el mar ») ne comptent pas devant un article ou un determinant ;
  *  - les mots AMBIGUS (perch, bass, pike, ray, cod, carp, boa, python, adder, slug, ver, vers) ne comptent pas quand le texte nomme une
  *    AUTRE espece (chat, cheval, lapin, chevalier... : MOTS_ESPECES ci-dessus, plus AUTRES_ANIMAUX). */
-const MOTS_AMBIGUS = new Set('perch bass pike ray cod carp boa python adder slug ver vers'.split(' '));
+const MOTS_AMBIGUS = new Set('perch bass pike ray cod carp boa python adder slug ver vers bat bats fly flies ape'.split(' '));
+const MOTS_VOL = new Set(('fly flies flying flyer flyers winged airborne soaring hovering pegasus griffin gryphon harpy fairy fairies angel angels '
+  + 'eagle eagles hawk hawks falcon falcons vulture vultures '
+  + 'hummingbird bat bats butterfly butterflies moth moths bee bees wasp wasps hornet hornets dragonfly dragonflies mosquito mosquitoes '
+  + 'volant volante volants volantes voler vole ailee ailes aigle aigles faucon faucons vautour '
+  + 'chauve papillon papillons abeille abeilles guepe frelon libellule moustique pegase griffon fee fees ange anges '
+  + 'volador voladora volando alado alada aguila halcon buitre murcielago mariposa abeja avispa libelula '
+  + 'pegaso grifo hada '
+  + 'fliegend fliegt adler falke geier fledermaus schmetterling biene wespe libelle '
+  + 'volante volanti aquila falco avvoltoio pipistrello farfalla ape vespa libellula '
+  + 'aguia morcego borboleta').split(' '));
 // autres animaux absents des profils de marche (servent SEULEMENT a lever l'ambiguite, sans changer l'allure choisie)
 const AUTRES_ANIMAUX = new Set(('parrot parrots owl owls swan swans dove doves peacock flamingo falcon raven sparrow seagull '
   + 'perroquet hibou chouette cygne colombe paon flamant faucon moineau mouette loro buho lechuza cisne paloma halcon gaviota '
@@ -493,7 +503,7 @@ function _compteMode(mots, i, liste, autreEspece, fin) {
   if (autreEspece) return false;
   return !((m === 'ver' || m === 'vers') && DETERMINANTS.has(mots[i + 1] || ''));
 }
-/** Mode d'apres les mots d'un texte (nom du projet, prompt…) : 'nage', 'reptation' ou null. */
+/** Mode d'apres les mots d'un texte (nom du projet, prompt…) : 'nage', 'reptation', 'vol' ou null. */
 export function modeDepuisTexte(texte) {
   const mots = String(texte || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const autreEspece = mots.some((m) => INDEX_ESPECES.has(m) || AUTRES_ANIMAUX.has(m));
@@ -501,6 +511,8 @@ export function modeDepuisTexte(texte) {
   if (fin < 0) fin = mots.length;
   if (mots.some((m, i) => _compteMode(mots, i, MOTS_NAGE, autreEspece, fin))) return 'nage';
   if (mots.some((m, i) => _compteMode(mots, i, MOTS_REPTATION, autreEspece, fin))) return 'reptation';
+  // vol (25/10) : « a flying pig », « un aigle », « une abeille » ; evalue APRES la nage et la reptation (un poisson volant reste un poisson)
+  if (mots.some((m, i) => _compteMode(mots, i, MOTS_VOL, autreEspece, fin))) return 'vol';
   return null;
 }
 /** Mode d'apres le SQUELETTE : 'pattes' si des pattes sont detectees, sinon 'reptation'. */
