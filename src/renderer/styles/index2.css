@@ -5161,3 +5161,36 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ============================================================
+   LOT W12 (25/10) - visionneuse plein ecran d'image (lightbox-2) :
+   memes cotes, memes boutons et meme barre du bas que la visionneuse 3D,
+   sans la transformer en fenetre a colonne.
+   ============================================================ */
+#lightbox-2 { --lb-w12-reserve: calc(var(--lb-colonne) + 38px); }
+#lightbox-2 img {
+  /* cadre de l'image = hauteur de la colonne d'outils (haut 72, bas 72) */
+  max-width: calc(100vw - var(--lb-w12-reserve) - 32px);
+  max-height: calc(100vh - 144px);
+}
+#lightbox-2-close { z-index: 10; }
+/* fleches : de part et d'autre du cadre de l'image, a gauche de la colonne */
+#lightbox-2 .lightbox-nav.next,
+#lightbox-3d .lightbox-nav.next { right: calc(var(--lb-colonne) + 44px); }
+/* barre du bas : centree sous l'image (pas sous la colonne), toujours visible sur ecran tactile */
+#lightbox-2-bottom {
+  left: calc((100% - var(--lb-colonne) - 18px) / 2);
+  bottom: 16px;
+  max-width: calc(100vw - var(--lb-w12-reserve) - 32px);
+}
+#lightbox-2-filename { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+#lightbox-2-bottom .primary-btn { font-size: 13px; padding: 10px 24px; }
+@media (hover: none) {
+  #lightbox-2 .lightbox-nav,
+  #lightbox-2-bottom { opacity: 1; }
+}
+@media (max-width: 900px) {
+  #lightbox-2 img { max-width: 96vw; max-height: 60vh; margin-right: 0; }
+  #lightbox-2 .lightbox-nav.next { right: 12px; }
+  #lightbox-2-bottom { left: 50%; max-width: 96vw; }
+}
