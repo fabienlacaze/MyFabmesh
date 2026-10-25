@@ -3346,38 +3346,50 @@
 
     <!-- Selection / Cut-Paste modal (manual: rectangle select → cut/copy → move → drop) -->
     <div id="select-modal" class="modal hidden">
-      <div class="modal-content" style="width:95vw; height:95vh; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: min(600px, 100vw);">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Selection — Cut / Copy / Paste</h2><button id="select-modal-close" class="settings-close-x">&#10005;</button></div>
-        <div style="font-size: 13px; color: var(--text-muted);">
-          <strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp;
-          drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <button id="select-cut" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
-          <button id="select-copy" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
-          <button id="select-delete" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px; color:#ff8080; border-color:rgba(255,80,80,0.4);" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
-          <button id="select-drop" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
-          <button id="select-deselect" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="select-mode-rect" class="secondary-btn tool-btn active" style="padding:4px 10px; font-size:14px;" title="Rectangular selection">&#9647;&nbsp;Rect</button>
-          <button id="select-mode-lasso" class="secondary-btn tool-btn" style="padding:4px 10px; font-size:14px;" title="Freehand lasso selection">&#10227;&nbsp;Lasso</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="select-loupe-toggle" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Magnifier">&#128270;</button>
-          <button id="select-recenter" class="secondary-btn tool-btn" style="padding:4px 8px;" title="Fit to view">&#9678;</button>
-          <span class="vz-sep" aria-hidden="true"></span>
-          <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
-          <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
-        </div>
-        <div id="select-canvas-container" style="position: relative; flex: 1 1 0; overflow: hidden; background: #1a1a2e; border-radius: 4px; min-height: 400px; max-width: 100%; cursor: crosshair;">
-          <canvas id="select-canvas" style="position: absolute; left: 0; top: 0;"></canvas>
-          <canvas id="select-overlay" style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span id="select-status" style="font-size:13px; color:var(--text-muted);">Drag to select a rectangle.</span>
-          <div class="modal-actions fen-pied-editeur">
-            <button id="select-cancel" class="ghost-btn">Cancel</button>
-            <button id="select-save" class="primary-btn">Save as new version</button>
+        <p class="modal-subtitle"><strong>Rect</strong> or <strong>Lasso</strong>, then drag around the zone &nbsp;|&nbsp; <strong>Cut</strong> (leaves a transparent hole) or <strong>Copy</strong> &nbsp;|&nbsp; drag the piece to move it &nbsp;|&nbsp; <strong>Drop</strong> (or Enter) to place &nbsp;|&nbsp; right-drag to pan, wheel to zoom</p>
+        <div class="fen-corps">
+          <!-- apercu a GAUCHE, reglages en colonne a DROITE (gabarit commun des fenetres d'outils) -->
+          <div class="fen-apercu">
+            <div id="select-canvas-container" class="fen-apercu-canevas" style="cursor: crosshair;">
+              <canvas id="select-canvas" style="position: absolute; left: 0; top: 0;"></canvas>
+              <canvas id="select-overlay" style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
+            </div>
+            <div id="select-status" class="fen-apercu-etat">Drag to select a rectangle.</div>
           </div>
+          <div class="fen-form">
+            <div class="fen-champ">
+              <span class="fen-label">Selection shape</span>
+              <div class="fen-rangee">
+                <button id="select-mode-rect" class="secondary-btn tool-btn active" title="Rectangular selection">&#9647;&nbsp;Rect</button>
+                <button id="select-mode-lasso" class="secondary-btn tool-btn" title="Freehand lasso selection">&#10227;&nbsp;Lasso</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <span class="fen-label">Cut and paste</span>
+              <div class="fen-rangee">
+                <button id="select-cut" class="secondary-btn tool-btn" title="Cut the selection (transparent hole left behind)" disabled>&#9986;&nbsp;Cut</button>
+                <button id="select-copy" class="secondary-btn tool-btn" title="Copy the selection" disabled>&#128203;&nbsp;Copy</button>
+                <button id="select-delete" class="secondary-btn tool-btn fen-danger" title="Delete the selection (transparent hole, no floating piece)" disabled>&#128465;&nbsp;Delete</button>
+                <button id="select-drop" class="secondary-btn tool-btn" title="Drop the floating piece here (Enter)" disabled>&#128204;&nbsp;Drop</button>
+                <button id="select-deselect" class="secondary-btn tool-btn" title="Deselect / cancel move (Esc)" disabled>&#10006;&nbsp;Deselect</button>
+              </div>
+            </div>
+            <div class="fen-champ">
+              <span class="fen-label">View and history</span>
+              <div class="fen-rangee">
+                <button id="select-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier">&#128270;</button>
+                <button id="select-recenter" class="secondary-btn tool-btn" title="Fit to view">&#9678;</button>
+                <button id="select-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
+                <button id="select-redo" class="secondary-btn tool-btn" disabled title="Redo">&#8631;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="select-cancel" class="ghost-btn">Cancel</button>
+          <button id="select-save" class="primary-btn">Save as new version</button>
         </div>
       </div>
     </div>

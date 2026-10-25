@@ -1501,6 +1501,10 @@
     "Zoom out": ["Zoom arrière", "Alejar", "缩小", "ज़ूम आउट", "تصغير"],
     "Fullscreen": ["Plein écran", "Pantalla completa", "全屏", "पूर्ण स्क्रीन", "ملء الشاشة"],
     "Left drag = paint · right drag = pan · middle drag = rotate · wheel = zoom": ["Glisser gauche = peindre · glisser droit = déplacer · glisser molette = tourner · molette = zoom", "Arrastre izquierdo = pintar · derecho = mover · rueda pulsada = girar · rueda = zoom", "左键拖动 = 绘制 · 右键拖动 = 平移 · 中键拖动 = 旋转 · 滚轮 = 缩放", "बायाँ-खींचें = पेंट · दायाँ-खींचें = खिसकाएँ · बीच का बटन खींचें = घुमाएँ · व्हील = ज़ूम", "سحب أيسر = رسم · سحب أيمن = تحريك · سحب العجلة = تدوير · العجلة = تكبير"],
+    /* LOT W04 : Cut / Copy / Paste */
+    "Selection shape": ["Forme de sélection", "Forma de selección", "选择形状", "चयन का आकार", "شكل التحديد"],
+    "Cut and paste": ["Couper et coller", "Cortar y pegar", "剪切和粘贴", "काटें और चिपकाएँ", "قص ولصق"],
+    "View and history": ["Vue et historique", "Vista e historial", "视图和历史", "दृश्य और इतिहास", "العرض والسجل"],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

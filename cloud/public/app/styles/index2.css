@@ -4935,3 +4935,10 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ══ LOT W04 (25/10) : Cut / Copy / Paste (#select-modal) adopte le gabarit .fen-3d : apercu a gauche, boutons en colonne a droite, pied Annuler + action pleine largeur ══ */
+.fen-apercu-canevas { position: absolute; inset: 0; overflow: hidden; background: #1a1a2e; }
+.fen-rangee { display: flex; flex-wrap: wrap; gap: 6px; }
+.fen-rangee .tool-btn { padding: 4px 10px; font-size: 14px; }
+.fen-rangee .fen-danger { color: #ff8080; border-color: rgba(255, 80, 80, 0.4); }
+#select-modal .modal-actions .primary-btn { flex: 1 1 auto; }
