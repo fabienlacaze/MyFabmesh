@@ -3085,16 +3085,16 @@
     </div>
 
     <div id="modal-resize" class="modal-overlay hidden">
-      <div class="modal-card" style="max-width:1100px; width:94vw;">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>&#128207; Resize / dimension</h2><button type="button" class="settings-close-x" id="rz-close" title="Close">&#10005;</button></div>
         <p class="modal-subtitle">Drag the gizmo or type sizes and angles. Apply creates a new version.</p>
-        <div style="display:flex; gap:16px; margin-top:12px; flex-wrap:wrap;">
-          <div id="rz-viewport" style="position:relative; flex:1 1 560px; min-width:320px; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#0b0b14; border-radius:10px; overflow:hidden;">
+        <div class="fen-corps">
+          <div id="rz-viewport" class="fen-apercu">
             <canvas id="rz-canvas" style="width:100%; height:100%; display:block;"></canvas>
             <div id="rz-readout" style="position:absolute; top:10px; left:12px; font-size:12px; line-height:1.5; color:#dfe6ff; background:rgba(0,0,0,0.55); padding:8px 10px; border-radius:8px; pointer-events:none; font-family:monospace;">…</div>
-            <div id="rz-hint" style="position:absolute; bottom:10px; left:12px; font-size:11px; color:#8a93b2; pointer-events:none;">Drag gizmo · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
+            <div id="rz-hint" class="fen-apercu-etat">Drag gizmo · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
           </div>
-          <div style="flex:0 0 240px; display:flex; flex-direction:column; gap:12px;">
+          <div class="fen-form">
             <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-1);">
               <input type="checkbox" id="rz-uniform" checked /> Uniform scale (lock ratio)
             </label>
@@ -3141,7 +3141,7 @@
             <small class="modal-subtitle" style="font-size:12px;">In the mesh's own units.</small>
           </div>
         </div>
-        <div class="modal-actions" style="margin-top:14px;">
+        <div class="modal-actions">
           <button class="ghost-btn" id="rz-cancel">Cancel</button>
           <button class="primary-btn" id="rz-apply">Apply</button>
         </div>
