@@ -3266,6 +3266,7 @@ const _POIGNEES_MOTEUR_LOCAL = new Set([
   'material-adjust',
   'mesh-recolor',
   'mesh-resize',
+  'mesh-symmetrize',
   'mesh-tool',
   'mesh:align-texture',
   'mesh:region-retex',
@@ -9652,6 +9653,71 @@ ipcMain.handle('mesh-resize', async (_event, { meshPath, sx, sy, sz, qx, qy, qz,
     if (!ok || !fs.existsSync(outPath)) return { success: false, error: 'Resize worker failed' };
     try { writeMeta(outPath, { kind: 'op', op: 'resize', parent: meshPath, params: { sx: ax, sy: ay, sz: az, ...rot } }); } catch (_) {}
     return { success: true, newPath: outPath, filename: path.basename(outPath) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// SYMETRIE DE MAILLAGE (outil manuel « Symmetrize mesh », 25/10) — coupe le maillage par un plan, garde un cote et le
+// recopie en miroir (sommets du plan soudes, UV du cote source reprises). NOUVELLE version : l'original reste intact.
+// Plan, cote et zone (tampons du pinceau) viennent de la fenetre ; le calcul est scripts/symmetrize_mesh.py (bureau) ou
+// /api/mesh-op opType='symmetrize' (mode Cloud, meme noyau cote Modal).
+ipcMain.handle('mesh-symmetrize', async (_event, opts = {}) => {
+  try {
+    const { meshPath } = opts;
+    if (!meshPath || !fs.existsSync(meshPath)) return { success: false, error: 'Mesh not found' };
+    if (!isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+    const fini = (v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e7;
+    const v3 = (v) => Array.isArray(v) && v.length === 3 && v.every(fini);
+    if (!v3(opts.point) || !v3(opts.normal) || Math.hypot(...opts.normal) < 1e-9) {
+      return { success: false, error: 'The symmetry plane is not valid.' };
+    }
+    const mode = opts.mode === 'mask' ? 'mask' : 'full';
+    const stamps = mode === 'mask' && Array.isArray(opts.stamps) ? opts.stamps.slice(0, 1200) : [];
+    if (stamps.some((t) => !Array.isArray(t) || t.length !== 5 || !t.every(fini) || t[3] <= 0)) {
+      return { success: false, error: 'The painted area is not valid.' };
+    }
+    if (mode === 'mask' && !stamps.length) return { success: false, error: 'Paint the area to mirror first.' };
+    const params = { point: opts.point, normal: opts.normal, keep: opts.keep === 'neg' ? 'neg' : 'pos', mode, ...(mode === 'mask' ? { stamps } : {}) };
+    let stem = path.basename(meshPath, path.extname(meshPath));
+    let prev;
+    do { prev = stem; stem = stem.replace(/_symmetrize_\d+$/i, ''); } while (stem !== prev);
+    if (stem.length > 90) stem = stem.slice(0, 90);
+    const outPath = path.join(MESHES_DIR, `${stem}_symmetrize_${Date.now()}.glb`);
+    // ── Mode Cloud : /api/mesh-op opType='symmetrize' (1 credit), memes reglages.
+    if (isCloudMode()) {
+      safeSend('ai3d-progress', '[Symmetrize] (cloud)…');
+      const r = await cloudFallback.meshOp({ meshPath, opType: 'symmetrize', params, outPath, projectName: stem });
+      if (!r.success) {
+        return { success: false, error: r.error || 'cloud symmetrize failed',
+                 ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+      }
+      try {
+        writeMeta(outPath, { kind: 'op', op: 'symmetrize', parent: meshPath,
+          params: { ...params, stamps: undefined, stampCount: stamps.length, cloud: true, r2_url: r.resultUrl } });
+      } catch (_) {}
+      return { success: true, newPath: outPath, filename: path.basename(outPath), operation: 'symmetrize' };
+    }
+    const script = path.join(SCRIPTS_DIR, 'symmetrize_mesh.py');
+    if (!fs.existsSync(script)) return { success: false, error: 'symmetrize_mesh.py not found' };
+    if (!_localPyLibsUsable()) return { success: false, cloudUnavailable: true, error: _localEngineMsg('Symmetrize mesh') };
+    const fichierParams = path.join(os.tmpdir(), `fabmesh_symmetrize_${Date.now()}_${process.pid}.json`);
+    fs.writeFileSync(fichierParams, JSON.stringify(params), 'utf-8');
+    const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
+    const res = await new Promise((resolve) => {
+      execFile(_aiPython(), [script, meshPath, outPath, fichierParams],
+        { timeout: 600000, maxBuffer: 16 * 1024 * 1024, env }, (error, stdout, stderr) => resolve({ error, stdout: String(stdout || ''), stderr: String(stderr || '') }));
+    });
+    try { fs.unlinkSync(fichierParams); } catch (_) {}
+    // Le script ecrit « ERROR <message>» sur la sortie standard pour un refus explique (maillage pese, rien a recopier).
+    const refus = /^ERROR (.+)$/m.exec(res.stdout);
+    if (refus) return { success: false, error: refus[1].trim() };
+    if (res.error || !fs.existsSync(outPath)) {
+      const manque = _manqueMemoireDansSortie(res.stdout + '\n' + res.stderr);
+      return { success: false, error: manque || 'Symmetrize failed' };
+    }
+    try { writeMeta(outPath, { kind: 'op', op: 'symmetrize', parent: meshPath, params: { ...params, stamps: undefined, stampCount: stamps.length } }); } catch (_) {}
+    return { success: true, newPath: outPath, filename: path.basename(outPath), operation: 'symmetrize' };
   } catch (e) {
     return { success: false, error: e.message };
   }

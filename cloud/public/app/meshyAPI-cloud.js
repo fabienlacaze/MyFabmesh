@@ -3398,6 +3398,29 @@
       } catch (e) { return { success: false, error: String(e) }; }
     },
 
+    // Symmetrize mesh (outil manuel, 25/10) — port cloud de l'IPC bureau 'mesh-symmetrize' (scripts/symmetrize_mesh.py)
+    // via /api/mesh-op op_type='symmetrize'. Plan (point + normale), cote conserve et, en mode zone, tampons du pinceau.
+    // meshPath est une URL. Meme forme de retour que le bureau : { success, newPath, filename }.
+    symmetrizeMesh: async ({ meshPath, meshUrl, point, normal, keep, mode, stamps, projectName } = {}) => {
+      const url = meshUrl || meshPath;
+      if (!url) return { success: false, error: 'meshPath or meshUrl required' };
+      try {
+        const zone = mode === 'mask';
+        const r = await postJSON('/api/mesh-op', {
+          meshUrl: url, opType: 'symmetrize',
+          params: { point, normal, keep: keep === 'neg' ? 'neg' : 'pos', mode: zone ? 'mask' : 'full', ...(zone ? { stamps: stamps || [] } : {}) },
+          projectName: projectName || window.state?.currentProject?.name || null,
+        });
+        if (r?.success || r?.ok) {
+          if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+          const np = r.newPath || r.path || r.mesh_url;
+          return { success: true, newPath: np, path: np, operation: 'symmetrize',
+                   filename: String(np || '').split('?')[0].split('/').pop() || 'symmetrize.glb' };
+        }
+        return { success: false, error: r?.error || 'symmetrize failed' };
+      } catch (e) { return { success: false, error: String(e?.message || e) }; }
+    },
+
     // Explosion / destruction tool — cloud port of the desktop
     // scripts/explode_mesh_3d.py via /api/mesh-op op_type='explode'. Outputs ONE
     // GLB with part_XX submeshes driven by the viewer's explode slider (no baked

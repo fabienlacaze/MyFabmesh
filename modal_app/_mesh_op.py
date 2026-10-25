@@ -1752,6 +1752,7 @@ OPS = {
     'retex_swap':      retex_swap_atlas,
     'resize':          resize,     # orientation + per-axis scale (manual Resize/dimension tool)
     'explode':         explode,    # Voronoi fracture -> part_XX submeshes (explode slider)
+    'symmetrize':      None,       # symetrie par un plan (outil manuel « Symmetrize mesh »), voir modal_app/_symetrie.py
     'apercu':          apercu,     # copie de demonstration filigranee (Marketplace, fiches payantes)
 }
 
@@ -1813,6 +1814,10 @@ def _executer(op_type: str, glb_bytes: bytes, params: dict | None = None):
                       sy=float(p.get('sy', 1.0)),
                       sz=float(p.get('sz', 1.0)),
                       q=[float(v) for v in q] if all(v is not None for v in q) else None), None
+    if op_type == 'symmetrize':
+        from modal_app._symetrie import symetriser
+        sortie, st = symetriser(glb_bytes, p)
+        return sortie, st
     if op_type == 'explode':
         return explode(glb_bytes, fragments=int(p.get('fragments', 24)), mode=str(p.get('mode', 'voronoi'))), None
     if op_type == 'apercu':
