@@ -1891,7 +1891,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     }
 
     preset.addEventListener('change', recompute);
-    for (const id of ['ws-3d-buildstages', 'ws-trellis2-tris', 'ws-3d-auto', 'ws-asset-type', ...optionIds]) {
+    for (const id of ['ws-3d-buildstages', 'ws-trellis2-tris', 'ws-3d-manual', 'ws-asset-type', ...optionIds]) {
       document.getElementById(id)?.addEventListener('change', recompute);
     }
     document.getElementById('ws-trellis2-tris-custom')?.addEventListener('input', recompute);

@@ -2842,17 +2842,17 @@ function _analyserSourceAuto3D(imgEl, src) {
     const s = _symetrieSilhouette(imgEl);
     _auto3dSymetrie = (s == null) ? null : { src, sym: s };
     const at = document.getElementById('ws-asset-type');
-    if (document.getElementById('ws-3d-auto')?.checked && at) _applyAssetOptionsProfile(at.value || 'character');
+    if (document.getElementById('ws-3d-manual')?.checked === false && at) _applyAssetOptionsProfile(at.value || 'character');
   };
   if (imgEl.complete && imgEl.naturalWidth > 0) lire();
   else imgEl.addEventListener('load', lire, { once: true });
 }
 
 function _ajusterAuto3D() {
-  const auto = document.getElementById('ws-3d-auto');
+  const manuel = document.getElementById('ws-3d-manual');   // case « Reglages manuels » (decochee = automatique), 25/10
   const note = document.getElementById('ws-3d-auto-note');
-  if (!auto) return;
-  if (!auto.checked) { if (note) note.textContent = 'Manual settings. Untick "Manual settings" to let the app choose.'; return; }
+  if (!manuel) return;
+  if (manuel.checked) { if (note) note.textContent = 'Manual settings. Untick "Manual settings" to let the app choose.'; return; }
   const at = document.getElementById('ws-asset-type')?.value || 'character';
   const visible = (id) => {
     const cb = document.getElementById(id);
@@ -2891,38 +2891,19 @@ function _ajusterAuto3D() {
   _AUTO3D_OPTIONS.forEach(id => document.getElementById(id)?.dispatchEvent(new Event('change', { bubbles: true })));
 }
 
-// 25/10 (user : « inverse : Reglages manuels, et pas coche ») : la case visible devient « Reglages manuels » (decochee d'office) ; la case
-// d'origine « Reglages automatiques » reste la source de verite (cachee) : tout le code existant continue de la lire, et les deux restent synchronisees.
-(function _caseManuelle3D() {
-  const auto = document.getElementById('ws-3d-auto');
-  if (!auto || document.getElementById('ws-3d-manual')) return;
-  const lab = auto.closest('label');
-  if (!lab) return;
-  lab.style.display = 'none';
-  const neuf = document.createElement('label');
-  neuf.className = lab.className;
-  neuf.title = _i18nT('Choose the settings yourself. Untick to let the app pick the best settings for this image and asset type.');
-  const cb = document.createElement('input');
-  cb.type = 'checkbox'; cb.id = 'ws-3d-manual'; cb.checked = !auto.checked;
-  neuf.append(cb, document.createTextNode(' ' + _i18nT('Manual settings')));
-  lab.insertAdjacentElement('afterend', neuf);
-  const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked');
-  Object.defineProperty(auto, 'checked', { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); cb.checked = !v; } });
-  cb.addEventListener('change', () => { auto.checked = !cb.checked; auto.dispatchEvent(new Event('change', { bubbles: true })); });
-})();
 (function _wireAuto3D() {
-  const auto = document.getElementById('ws-3d-auto');
-  if (!auto) return;
-  // Une option touchee A LA MAIN (evenement de confiance) coupe l'automatique.
+  const manuel = document.getElementById('ws-3d-manual');   // 25/10 : une seule case, « Reglages manuels » (decochee d'office = automatique)
+  if (!manuel) return;
+  // Une option touchee A LA MAIN (evenement de confiance) passe en reglages manuels.
   _AUTO3D_OPTIONS.forEach(id => document.getElementById(id)?.addEventListener('change', (e) => {
-    if (e.isTrusted && auto.checked) { auto.checked = false; _ajusterAuto3D(); }
+    if (e.isTrusted && !manuel.checked) { manuel.checked = true; _ajusterAuto3D(); }
   }));
-  auto.addEventListener('change', () => {
-    // Decoche = on veut regler soi-meme : les options avancees s'ouvrent ;
-    // recoche = elles se replient (user, 2026-09-27).
+  manuel.addEventListener('change', () => {
+    // Coche = on veut regler soi-meme : les options avancees s'ouvrent ;
+    // decoche = elles se replient (user, 2026-09-27).
     const det = document.getElementById('ws-3d-trellis2-opts');
-    if (det) det.open = !auto.checked;
-    if (auto.checked) _applyAssetOptionsProfile(document.getElementById('ws-asset-type')?.value || 'character');
+    if (det) det.open = manuel.checked;
+    if (!manuel.checked) _applyAssetOptionsProfile(document.getElementById('ws-asset-type')?.value || 'character');
     else _ajusterAuto3D();
   });
   _ajusterAuto3D();

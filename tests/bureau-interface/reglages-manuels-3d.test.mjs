@@ -1,29 +1,29 @@
-// 25/10 (user : « inverse : Reglages manuels, et pas coche ») : la case visible de la creation 3D est « Reglages manuels », decochee d'office ;
-// la case d'origine (ws-3d-auto, source de verite) reste cachee et synchronisee.
+// 25/10 (user : « autant en garder qu'une seule, la renommer de auto a manuel et inverser son etat ») : UNE case « Reglages manuels », decochee d'office
+// (decochee = reglages automatiques) ; plus de case « Reglages automatiques », plus de synchronisation.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-for (const f of ['cloud/public/app/index2.js', 'src/renderer/index2.js']) {
-  test(`${f} : « Reglages manuels » inverse la case automatique sans changer sa logique`, () => {
-    const src = readFileSync(join(RACINE, f), 'utf8').replace(/\r\n/g, '\n');
-    const i = src.indexOf('(function _caseManuelle3D() {');
-    assert.ok(i > 0);
-    const corps = src.slice(i, src.indexOf('})();', i));
-    assert.match(corps, /cb\.checked = !auto\.checked/);
-    assert.match(corps, /auto\.checked = !cb\.checked/);
-    assert.match(corps, /cb\.checked = !v/);
-    assert.match(corps, /_i18nT\('Manual settings'\)/);
-    assert.match(corps, /lab\.style\.display = 'none'/);
-    assert.doesNotMatch(src, /Tick "Auto settings"/);
+const lire = (f) => readFileSync(join(RACINE, f), 'utf8').replace(/\r\n/g, '\n');
+for (const [html, js] of [['cloud/public/app/index.html', 'cloud/public/app/index2.js'], ['src/renderer/index2.html', 'src/renderer/index2.js']]) {
+  test(`${html} : une seule case, « Manual settings », decochee d'office`, () => {
+    const h = lire(html);
+    assert.match(h, /<input type="checkbox" id="ws-3d-manual" \/>/);
+    assert.doesNotMatch(h, /id="ws-3d-auto"/);
+    assert.match(h, /Manual settings/);
+  });
+  test(`${js} : la logique lit la case manuelle (decochee = automatique), sans synchronisation`, () => {
+    const s = lire(js);
+    assert.doesNotMatch(s, /getElementById\('ws-3d-auto'\)/);
+    assert.doesNotMatch(s, /_caseManuelle3D/);
+    assert.match(s, /getElementById\('ws-3d-manual'\)\?\.checked === false && at/);
+    assert.match(s, /if \(e\.isTrusted && !manuel\.checked\) \{ manuel\.checked = true; _ajusterAuto3D\(\); \}/);
+    assert.match(s, /if \(det\) det\.open = manuel\.checked;/);
+    assert.match(s, /if \(!manuel\.checked\) _applyAssetOptionsProfile/);
   });
 }
-test('la logique d inversion : tout etat de la case cachee se reflete a l envers', () => {
-  // simulation minimale : setter de checked relie a la case visible
-  let interne = true; const visible = { checked: false };
-  const auto = { get checked() { return interne; }, set checked(v) { interne = v; visible.checked = !v; } };
-  auto.checked = false; assert.equal(visible.checked, true);
-  auto.checked = true; assert.equal(visible.checked, false);
+test('cloud-overrides recalcule le prix sur la case manuelle', () => {
+  assert.match(lire('cloud/public/app/cloud-overrides.js'), /'ws-3d-manual', 'ws-asset-type'/);
 });
