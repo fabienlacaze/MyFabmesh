@@ -1515,10 +1515,7 @@
   if (!window.FabI18n || !window.FabI18n.register) return;
   var L = ['fr', 'es', 'zh', 'hi', 'ar'];
   var T = {
-    "Brush": ["Pinceau", "Pincel", "画笔", "ब्रश", "الفرشاة"],
-    "Hardness": ["Dureté", "Dureza", "硬度", "कठोरता", "الصلابة"],
     "Source": ["Source", "Origen", "源", "स्रोत", "المصدر"],
-    "View": ["Vue", "Vista", "视图", "दृश्य", "العرض"],
     "History": ["Historique", "Historial", "历史", "इतिहास", "السجل"]
   };
   for (var i = 0; i < L.length; i++) {

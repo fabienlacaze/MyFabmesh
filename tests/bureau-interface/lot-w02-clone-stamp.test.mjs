@@ -37,6 +37,6 @@ for (const [nom, [h, c]] of Object.entries(CIBLES)) {
     assert.match(css, /LOT W02/);
     assert.match(css, /#clone-modal \.modal-actions\.fen-pied-editeur \.primary-btn \{ flex: 1 1 0; \}/);
     const l = lire(h.replace(/[^/]+$/, 'lang/_additions6.js'));
-    for (const k of ['Brush', 'Hardness', 'Source', 'View', 'History']) assert.ok(l.includes('"' + k + '": ['), k);
+    for (const k of ['Source', 'History']) assert.ok(l.includes('"' + k + '": ['), k);
   });
 }
