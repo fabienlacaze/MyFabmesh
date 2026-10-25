@@ -13265,44 +13265,75 @@ async function runMeshTool(operation, params = [], namedParams = null, options =
 // scripts/sampart3d_bridge.py). Sortie = version MESH segmentée (sous-meshes
 // nommés + couleurs par partie). Réutilise le popup pushJob + l'add-version +
 // « Go to generated item » (grâce au nom 'segment: …' matché par _jobStepIndex).
-function _openSegmentGranularityModal() {
+// ══ LOT P3 (25/10) : apercu 3D REEL des fenetres Segment parts / Name the zones ══
+// Meme chargement que Material Adjust (Viewer3D + _fauxChargeur) et meme barre de vues commune.
+const _p3Apercu = { seg: { viewer: null, model: null, jeton: 0 }, np: { viewer: null, model: null, jeton: 0 } };
+async function _p3ChargerApercu(cle, canvasId, meshPath) {
+  const a = _p3Apercu[cle];
+  const jeton = ++a.jeton;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !meshPath) return;
+  if (!a.viewer) {
+    a.viewer = new Viewer3D({ canvas, fov: 45, bgColor: 0x1b1b1b, cameraPos: [2, 2, 3], lighting: true });
+    a.viewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    a.viewer.renderer.toneMappingExposure = 1.0;
+    a.viewer.startTickLoop();
+    creerBarreVues3D(canvas.parentElement, a.viewer, { cible: () => a.model });
+  }
+  await new Promise((r) => requestAnimationFrame(r));
+  a.viewer.renderer.setSize(canvas.clientWidth || 600, canvas.clientHeight || 520, false);
+  a.viewer.camera.aspect = (canvas.clientWidth || 600) / (canvas.clientHeight || 520);
+  a.viewer.camera.updateProjectionMatrix();
+  if (a.model) { a.viewer.scene.remove(a.model); a.model = null; }
+  let buffer = null;
+  try { buffer = _etapeAffiche(meshPath, true) ? new ArrayBuffer(8) : await API.readMeshFile(meshPath); } catch (_) { buffer = null; }
+  if (!buffer || jeton !== a.jeton) return;
+  const loader = _fauxChargeur(meshPath, { leger: true });
+  loader.parse(buffer, '', (gltf) => {
+    if (jeton !== a.jeton) return;
+    a.model = gltf.scene;
+    a.viewer.scene.add(a.model);
+    const box = new THREE.Box3().setFromObject(a.model);
+    const size = box.getSize(new THREE.Vector3()).length() || 2;
+    const center = box.getCenter(new THREE.Vector3());
+    a.model.position.sub(center);
+    a.viewer.camera.near = size / 100;
+    a.viewer.camera.far = size * 100;
+    a.viewer.camera.updateProjectionMatrix();
+    a.viewer.camera.position.set(size * 0.8, size * 0.5, size * 0.8);
+    a.viewer.controls?.target.set(0, 0, 0);
+    a.viewer.controls?.update();
+  }, (err) => { console.error('Apercu P3 : lecture du modele impossible', err); });
+}
+
+function _openSegmentGranularityModal(meshPath) {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:430px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
+    const fen = document.getElementById('modal-segment-parts');
+    if (!fen) { resolve(null); return; }
     // Mode Cloud (2026-09-30) : la fenetre annoncait « Runs locally on your
     // GPU » et aucun prix, alors que le calcul part sur /api/mesh-segment.
     const segCloud = _isCloudMode();
-    box.innerHTML =
-      '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">&#9986; Segment parts</div>' +
-      '<div style="text-align:center;margin:2px 0 12px;"><svg viewBox="0 0 120 64" width="150" height="80" aria-hidden="true"><circle cx="60" cy="9" r="7" fill="#f0617d"/><rect x="50" y="19" width="20" height="20" rx="3" fill="#a855f7"/><rect x="36" y="20" width="11" height="19" rx="3" fill="#38bdf8"/><rect x="73" y="20" width="11" height="19" rx="3" fill="#38bdf8"/><rect x="50" y="42" width="9" height="19" rx="3" fill="#fbbf24"/><rect x="61" y="42" width="9" height="19" rx="3" fill="#fbbf24"/><rect x="92" y="34" width="22" height="12" rx="3" fill="#34d399"/><circle cx="97" cy="52" r="5" fill="#fb923c"/><circle cx="109" cy="52" r="5" fill="#fb923c"/></svg></div>' +   // illustration : pieces colorees (25/10)
-      '<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:16px;">' +
-        'Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). ' +
-        (segCloud ? 'Runs in the MyFabmesh cloud. ' : 'Runs locally on your GPU, ~1&nbsp;min. ') +
-        'Adds a new colored, separable mesh version.</div>' +
-      '<label style="font-size:13px;font-weight:500;">Granularity: <span id="seg-gran-label"></span></label>' +
-      '<input id="seg-gran" type="range" min="0" max="1" step="0.1" value="0.2" style="width:100%;margin:8px 0 4px;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:13px;opacity:.65;margin-bottom:18px;">' +
-        '<span>Coarse (fewer, clean)</span><span>Fine (more parts)</span></div>' +
-      '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
-        '<button id="seg-cancel" class="ghost-btn" style="padding:8px 16px;">Cancel</button>' +
-        '<button id="seg-go" class="primary-btn" style="padding:8px 16px;">Segment</button></div>';
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
+    document.getElementById('seg-sub').textContent =
+      _i18nT('Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / turret / barrel). Adds a new colored, separable mesh version.')
+      + ' ' + _i18nT(segCloud ? 'Runs in the MyFabmesh cloud.' : 'Runs locally on your GPU, about 1 minute.');
+    document.getElementById('seg-echelle-g').textContent = _i18nT('Coarse (fewer, clean)');
+    document.getElementById('seg-echelle-d').textContent = _i18nT('Fine (more parts)');
+    const go = document.getElementById('seg-go');
     // Mode Cloud : prix du lancement (tarif `mesh_segment`, grille) sur le bouton.
-    if (segCloud) window._posePastille?.(box.querySelector('#seg-go'), window._prixDe?.('mesh_segment'));
-    const slider = box.querySelector('#seg-gran');
-    const label = box.querySelector('#seg-gran-label');
+    window._posePastille?.(go, segCloud ? window._prixDe?.('mesh_segment') : null);
+    const slider = document.getElementById('seg-gran');
+    const label = document.getElementById('seg-gran-label');
     const names = { '0': 'Coarse', '0.1': 'Clean', '0.2': 'Clean+', '0.3': 'Balanced', '0.4': 'Balanced', '0.5': 'Detailed', '0.6': 'Detailed', '0.7': 'Fine', '0.8': 'Fine', '0.9': 'Very fine', '1': 'Very fine' };
-    const sync = () => { label.textContent = names[slider.value] || slider.value; };
-    slider.addEventListener('input', sync); sync();
-    function cleanup(v) { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); }
-    function onKey(e) { if (e.key === 'Escape') cleanup(null); }
-    box.querySelector('#seg-cancel').addEventListener('click', () => cleanup(null));
-    box.querySelector('#seg-go').addEventListener('click', () => cleanup(parseFloat(slider.value)));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+    const sync = () => { label.textContent = _i18nT(names[slider.value] || slider.value); };
+    slider.oninput = sync; sync();
+    function fin(v) { fen.classList.add('hidden'); document.removeEventListener('keydown', onKey); resolve(v); }
+    function onKey(e) { if (e.key === 'Escape') fin(null); }
+    document.getElementById('seg-cancel').onclick = () => fin(null);
+    go.onclick = () => fin(parseFloat(slider.value));
+    fen.onclick = (e) => { if (e.target === fen) fin(null); };
     document.addEventListener('keydown', onKey);
+    fen.classList.remove('hidden');
+    _p3ChargerApercu('seg', 'seg-canvas', meshPath);
   });
 }
 
@@ -13418,7 +13449,7 @@ async function runMeshSegment() {
   const p = state.currentProject;
   if (!p || !(p.previewMeshPath || p.selectedMeshPath)) { showToast('Pick a mesh first.', 'error'); return; }
   if (!API.meshSegment) { showToast('Segmentation engine not available.', 'error'); return; }
-  const granularity = await _openSegmentGranularityModal();
+  const granularity = await _openSegmentGranularityModal(p.previewMeshPath || p.selectedMeshPath);
   if (granularity == null) return;  // cancelled
   // Portail de limites hardware (comme la génération 3D) : PartSAM prend
   // ~15 Go de VRAM + plusieurs Go de RAM — sans gate, un job partait même
@@ -13514,7 +13545,7 @@ function _nameCategoryFromAsset(at) {
   return 'other';
 }
 
-function _openNameCategoryModal(defaultCat) {
+function _openNameCategoryModal(defaultCat, meshPath) {
   const CATS = [
     { id: 'vehicle', ico: '🚗', en: 'Vehicle' },
     { id: 'character', ico: '🧍', en: 'Character / Creature' },
@@ -13523,25 +13554,32 @@ function _openNameCategoryModal(defaultCat) {
     { id: 'other', ico: '📦', en: 'Object (generic)' },
   ];
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:420px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
-    const btns = CATS.map((c) =>
-      `<button class="np-cat ghost-btn" data-cat="${c.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;margin-bottom:8px;text-align:left;font-size:14px;${c.id === defaultCat ? 'border-color:#8b5cf6;background:rgba(139,92,246,0.12);' : ''}"><span style="font-size:18px;">${c.ico}</span>${_escapeHtml(_i18nT(c.en))}</button>`).join('');
-    box.innerHTML =
-      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${_escapeHtml(_i18nT('Name the zones'))}</div>` +
-      `<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:14px;">${_escapeHtml(_i18nT('What kind of object is this? (sets the naming vocabulary)'))}</div>` +
-      btns +
-      `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button id="np-cancel" class="ghost-btn" style="padding:8px 16px;">${_escapeHtml(_i18nT('Cancel'))}</button></div>`;
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-    function cleanup(v) { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); }
-    function onKey(e) { if (e.key === 'Escape') cleanup(null); }
-    box.querySelectorAll('.np-cat').forEach((b) => b.addEventListener('click', () => cleanup(b.dataset.cat)));
-    box.querySelector('#np-cancel').addEventListener('click', () => cleanup(null));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+    const fen = document.getElementById('modal-name-parts');
+    if (!fen) { resolve(null); return; }
+    let choix = defaultCat;
+    const liste = document.getElementById('np-cats');
+    liste.innerHTML = CATS.map((c) =>
+      `<button type="button" class="np-cat ghost-btn p3-cat${c.id === choix ? ' actif' : ''}" data-cat="${c.id}"><span class="p3-cat-ico">${c.ico}</span>${_escapeHtml(_i18nT(c.en))}</button>`).join('');
+    const go = document.getElementById('np-go');
+    window._posePastille?.(go, _isCloudMode() ? window._prixBouton?.('ws-mesh-name-btn') : null);   // tarif `name_parts` lu dans la grille
+    function fin(v) {
+      fen.classList.add('hidden');
+      document.removeEventListener('keydown', onKey);
+      resolve(v);
+    }
+    function onKey(e) { if (e.key === 'Escape') fin(null); }
+    liste.onclick = (e) => {
+      const b = e.target.closest ? e.target.closest('.np-cat') : null;
+      if (!b) return;
+      choix = b.dataset.cat;
+      liste.querySelectorAll('.np-cat').forEach((x) => x.classList.toggle('actif', x === b));
+    };
+    go.onclick = () => fin(choix);
+    document.getElementById('np-cancel').onclick = () => fin(null);
+    fen.onclick = (e) => { if (e.target === fen) fin(null); };
     document.addEventListener('keydown', onKey);
+    fen.classList.remove('hidden');
+    _p3ChargerApercu('np', 'np-canvas', meshPath);
   });
 }
 
@@ -13557,7 +13595,7 @@ async function runNameParts() {
     return;
   }
   const projAsset = document.getElementById('ws-asset-type')?.value || p.assetType || 'character';
-  const cat = await _openNameCategoryModal(_nameCategoryFromAsset(projAsset));
+  const cat = await _openNameCategoryModal(_nameCategoryFromAsset(projAsset), meshPath);
   if (!cat) return;  // annulé
   // 'character' → cherche un rig (voie squelette) ; sinon vision directe.
   const rigPath = cat === 'character' ? _findRigForMesh(p, meshPath) : null;

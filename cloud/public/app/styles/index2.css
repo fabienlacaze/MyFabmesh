@@ -5288,3 +5288,13 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 @media (max-width: 1500px) and (min-width: 901px) {
   .modal-card.fen-3d { padding-left: 12px !important; padding-right: 12px !important; }
 }
+
+/* ══ LOT P3 (25/10) : Segment parts et Name the zones au gabarit .fen-3d (apercu 3D reel a gauche, colonne de droite, pied pleine largeur) ══ */
+#modal-segment-parts .modal-card.fen-3d .modal-actions, #modal-name-parts .modal-card.fen-3d .modal-actions { display: flex; gap: 10px; }
+#modal-segment-parts .modal-card.fen-3d .modal-actions .ghost-btn, #modal-name-parts .modal-card.fen-3d .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+#modal-segment-parts .modal-card.fen-3d .modal-actions .primary-btn, #modal-name-parts .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-segment-parts .fen-form, #modal-name-parts .fen-form { justify-content: flex-start; }
+.p3-cats { display: flex; flex-direction: column; gap: 8px; }
+.p3-cat { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; text-align: left; font-size: 14px; }
+.p3-cat.actif { border-color: #8b5cf6; background: rgba(139, 92, 246, 0.12); }
+.p3-cat-ico { font-size: 18px; }

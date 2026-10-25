@@ -13602,7 +13602,7 @@ function _nameCategoryFromAsset(at) {
   return 'other';
 }
 
-function _openNameCategoryModal(defaultCat) {
+function _openNameCategoryModal(defaultCat, meshPath) {
   const CATS = [
     { id: 'vehicle', ico: '🚗', en: 'Vehicle' },
     { id: 'character', ico: '🧍', en: 'Character / Creature' },
@@ -13611,25 +13611,32 @@ function _openNameCategoryModal(defaultCat) {
     { id: 'other', ico: '📦', en: 'Object (generic)' },
   ];
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:420px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
-    const btns = CATS.map((c) =>
-      `<button class="np-cat ghost-btn" data-cat="${c.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;margin-bottom:8px;text-align:left;font-size:14px;${c.id === defaultCat ? 'border-color:#8b5cf6;background:rgba(139,92,246,0.12);' : ''}"><span style="font-size:18px;">${c.ico}</span>${escapeHtml(_i18nT(c.en))}</button>`).join('');
-    box.innerHTML =
-      `<div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#127991; ${escapeHtml(_i18nT('Name the zones'))}</div>` +
-      `<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:14px;">${escapeHtml(_i18nT('What kind of object is this? (sets the naming vocabulary)'))}</div>` +
-      btns +
-      `<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button id="np-cancel" class="ghost-btn" style="padding:8px 16px;">${escapeHtml(_i18nT('Cancel'))}</button></div>`;
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-    function cleanup(v) { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); }
-    function onKey(e) { if (e.key === 'Escape') cleanup(null); }
-    box.querySelectorAll('.np-cat').forEach((b) => b.addEventListener('click', () => cleanup(b.dataset.cat)));
-    box.querySelector('#np-cancel').addEventListener('click', () => cleanup(null));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+    const fen = document.getElementById('modal-name-parts');
+    if (!fen) { resolve(null); return; }
+    let choix = defaultCat;
+    const liste = document.getElementById('np-cats');
+    liste.innerHTML = CATS.map((c) =>
+      `<button type="button" class="np-cat ghost-btn p3-cat${c.id === choix ? ' actif' : ''}" data-cat="${c.id}"><span class="p3-cat-ico">${c.ico}</span>${escapeHtml(_i18nT(c.en))}</button>`).join('');
+    const go = document.getElementById('np-go');
+    window._posePastille?.(go, _prixGrille('name_parts'));   // tarif `name_parts` lu dans la grille
+    function fin(v) {
+      fen.classList.add('hidden');
+      document.removeEventListener('keydown', onKey);
+      resolve(v);
+    }
+    function onKey(e) { if (e.key === 'Escape') fin(null); }
+    liste.onclick = (e) => {
+      const b = e.target.closest ? e.target.closest('.np-cat') : null;
+      if (!b) return;
+      choix = b.dataset.cat;
+      liste.querySelectorAll('.np-cat').forEach((x) => x.classList.toggle('actif', x === b));
+    };
+    go.onclick = () => fin(choix);
+    document.getElementById('np-cancel').onclick = () => fin(null);
+    fen.onclick = (e) => { if (e.target === fen) fin(null); };
     document.addEventListener('keydown', onKey);
+    fen.classList.remove('hidden');
+    _p3ChargerApercu('np', 'np-canvas', meshPath);
   });
 }
 
@@ -13643,7 +13650,7 @@ async function runNameParts() {
     return;
   }
   const projAsset = document.getElementById('ws-asset-type')?.value || p.assetType || 'character';
-  const cat = await _openNameCategoryModal(_nameCategoryFromAsset(projAsset));
+  const cat = await _openNameCategoryModal(_nameCategoryFromAsset(projAsset), meshPath);
   if (!cat) return;  // annule
   // 'character' -> cherche un rig (voie squelette) ; sinon vision directe.
   const rigPath = cat === 'character' ? _findRigForMesh(p, meshPath) : null;
@@ -13682,47 +13689,81 @@ document.getElementById('ws-mesh-enhance-tex-btn')?.addEventListener('click', ()
 // ── Segment parts — SAMPart3D part-segmentation on cloud GPU ──
 // Async spawn+poll (like auto-rig). Output = a segmented GLB (named,
 // colored per-part submeshes) added as a new MESH version.
-function openSegmentModal() {
+// ══ LOT P3 (25/10) : apercu 3D REEL des fenetres Segment parts / Name the zones ══
+// Meme chargement que Material Adjust (Viewer3D + _fauxChargeur) et meme barre de vues commune.
+const _p3Apercu = { seg: { viewer: null, model: null, jeton: 0 }, np: { viewer: null, model: null, jeton: 0 } };
+async function _p3ChargerApercu(cle, canvasId, meshPath) {
+  const a = _p3Apercu[cle];
+  const jeton = ++a.jeton;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !meshPath) return;
+  if (!a.viewer) {
+    a.viewer = new Viewer3D({ canvas, fov: 45, bgColor: 0x1b1b1b, cameraPos: [2, 2, 3], lighting: true });
+    a.viewer.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    a.viewer.renderer.toneMappingExposure = 1.0;
+    a.viewer.startTickLoop();
+    creerBarreVues3D(canvas.parentElement, a.viewer, { cible: () => a.model });
+  }
+  await new Promise((r) => requestAnimationFrame(r));
+  a.viewer.renderer.setSize(canvas.clientWidth || 600, canvas.clientHeight || 520, false);
+  a.viewer.camera.aspect = (canvas.clientWidth || 600) / (canvas.clientHeight || 520);
+  a.viewer.camera.updateProjectionMatrix();
+  if (a.model) { a.viewer.scene.remove(a.model); a.model = null; }
+  let buffer = null;
+  try { buffer = _etapeAffiche(meshPath, true) ? new ArrayBuffer(8) : await API.readMeshFile(meshPath); } catch (_) { buffer = null; }
+  if (!buffer || jeton !== a.jeton) return;
+  const loader = _fauxChargeur(meshPath, { leger: true });
+  loader.parse(buffer, '', (gltf) => {
+    if (jeton !== a.jeton) return;
+    a.model = gltf.scene;
+    a.viewer.scene.add(a.model);
+    const box = new THREE.Box3().setFromObject(a.model);
+    const size = box.getSize(new THREE.Vector3()).length() || 2;
+    const center = box.getCenter(new THREE.Vector3());
+    a.model.position.sub(center);
+    a.viewer.camera.near = size / 100;
+    a.viewer.camera.far = size * 100;
+    a.viewer.camera.updateProjectionMatrix();
+    a.viewer.camera.position.set(size * 0.8, size * 0.5, size * 0.8);
+    a.viewer.controls?.target.set(0, 0, 0);
+    a.viewer.controls?.update();
+  }, (err) => { console.error('Apercu P3 : lecture du modele impossible', err); });
+}
+
+function _p3Pastille(btn, prix) {
+  if (!btn) return;
+  btn.querySelectorAll('.credit-badge').forEach((x) => x.remove());
+  if (typeof prix === 'number' && prix > 0) {
+    const b = document.createElement('span');
+    b.className = 'credit-badge';
+    b.style.marginLeft = '8px';
+    b.textContent = String(prix);
+    btn.appendChild(b);
+  }
+}
+function openSegmentModal(meshPath) {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:10200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#1b1d22;color:#eee;border:1px solid #3a3d44;border-radius:12px;padding:20px 22px;max-width:430px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.5);font-family:inherit;';
-    box.innerHTML =
-      '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">✂ ' + FabI18n.t('Segment parts') + '</div>' +
-      '<div style="text-align:center;margin:2px 0 12px;"><svg viewBox="0 0 120 64" width="150" height="80" aria-hidden="true"><circle cx="60" cy="9" r="7" fill="#f0617d"/><rect x="50" y="19" width="20" height="20" rx="3" fill="#a855f7"/><rect x="36" y="20" width="11" height="19" rx="3" fill="#38bdf8"/><rect x="73" y="20" width="11" height="19" rx="3" fill="#38bdf8"/><rect x="50" y="42" width="9" height="19" rx="3" fill="#fbbf24"/><rect x="61" y="42" width="9" height="19" rx="3" fill="#fbbf24"/><rect x="92" y="34" width="22" height="12" rx="3" fill="#34d399"/><circle cx="97" cy="52" r="5" fill="#fb923c"/><circle cx="109" cy="52" r="5" fill="#fb923c"/></svg></div>' +   // illustration : pieces colorees (25/10)
-      '<div style="font-size:13px;opacity:.8;line-height:1.4;margin-bottom:16px;">' +
-        FabI18n.t('Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / cabin). Takes ~8 min. The result is added as a new colored mesh version.') +
-      '</div>' +
-      '<label style="font-size:13px;font-weight:500;">' + FabI18n.t('Granularity') + ': <span id="seg-gran-label"></span></label>' +
-      '<input id="seg-gran" type="range" min="0" max="2" step="0.5" value="1" style="width:100%;margin:8px 0 4px;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:11px;opacity:.65;margin-bottom:18px;">' +
-        '<span>' + FabI18n.t('Fine (more parts)') + '</span><span>' + FabI18n.t('Coarse (fewer parts)') + '</span></div>' +
-      '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
-        '<button id="seg-cancel" class="ghost-btn" style="padding:8px 16px;">' + FabI18n.t('Cancel') + '</button>' +
-        '<button id="seg-go" class="primary-btn" style="padding:8px 16px;">' + FabI18n.t('Segment') + '</button></div>';
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
+    const fen = document.getElementById('modal-segment-parts');
+    if (!fen) { resolve(null); return; }
+    document.getElementById('seg-sub').textContent = FabI18n.t('Split the mesh into semantic parts (head / torso / arms / legs — wheel / chassis / cabin). Takes ~8 min. The result is added as a new colored mesh version.');
+    document.getElementById('seg-echelle-g').textContent = FabI18n.t('Fine (more parts)');
+    document.getElementById('seg-echelle-d').textContent = FabI18n.t('Coarse (fewer parts)');
+    const go = document.getElementById('seg-go');
     // Prix du lancement, lu dans la grille (/api/mesh-segment : mesh_segment).
-    const prixSeg = _prixGrille('mesh_segment');
-    if (typeof prixSeg === 'number' && prixSeg > 0) {
-      const b = document.createElement('span');
-      b.className = 'credit-badge';
-      b.style.marginLeft = '8px';
-      b.textContent = String(prixSeg);
-      box.querySelector('#seg-go')?.appendChild(b);
-    }
-    const slider = box.querySelector('#seg-gran');
-    const label = box.querySelector('#seg-gran-label');
+    _p3Pastille(go, _prixGrille('mesh_segment'));
+    const slider = document.getElementById('seg-gran');
+    const label = document.getElementById('seg-gran-label');
     const names = { '0': FabI18n.t('Very fine'), '0.5': FabI18n.t('Fine'), '1': FabI18n.t('Medium'), '1.5': FabI18n.t('Coarse'), '2': FabI18n.t('Very coarse') };
     const sync = () => { label.textContent = names[slider.value] || slider.value; };
-    slider.addEventListener('input', sync); sync();
-    function cleanup(val) { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); }
-    function onKey(e) { if (e.key === 'Escape') cleanup(null); }
-    box.querySelector('#seg-cancel').addEventListener('click', () => cleanup(null));
-    box.querySelector('#seg-go').addEventListener('click', () => cleanup(parseFloat(slider.value)));
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(null); });
+    slider.oninput = sync; sync();
+    function fin(v) { fen.classList.add('hidden'); document.removeEventListener('keydown', onKey); resolve(v); }
+    function onKey(e) { if (e.key === 'Escape') fin(null); }
+    document.getElementById('seg-cancel').onclick = () => fin(null);
+    go.onclick = () => fin(parseFloat(slider.value));
+    fen.onclick = (e) => { if (e.target === fen) fin(null); };
     document.addEventListener('keydown', onKey);
+    fen.classList.remove('hidden');
+    _p3ChargerApercu('seg', 'seg-canvas', meshPath);
   });
 }
 
@@ -13733,7 +13774,7 @@ document.getElementById('ws-mesh-segment-btn')?.addEventListener('click', async 
     || (p.meshes && p.meshes[0] && p.meshes[0].path);
   if (!meshPathToUse) { showToast(FabI18n.t('Pick or generate a mesh first.'), 'error'); return; }
   if (!API.meshSegmentAI) { showToast('Segmentation backend not available.', 'error'); return; }
-  const scale = await openSegmentModal();
+  const scale = await openSegmentModal(meshPathToUse);
   if (scale == null) return;  // cancelled
   const expectedMs = 480000;  // ~8 min A100 (train 5000 iters + render + SAM)
   gatedRun('mesh', `Segment parts: ${p.name}`, async () => {
