@@ -608,6 +608,7 @@ def generate(
     smooth: bool = False,         # filtre bilateral sur l'atlas (case « Texture smooth »)
     ultra_hd: bool = False,       # Ultra 8K : atlas couleur x2 AVANT la serialisation (voir plus bas)
     normal_map: bool = False,     # OPTION « relief pour moteur de jeu » : carte de normales (plafonnee, voir normal_bake) ; faux = GLB d'avant
+    asset_type: str = '',         # type d'actif : la dalle de sol TRELLIS n'est retiree que pour personnage / creature / animal
 ) -> bytes:
     """Run TRELLIS-2 inference + GLB export. Returns the GLB bytes
     (caller pushes to R2). When `back_img` is provided, runs the
@@ -759,6 +760,13 @@ def generate(
     else:
         glb_obj = _exporter(o_voxel_obj.vertices, o_voxel_obj.faces, decimation_target, True)
     print(f'[mesh] GLB export dt={time.time()-t_glb:.1f}s', flush=True)
+    # DALLE DE SOL (25/10, user : « une plaque non souhaitee au sol »). Variante APRES export de la piste G (acceleration_glb) : ne leve jamais,
+    # journalise sa decision, ne touche que personnage / creature / animal, et pas avec « Max triangles » (nombre exact a tenir).
+    try:
+        from modal_app.acceleration_glb import retirer_dalle_glb, type_concerne
+        glb_obj, _ = retirer_dalle_glb(glb_obj, type_concerne(asset_type) and not tris_exact, log=lambda m: print(m, flush=True))
+    except Exception as e:
+        print(f'[mesh] dalle de sol : etape ignoree ({type(e).__name__}: {e})', flush=True)
     t_fin = time.time()
 
     # Couleurs accordees sur l'IMAGE SOURCE (noyau partage) plutot qu'un

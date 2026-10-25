@@ -1163,6 +1163,12 @@ def main():
     else:
         glb = _exporter(mesh.vertices, mesh.faces, decim, True)
     log(f'GLB built in {time.time()-t_exp:.1f}s')
+    # DALLE DE SOL (25/10) : variante apres export de la piste G (ne leve jamais, journalise) ; pas avec « Max triangles ».
+    try:
+        from acceleration_glb import retirer_dalle_glb, type_concerne
+        glb, _ = retirer_dalle_glb(glb, type_concerne(os.environ.get('FABMESH_ASSET_TYPE', '')) and os.environ.get('FABMESH_TRELLIS2_TRIS_EXACT') != '1', log=log)
+    except Exception as _e:
+        log(f'dalle de sol : etape ignoree ({type(_e).__name__}: {_e})')
     _cm.mesurer('glb_built')
     print('LOCAL_TRELLIS2_PROGRESS: 92 brightening', flush=True)
 

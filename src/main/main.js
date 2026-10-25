@@ -12346,6 +12346,8 @@ ipcMain.handle('image-to-3d', async (event, { imagePath: _imagePath, imagePathBa
       // FINESSE DE LA FORME (menu « Shape detail », 2026-10-02) : auto | rapide | fin | max, lue par le pipeline TRELLIS.2 patche
       // (scripts/apply_trellis2_ram_patches.py, patch g). Valeur inconnue = auto.
       ...(engine === 'trellis2_native' ? { FABMESH_TRELLIS2_FINESSE: ['auto', 'rapide', 'fin', 'max'].includes(String(trellis2Finesse)) ? String(trellis2Finesse) : 'auto' } : {}),
+      // 25/10 : type d'actif -> retrait de la dalle de sol TRELLIS (personnage / creature / animal), voir le pipeline.
+      ...(engine === 'trellis2_native' ? { FABMESH_ASSET_TYPE: String(assetType || '').replace(/[^a-z_]/gi, '').slice(0, 32) } : {}),
       // OPTION « relief pour moteur de jeu » (2026-10-15) : le pipeline ne cuit la carte de normales (plafonnee a 2048 px) que si cette variable
       // vaut '1' ; posee a '1' ou '0' a CHAQUE generation. FABMESH_NORMAL_MAP=0 (urgence) reste prioritaire dans le pipeline.
       ...(engine === 'trellis2_native' ? OptionNormales.variablesEnv(trellis2NormalMap) : {}),

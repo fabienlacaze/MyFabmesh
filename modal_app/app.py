@@ -3221,6 +3221,8 @@ class MyFabmeshMesh:
                 # Ultra 8K fait AVANT la serialisation (une seule ecriture du GLB) quand
                 # aucune etape ne retouche la texture ensuite (refine, face fix).
                 ultra_hd=ultra_dans_generate,
+                # 25/10 : type d'actif -> retrait de la dalle de sol TRELLIS (personnage / creature / animal), voir _mesh.generate
+                asset_type=str(payload.get("asset_type") or ""),
                 # Case « Game-engine relief (normal map) » : carte de normales plafonnee a 2048, desactivee par defaut.
                 # Lecture STRICTE (`is True`) : bool("false") vaudrait True ; le worker n'envoie de toute facon qu'un
                 # booleen, mais un appel direct ne doit jamais activer la cuisson par une valeur ambigue.

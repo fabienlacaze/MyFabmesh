@@ -9657,6 +9657,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
         ultra_hd: input.ultra_hd,
         multiref: input.multiref,
         normal_map: input.normal_map === true,
+        asset_type: input.asset_type,
         // Transmis pour information : Modal derive deja la resolution de
         // `mode`, mais les journaliser permet de savoir APRES COUP avec quels
         // reglages un mesh a ete fabrique. Leur absence a rendu impossible le
@@ -12455,6 +12456,7 @@ async function callModalMeshStart(env: Env, input: {
   ultra_hd?: boolean;
   multiref?: boolean;
   normal_map?: boolean;
+  asset_type?: string;   // 25/10 : decide le retrait de la dalle de sol (personnage / creature / animal seulement)
 }): Promise<{ job_id: string }> {
   const url = env.MODAL_MESH_START_URL;
   const secret = env.MODAL_SHARED_SECRET;
@@ -12493,6 +12495,7 @@ async function callModalMeshStart(env: Env, input: {
       multiref: !!input.multiref,
       // option « relief pour moteur de jeu » : TOUJOURS un booleen (`=== true`), jamais la valeur brute d'un client
       normal_map: input.normal_map === true,
+      asset_type: String(input.asset_type ?? '').replace(/[^a-z_]/gi, '').slice(0, 32),
     }),
     // mesh-start returns instantly (< 1 s) once the lightweight HTTP
     // container is warm, but a COLD container for the start endpoint

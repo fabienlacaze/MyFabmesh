@@ -121,7 +121,33 @@ des scores entre eux, jamais à une valeur « bonne » absolue ; en cas de doute
 4. Étendre la campagne avec les paires de régénération (même prompt, autre graine) pour mesurer la variance : un écart de score inférieur à cette variance n'est
    pas un progrès.
 
+## Dalle de sol et socle (03/10, repris le 18/10)
+
+TRELLIS livre parfois une dalle de sol (jusqu'aux bords du cube) et un socle qui prennent jusqu'à 66 % de l'aire de surface, donc de l'atlas UV. Trois bancs
+de MESURE (CPU, lecture seule) ; ce ne sont pas des tests : les tests sont `build/bancs/noyaux/test_dalle_sol.py` (+ `mutants_dalle_sol.py`, qui prouve qu'ils
+échouent sans chaque comportement).
+
+```bash
+# la décision du détecteur sur les paires réelles : faux positifs, marge des seuils (~2 min)
+$PY $B/dalle_sol_campagne.py --sortie C:/tmp/dalle_sol.json
+# la part de l'ATLAS UV prise par la dalle, puis le gain de résolution du corps entre un GLB d'avant et un GLB d'après (protocole GPU)
+$PY $B/dalle_sol_atlas.py meshes/<avant>.glb [<apres>.glb] --grille 1024 --json C:/tmp/atlas.json
+# d'autres mesures sur des GLB réels (sous-commandes) : décision sur un dossier de GLB, temps et mémoire à 2 M / 8 M de faces, GLB penché ou décimé,
+# composantes du maillage gardé
+$PY $B/dalle_sol_mesures.py balayage C:/tmp/trellis_cloud/glb --sortie C:/tmp/balayage.json
+$PY $B/dalle_sol_mesures.py echelle meshes/<orc>.glb 2        # 2 subdivisions = 16 fois plus de faces
+$PY $B/dalle_sol_mesures.py inclinaison meshes/<orc>.glb --angles 12,13,14,15,16
+$PY $B/dalle_sol_mesures.py decimation meshes/<orc>.glb --cibles 50000,5000,500
+$PY $B/dalle_sol_mesures.py composantes meshes/<orc>.glb       # compare l'OPTION des ilots (debris_hauteur=0.05) a son absence
+```
+
+Depuis la relecture du 18/10 (bloquant B1), la regle des **ilots detaches** est une OPTION eteinte par defaut (`debris_hauteur=0`) : elle emportait les
+pieds qui sont des coques separees de la jambe (os d'un squelette, bottes sans raccord). Le cas reel qui l'a montre est un GLB hors depot que la suite
+`test_dalle_sol.py` charge s'il existe : `GLB_SQUELETTE` (defaut `C:/tmp/training_meshes/humanoid/humanoid_26_seed68.glb`, la dalle reelle la plus
+faible, rapport 4,41) et `GLB_MAGICIEN` (defaut `.../humanoid_13_seed55.glb`, le refus reel le plus fort, rapport 2,30 pour un seuil de 3,0), comme `GLB_ORC`
+pour l'orc ; absents, ces tests sont sautes. `mutants_dalle_sol.py --avec-orc` les rejoue aussi.
+
 ## Fichiers
 
 `rendre_silhouette.py` (rendu, orientation, pose libre) · `masque_reference.py` · `iou_silhouette.py` (métriques, diff, `evaluer`) ·
-`campagne_existante.py` · `test_fidelite.py` · sorties hors dépôt dans `C:/tmp/fidelite/` (`baseline.json`, `baseline.md`, `diffs/`, `cache/`).
+`campagne_existante.py` · `test_fidelite.py` · `dalle_sol_campagne.py` · `dalle_sol_atlas.py` · `dalle_sol_mesures.py` · sorties hors dépôt dans `C:/tmp/fidelite/` (`baseline.json`, `baseline.md`, `diffs/`, `cache/`).
