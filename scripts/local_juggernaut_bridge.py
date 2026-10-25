@@ -452,6 +452,8 @@ def generate_images(prompt, output_dir, num_images=4, steps=30):
                 "nude, naked, topless, undressed, bare skin, exposed, nsfw, "
                 # 2026-09-25 — ombres, meme place qu'ailleurs (en tete).
                 "cast shadow, soft shadow, ambient occlusion, "
+                # 25/10 : un avion / bateau / vehicule sortait de FACE (ni longueur ni envergure) ; miroir de modal_app/_realvis.py
+                + ("front view, head-on, facing camera, " if _asset_type in ('avion', 'bateau', 'vehicle', 'other_vehicle') else "")
                 + _armes_neg +
                 "blurry, low quality, text, watermark, deformed, "
                 "bad anatomy, distorted, cropped, worst quality, flat profile, "
