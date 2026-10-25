@@ -164,7 +164,7 @@ def construire_api(self):
 _COMMUN = dict(image=image, volumes={"/poids": poids}, secrets=SECRETS, timeout=1800, max_containers=2, cpu=4.0)
 
 
-@app.cls(gpu="L40S", scaledown_window=120, memory=32768, **_COMMUN)
+@app.cls(gpu="L40S", scaledown_window=300, memory=32768, **_COMMUN)
 @modal.concurrent(max_inputs=4, target_inputs=1)
 class ZImageTurbo(_Base):
     """« Rapide » : 9 pas, aucune guidance, aucun negatif."""
@@ -180,7 +180,7 @@ class ZImageTurbo(_Base):
         return construire_api(self)
 
 
-@app.cls(gpu="A100-80GB", scaledown_window=120, memory=65536, **_COMMUN)
+@app.cls(gpu="A100-80GB", scaledown_window=300, memory=65536, **_COMMUN)
 @modal.concurrent(max_inputs=4, target_inputs=1)
 class QwenImage(_Base):
     """« Meilleur » : 50 pas, vrai prompt negatif (true_cfg_scale 4). Sans negatif la guidance vraie est ignoree : " " au minimum."""

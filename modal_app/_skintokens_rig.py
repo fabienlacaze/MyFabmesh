@@ -475,7 +475,7 @@ CLASSES_SQUELETTE = ("articulation", "rignet", "vroid")
 @app.function(
     gpu="A10G",
     timeout=900,
-    scaledown_window=120,
+    scaledown_window=300,
     secrets=[modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])],
 )
 def rig_mesh_essai(glb_bytes: bytes, classe: str = "articulation", options: dict | None = None) -> bytes:

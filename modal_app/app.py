@@ -1103,7 +1103,7 @@ mesh_image = (
     # for the bursty workload of an image generator (one user
     # iterates on 3-5 gens in a row, then is idle for minutes).
     # TRAINE 300 -> 120 s (2026-09-29). Mesure sur 30 jours de travaux : apres 2 min sans appel, la plupart des pauses durent plus de 5 min, et le GPU restait allume pour rien (5 min d'L40S ~0,16 $, plus que le calcul d'une image). Depuis l'instantane GPU, un redemarrage coute 5-40 s.
-    scaledown_window=120,
+    scaledown_window=300,
     enable_memory_snapshot=True,
     # INSTANTANE GPU (2026-09-29), comme MyFabmeshBackview et MyFabmeshMesh : le pipeline est
     # deplace sur la carte et l'accelerateur SDXL-Lightning charge (et TELECHARGE) pendant la
@@ -1472,7 +1472,7 @@ def _charger_pipe_tile(decharger_cpu):
     # les sessions d'edition en rafale (modifier / retoucher), qui sont le
     # vrai motif d'origine et restent valables.
     # TRAINE 300 -> 120 s (2026-09-29). Mesure sur 30 jours de travaux : apres 2 min sans appel, la plupart des pauses durent plus de 5 min, et le GPU restait allume pour rien (5 min d'L40S ~0,16 $, plus que le calcul d'une image). Depuis l'instantane GPU, un redemarrage coute 5-40 s.
-    scaledown_window=120,
+    scaledown_window=300,
     enable_memory_snapshot=True,
     # INSTANTANE GPU (2026-09-29), comme MyFabmeshMesh : les pipelines sont deplaces sur la carte
     # et l'IP-Adapter charge PENDANT la prise de l'instantane (load_to_cpu). Avant, chaque
@@ -2767,7 +2767,7 @@ def _sauver_reglages_gpu() -> None:
     # Y raccourcir la traine rendrait ces echecs PLUS FREQUENTS : on
     # economiserait des dollars en degradant le service. On n'y touche pas
     # tant que son demarrage n'aura pas ete accelere de la meme facon.
-    scaledown_window=90,
+    scaledown_window=300,
     # SNAPSHOT GPU ACTIVE LE 2026-08-04, apres mesure sur une app isolee.
     #
     # C'etait `enable_memory_snapshot=False`, au motif — exact a l'epoque —

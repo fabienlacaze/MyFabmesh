@@ -7393,7 +7393,7 @@ if (qualityEl && qualityLabel) {
 const ASSET_TYPE_PROMPTS = {
   character: 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
   building: 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
-  vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+  vehicle: 'isolated, complete vehicle, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
   weapon: 'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
   prop: 'isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette',
   creature: 'full body creature, wide establishing shot, whole creature head to tail, body stretched out, fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
@@ -7415,7 +7415,7 @@ const ASSET_TYPE_PROMPTS = {
   // stays a vehicle (not a car) instead of a random studio object. A fully
   // generic prompt was too vague (produced a camera on a tripod).
   other_living:  'full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
-  other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+  other_vehicle: 'complete vehicle, isolated, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
   other_built:   'full structure, isolated, plain white background, even studio lighting, centered, strict front view, clean silhouette',
   other_item:    'full item, plain white background, centered, strict front view, clean silhouette',
   custom: '',
@@ -8257,6 +8257,8 @@ function stripKnownPromptSuffixes(raw) {
   let connus = stripKnownPromptSuffixes._gabaritsConnus;
   if (!connus || connus.signature !== signature) {
     const GABARITS_HISTORIQUES = [
+      'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+      'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
       '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, ONE animal only, single creature with ONE single tail only, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, exactly one tail, no extra tails, no multiple tails, no extra limbs, no humanoid anthropomorphism, no second animal, no duplicate, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
       '3D game asset reference sheet, full body character reference, long shot, full figure shot, wide establishing shot, distant camera, entire animal visible from nose to tail to feet, body fills 60 percent of frame, full body lateral profile, all four feet flat on the ground, body horizontal parallel to floor, belly close to ground, four legs supporting the body from below, plain white background, even studio lighting, no shadows, NEVER bipedal, NEVER upright, NEVER standing on hind legs, NEVER humanoid posture, NEVER T-pose, NEVER cartoon mascot stance, no text, no UI, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot, NOT head and shoulders',
       '3D game asset reference sheet, full body character sheet, long shot, full figure shot, wide establishing shot, distant camera, entire creature visible from head to feet to tail, body fills 60 percent of frame, ONE creature only, single instance, isolated, neutral stance, front view, facing camera, symmetric, plain white background, even studio lighting, no shadows, no other creatures, centered, clean silhouette, no text, no UI, no duplicate, NOT a portrait, NOT a headshot, NOT a close-up, NOT a head shot, NOT a face shot, NOT a bust shot',

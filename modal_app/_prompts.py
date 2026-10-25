@@ -24,7 +24,7 @@ ASSET_TYPE_PROMPTS = {
     # sera ecrasee, et `--verify` fera echouer le build.
     'character'         : 'isolated 3D character, full body, fully clothed, T-pose, arms extended horizontally, empty open hands, legs apart, strict front view, facing camera, symmetric, plain white background, centered, clean silhouette',
     'building'          : 'architectural building exterior, wide establishing shot, whole structure inside frame, clear margin on all sides, plain white background, centered, strict front view, clean silhouette',
-    'vehicle'           : 'isolated, complete vehicle, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+    'vehicle'           : 'isolated, complete vehicle, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
     'weapon'            : 'isolated, full weapon, plain white background, even studio lighting, centered, side profile, clean silhouette',
     'prop'              : 'isolated, full item, plain white background, even studio lighting, centered, strict front view, clean silhouette',
     'creature'          : 'full body creature, wide establishing shot, whole creature head to tail, body stretched out, fills 60 percent of frame, neutral stance, front view, plain white background, centered, clean silhouette',
@@ -38,7 +38,7 @@ ASSET_TYPE_PROMPTS = {
     'sans_pattes'       : 'full body, head to tail tip, body stretched out straight, gentle S-curve, seen from above at an angle, fills 60 percent of frame, plain white background, centered',
     'poisson'           : 'full body fish, lateral profile, body straight from head to tail fin, fins spread, fills 60 percent of frame, plain white background, centered',
     'other_living'      : 'full body, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
-    'other_vehicle'     : 'complete vehicle, isolated, plain white background, even studio lighting, centered, strict front view, facing camera, clean silhouette',
+    'other_vehicle'     : 'complete vehicle, isolated, plain white background, even studio lighting, centered, three-quarter front view, slightly from above, whole vehicle nose to tail, clean silhouette',
     'other_built'       : 'full structure, isolated, plain white background, even studio lighting, centered, strict front view, clean silhouette',
     'other_item'        : 'full item, plain white background, centered, strict front view, clean silhouette',
     'custom'            : '',
