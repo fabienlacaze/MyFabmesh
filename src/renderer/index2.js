@@ -4880,6 +4880,14 @@ function _cloudToolUnavailable(label) {
   showToast(_i18nTf('{x} runs on the local AI engine (NVIDIA GPU) and is not available in Cloud mode.', label),
             'info', 6000);
 }
+// Image de l'element dans la fenetre « Multi-views » (25/10, user : « rajoute l'icone de l'item comme pour les autres outils 2D des images »).
+function _mvImageDeLElement(p) {
+  try {
+    const img = document.getElementById('mv-opt-source-img');
+    const chemin = p && (p.previewImagePath || p.selectedImagePath);
+    if (img && chemin) { img.src = _bust(_toFileUrl(chemin)); img.style.opacity = ''; }
+  } catch (_) { /* sans image : la fenetre reste utilisable */ }
+}
 document.getElementById('ws-multiview-btn')?.addEventListener('click', async () => {
   if (_isCloudMode()) { _cloudToolUnavailable(_i18nT('Multi-Views')); return; }
   const p = state.currentProject;
@@ -4900,6 +4908,7 @@ document.getElementById('ws-multiview-btn')?.addEventListener('click', async () 
     if (!dispo && sel) { sel.value = '2view'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
     else if (sel && typeof _synchroChoix === 'function') _synchroChoix(modal);
   } catch (_) { /* statut indisponible : on laisse les deux choix */ }
+  _mvImageDeLElement(p);   // l'image de l'element, comme les autres outils d'image (25/10)
   if (modal) modal.classList.remove('hidden');
 });
 

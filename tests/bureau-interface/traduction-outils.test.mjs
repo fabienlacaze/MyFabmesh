@@ -520,7 +520,8 @@ for (const plateforme of ['bureau', 'web']) {
     const doc = I.page.document;
     const selT = doc.getElementById('np-asset-type');
     I.evaluer('_npAutoSync')();
-    assert.equal(selT.disabled, false, 'rien de detecte : le menu du type reste LIBRE (avant : verrouille sur « Character », gabarit T-pose)');
+    // 25/10 : tant que l'IA redige (ici : redaction programmee, minuteur doublure jamais execute), le menu reste GRISE ; il redevient libre quand elle a fini sans rien detecter
+    assert.equal(selT.disabled, true, "l'IA redige encore : menu grise (user 25/10 : « Personnage n'est pas grise en mode auto »)");
     assert.doesNotMatch(doc.getElementById('np-auto-info').textContent, /Detected/, 'avant : « Detected: Character » pour un chateau');
     // la traduction (differee pendant la frappe) arrive, puis l'analyse est refaite sur elle
     assert.ok(minuteurs.length >= 1, 'traduction programmee');

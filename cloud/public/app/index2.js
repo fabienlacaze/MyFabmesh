@@ -4703,10 +4703,19 @@ document.getElementById('var-apply')?.addEventListener('click', async () => {
   if (typeof reloadCurrentProject === 'function') await reloadCurrentProject();
 });
 
+// Image de l'element dans la fenetre « Multi-views » (25/10, user : « rajoute l'icone de l'item comme pour les autres outils 2D des images »).
+function _mvImageDeLElement(p) {
+  try {
+    const img = document.getElementById('mv-opt-source-img');
+    const chemin = p && (p.previewImagePath || p.selectedImagePath);
+    if (img && chemin) { img.src = _bust(_toFileUrl(chemin)); img.style.opacity = ''; }
+  } catch (_) { /* sans image : la fenetre reste utilisable */ }
+}
 document.getElementById('ws-multiview-btn')?.addEventListener('click', () => {
   const p = state.currentProject;
   if (!p || !p.selectedImagePath) { showToast('Pick an image first.', 'error'); return; }
   const modal = document.getElementById('modal-multiview-options');
+  _mvImageDeLElement(p);   // l'image de l'element, comme les autres outils d'image (25/10)
   if (modal) modal.classList.remove('hidden');
 });
 

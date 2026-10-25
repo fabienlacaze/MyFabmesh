@@ -1915,8 +1915,11 @@
     </div>
 
     <div id="modal-multiview-options" class="modal-overlay hidden">
-      <div class="modal-card">
+      <div class="modal-card modal-card-wide">
         <div class="fen-tete"><h2>Multi-views</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
+        <div class="modal-with-image">
+          <div class="modal-image-side"><img id="mv-opt-source-img" alt="" /></div>
+          <div class="modal-form-side">
         <p class="modal-subtitle">Your image is copied first: the original stays untouched.</p>
         <div style="display:flex; flex-direction:column; gap:12px; margin:14px 0;">
           <select id="mv-opt-mode" style="display:none;">
@@ -1930,6 +1933,8 @@
           <div id="mv-opt-6view-block" class="mv-options">
             <label class="opt-ligne"><input type="checkbox" id="mv-opt-harmonize" checked /><span><b>Harmonize the style</b><small>Recommended &middot; +30 s</small></span></label>
             <label class="opt-ligne"><input type="checkbox" id="mv-opt-upscale" /><span><b>Sharper views (1024 px)</b><small>+10 s</small></span></label>
+          </div>
+        </div>
           </div>
         </div>
         <div class="modal-actions">
