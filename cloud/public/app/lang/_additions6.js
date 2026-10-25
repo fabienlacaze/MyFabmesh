@@ -1553,3 +1553,18 @@
   }
   if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
 })();
+
+/* LOT P2 : fenetres Recolor (3D) et lancement des outils de maillage, avec le modele reel en apercu */
+(function () {
+  if (!window.FabI18n || !window.FabI18n.register) return;
+  var L = ['fr', 'es', 'zh', 'hi', 'ar'];
+  var T = {
+    "Pick what to recolor, then the colour. The lighting is kept.": ["Choisissez ce qu'il faut recolorier, puis la couleur. L'éclairage est conservé.", "Elige qué recolorear y luego el color. La iluminación se conserva.", "选择要重新着色的内容，然后选择颜色。光照保持不变。", "चुनें कि क्या रंगना है, फिर रंग चुनें। प्रकाश व्यवस्था बनी रहती है।", "اختر ما تريد إعادة تلوينه ثم اللون. تبقى الإضاءة كما هي."]
+  };
+  for (var i = 0; i < L.length; i++) {
+    var d = {};
+    for (var k in T) { if (Object.prototype.hasOwnProperty.call(T, k) && T[k][i]) d[k] = T[k][i]; }
+    window.FabI18n.register(L[i], d);
+  }
+  if (L.indexOf(window.FabI18n.lang) !== -1) window.FabI18n.applyLang(window.FabI18n.lang);
+})();

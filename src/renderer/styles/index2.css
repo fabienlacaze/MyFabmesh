@@ -5521,3 +5521,11 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #ex3d-modes { flex-wrap: nowrap !important; }
 #ex3d-modes .ex3d-mode-card { min-width: 0 !important; flex: 1 1 0 !important; padding: 6px 2px !important; }
 #ex3d-modes .ex3d-mode-card svg { width: 44px; height: 44px; }
+
+/* ══ LOT P2 (25/10) : fenetres de Recolor (3D) et de lancement des outils de maillage = gabarit .fen-3d avec le MODELE reel a gauche ══ */
+#r3-canvas, #lct-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#lct-canvas[hidden], #lct-etat[hidden], #lct-image[hidden] { display: none; }
+#modal-recolor3d .fen-apercu { background: #1b1b1b; }
+#modal-recolor3d .modal-actions { display: flex; align-items: center; gap: 10px; }
+#modal-recolor3d .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+#modal-recolor3d .modal-actions .primary-btn { flex: 1 1 auto; }
