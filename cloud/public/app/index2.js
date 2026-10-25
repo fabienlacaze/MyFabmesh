@@ -23822,8 +23822,20 @@ document.getElementById('jobs-termines-liste')?.addEventListener('click', (e) =>
   const b = e.target.closest('[data-fini-goto]');
   if (!b) return;
   e.stopPropagation();
-  const entree = (state.jobsTermines || []).find(x => x.finiId === b.dataset.finiGoto);
-  if (entree && typeof window._navigateToJobStep === 'function') window._navigateToJobStep(null, entree);
+  const id = b.dataset.finiGoto;
+  const termines = state.jobsTermines || [];
+  // 25/10 (retour du user : « Aller a » ne fait rien pour « Segmenter en parties ») : si l'entree n'est pas retrouvee par son identifiant (liste rechargee depuis le
+  // serveur entre-temps), on la retrouve par l'identifiant serveur ou par son nom + projet ; et un echec n'est plus SILENCIEUX : message a l'ecran.
+  const nomLigne = b.closest('.job-fini-2')?.querySelector('.job-fini-2-nom')?.textContent || '';
+  const entree = termines.find(x => x.finiId === id)
+    || termines.find(x => x.serverId && ('s_' + x.serverId) === id)
+    || termines.find(x => _displayJobName(x.name) === nomLigne);
+  if (!entree) { try { showToast(_i18nT('This job can no longer be located.'), 'error', 3500); } catch (_) {} return; }
+  if (typeof window._navigateToJobStep !== 'function') return;
+  Promise.resolve(window._navigateToJobStep(null, entree)).catch((err) => {
+    console.error('[aller-a]', err);
+    try { showToast(_i18nT('Could not open this step.') + ' ' + String(err && err.message || err).slice(0, 80), 'error', 4500); } catch (_) {}
+  });
 });
 // Premier rendu APRES l'evaluation du module : renderJobs lit `queuedJobs`,
 // declaree plus bas dans ce fichier — l'appeler ici leverait une erreur de
