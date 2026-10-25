@@ -199,21 +199,36 @@ export const ESPECES = {
   generique: {},
   equide: {        // cheval, ane, zebre, cerf… : pattes droites, dos raide, tete qui balance
     walk: { motif: 'lateral', T: 1.0, h: 0.9, hoche: 0.1 },
+    // repos (26/10) : respiration lente ~0,2 Hz (cheval au repos 8-16 cycles/min, Hoyt/Taylor 1981 ; ici T 5,4 s -> bob 2 fois par T = 0,37 Hz, plus lisible a l'ecran), queue qui chasse les mouches
+    idle: { T: 1.35, bob: 2.2, queue: 1.7, regard: 0.7 },
+    jump: { decalage: 0.07, h: 1.25, T: 1.1 },
+    // trot (26/10) : deux temps diagonaux, suspension ; genou haut (action du genou), tete et dos quasi immobiles (Hildebrand 1965 ; Heglund & Taylor 1988 : 1,2-2,2 foulees/s)
+    trot: { motif: 'trot', T: 1.1, h: 1.25, bob: 0.85, hoche: 0.03, tangage: 0.02, tendu: 0.93, talon: 0.4, leve: 0.8 },
     // galop (25/10, « on dirait la demarche d'un chien ») : jambes presque tendues (tendu 0.9 -> 0.97), corps plus haut et plus plat (bob 1.2 -> 0.8), cadence plus lente,
     // grand balancement de tete et d'encolure (hoche 0.22 -> 0.32)
-    run: { motif: 'transverse', beta: 0.33, T: 1.05, foulee: 1.45, h: 1.1, bob: 0.8, tangage: 0.08, hoche: 0.32, flexion: 0.03, tendu: 0.97 },
+    run: { motif: 'transverse', beta: 0.3, T: 0.9, foulee: 1.6, h: 1.1, bob: 0.8, tangage: 0.08, hoche: 0.32, flexion: 0.03, tendu: 0.9, leve: 0.65 },
   },
   felin: {         // lion, tigre, chat : marche basse et souple, galop bondissant (dos plie/deplie)
     walk: { motif: 'lateral', T: 1.1, h: 0.75, bob: 0.6, tendu: 0.93, tete: 0.1, hoche: 0.015, flexion: 0.03 },
-    run: { motif: 'rotatif', beta: 0.26, T: 0.85, foulee: 1.3, bob: 1.3, tangage: 0.05, hoche: 0.02, tete: 0.06, flexion: 0.26, tendu: 0.86 },
+    // galop rotatif (26/10) : foulee ~3,5 hauteurs de garrot, 2 suspensions (rassemblee + etendue), colonne qui se plie et se deplie
+    // (Hildebrand 1959 ; Hudson, Corr & Wilson 2012, JEB 215:2425 : guepard 2,4 -> 3,2 foulees/s), pattes bien repliees au decollage
+    run: { motif: 'rotatif', beta: 0.27, T: 0.9, foulee: 1.5, h: 1.1, bob: 1.4, tangage: 0.06, hoche: 0.02, tete: 0.06, flexion: 0.34, tendu: 0.82, leve: 0.65 },
+    idle: { T: 1.2, bob: 1.8, queue: 2.0, regard: 1.2 },
+    jump: { decalage: 0.08, h: 1.3 },
   },
   canide: {        // chien, loup, renard
     walk: { motif: 'lateral', hoche: 0.03 },
-    run: { motif: 'rotatif', beta: 0.3, T: 0.9, foulee: 1.2, bob: 1.3, tangage: 0.05, hoche: 0.04, flexion: 0.18 },
+    // galop du chien (26/10) : ~2,5-3 foulees/s (greyhound ~3,5 : Hudson 2012), foulee 3-4 hauteurs, dos bien plie
+    run: { motif: 'rotatif', beta: 0.28, T: 0.88, foulee: 1.4, h: 1.1, bob: 1.3, tangage: 0.07, hoche: 0.05, flexion: 0.3, tendu: 0.82, leve: 0.65 },
+    trot: { motif: 'trot', T: 1.0, h: 1.1, bob: 0.9, hoche: 0.03, tendu: 0.86, leve: 0.8 },
+    idle: { T: 1.1, bob: 2.0, queue: 2.2, regard: 1.4 },
+    jump: { decalage: 0.08, h: 1.2 },
   },
   bovin: {         // vache, boeuf, chevre, cochon : pas lourd, tete basse, galop pataud
     walk: { motif: 'lateral', T: 1.2, h: 0.75, bob: 1.3, hoche: 0.05, tete: 0.08 },
-    run: { motif: 'transverse', beta: 0.38, T: 1.1, foulee: 0.85, bob: 1.8, tangage: 0.07, hoche: 0.07, flexion: 0.04, tete: 0.1 },
+    run: { motif: 'transverse', beta: 0.36, T: 1.1, foulee: 0.85, bob: 1.8, tangage: 0.07, hoche: 0.07, flexion: 0.05, tete: 0.1 },
+    trot: { motif: 'trot', T: 1.05, h: 1.0, bob: 1.0, hoche: 0.04, tete: 0.08, leve: 0.8 },
+    idle: { T: 1.5, bob: 2.4, queue: 1.6, regard: 0.5, tete: 0.08 },
   },
   bondissant: {    // lapin, lievre, ecureuil, rat : pattes arriere ensemble, dos qui se plie
     walk: { motif: 'demi_bond', beta: 0.45, T: 0.75, foulee: 0.7, h: 1.2, bob: 1.5, tangage: 0.06, flexion: 0.12 },
@@ -221,7 +236,7 @@ export const ESPECES = {
   },
   ours: {          // ours, panda, blaireau : amble qui roule, galop lourd
     walk: { motif: 'amble', T: 1.15, h: 0.8, bob: 1.2, tete: 0.1, hoche: 0.04, roulis: 0.05 },
-    run: { motif: 'rotatif', beta: 0.36, T: 1.0, bob: 1.6, tangage: 0.06, flexion: 0.12, hoche: 0.05 },
+    run: { motif: 'rotatif', beta: 0.34, T: 0.95, foulee: 1.15, bob: 1.5, tangage: 0.06, flexion: 0.16, hoche: 0.05, tendu: 0.9, leve: 0.8 },
   },
   pachyderme: {    // elephant, rhinoceros, hippopotame : jamais de phase aerienne
     walk: { motif: 'lateral', beta: 0.72, T: 1.35, h: 0.55, foulee: 0.9, bob: 0.8, hoche: 0.03, tendu: 0.975 },
@@ -885,7 +900,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   const SAUT = !!(ALLURES[allure].saut || (Pr.saut && ALLURES[allure].pas));
   // crabe : marche DE COTE (le corps avance vers +X) ; les virages restent normaux
   const DECOTE = !!(Pr.deCote && ALLURES[allure].pas && allure !== 'turn_left' && allure !== 'turn_right');
-  if (SAUT) pattes.forEach((p) => { p.phase = 0; });   // saut : toutes les pattes ensemble
+  // saut : toutes les pattes ensemble ; profil quadrupede avec « decalage » : les pattes AVANT quittent le sol et le reprennent un peu
+  // AVANT les pattes arriere (cheval qui franchit un obstacle : l'avant-main se leve, l'arriere pousse puis suit)
+  if (SAUT) pattes.forEach((p) => { p.phase = quadrupede && Pr.decalage && p.rang === 0 ? Pr.decalage : 0; });
   // Tete qui se RAMIFIE (oreilles, machoire : rig de la Mule, 28/09) : aucune chaine « tete » n'est
   // reconnue, donc pas de balancier du cou. Avec un profil : encolure = chemin de la ceinture avant
   // vers la feuille la plus en avant (hors pattes et queues).
@@ -900,16 +917,19 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     ...B, T: B.T.map((x) => x * (Pr.T || 1) * (V.T || 1)), foulee: B.foulee * (tourne ? 1 : Pr.foulee || 1) * (V.foulee || 1),
     h: B.h * (Pr.h || 1) * (V.h || 1), bob: B.bob * (Pr.bob || 1) * (V.bob || 1), lacet: B.lacet * (V.lacet || 1),
     beta: Pr.beta ?? B.beta, tendu: V.tendu ?? Pr.tendu ?? B.tendu,
-    tete: V.tete ?? Pr.tete ?? 0, regard: V.regard ?? B.regard ?? 1, queue: V.queue ?? Pr.queue ?? B.queue ?? 1, bras: V.bras ?? Pr.bras ?? 1,
+    tete: V.tete ?? Pr.tete ?? 0, regard: V.regard ?? Pr.regard ?? B.regard ?? 1, queue: V.queue ?? Pr.queue ?? B.queue ?? 1, bras: V.bras ?? Pr.bras ?? 1,
     talon: Pr.talon ?? B.talon, attaque: B.recul ? 0 : Pr.attaque ?? B.attaque ?? 0, lateral: Pr.lateral ?? 0.035, tronc: Pr.tronc ?? null, levee: Pr.levee ?? 0,
     motif: B.pas && quadrupede ? motifNom || null : null, flexion: tourne ? 0 : Pr.flexion || 0, ondulation: Pr.ondulation || 0,
-    tangage: Pr.tangage || 0, hoche: Pr.hoche ?? null, roulis: Pr.roulis || 0,
+    tangage: Pr.tangage || 0, hoche: Pr.hoche ?? null, roulis: Pr.roulis || 0, leve: Pr.leve || 0,
     teteContre: Pr.teteContre || 0, queueOnde: Pr.queueOnde || 0, abdomen: Pr.abdomen || 0,
   };
   const nombreux = pattes.length >= 6, bipede = pattes.length <= 2;
   let T = A.T[nombreux ? 1 : 0];
   // periode = nombre ENTIER d'images (la derniere image enchaine sur la premiere) : bipedes, et profils marques « cycleEntier »
   if (bipede || Pr.cycleEntier) T = Math.max(2, Math.round(T * fps)) / fps;
+  // quadrupede a profil d'espece : periode ARRONDIE a un nombre entier d'images, sinon la boucle (derniere -> premiere
+  // image) tombe a mi-pas (T x fps non entier : couture mesuree 5,7 fois le pas local sur la Mule au galop)
+  if (quadrupede && A.pas && Object.keys(Pr).length) T = Math.max(Math.round(T * fps), 4) / fps;
   let beta = nombreux && genre !== 'run' && A.pas ? 0.55 : A.beta;
   if (pattes.length >= 10 && genre !== 'run' && A.pas) beta = 0.7;      // mille-pattes : plus de pieds au sol
   if (bipede && A.pas && genre !== 'run') beta = 0.6;
@@ -1204,7 +1224,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const jumpAction = !!ALLURES[allure].saut && droit;   // quadrupedes : calcul d'origine (le contre-mouvement y faisait monter les a-coups des jambes)
     if (jumpAction) brasSaut = new Array(nT).fill(0);
     for (let i = 0; i < nT; i++) {
-      const b0 = pattes[0].beta, f = ((t[i] / T + pattes[0].phase) % 1 + 1) % 1;
+      const b0 = pattes[0].beta, f = ((t[i] / T + moyenne(pattes.map((q) => q.phase))) % 1 + 1) % 1;
       if (jumpAction) {
         const g = f / b0, x = (f - b0) / (1 - b0);
         bob[i] = f < b0 ? cles(g, COURBES_SAUT.bob) * hanche : (Pr.sautH ?? 0.3) * hanche * (V.h || 1) * Math.sin(Math.PI * x);
@@ -1324,7 +1344,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
           // a 60 deg, Perry 1992) puis redescend a ~1,5 cm au passage sous le corps (garde au sol minimale de mi-balancier : 1,3 a 1,6 cm,
           // Winter 1991 ; Barrett, Mills & Begg 2010) avant l'attaque du talon. Le sin2 d'origine (pic a 50 %) levait le pied de 21 cm
           // EN MILIEU de balancier : marche « genoux hauts ».
-          cible[1] += A.levee ? h / 1.06 * (Math.sin(Math.PI * Math.min(u / 0.62, 1)) ** 2 + 0.06 * Math.sin(Math.PI * u) ** 2) : h * Math.sin(Math.PI * u) ** 2;
+          cible[1] += A.levee ? h / 1.06 * (Math.sin(Math.PI * Math.min(u / 0.62, 1)) ** 2 + 0.06 * Math.sin(Math.PI * u) ** 2) : h * Math.sin(Math.PI * (A.leve ? Math.pow(u, A.leve) : u)) ** 2;   // leve < 1 : le pied monte tot (quadrupedes, galop)
         }
       }
       let theta = 0;                                          // déroulé : talon qui se lève en fin d'appui
