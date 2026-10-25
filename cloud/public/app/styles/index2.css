@@ -5229,3 +5229,32 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-poids-peau .modal-card.fen-3d .modal-actions { justify-content: stretch; }
 #modal-poids-peau .modal-card.fen-3d .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; height: 36px; padding: 0 16px; }
 #modal-poids-peau .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 0; }
+/* ============================================================
+ * LOT W33 (25/10) : points du squelette (#lm-fullscreen) dans le gabarit commun .modal-card.fen-3d
+ * (titre + aide en haut, apercu a gauche a la taille commune, reglages a droite, pied Annuler + action).
+ * ============================================================ */
+#lm-fullscreen { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9600; }
+#lm-fullscreen.hidden { display: none; }
+#lm-fullscreen .modal-card.lm-fen { overflow: hidden; }
+#lm-fullscreen #lm-fs-close { position: static; width: 30px; height: 30px; top: auto; right: auto; font-size: 14px; background: none; border: 1.5px solid rgba(255,255,255,0.55); box-shadow: none; }
+#lm-fullscreen #lm-fs-close:hover { background: #dc2626; border-color: #dc2626; }
+#lm-fullscreen .lm-fs-title { font-size: 22px; text-transform: none; letter-spacing: 0; margin: 0; }
+#lm-fullscreen .modal-subtitle { margin-bottom: 8px; }
+#lm-fullscreen .lm-fs-apercu { padding: 0; }
+#lm-fullscreen .lm-fs-apercu .lm-fs-viewer { position: absolute; inset: 0; }
+#lm-fullscreen .lm-fs-apercu #lm-fs-info.viewer-info-overlay { top: 8px; left: 8px; max-width: 200px; z-index: 6; }
+#lm-fullscreen .lm-fs-viewer-split > #lm-fs-instruction { top: 8px; max-width: calc(100% - 260px); }
+#lm-fullscreen .lm-fs-side { background: none; border-left: 0; overflow-y: auto; overflow-x: hidden; min-height: 0; gap: 14px; display: flex; flex-direction: column; }
+#lm-fullscreen .lm-fs-groupe { display: flex; flex-direction: column; gap: 8px; }
+#lm-fullscreen .lm-fs-actions { display: flex; gap: 8px; }
+#lm-fullscreen .lm-fs-actions .ghost-btn { flex: 1 1 0; }
+#lm-fullscreen .lm-fs-undo-toolbar { position: static; transform: none; display: flex; gap: 8px; padding: 0; background: none; border: 0; box-shadow: none; }
+#lm-fullscreen .lm-fs-undo-toolbar button { flex: 1 1 0; }
+#lm-fullscreen .lm-fs-groupe .lm-fs-regen-btn { width: 100%; }
+#lm-fullscreen .pts-liste { flex: 1 1 auto; min-height: 120px; overflow-y: auto; }
+#lm-fullscreen .modal-actions { gap: 12px; }
+#lm-fullscreen .modal-actions #pts-annuler { flex: 0 0 auto; min-width: 0; padding: 0 18px; }
+#lm-fullscreen .modal-actions #pts-regenerer { flex: 1 1 auto; width: auto; }
+@media (max-width: 900px) {
+  #lm-fullscreen .lm-fs-apercu { height: 60vh; }
+}

@@ -29464,6 +29464,7 @@ function closeLandmarksFullscreen() {
 }
 document.getElementById('ws-lm-manual')?.addEventListener('click', () => ptsOuvrir());
 document.getElementById('lm-fs-close')?.addEventListener('click', closeLandmarksFullscreen);
+document.getElementById('pts-annuler')?.addEventListener('click', closeLandmarksFullscreen);
 document.getElementById('lm-fs-from-rig')?.addEventListener('click', () => {
   extractLandmarksFromRig().then(() => {
     try { if (typeof refreshLmFsSilhouetteDots === 'function') refreshLmFsSilhouetteDots(); } catch (_) {}

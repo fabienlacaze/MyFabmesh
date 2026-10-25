@@ -1525,6 +1525,8 @@
     "Choose what changes and how far. The preview shows the current image.": ["Choisissez ce qui change et jusqu'où. L'aperçu montre l'image actuelle.", "Elija qué cambia y hasta qué punto. La vista previa muestra la imagen actual.", "选择要改变的内容和程度。预览显示当前图像。", "चुनें कि क्या बदले और कितना। पूर्वावलोकन वर्तमान छवि दिखाता है।", "اختر ما الذي يتغير وإلى أي مدى. تعرض المعاينة الصورة الحالية."],
     /* LOT W29 */
     "Sculpt, paint or select faces on the model, then save the result as a new version.": ["Sculptez, peignez ou sélectionnez des faces sur le modèle, puis enregistrez le résultat comme nouvelle version.", "Esculpe, pinta o selecciona caras en el modelo y guarda el resultado como una nueva versión.", "在模型上雕刻、绘制或选择面，然后将结果保存为新版本。", "मॉडल पर स्कल्प्ट करें, पेंट करें या फेस चुनें, फिर परिणाम को नए संस्करण के रूप में सहेजें।", "انحت أو لوّن أو حدّد أوجهًا على النموذج، ثم احفظ النتيجة كنسخة جديدة."],
+    // LOT W33
+    "Points": ["Points", "Puntos", "点", "बिंदु", "النقاط"],
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};
