@@ -52,6 +52,10 @@ def gabarit(prompt: str, asset_type: str, asset_style: str, pose_libre: bool) ->
         return f"Full-body front view of {texte}{habillage}, {pose}, {fond}."
     if t in ("animal", "creature", "beast"):
         return f"Full-body side view of {texte}{habillage}, all feet on the ground, {fond}."
+    if t in ("avion", "aircraft"):
+        # 25/10 (user : « j'aimerais plutot cette orientation ») : vue de trois quarts HAUTE, nez vers le bas a gauche, ailes et derive visibles.
+        return (f"High three-quarter view of {texte}{habillage}, seen from above at about 45 degrees from the front left, "
+                f"nose pointing toward the lower left, the whole aircraft visible from nose to tail with both wings and the tail fin, {fond}.")
     if t in ("avion", "bateau", "vehicle", "other_vehicle", "aircraft", "boat", "ship", "car"):
         # 25/10 : un vehicule de FACE cache sa longueur et son envergure (3D mediocre) : trois quarts avant, un peu au-dessus.
         return (f"Three-quarter front view of {texte}{habillage}, seen from the front left and slightly above, "
