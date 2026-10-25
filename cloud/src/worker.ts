@@ -12974,7 +12974,7 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
   // l'accelerateur manquait, Modal ferait une image normale : le client paie
   // alors moins, jamais une image ratee.
   // T-pose mode requires Modal (no Replicate fallback yet). Decide AVANT le prix : la T-pose coute un supplement par image (2026-10-03).
-  // Moteur du menu (2026-10-25) : la T-pose et le cadrage viennent du gabarit de texte cote Modal, pas de la route ControlNet : pas de supplement T-pose.
+  // Moteur du menu (2026-10-25) : la T-pose et le cadrage viennent du gabarit de texte cote Modal, pas de la route ControlNet (pas de route T-pose ; le supplement reste facture, voir plus bas).
   const moteurImage: 'zimage' | 'qwen' | undefined =
     moteur === 'zimage' && env.MODAL_ZIMAGE_URL ? 'zimage'
     : moteur === 'qwen' && env.MODAL_QWEN_URL ? 'qwen' : undefined;
@@ -12986,8 +12986,11 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
     return err(400, 'refImageUrl host not allowed');
   }
   const supplementTpose = useTpose ? await getPrice(env, 'tpose') : 0;
+  // Rapide / Meilleur : le supplement T-pose (decision du user, 2026-10-25 : « le supplement partout ») s'ajoute quand la case est cochee, MEME si la pose vient du
+  // gabarit de texte et non de la route ControlNet : la meme case coute la meme chose dans les trois moteurs.
+  const supplementTposeMoteur = moteurImage && tpose ? Math.max(0, Math.round(Number(await getPrice(env, 'tpose'))) || 0) : 0;
   const COST_PER_IMAGE = moteurImage
-    ? Math.max(1, Math.round(await getPrice(env, moteurImage === 'qwen' ? 'text2image_qwen' : 'text2image_zimage')))
+    ? Math.max(1, Math.round(await getPrice(env, moteurImage === 'qwen' ? 'text2image_qwen' : 'text2image_zimage'))) + supplementTposeMoteur
     : _prixImageComplet(await getPrice(env, 'text2image'), turbo ? 4 : pas, supplementTpose);
   const cost = n * COST_PER_IMAGE;
   // FILET DE LANGUE (2026-10-13, lot 2 de l'audit de la langue) : texte manifestement non anglais traduit, ou refuse, AVANT tout debit.
@@ -13190,7 +13193,9 @@ async function handleGenerateImage(req: Request, env: Env): Promise<Response> {
         await insertUserAsset(env, user.id, projectName, kind, r2_path, null,
           { asset_type, asset_style, prompt: rawPrompt.slice(0, 512), seed: seedBase,
             // reglages complets pour l'historique des generations (2026-09-29)
-            steps: moteurImage ? undefined : (turbo ? 4 : (steps || 30)), count: n, turbo: (!moteurImage && !!turbo) || undefined, moteur: moteurImage, tpose: useTpose || undefined,
+            steps: moteurImage ? undefined : (turbo ? 4 : (steps || 30)), count: n, turbo: (!moteurImage && !!turbo) || undefined,
+            // jamais le nom du modele dans ce qui est montre a l'utilisateur (secret industriel) : le niveau du menu seulement
+            moteur: moteurImage ? (moteurImage === 'qwen' ? 'best' : 'fast') : undefined, tpose: useTpose || undefined,
             negative_extra: negatifs.length ? negatifs : undefined,
             full_prompt: String(promptEnrichi || '').slice(0, 1500),
             // langue(s) traduite(s) par le filet du serveur (lot 2 de l'audit de la langue) : le support sait ce qui est arrive

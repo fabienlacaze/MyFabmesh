@@ -860,6 +860,7 @@ function _choixTraductionEchouee(r) {
  * Les regles eteintes du composeur ne sont PAS allumees : le prompt envoye reste identique a l'octet. Detecteur : lib/composeur-intention.js detecterAvertissements. */
 const _TEXTES_AVERTISSEMENT = {
   'texte-long': 'Your description is {x} words long. The image engine reads it in blocks: the end counts less, and the framing, pose and background instructions the app adds after your text are pushed far down and are often ignored. Shorten it to stay faithful, or continue as it is.',
+  'texte-long-bride': 'Your description is {x} words long: the Balanced engine reads about 55 words well (the end counts less and the framing instructions get ignored). Shorten it, or switch to the Fast engine, which reads the whole text.',
   'texte-trop-long': 'Your description is longer than 2,000 characters. The server will refuse it: shorten it before generating.',
   'pose-incompatible-avec-tpose': 'You describe a pose (sitting, riding, crossed arms...) but the T-pose box is checked: the template forces a standing T-pose with open hands.',
   'quantite-deux-personnages-gabarit-un-seul': 'You describe several characters, but the template draws one single character.',
@@ -872,11 +873,18 @@ function _nbMotsAvertissement(...textes) {
   for (const t of textes) n = Math.max(n, String(t || '').split(/\s+/).filter(Boolean).length);
   return n;
 }
+/** Bridage du moteur Equilibre (decision du user, 25/10) : un texte de plus de ~55 mots ne peut plus etre lance tel quel avec ce moteur (il lit par blocs, la fin compte moins) ;
+ *  il faut le raccourcir ou passer sur Rapide / Meilleur, qui lisent tout. Seulement sur le SITE (l'option « Meilleur » existe) : le bureau n'a pas de moteur qui lit tout le texte. */
+function _bridageEquilibre(codes) {
+  const sel = document.getElementById('ws-engine');
+  return !!(codes.includes('texte-long') && sel && [...sel.options].some((o) => o.value === 'qwen-best') && sel.value !== 'local-lightning' && sel.value !== 'qwen-best');
+}
 /** Fenetre « Verifier avant de generer » : 'continuer' | 'decocher' | 'annuler' (Echap, clic a cote, « Modifier mon texte »). Le focus est sur « Modifier mon texte » :
  *  Entree ne depense jamais de credits par megarde. */
 function _confirmerAvertissements(codes, textes) {
   const nbMots = _nbMotsAvertissement(...(textes || []));
-  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], nbMots) : (c === 'negations-en-trop' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], NEG_MAX_LONG, NEG_MAX_LONG) : _i18nT(_TEXTES_AVERTISSEMENT[c])))).filter(Boolean);
+  const bride = _bridageEquilibre(codes);
+  const lignes = codes.map((c) => (c === 'texte-long' ? _i18nTf(_TEXTES_AVERTISSEMENT[bride ? 'texte-long-bride' : c], nbMots) : (c === 'negations-en-trop' ? _i18nTf(_TEXTES_AVERTISSEMENT[c], NEG_MAX_LONG, NEG_MAX_LONG) : _i18nT(_TEXTES_AVERTISSEMENT[c])))).filter(Boolean);
   return new Promise((resolve) => {
     const fond = document.createElement('div');
     fond.className = 'modal-overlay';
@@ -910,7 +918,11 @@ function _confirmerAvertissements(codes, textes) {
     };
     const modifier = bouton('Edit my text', 'ghost-btn', 'annuler');
     if (codes.includes('pose-incompatible-avec-tpose')) bouton('Uncheck T-pose and continue', 'ghost-btn', 'decocher');
-    if (!codes.includes('texte-trop-long')) bouton('Continue anyway', 'primary-btn', 'continuer');
+    // Texte long : le moteur « Fast » lit TOUT le texte (pas de blocs de 75 mots-cles) ; proposition en un clic quand ce moteur existe et n'est pas deja choisi (25/10)
+    const _selMoteur = document.getElementById('ws-engine');
+    if (codes.includes('texte-long') && _selMoteur && _selMoteur.value !== 'local-lightning' && _selMoteur.value !== 'qwen-best'
+        && [..._selMoteur.options].some((o) => o.value === 'qwen-best')) bouton('Use the Fast engine (reads the whole text)', bride ? 'primary-btn' : 'ghost-btn', 'moteur-rapide');
+    if (!codes.includes('texte-trop-long') && !bride) bouton('Continue anyway', 'primary-btn', 'continuer');
     carte.append(tete, corps, pied);
     fond.appendChild(carte);
     const surFond = (e) => { if (e.target === fond) fin('annuler'); };
@@ -931,10 +943,19 @@ function _confirmerAvertissements(codes, textes) {
 async function _verifierAvantDepense(p, texteSaisi, texteAnglais, assetType) {
   try {
     if (!composeurActif()) return true;
-    const avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
+    let avert = detecterAvertissements(texteSaisi, texteAnglais, assetType, { ..._optionsPose(assetType), plafond: NEG_MAX_LONG });   // generation d'image : encodeur long, 20 negations
+    // Moteurs « Rapide » (Z-Image Turbo) et « Meilleur » (Qwen) : encodeur de TEXTE complet, pas de lecture par blocs de 75 jetons : l'avertissement
+    // « description trop longue » (specifique a SDXL) n'a pas lieu d'etre. Le refus serveur des textes de plus de 2 000 caracteres reste signale.
+    const _selMenu = document.getElementById('ws-engine'), _moteurMenu = _selMenu?.value;
+    // (SITE seulement : sur le bureau, « local-lightning » est un autre moteur, qui lit par blocs comme les autres)
+    if (_selMenu && _selMenu.querySelector('option[value="qwen-best"]') && (_moteurMenu === 'local-lightning' || _moteurMenu === 'qwen-best')) avert = avert.filter((c) => c !== 'texte-long');
     if (!avert.length) return true;
     const choix = await _confirmerAvertissements(avert, [texteSaisi, texteAnglais]);
     if (choix === 'annuler') return false;
+    if (choix === 'moteur-rapide') {
+      const sel = document.getElementById('ws-engine');
+      if (sel) { sel.value = 'local-lightning'; try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
+    }
     if (choix === 'decocher') {
       const cb = document.getElementById('ws-tpose');
       if (cb) { cb.checked = false; try { cb.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {} }
@@ -1071,6 +1092,54 @@ function showToast(message, type = 'info', durationMs = 3000) {
     setTimeout(() => toast.remove(), 300);
   }, durationMs);
 }
+
+// FEATURE B — toast de complétion NON-bloquant avec un bouton d'action. Remplace
+// l'ancien "saut auto" (scrollIntoView) à la fin d'une génération/import : la vue
+// ne saute plus toute seule — l'utilisateur clique le bouton pour scroller vers
+// (et faire pulser) l'élément fraîchement généré. Se ferme au clic ou après ~15s.
+// Réutilise #toast-container pour rester cohérent avec showToast.
+function showGoToToast(targetEl, message, label, onGo) {
+  if (!targetEl) return;
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = 'position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:99999; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none;';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.style.cssText = 'background:rgba(22,163,74,0.95); color:white; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; pointer-events:auto; box-shadow:0 4px 12px rgba(0,0,0,0.3); transition:opacity 0.3s; max-width:520px; display:flex; align-items:center; gap:12px;';
+  const span = document.createElement('span');
+  span.textContent = message || (_i18nT('Item generated') + ' ✅');
+  const btn = document.createElement('button');
+  btn.textContent = label || _i18nT('Go to the generated item');
+  btn.style.cssText = 'background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.55); border-radius:6px; padding:5px 12px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; flex:none;';
+  let hideTimer = null, removeTimer = null;
+  const dismiss = () => {
+    clearTimeout(hideTimer); clearTimeout(removeTimer);
+    toast.style.opacity = '0';
+    removeTimer = setTimeout(() => { try { toast.remove(); } catch (_) {} }, 300);
+  };
+  btn.addEventListener('click', () => {
+    try {
+      if (typeof onGo === 'function') {
+        onGo();
+      } else {
+        // Comportement d'origine du scrollIntoView remplacé, différé au clic.
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        targetEl.classList.add('pulse-highlight');
+        setTimeout(() => { try { targetEl.classList.remove('pulse-highlight'); } catch (_) {} }, 1500);
+      }
+    } catch (_) {}
+    dismiss();
+  });
+  toast.appendChild(span);
+  toast.appendChild(btn);
+  container.appendChild(toast);
+  hideTimer = setTimeout(dismiss, 15000);
+  return toast;
+}
+
 // expose for cloud-overrides.js (classic script, no module scope)
 window.showToast = showToast;
 window.customError = customError;   // pour index2-edit-tools.js (script classique)
@@ -3590,6 +3659,7 @@ async function renderImageVersions(p) {
       <span class="v-used-badge" title="Used for next step">&#10003;</span>
       <span class="v-label">v${images.length - 1 - i}</span>
       <button class="version-delete-btn" title="Delete this version">&#10005;</button>
+      <button class="version-history-btn" title="${escapeHtml(_i18nT('View generation history'))}">&#9201;</button>
       ${emissiveBadge}
     `;
     t.addEventListener('click', () => {
@@ -3609,6 +3679,10 @@ async function renderImageVersions(p) {
       // bar stayed hidden even though the _multiview/ folder existed). Fires
       // after a short delay to let the DOM settle.
       setTimeout(() => { _checkMultiviewForCurrentImage(); }, 30);
+    });
+    t.querySelector('.version-history-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showGenerationHistory(img.path);   // 25/10 : historique d'une IMAGE (chaine generee <- modifiee <- rectifiee)
     });
     t.querySelector('.version-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -6930,11 +7004,8 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
           const editStage = imgCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            imgCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            imgCard.classList.add('pulse-highlight');
-            setTimeout(() => imgCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(imgCard, _i18nT('Image generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
@@ -9848,7 +9919,7 @@ const _OP_LABEL = {
 };
 const _OP_RE = /_(cntile|retexture|trellis2_retex|retex|decimate|subdivide|smooth|fill_holes|fix_normals|center|set_pivot|watertight|texture_var|edited|upscale|refine|augment|vc|segment)(?:_\d{6,})?$/i;
 // MASQUAGE des noms d'IA internes à l'affichage (exigence produit) — miroir desktop.
-const _AI_NAME_RE = /(native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
+const _AI_NAME_RE = /(qwen|z-image|zimage|native_3d|trellis2_native|trellis2|trellis|sf3d|hunyuan|triposg|hi3dgen|sampart3d|partsam|skintokens|tokenrig|puppeteer|unirig|rokoko|anytop|realvisxl|realvis|hidream|dreamshaper|sdxl|esrgan|meshy)/gi;
 function _maskAiNames(s) {
   if (!s) return s;
   return String(s)
@@ -9902,7 +9973,9 @@ async function buildLineageTimeline(startPath, p) {
     if (rec) { const t = new Date(rec.created || rec.mtime || 0).getTime(); if (Number.isFinite(t) && t) return t; }
     return 0;
   };
-  let curPath = startPath;
+  // Depart sur une IMAGE de la bande des versions (25/10) : pas de maillage a remonter, on affiche directement la chaine de l'image.
+  const depuisImage = !!findIn(p.images, startPath);
+  let curPath = depuisImage ? null : startPath;
   let guard = 0;
   while (curPath && guard++ < 20) {
     const anim = findIn(p.animations, curPath);
@@ -9959,7 +10032,7 @@ async function buildLineageTimeline(startPath, p) {
     if (parentPath && norm(parentPath) === norm(curPath)) break;
     curPath = parentPath;
   }
-  const srcImg = (steps.find((s) => s.sourceImage) || {}).sourceImage;
+  const srcImg = depuisImage ? startPath : (steps.find((s) => s.sourceImage) || {}).sourceImage;
   if (srcImg) {
     const projPrompt = (p && typeof p.prompt === 'string' && p.prompt.trim()) ? p.prompt.trim() : null;
     // CHAINE DE L'IMAGE (2026-09-29, user : « on a plus de parametres pour les images que ce qu'il y a dans
@@ -10015,7 +10088,7 @@ async function showGenerationHistory(startPath) {
     asset_type: 'Asset type', asset_style: 'Style', duration_ms: 'Duration', duration_s: 'Duration',
     texture_size: 'Texture size', decimation_target: 'Triangles', op: 'Operation', strength: 'Strength',
     skeleton: 'Skeleton', anim_type: 'Animation', voxel_grid: 'Voxel grid', tex_steps: 'Texture steps', op_type: 'Operation',
-    prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
+    moteur: 'Engine', prompt: 'Prompt', full_prompt: 'Full prompt', count: 'Count', turbo: 'Turbo', tpose: 'T-pose', mode: 'Mode', normal_map: 'Game-engine relief',
   };
   const fmtVal = (k, v) => {
     if (v === true) return '✓';
@@ -10035,7 +10108,11 @@ async function showGenerationHistory(startPath) {
       // seulement les choix UTILISES (user 29/09) : un reglage desactive n'est pas liste
       if (v === undefined || v === null || v === '' || v === false || v === 0) continue;
       const lib = GH_LIBELLES[k] ? _i18nT(GH_LIBELLES[k]) : k;
-      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(_maskAiNames(fmtVal(k, v)))}</span></div>`);
+      // le moteur du menu s'affiche par son NIVEAU (Rapide / Meilleur), jamais par le nom du modele (les anciennes lignes portent encore 'zimage' / 'qwen')
+      const valeur = k === 'moteur'
+        ? _i18nT({ fast: 'Fast (Turbo ⚡)', zimage: 'Fast (Turbo ⚡)', best: 'Best (highest quality)', qwen: 'Best (highest quality)' }[String(v).toLowerCase()] || 'Auto')
+        : _maskAiNames(fmtVal(k, v));
+      rows.push(`<div class="gh-row"><span class="gh-k" title="${escapeHtml(k === 'moteur' ? 'engine' : k)}">${escapeHtml(lib)}</span><span class="gh-v">${escapeHtml(valeur)}</span></div>`);
     }
     if (!rows.length) return '';
     return `<details class="gh-details"><summary>${escapeHtml(_i18nT('Parameters'))} (${rows.length})</summary><div class="gh-params">${rows.join('')}</div></details>`;
@@ -20140,11 +20217,8 @@ document.getElementById('ws-generate-rig')?.addEventListener('click', async () =
           const editStage = rigCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            rigCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            rigCard.classList.add('pulse-highlight');
-            setTimeout(() => rigCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(rigCard, _i18nT('Rig generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false);
@@ -20233,11 +20307,8 @@ async function lancerRigIA(options = {}) {
           const editStage = rigCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            rigCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            rigCard.classList.add('pulse-highlight');
-            setTimeout(() => rigCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(rigCard, _i18nT('Rig generated') + ' ✅', _i18nT('Go to the generated item'));
         }
       } else {
         completeJob(job.id, false, r?.error || 'unknown');
@@ -20685,6 +20756,7 @@ var _apercuAnim = null;
 var LIBELLES_MODE = {
   nage: { idle: '🐟 Idle (hover)', walk: '🐟 Swim', run: '🐟 Swim fast', turn_left: '↰ Swim left', turn_right: '↱ Swim right' },
   reptation: { idle: '🐍 Idle', walk: '🐍 Slither', run: '🐍 Slither fast', turn_left: '↰ Slither left', turn_right: '↱ Slither right' },
+  vol: { idle: '🦅 Hover', walk: '🦅 Fly', run: '💨 Fly fast', turn_left: '↰ Bank left', turn_right: '↱ Bank right' },
 };
 var VARIANTES_MODE = {
   nage: { idle: ['normal'], walk: ['normal', 'slow', 'brisk', 'crawl'], run: ['normal', 'sprint'], turn_left: ['normal', 'tight', 'wide'], turn_right: ['normal', 'tight', 'wide'] },
@@ -20705,8 +20777,15 @@ var DESCRIPTIONS_MODE = {
     turn_left: 'Slithers while turning left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
     turn_right: 'Slithers while turning right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
   },
+  vol: {
+    idle: 'Hovers in place, wings beating.', walk: 'Flies forward, wings beating steadily.', walk__slow: 'Slow, relaxed flight.',
+    walk__brisk: 'Quick, lively flight.', walk__crawl: 'Flies forward, wings beating steadily.',
+    run: 'Fast flight, deep wing beats, body leaning forward.', run__sprint: 'Full speed, the wings beat hard.',
+    turn_left: 'Flies while banking to the left.', turn_left__tight: 'Sharp turn to the left.', turn_left__wide: 'Wide turn to the left.',
+    turn_right: 'Flies while banking to the right.', turn_right__tight: 'Sharp turn to the right.', turn_right__wide: 'Wide turn to the right.',
+  },
 };
-Object.assign(NOMS_ALLURES, { swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
+Object.assign(NOMS_ALLURES, { flight: 'Fly', flight_fast: 'Fly fast', flight_left: 'Bank left', flight_right: 'Bank right', swim: 'Swim', swim_fast: 'Swim fast', swim_left: 'Swim left', swim_right: 'Swim right',
   slither: 'Slither', slither_fast: 'Slither fast', slither_left: 'Slither left', slither_right: 'Slither right' });
 var _modeMenus = null;                         // mode avec lequel les menus ont ete construits
 function _cleModeAnim() { return 'fabmesh.modeAnim.' + (state.currentProject?.name || ''); }
@@ -20764,9 +20843,9 @@ function _remplirMenuTypes() {
   const selMode = document.getElementById('ws-anim-mode');
   const m = _modeAnim();
   if (selMode) {
-    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍' }[_modeDetecte()] || '';
+    const icone = { pattes: '🐾', nage: '🐟', reptation: '🐍', vol: '🦅' }[_modeDetecte()] || '';
     const auto = selMode.querySelector('option[value="auto"]');
-    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers' }[_modeDetecte()]) + ')';
+    if (auto) auto.textContent = _i18nT('Auto') + ' (' + icone + ' ' + _i18nT({ pattes: 'Walks on legs', nage: 'Swims', reptation: 'Slithers', vol: 'Flies' }[_modeDetecte()]) + ')';
     selMode.value = _modeImpose();
   }
   if (!choix) return;
@@ -21979,9 +22058,8 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       animCard.classList.remove('collapsed', 'disabled');
       const editStage = animCard.querySelector('.stage-edit');
       if (editStage) editStage.open = true;
-      animCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      animCard.classList.add('pulse-highlight');
-      setTimeout(() => animCard.classList.remove('pulse-highlight'), 1500);
+      // plus de saut auto (comme le bureau) : message + bouton
+      showGoToToast(animCard, _i18nT('Item generated') + ' ✅', _i18nT('Go to the generated item'));
     }
   });
 });
@@ -26570,11 +26648,8 @@ window.addEventListener('drop', async (e) => {
           const editStage = imgCard.querySelector('.stage-edit');
           if (createStage) createStage.open = false;
           if (editStage) editStage.open = true;
-          setTimeout(() => {
-            imgCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            imgCard.classList.add('pulse-highlight');
-            setTimeout(() => imgCard.classList.remove('pulse-highlight'), 1500);
-          }, 120);
+          // plus de saut auto (comme le bureau) : message + bouton « Aller à l'élément généré »
+          showGoToToast(imgCard, _i18nT('Image generated') + ' ✅', _i18nT('Go to the imported item'));
         }
         try { showToast('✓ Imported as new image version', 'success'); } catch (_) {}
       } else if (kind === 'mesh') {

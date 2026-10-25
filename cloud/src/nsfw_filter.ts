@@ -1342,7 +1342,7 @@ const NU_FORT: string[] = [
   'in zijn blootje', 'in haar blootje',
   // indonesien, malais, javanais, soundanais
   'tanpa busana', 'tanpa pakaian', 'tanpa baju', 'tidak berpakaian', 'tak berpakaian', 'bogel', 'berbogel', 'payudara',
-  'alat kelamin', 'kemaluan', 'celana dalam', 'perkosa', 'perkosaan', 'seksual*', 'erotis*', 'wuda', 'taranjang', 'buligir',
+  'alat kelamin', 'kemaluan', 'perkosa', 'perkosaan', 'seksual*', 'erotis*', 'wuda', 'taranjang', 'buligir',
   // polonais
   'naga kobieta', 'naga dziewczyna', 'naga dziewczynka', 'naga dziewczynke', 'nagi mezczyzna', 'nagi chlopiec', 'nagi chlopak',
   'nagi chlopczyk', 'bez ubrania', 'bez ubran', 'bez odziezy', 'rozneglizowan*', 'sutek', 'sutki', 'piersi', 'cipka',
@@ -1397,7 +1397,7 @@ const NU_FORT: string[] = [
   // 2026-10-24 (lot securite, textes courts, seconde passe) : generalisation mesuree sur un second jeu ; adjectifs ambigus (gol, nahe, naga, nogen, kaila) seulement JOINTS a un nom de personne ou de corps
   // nudite jointe a un nom ; sous-vetements
   'naga kobieta', 'naga kobiety', 'naga kobiet', 'naga dziewczyna', 'naga dziewczynka', 'naga dziewczynki', 'naga nastolatka',
-  'naga nastolatek', 'naga chlopak', 'naga chlopiec', 'naga mezczyzna', 'naga mezczyzni', 'naga para', 'naga model',
+  'naga nastolatek', 'naga chlopak', 'naga chlopiec', 'naga mezczyzna', 'naga mezczyzni', 'naga para', 
   'naga modelka', 'naga ludzie', 'naga osoba', 'naga osoby', 'naga dziecko', 'naga dzieci', 'naga niemowle', 'naga cialo',
   'naga ciala', 'naga aktorka', 'naga tancerka', 'naga postac', 'naga panie', 'nagi kobieta', 'nagi kobiety', 'nagi kobiet',
   'nagi dziewczyna', 'nagi dziewczynka', 'nagi dziewczynki', 'nagi nastolatka', 'nagi nastolatek', 'nagi chlopak',
@@ -1529,7 +1529,7 @@ const NU_FORT: string[] = [
   'wanawake uchi', 'wasichana uchi', 'watoto uchi', 'mchanga uchi', 'stelpa an fata', 'stulka an fata', 'kona an fata',
   'madur an fata', 'drengur an fata', 'barn an fata', 'strakur an fata', 'unglingur an fata', 'folk an fata', 'par an fata',
   'sine vestibus', 'san rad', 'tanpa klambi', 'minghajr hwejjeg', 'minghajr ilbies', 'pa veshje', 'roba interior',
-  'bertelanjang*', 'undertoj', 'undertoy', 'alastom*', 'alusvaat*', 'fehernem*', 'bielizen',
+  'bertelanjang*', 'undertoj', 'undertoy', 'alastom*', 'alusvaat*', 'fehernem*', 
   'spodni prad*', 'spodnim prad*', 'spodnich prad*','donjem rublju', 'donjeg rublja', 'donjim rubljem', 'spodnjem perilu', 'spodnje perilo', 'nudaj', 'nudan',
   'nudajn',
   // 2026-10-24 (lot securite, textes courts, troisieme passe) : « sans vetements », parties du corps decouvertes, verbe + adjectif ambigu
@@ -1554,10 +1554,10 @@ const NU_FORT: string[] = [
   'bez nikakve odjece', 'bez ikakvog odijela', 'bez jakehokoli obleceni', 'bez zadneho obleceni', 'bez siat', 'bez saty',
   'fara nici o haina', 'fara nimic pe ea', 'fara nimic pe el', 'uden noget pa', 'uten noe pa seg', 'utan nagot pa sig',
   'ilman mitaan paalla', 'ei ole mitaan paalla', 'ei mitaan paalla', 'semmi ruha nelkul', 'semmi ruhaban',
-  'uzerinde hicbir sey', 'ustunde hicbir sey', 'ustunde bir sey yok', 'zonder iets aan', 'zonder niets aan',
+  'uzerinde hicbir sey', 'ustunde hicbir sey', 'ustunde bir sey yok', 
   'zonder enige kleding', 'senza niente addosso', 'senza nulla addosso', 'sem nada de roupa', 'sem nada no corpo',
   'sin nada de ropa', 'sense res de roba', 'sen nada de roupa', 'pa asnje veshje', 'be jokiu drabuziu', 'bez nekahdam drebem',
-  'ilma midagi seljas', 'an nokkurra fata', 'ekkert a ser', 'sonder enige klere', 'tanpa apa apa', 'tidak memakai apa apa',
+  'ilma midagi seljas', 'an nokkurra fata', 'ekkert a ser', 'sonder enige klere', 'tidak memakai apa apa',
   'tak memakai apa apa', 'tidak mengenakan apa apa', 'khong mac gi tren nguoi', 'khong co gi tren nguoi',
   'walang suot na damit', 'wala siyang suot', 'golymi piersiami', 'golych piersi', 'gole piersi', 'piersiami', 'piersiach',
   'piersiom', 'odkryte piersi', 'odslonietymi piersiami', 'odhalenymi prsy', 'odhalena prsa', 'odhalenych prs',
@@ -1568,7 +1568,7 @@ const NU_FORT: string[] = [
   'seios a mostra', 'seno scoperto', 'seni scoperti', 'petto nudo', 'a seno nudo', 'pit descobert', 'pits descoberts',
   'payudara terbuka', 'dada terbuka', 'goi sani', 'toplessa', 'ciplak gogus', 'acik gogus', 'gogusleri acik', 'gogsu acik',
   // 2026-10-24 (lot securite, textes courts, quatrieme passe) : « topless », participes « deshabille », « sans pantalon »
-  'toplos', 'toplesa', 'topplos', 'ylaosatto*', 'ylaosaton', 'nahore bez', 'hore bez', 'nahoru bez',
+  'toplos', 'toplesa', 'topplos', 'ylaosatto*', 'ylaosaton', 'divka nahore bez', 'zena nahore bez', 'dievca hore bez', 'zena hore bez', 'dievca nahore bez', 'divka nahoru bez', 
   'sense dessobre', 'walang pang itaas', 'ulakeha paljas', 'paljas ulakeha', 'bila nguo za juu', 'vyzlecen*', 'slecen*',
   'nusireng*', 'izgerb*', 'lahti riietatud', 'uitgekleed*', 'despir*', 'hubad*', 'naghuhubad*', 'naghubad*', 'maghubad*', 'maghuhubad*', 'nakahubad*', '*vua nguo*',
   // 2026-10-24 (lot securite, textes courts, cinquieme passe)
@@ -1581,17 +1581,17 @@ const NU_FORT: string[] = [
   'quanluo', 'banluo', 'chiluo', 'tuoguang', 'tuo guang', 'berahne', 'berahneh', 'lokht', 'lokhti', 'nachae', 'gymnos',
   'gymni', 'gimnos', 'gymno', 'gymna', 'gimno', 'gimna','gimni', 'xoris rouxa', 'xwris rouxa', 'choris rouxa',
   // 2026-10-24 (lot securite, correction apres relecture) : tournures non ambigues qui remplacent des termes retires parce que mots courants d une autre langue
-  'seluar dalam', 'baju dalam', 'kurang berpakaian', 'berpakaian minim', 'setengah berpakaian', 'tidak berbaju', 'tanpa berbaju', 'blote vrouw',
+  'celana dalam', 'seluar dalam', 'kurang berpakaian', 'berpakaian minim', 'setengah berpakaian', 'tidak berbaju', 'tanpa berbaju', 'blote vrouw',
   'blote vrouwen', 'blote man', 'blote mannen', 'blote jongen', 'blote jongens', 'blote meisjes', 'blote kinderen', 'blote mensen', 'blote billen',
   'blote kont', 'blote dame', 'blote dames', 'blote tiener', 'blote baby', 'blote kleuters', 'blote bovenlichaam', 'bloot meisje', 'bloot jongetje',
   'bloot lichaam', 'bloot model', 'bloot paar', 'bloot bovenlijf', 'bloot rondlopen', 'bloot zwemmen', 'bloot slapen', 'bloot poseren',
-  'bloot dansen', 'in het bloot', 'helemaal bloot', 'geheel bloot', 'volledig bloot', 'naakte borsten', 'ontblote borsten', 'grote borsten',
+  'bloot dansen', 'in het bloot', 'naakte borsten', 'ontblote borsten', 'grote borsten',
   'kleine borsten', 'volle borsten', 'vrouwelijke borsten', 'twee borsten', 'ontbloot bovenlijf', 'ontblote borst', 'ontblote billen',
   'ontblote vrouw', 'nocht', 'nochta', 'femeie goala', 'femei goale', 'fata goala', 'fete goale', 'fetita goala', 'fetite goale', 'copila goala',
   'copile goale', 'actrita goala', 'dansatoare goala', 'doamna goala', 'mama goala', 'pielea goala', 'goala pusca', 'goale pusca', 'toata goala',
   'toate goale', 'lenjerie intima', 'lenjerie de corp', 'lenjerie sexy', 'lenjerie erotica', 'lenjerie provocatoare', 'lenjerie transparenta',
   'nakinn', 'nakin', 'nakid', 'nakins', 'nakinni', 'golas', 'golasi', 'golasa', 'golasul', 'bloot kind', 'blote kleuter', 'adolescenta goala',
-  'adolescente goale', 'copilul gol', 'complet goala', 'complet goale', 'complet gol', 'total goala', 'total gol', 'naket par', 'naket folk',
+  'adolescente goale', 'copilul gol', 'femeie complet goala', 'femeie total goala', 'fata complet goala', 'fetita complet goala', 'femeie complet gol', 'fata complet gol', 'naket par', 'naket folk',
   'luoti nuren', 'luoti nvren', 'luoti haizi', 'luoti nvhai', 'luoti xiaohai', 'luoti nanren', 'luoti shaonv', 'luoti zhaopian', 'xiao haizi luoti',
   'haizi luoti', 'nvhai luoti', 'nuren luoti', 'nvren luoti', 'nanren luoti', 'shaonv luoti', 'bezici nahy', 'bezici naha', 'bezici nahe',
   'beziaci nahy', 'beziaci naha', 'beziaci nahe', 'stojici nahy', 'stojici naha', 'stojici nahe', 'stojaci nahy', 'stojaci naha', 'stojaci nahe',
@@ -1605,7 +1605,7 @@ const NU_FORT: string[] = [
   'toples deklica', 'punca toples', 'toples punca', 'manekenka toples', 'toples manekenka', 'tinejdzerka toples', 'toples tinejdzerka',
   'tinejdzer toples', 'toples tinejdzer', 'dama toples', 'toples dama', 'curka toples', 'toples curka', 'wanita toples', 'perempuan toples',
   'gadis toples', 'cewek toples', 'anak toples', 'pria toples', 'laki laki toples', 'toples di pantai', 'bloot rent', 'bloot rennen', 'bloot loopt',
-  'bloot lopen', 'bloot staat', 'bloot zit', 'bloot ligt', 'bloot slaapt', 'bloot danst', 'bloot zwemt', 'bloot speelt', 'bloot rondrent',
+  'bloot lopen', 'bloot zit', 'bloot slaapt', 'bloot danst', 'bloot zwemt', 'bloot speelt', 'bloot rondrent',
   'bloot rondloopt',
 ];
 // Mots COURTS (« nu », « nue », « nua »...) : lus sur la VUE EXACTE (accents gardes, MODERATION-05) — le vietnamien « nữ »
@@ -2036,7 +2036,7 @@ const GENERAL_SEXUEL_DUR: string[] = [
   'in zijn blootje', 'in haar blootje',
   // indonesien, malais, javanais, soundanais
   'tanpa busana', 'tanpa pakaian', 'tanpa baju', 'tidak berpakaian', 'tak berpakaian', 'bogel', 'berbogel', 'payudara',
-  'alat kelamin', 'kemaluan', 'celana dalam', 'perkosa', 'perkosaan', 'seksual*', 'erotis*', 'wuda', 'taranjang', 'buligir',
+  'alat kelamin', 'kemaluan', 'perkosa', 'perkosaan', 'seksual*', 'erotis*', 'wuda', 'taranjang', 'buligir',
   // polonais
   'naga kobieta', 'naga dziewczyna', 'naga dziewczynka', 'naga dziewczynke', 'nagi mezczyzna', 'nagi chlopiec', 'nagi chlopak',
   'nagi chlopczyk', 'bez ubrania', 'bez ubran', 'bez odziezy', 'rozneglizowan*', 'sutek', 'sutki', 'piersi', 'cipka',
@@ -2091,7 +2091,7 @@ const GENERAL_SEXUEL_DUR: string[] = [
   // 2026-10-24 (lot securite, textes courts, seconde passe) : generalisation mesuree sur un second jeu ; adjectifs ambigus (gol, nahe, naga, nogen, kaila) seulement JOINTS a un nom de personne ou de corps
   // nudite jointe a un nom ; sous-vetements
   'naga kobieta', 'naga kobiety', 'naga kobiet', 'naga dziewczyna', 'naga dziewczynka', 'naga dziewczynki', 'naga nastolatka',
-  'naga nastolatek', 'naga chlopak', 'naga chlopiec', 'naga mezczyzna', 'naga mezczyzni', 'naga para', 'naga model',
+  'naga nastolatek', 'naga chlopak', 'naga chlopiec', 'naga mezczyzna', 'naga mezczyzni', 'naga para', 
   'naga modelka', 'naga ludzie', 'naga osoba', 'naga osoby', 'naga dziecko', 'naga dzieci', 'naga niemowle', 'naga cialo',
   'naga ciala', 'naga aktorka', 'naga tancerka', 'naga postac', 'naga panie', 'nagi kobieta', 'nagi kobiety', 'nagi kobiet',
   'nagi dziewczyna', 'nagi dziewczynka', 'nagi dziewczynki', 'nagi nastolatka', 'nagi nastolatek', 'nagi chlopak',
@@ -2223,7 +2223,7 @@ const GENERAL_SEXUEL_DUR: string[] = [
   'wanawake uchi', 'wasichana uchi', 'watoto uchi', 'mchanga uchi', 'stelpa an fata', 'stulka an fata', 'kona an fata',
   'madur an fata', 'drengur an fata', 'barn an fata', 'strakur an fata', 'unglingur an fata', 'folk an fata', 'par an fata',
   'sine vestibus', 'san rad', 'tanpa klambi', 'minghajr hwejjeg', 'minghajr ilbies', 'pa veshje', 'roba interior',
-  'bertelanjang*', 'undertoj', 'undertoy', 'alastom*', 'alusvaat*', 'fehernem*', 'bielizen',
+  'bertelanjang*', 'undertoj', 'undertoy', 'alastom*', 'alusvaat*', 'fehernem*', 
   'spodni prad*', 'spodnim prad*', 'spodnich prad*','donjem rublju', 'donjeg rublja', 'donjim rubljem', 'spodnjem perilu', 'spodnje perilo', 'nudaj', 'nudan',
   'nudajn',
   // 2026-10-24 (lot securite, textes courts, troisieme passe) : « sans vetements », parties du corps decouvertes, verbe + adjectif ambigu
@@ -2248,10 +2248,10 @@ const GENERAL_SEXUEL_DUR: string[] = [
   'bez nikakve odjece', 'bez ikakvog odijela', 'bez jakehokoli obleceni', 'bez zadneho obleceni', 'bez siat', 'bez saty',
   'fara nici o haina', 'fara nimic pe ea', 'fara nimic pe el', 'uden noget pa', 'uten noe pa seg', 'utan nagot pa sig',
   'ilman mitaan paalla', 'ei ole mitaan paalla', 'ei mitaan paalla', 'semmi ruha nelkul', 'semmi ruhaban',
-  'uzerinde hicbir sey', 'ustunde hicbir sey', 'ustunde bir sey yok', 'zonder iets aan', 'zonder niets aan',
+  'uzerinde hicbir sey', 'ustunde hicbir sey', 'ustunde bir sey yok', 
   'zonder enige kleding', 'senza niente addosso', 'senza nulla addosso', 'sem nada de roupa', 'sem nada no corpo',
   'sin nada de ropa', 'sense res de roba', 'sen nada de roupa', 'pa asnje veshje', 'be jokiu drabuziu', 'bez nekahdam drebem',
-  'ilma midagi seljas', 'an nokkurra fata', 'ekkert a ser', 'sonder enige klere', 'tanpa apa apa', 'tidak memakai apa apa',
+  'ilma midagi seljas', 'an nokkurra fata', 'ekkert a ser', 'sonder enige klere', 'tidak memakai apa apa',
   'tak memakai apa apa', 'tidak mengenakan apa apa', 'khong mac gi tren nguoi', 'khong co gi tren nguoi',
   'walang suot na damit', 'wala siyang suot', 'golymi piersiami', 'golych piersi', 'gole piersi', 'piersiami', 'piersiach',
   'piersiom', 'odkryte piersi', 'odslonietymi piersiami', 'odhalenymi prsy', 'odhalena prsa', 'odhalenych prs',
@@ -2262,7 +2262,7 @@ const GENERAL_SEXUEL_DUR: string[] = [
   'seios a mostra', 'seno scoperto', 'seni scoperti', 'petto nudo', 'a seno nudo', 'pit descobert', 'pits descoberts',
   'payudara terbuka', 'dada terbuka', 'goi sani', 'toplessa', 'ciplak gogus', 'acik gogus', 'gogusleri acik', 'gogsu acik',
   // 2026-10-24 (lot securite, textes courts, quatrieme passe) : « topless », participes « deshabille », « sans pantalon »
-  'toplos', 'toplesa', 'topplos', 'ylaosatto*', 'ylaosaton', 'nahore bez', 'hore bez', 'nahoru bez',
+  'toplos', 'toplesa', 'topplos', 'ylaosatto*', 'ylaosaton', 'divka nahore bez', 'zena nahore bez', 'dievca hore bez', 'zena hore bez', 'dievca nahore bez', 'divka nahoru bez', 
   'sense dessobre', 'walang pang itaas', 'ulakeha paljas', 'paljas ulakeha', 'bila nguo za juu', 'vyzlecen*', 'slecen*',
   'nusireng*', 'izgerb*', 'lahti riietatud', 'uitgekleed*', 'despir*', 'hubad*', 'naghuhubad*', 'naghubad*', 'maghubad*', 'maghuhubad*', 'nakahubad*', '*vua nguo*',
   // 2026-10-24 (lot securite, textes courts, cinquieme passe)
@@ -2275,17 +2275,17 @@ const GENERAL_SEXUEL_DUR: string[] = [
   'quanluo', 'banluo', 'chiluo', 'tuoguang', 'tuo guang', 'berahne', 'berahneh', 'lokht', 'lokhti', 'nachae', 'gymnos',
   'gymni', 'gimnos', 'gymno', 'gymna', 'gimno', 'gimna','gimni', 'xoris rouxa', 'xwris rouxa', 'choris rouxa',
   // 2026-10-24 (lot securite, correction apres relecture) : tournures non ambigues qui remplacent des termes retires parce que mots courants d une autre langue
-  'seluar dalam', 'baju dalam', 'kurang berpakaian', 'berpakaian minim', 'setengah berpakaian', 'tidak berbaju', 'tanpa berbaju', 'blote vrouw',
+  'celana dalam', 'seluar dalam', 'kurang berpakaian', 'berpakaian minim', 'setengah berpakaian', 'tidak berbaju', 'tanpa berbaju', 'blote vrouw',
   'blote vrouwen', 'blote man', 'blote mannen', 'blote jongen', 'blote jongens', 'blote meisjes', 'blote kinderen', 'blote mensen', 'blote billen',
   'blote kont', 'blote dame', 'blote dames', 'blote tiener', 'blote baby', 'blote kleuters', 'blote bovenlichaam', 'bloot meisje', 'bloot jongetje',
   'bloot lichaam', 'bloot model', 'bloot paar', 'bloot bovenlijf', 'bloot rondlopen', 'bloot zwemmen', 'bloot slapen', 'bloot poseren',
-  'bloot dansen', 'in het bloot', 'helemaal bloot', 'geheel bloot', 'volledig bloot', 'naakte borsten', 'ontblote borsten', 'grote borsten',
+  'bloot dansen', 'in het bloot', 'naakte borsten', 'ontblote borsten', 'grote borsten',
   'kleine borsten', 'volle borsten', 'vrouwelijke borsten', 'twee borsten', 'ontbloot bovenlijf', 'ontblote borst', 'ontblote billen',
   'ontblote vrouw', 'nocht', 'nochta', 'femeie goala', 'femei goale', 'fata goala', 'fete goale', 'fetita goala', 'fetite goale', 'copila goala',
   'copile goale', 'actrita goala', 'dansatoare goala', 'doamna goala', 'mama goala', 'pielea goala', 'goala pusca', 'goale pusca', 'toata goala',
   'toate goale', 'lenjerie intima', 'lenjerie de corp', 'lenjerie sexy', 'lenjerie erotica', 'lenjerie provocatoare', 'lenjerie transparenta',
   'nakinn', 'nakin', 'nakid', 'nakins', 'nakinni', 'golas', 'golasi', 'golasa', 'golasul', 'bloot kind', 'blote kleuter', 'adolescenta goala',
-  'adolescente goale', 'copilul gol', 'complet goala', 'complet goale', 'complet gol', 'total goala', 'total gol', 'naket par', 'naket folk',
+  'adolescente goale', 'copilul gol', 'femeie complet goala', 'femeie total goala', 'fata complet goala', 'fetita complet goala', 'femeie complet gol', 'fata complet gol', 'naket par', 'naket folk',
   'luoti nuren', 'luoti nvren', 'luoti haizi', 'luoti nvhai', 'luoti xiaohai', 'luoti nanren', 'luoti shaonv', 'luoti zhaopian', 'xiao haizi luoti',
   'haizi luoti', 'nvhai luoti', 'nuren luoti', 'nvren luoti', 'nanren luoti', 'shaonv luoti', 'bezici nahy', 'bezici naha', 'bezici nahe',
   'beziaci nahy', 'beziaci naha', 'beziaci nahe', 'stojici nahy', 'stojici naha', 'stojici nahe', 'stojaci nahy', 'stojaci naha', 'stojaci nahe',
@@ -2299,7 +2299,7 @@ const GENERAL_SEXUEL_DUR: string[] = [
   'toples deklica', 'punca toples', 'toples punca', 'manekenka toples', 'toples manekenka', 'tinejdzerka toples', 'toples tinejdzerka',
   'tinejdzer toples', 'toples tinejdzer', 'dama toples', 'toples dama', 'curka toples', 'toples curka', 'wanita toples', 'perempuan toples',
   'gadis toples', 'cewek toples', 'anak toples', 'pria toples', 'laki laki toples', 'toples di pantai', 'bloot rent', 'bloot rennen', 'bloot loopt',
-  'bloot lopen', 'bloot staat', 'bloot zit', 'bloot ligt', 'bloot slaapt', 'bloot danst', 'bloot zwemt', 'bloot speelt', 'bloot rondrent',
+  'bloot lopen', 'bloot zit', 'bloot slaapt', 'bloot danst', 'bloot zwemt', 'bloot speelt', 'bloot rondrent',
   'bloot rondloopt',
 ];
 // Ambigu, SEXUEL : bloque seulement avec un terme sexuel explicite ou un contexte sexuel faible.

@@ -1420,7 +1420,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const n = Math.max(1, parseInt($('ws-count')?.value, 10) || 4);   // meme defaut que le clic
       const turbo = $('ws-engine')?.value === 'local-lightning';
       const pas = turbo ? 4 : Math.max(10, Math.min(60, Math.round(Number($('ws-quality')?.value) || 30)));
-      // Moteurs du menu (2026-10-25) : prix PAR IMAGE lu dans la grille (cles text2image_zimage / text2image_qwen), sans pas ni supplement T-pose (meme regle que le worker).
+      // Moteurs du menu (2026-10-25) : prix PAR IMAGE lu dans la grille (cles text2image_zimage / text2image_qwen), sans pas ; le supplement T-pose s'y ajoute comme pour Equilibre (meme regle que le worker).
       const cleMoteur = turbo ? 'text2image_zimage' : ($('ws-engine')?.value === 'qwen-best' ? 'text2image_qwen' : null);
       const prixMoteur = cleMoteur ? _prixDe(cleMoteur) : null;
       // SUPPLEMENT T-POSE (2026-10-03) : MEME regle que l'appel (meshyAPI-cloud.js) et que le worker (handleGenerateImage) — personnage, case cochee —,
@@ -1428,7 +1428,7 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       const suppGrille = _prixDe('tpose');
       const tposeActive = ($('ws-asset-type')?.value || 'character') === 'character' && !!$('ws-tpose')?.checked && typeof suppGrille === 'number';
       const supp = tposeActive ? suppGrille : 0;
-      const pImg = prixMoteur != null ? Math.max(1, Math.round(prixMoteur))
+      const pImg = prixMoteur != null ? Math.max(1, Math.round(prixMoteur)) + supp
         : (tarif30 == null ? null : Math.max(1, Math.round(tarif30 * pas / 30)) + supp);
       const etapes = !!$('ws-img-buildstages')?.checked;
       const nImg = etapes ? 3 : n;
@@ -1487,9 +1487,11 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
           bt.className = 'cloud-cost-badge opt-cost';
           labTpose.appendChild(bt);
         }
-        bt.textContent = typeof suppGrille === 'number' ? '+' + suppGrille : '';
-        bt.title = typeof suppGrille === 'number' ? _tfp('+{x} credit(s) per image when ticked', suppGrille) : '';
-        bt.style.display = typeof suppGrille === 'number' ? '' : 'none';
+        // Le supplement T-pose est le meme pour les trois moteurs (decision du user, 2026-10-25).
+        const suppAffiche = (typeof suppGrille === 'number') ? suppGrille : null;
+        bt.textContent = suppAffiche != null ? '+' + suppAffiche : '';
+        bt.title = suppAffiche != null ? _tfp('+{x} credit(s) per image when ticked', suppAffiche) : '';
+        bt.style.display = suppAffiche != null ? '' : 'none';
       }
     };
     // PRIX DANS LE MENU « MOTEUR » (2026-10-25, demande du user) : chaque choix annonce son prix PAR IMAGE, lu dans la grille. Equilibre = prix de 30 pas ;

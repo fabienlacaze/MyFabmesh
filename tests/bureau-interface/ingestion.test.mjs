@@ -24,7 +24,7 @@ try {
 
 const DECLARATIONS = ['_DEMANDE_EN', '_DEMANDE_FR', '_retirerPolitesseFin', '_epurerDemande', '_optionsPose', '_i18nT', '_i18nTf'];
 // absentes de l'ancien code : facultatives pour que le fichier tourne AUSSI contre lui (les tests echouent alors, c'est la preuve)
-const DECLARATIONS_AVERTISSEMENTS = ['_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_confirmerAvertissements', '_verifierAvantDepense'];
+const DECLARATIONS_AVERTISSEMENTS = ['_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_bridageEquilibre', '_confirmerAvertissements', '_verifierAvantDepense'];
 const CHEMINS = { 'src/renderer/index2.js': process.env.INDEX2_BUREAU, 'cloud/public/app/index2.js': process.env.INDEX2_WEB };
 
 function charger(chemin, env) {
