@@ -1,0 +1,9 @@
+[lourd] lance (RAM libre 19414 Mo, delai 420 s) : node planche.mjs fix_poule oiseau walk --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/banc_visuel/sorties/b_fix_poule_walk.png
+ok C:/tmp/banc_visuel/sorties/b_fix_poule_walk.png 31.6 s images/cycle 23 maillage aucun
+[lourd] code=0 duree=64 s
+[lourd] lance (RAM libre 19570 Mo, delai 420 s) : node planche.mjs py_poule oiseau walk --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/banc_visuel/sorties/b_py_poule_walk.png
+ok C:/tmp/banc_visuel/sorties/b_py_poule_walk.png 30.8 s images/cycle 23 maillage aucun
+[lourd] code=0 duree=70 s
+[lourd] lance (RAM libre 19503 Mo, delai 420 s) : node planche.mjs humain humain walk --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/a2_humain_walk.png
+ok C:/tmp/banc_visuel/sorties/a2_humain_walk.png 30.8 s images/cycle 33 maillage 6011 pts
+[lourd] code=0 duree=31 s

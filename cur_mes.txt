@@ -1,0 +1,18 @@
+[lourd] lance (RAM libre 20281 Mo, delai 420 s) : node /c/tmp/anim2_bipedes/mes.mjs C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js walk,run
+humain/humain walk T1.1 f1.443 S/H 0.82 v/H 0.75 cad 109 v acoup 6.5 sol 0% gliss 0.3% genou_env  ferm 
+humain/humain run T0.7666666666666667 f2.213 S/H 1.26 v/H 1.64 cad 157 v acoup 11.2 sol 0% gliss 0.94% genou_env  ferm 
+humain/primate walk T0.9333333333333333 f1.443 S/H 0.82 v/H 0.88 cad 129 v acoup 5.9 sol 0% gliss 0.3% genou_env  ferm 
+humain/primate run T0.7333333333333333 f2.424 S/H 1.38 v/H 1.88 cad 164 v acoup 11.7 sol 0% gliss 0.78% genou_env  ferm 
+theropode.glb/dinosaure walk T1.3666666666666667 f1.255 S/H 0.87 v/H 0.63 cad 88 v acoup 2.9 sol 0% gliss 0% genou_env  ferm 
+theropode.glb/dinosaure run T0.7666666666666667 f2.258 S/H 1.56 v/H 2.03 cad 157 v acoup 9.3 sol 0% gliss 0% genou_env  ferm 
+kangourou.glb/kangourou walk T0.6666666666666666 f0.694 S/H 0.51 v/H 0.76 cad 180 v acoup 7.8 sol 0% gliss 0% genou_env  ferm 
+kangourou.glb/kangourou run T0.5333333333333333 f2.141 S/H 1.56 v/H 2.93 cad 225 v acoup 15.2 sol 0% gliss 0% genou_env  ferm 
+manchot.glb/manchot walk T0.6666666666666666 f0.313 S/H 0.30 v/H 0.45 cad 180 v acoup 12 sol 0% gliss 0.29% genou_env  ferm 
+manchot.glb/manchot run T0.5666666666666667 f0.469 S/H 0.45 v/H 0.79 cad 212 v acoup 16.2 sol 0% gliss 0% genou_env  ferm 
+oiseau2.glb/oiseau walk T0.7666666666666667 f0.641 S/H 0.66 v/H 0.86 cad 157 v acoup 10.7 sol 0% gliss 0% genou_env  ferm 
+oiseau2.glb/oiseau run T0.6333333333333333 f1.087 S/H 1.12 v/H 1.77 cad 189 v acoup 15.4 sol 0% gliss 0.02% genou_env  ferm 
+oiseau/oiseau walk T0.7666666666666667 f0.53 S/H 0.55 v/H 0.71 cad 157 v acoup 11.5 sol 0% gliss 0.06% genou_env  ferm 
+oiseau/oiseau run T0.6333333333333333 f0.989 S/H 1.02 v/H 1.61 cad 189 v acoup 14.1 sol 0% gliss 0.02% genou_env  ferm 
+poule/oiseau walk T0.7666666666666667 f0.704 S/H 0.97 v/H 1.27 cad 157 v acoup 14.7 sol 0.1% gliss 0.88% genou_env  ferm 
+poule/oiseau run T0.6333333333333333 f1.268 S/H 1.75 v/H 2.77 cad 189 v acoup 28.7 sol 0.1% gliss 2.09% genou_env  ferm 
+[lourd] code=0 duree=1 s

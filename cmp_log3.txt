@@ -1,0 +1,3 @@
+[lourd] lance (RAM libre 20329 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/manchot.glb manchot walk --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/m_walk2.png
+ok C:/tmp/anim2_bipedes/out/m_walk2.png 31.9 s
+[lourd] code=0 duree=33 s

@@ -1,0 +1,15 @@
+[lourd] lance (RAM libre 16548 Mo, delai 420 s) : node planche.mjs humain humain walk --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/b_humain_walk.png
+ok C:/tmp/banc_visuel/sorties/b_humain_walk.png 30.9 s images/cycle 31 maillage 6011 pts
+[lourd] code=0 duree=70 s
+[lourd] lance (RAM libre 16225 Mo, delai 420 s) : node planche.mjs humain humain run --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/b_humain_run.png
+ok C:/tmp/banc_visuel/sorties/b_humain_run.png 30.9 s images/cycle 23 maillage 6011 pts
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 15665 Mo, delai 420 s) : node planche.mjs humain humain idle --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/b_humain_idle.png
+ok C:/tmp/banc_visuel/sorties/b_humain_idle.png 30.9 s images/cycle 179 maillage 6011 pts
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 16129 Mo, delai 420 s) : node planche.mjs poule oiseau run --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/b_poule_run.png
+ok C:/tmp/banc_visuel/sorties/b_poule_run.png 30.8 s images/cycle 19 maillage 6009 pts
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 15938 Mo, delai 420 s) : node planche.mjs orc humain run --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/b_orc_run.png
+ok C:/tmp/banc_visuel/sorties/b_orc_run.png 30.9 s images/cycle 23 maillage 6013 pts
+[lourd] code=0 duree=32 s

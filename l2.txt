@@ -1,0 +1,3 @@
+[lourd] lance (RAM libre 19296 Mo, delai 420 s) : node planche.mjs humain humain walk --moteur C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sortie C:/tmp/banc_visuel/sorties/a1_humain_walk.png --images 8
+ok C:/tmp/banc_visuel/sorties/a1_humain_walk.png 31.7 s images/cycle 31 maillage 6011 pts
+[lourd] code=0 duree=32 s

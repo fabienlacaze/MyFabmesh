@@ -1,0 +1,18 @@
+[lourd] lance (RAM libre 19973 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/kangourou.glb kangourou run --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/k_run.png
+ok C:/tmp/anim2_bipedes/out/k_run.png 31.7 s
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 19856 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/theropode.glb dinosaure run --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/d_run.png
+ok C:/tmp/anim2_bipedes/out/d_run.png 31.6 s
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 19884 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/theropode.glb dinosaure walk --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/d_walk.png
+ok C:/tmp/anim2_bipedes/out/d_walk.png 31.5 s
+[lourd] code=0 duree=33 s
+[lourd] lance (RAM libre 19662 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/manchot.glb manchot walk --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/m_walk.png
+ok C:/tmp/anim2_bipedes/out/m_walk.png 31.7 s
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 19968 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/oiseau2.glb oiseau walk --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/o_walk.png
+ok C:/tmp/anim2_bipedes/out/o_walk.png 31.5 s
+[lourd] code=0 duree=32 s
+[lourd] lance (RAM libre 19956 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/oiseau2.glb oiseau run --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/o_run.png
+ok C:/tmp/anim2_bipedes/out/o_run.png 31.7 s
+[lourd] code=0 duree=33 s

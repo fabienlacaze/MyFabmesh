@@ -1,0 +1,6 @@
+[lourd] lance (RAM libre 20230 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/kangourou.glb kangourou run --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/k_run2.png
+ok C:/tmp/anim2_bipedes/out/k_run2.png 32.1 s
+[lourd] code=0 duree=33 s
+[lourd] lance (RAM libre 19839 Mo, delai 420 s) : node planche_cmp.mjs C:/tmp/anim2_bipedes/rigs/oiseau2.glb oiseau run --avant C:/tmp/anim2_bipedes/avant.js --apres C:/tmp/anim2_bipedes/cloud/public/app/lib/locomotion-procedurale.js --sans-maillage 1 --sortie C:/tmp/anim2_bipedes/out/o_run2.png
+ok C:/tmp/anim2_bipedes/out/o_run2.png 32.6 s
+[lourd] code=0 duree=33 s
