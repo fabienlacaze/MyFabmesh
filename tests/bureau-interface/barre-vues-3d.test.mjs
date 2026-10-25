@@ -100,7 +100,7 @@ for (const c of COTES) {
   test(`${c.nom} : hauteurs pilotees par variables (plus de 560px / 56vh), curseur de lumiere 0-500 avec son icone`, () => {
     const html = lire(c.html);
     const css = lire(c.css);
-    for (const id of ['pe-viewport-wrap', 'at-preview-canvas-wrap', 'rz-viewport']) {
+    for (const id of ['pe-viewport-wrap', 'rz-viewport']) {
       const i = html.indexOf(`id="${id}"`);
       const tag = html.slice(i, html.indexOf('>', i));
       // LOT W25 : Paint Emissive passe en .fen-apercu (hauteur var(--vz-h-corps) donnee par le CSS .fen-3d)

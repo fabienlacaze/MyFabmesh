@@ -2277,75 +2277,68 @@
          Manually adjust how source photos project onto the mesh.
          ============================================================ -->
     <div id="modal-align-texture" class="modal-overlay hidden">
-      <div class="modal-card modal-card-wide" style="max-width:1400px; width:95vw;">
+      <div class="modal-card fen-3d">
         <div class="fen-tete"><h2>Align Texture</h2><button type="button" class="settings-close-x fen-fermer" title="Close">&#10005;</button></div>
-        <p class="modal-subtitle" style="margin-bottom:8px;">Align the photo on the mesh, then Re-project.</p>
-        <div style="display:flex; gap:12px;">
-          <!-- Left: large viewer -->
-          <div style="flex:1; min-width:0;">
-            <div id="at-preview-canvas-wrap" style="width:100%; height:var(--vz-h-corps); min-height:var(--vz-apercu-min); background:#1b1b1b; border-radius:6px; position:relative;">
-              <canvas id="at-preview-canvas" style="width:100%; height:100%; display:block;"></canvas>
-              <div id="at-preview-status" style="position:absolute; top:6px; left:8px; right:8px; font-size:13px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:3px; color:#ccc; display:none;"></div>
-              <!-- View buttons row, bottom of viewer -->
-              <div id="at-view-buttons" style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); display:flex; gap:4px; background:rgba(0,0,0,0.7); padding:4px 6px; border-radius:6px;">
-                <button data-view="iso"   class="ghost-btn" style="padding:3px 10px; font-size:13px;">Iso</button>
-                <button data-view="front" class="ghost-btn" style="padding:3px 10px; font-size:13px;">Front</button>
-                <button data-view="back"  class="ghost-btn" style="padding:3px 10px; font-size:13px;">Back</button>
-                <button data-view="left"  class="ghost-btn" style="padding:3px 10px; font-size:13px;">Left</button>
-                <button data-view="right" class="ghost-btn" style="padding:3px 10px; font-size:13px;">Right</button>
-                <button data-view="top"   class="ghost-btn" style="padding:3px 10px; font-size:13px;">Top</button>
-                <button data-view="bottom" class="ghost-btn" style="padding:3px 10px; font-size:13px;">Bottom</button>
-              </div>
+        <p class="modal-subtitle">Align the photo on the mesh, then Re-project.</p>
+        <div class="fen-corps">
+          <!-- apercu 3D a GAUCHE, reglages en colonne a DROITE (gabarit commun des fenetres d'outils) -->
+          <div id="at-preview-canvas-wrap" class="fen-apercu">
+            <canvas id="at-preview-canvas" style="width:100%; height:100%; display:block;"></canvas>
+            <div id="at-preview-status" class="fen-apercu-etat" style="top:6px; bottom:auto; display:none;"></div>
+            <div id="at-view-buttons" class="at-barre-vues">
+                <button data-view="iso" class="ghost-btn">Iso</button>
+                <button data-view="front" class="ghost-btn">Front</button>
+                <button data-view="back" class="ghost-btn">Back</button>
+                <button data-view="left" class="ghost-btn">Left</button>
+                <button data-view="right" class="ghost-btn">Right</button>
+                <button data-view="top" class="ghost-btn">Top</button>
+                <button data-view="bottom" class="ghost-btn">Bottom</button>
             </div>
           </div>
-          <!-- Right: compact sliders -->
-          <div style="width:280px; flex-shrink:0;">
-            <!-- Side toggle: which texture we are adjusting -->
-            <div id="at-side-buttons" style="display:flex; gap:4px; margin-bottom:10px;">
-              <button data-side="front" class="ghost-btn tool-active" style="flex:1; padding:5px; font-size:13px;">FRONT</button>
-              <button data-side="back"  class="ghost-btn" style="flex:1; padding:5px; font-size:13px;">BACK</button>
+          <div class="fen-form">
+            <div id="at-side-buttons" class="at-bascule">
+              <button data-side="front" class="ghost-btn tool-active">FRONT</button>
+              <button data-side="back" class="ghost-btn">BACK</button>
             </div>
-            <div style="display:flex; flex-direction:column; gap:6px; font-size:13px;">
-              <div>
-                <label style="display:flex; justify-content:space-between;">Translate X <span id="at-tx-val" class="slider-val">0.00</span></label>
-                <input type="range" id="at-tx" min="-0.30" max="0.30" step="0.01" value="0" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Translate X</span><span id="at-tx-val" class="fen-valeur">0.00</span></div>
+                <input type="range" id="at-tx" min="-0.30" max="0.30" step="0.01" value="0" />
               </div>
-              <div>
-                <label style="display:flex; justify-content:space-between;">Translate Y <span id="at-ty-val" class="slider-val">0.00</span></label>
-                <input type="range" id="at-ty" min="-0.30" max="0.30" step="0.01" value="0" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Translate Y</span><span id="at-ty-val" class="fen-valeur">0.00</span></div>
+                <input type="range" id="at-ty" min="-0.30" max="0.30" step="0.01" value="0" />
               </div>
-              <div>
-                <label style="display:flex; justify-content:space-between;">Translate Z <span id="at-tz-val" class="slider-val">0.00</span></label>
-                <input type="range" id="at-tz" min="-0.30" max="0.30" step="0.01" value="0" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Translate Z</span><span id="at-tz-val" class="fen-valeur">0.00</span></div>
+                <input type="range" id="at-tz" min="-0.30" max="0.30" step="0.01" value="0" />
               </div>
-              <div>
-                <label style="display:flex; justify-content:space-between;">Scale <span id="at-scale-val" class="slider-val">1.20</span></label>
-                <input type="range" id="at-scale" min="0.70" max="1.50" step="0.01" value="1.20" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Scale</span><span id="at-scale-val" class="fen-valeur">1.20</span></div>
+                <input type="range" id="at-scale" min="0.70" max="1.50" step="0.01" value="1.20" />
               </div>
-              <div>
-                <label style="display:flex; justify-content:space-between;">Rotation Y <span id="at-roty-val" class="slider-val">0&deg;</span></label>
-                <input type="range" id="at-roty" min="-30" max="30" step="1" value="0" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Rotation Y</span><span id="at-roty-val" class="fen-valeur">0&deg;</span></div>
+                <input type="range" id="at-roty" min="-30" max="30" step="1" value="0" />
               </div>
-              <div>
-                <label style="display:flex; justify-content:space-between;">Visibility threshold <span id="at-vis-val" class="slider-val">0.50</span></label>
-                <input type="range" id="at-vis" min="0" max="0.9" step="0.05" value="0.5" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Visibility threshold</span><span id="at-vis-val" class="fen-valeur">0.50</span></div>
+                <input type="range" id="at-vis" min="0" max="0.9" step="0.05" value="0.5" />
               </div>
-              <div>
-                <label style="display:flex; justify-content:space-between;">Overlay opacity <span id="at-opacity-val" class="slider-val">55%</span></label>
-                <input type="range" id="at-opacity" min="0" max="100" step="5" value="55" style="width:100%;" />
+              <div class="fen-champ">
+                <div class="fen-champ-tete"><span class="fen-label">Overlay opacity</span><span id="at-opacity-val" class="fen-valeur">55%</span></div>
+                <input type="range" id="at-opacity" min="0" max="100" step="5" value="55" />
               </div>
-            </div>
-            <div style="margin-top:10px; padding:6px 8px; background:#0a0a0a; border-radius:4px; font-size:12px; color:var(--text-2);">
+            <div class="at-cases">
               <div><input type="checkbox" id="at-project-live" checked /> <strong>Live project on mesh</strong></div>
               <div><input type="checkbox" id="at-show-overlay" checked /> Show overlay plane</div>
               <div><input type="checkbox" id="at-autofit" checked /> Auto-fit silhouette</div>
               <div><input type="checkbox" id="at-framefix" checked /> Frame fix (5124f8c)</div>
               <div><input type="checkbox" id="at-skipvflip" checked /> Skip back vflip</div>
             </div>
+            <button class="ghost-btn fen-petit" id="at-reset">&#8634; Reset defaults</button>
           </div>
         </div>
-        <div class="modal-actions" style="margin-top:10px;">
-          <button class="ghost-btn" id="at-reset">Reset defaults</button>
+        <div class="modal-actions">
           <button class="ghost-btn" id="at-cancel">Cancel</button>
           <button class="primary-btn" id="at-reproject">&#127919; Re-project</button>
         </div>
