@@ -13403,7 +13403,7 @@ function openMeshToolModal(toolName) {
   if (schema.clientApplyOnly && applyParent) {
     deviceBtn = document.createElement('button');
     deviceBtn.id = 'mt-apply-device';
-    deviceBtn.className = 'secondary-btn';
+    deviceBtn.className = 'primary-btn';   // 25/10 : meme pied que les autres fenetres (action pleine largeur)
     // taille : .modal-actions .secondary-btn (kit des fenetres)
     // PAS « (free) » : l'enregistrement passe par /api/mesh-op/client-result,
     // facture mesh_op_simple comme la version serveur (2026-09-30). Le prix
@@ -31848,9 +31848,14 @@ function _ouvrirLancement(def, boutonPrix) {
     document.getElementById('lct-titre').textContent = def.titreBrut || t(def.titre);
     document.getElementById('lct-texte').textContent = t(def.texte);
     const src = def.apercu === 'image' ? _lctImageCourante() : '';
-    document.getElementById('lct-corps').classList.toggle('sans-apercu', !src);
-    m.querySelector('.lct-carte').classList.toggle('fen-3d', !!src);   // LOT W23 : gabarit 3D (apercu grand a gauche, pied pleine largeur) seulement avec apercu
-    document.getElementById('lct-apercu').hidden = !src;
+    // 25/10 (user : « TOUTES les fenetres au meme gabarit ») : toujours la fenetre commune ; sans image a montrer, un pictogramme tient l'apercu.
+    document.getElementById('lct-corps').classList.remove('sans-apercu');
+    m.querySelector('.lct-carte').classList.add('fen-3d');
+    document.getElementById('lct-apercu').hidden = false;
+    document.getElementById('lct-apercu').classList.toggle('fen-apercu-pictos', !src);
+    document.getElementById('lct-image').style.display = src ? '' : 'none';
+    const _pic = document.getElementById('lct-picto');
+    if (_pic) _pic.style.display = src ? 'none' : '';
     if (src) document.getElementById('lct-image').src = src;
     const lancer = document.getElementById('lct-lancer');
     const annuler = document.getElementById('lct-annuler');

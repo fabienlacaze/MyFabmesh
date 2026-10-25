@@ -5288,3 +5288,27 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 @media (max-width: 1500px) and (min-width: 901px) {
   .modal-card.fen-3d { padding-left: 12px !important; padding-right: 12px !important; }
 }
+
+/* ══ HARMONISATION FINALE (25/10, relectures) : meme carte, meme pied, meme barre de vues dans TOUTES les fenetres d'outils ══ */
+/* 1. Draw Mask, Paint Emissive (Reshape / Clone 3D / Region retexture) : meme hauteur de carte que les autres (94vh, 1000 px max) ;
+      la colonne de reglages prend le reste de la hauteur au lieu de pousser le pied. */
+.modal-card.fen-3d.fen-editeur-2d, #modal-paint-emissive .modal-card.fen-3d { height: min(94vh, 1000px); }
+.modal-card.fen-3d.fen-editeur-2d .fen-corps, #modal-paint-emissive .modal-card.fen-3d .fen-corps { flex: 1 1 0 !important; }
+/* 2. Barre de vues 3D : UNE ligne, centree en bas de l'apercu (avant : left 50 % + translate laissait la moitie de la largeur
+      a la barre, qui se coupait en deux lignes et recouvrait le texte d'etat). */
+.mesh-toolbar.fen { left: 0; right: 0; transform: none; margin: 0 auto; width: fit-content; max-width: calc(100% - 16px); }
+.mesh-toolbar.fen .bv3-groupe { flex-wrap: nowrap; }
+/* 3. Fenetre etroite (< 900 px, une colonne) : la carte defile en entier (apercu moins haut, reglages visibles), pied toujours atteignable. */
+@media (max-width: 900px) {
+  :root { --vz-h-corps: max(300px, 42vh); }
+  html body .modal-card.fen-3d {
+    height: auto !important; max-height: 94vh !important; overflow-y: auto !important;
+  }
+  html body .modal-card.fen-3d .fen-corps { flex: 0 0 auto !important; grid-template-columns: 1fr !important; }
+  html body .modal-card.fen-3d .fen-apercu { box-sizing: border-box; width: 100% !important; }
+  html body .modal-card.fen-3d .fen-form { overflow: visible; min-height: 0; }
+  html body .modal-card.fen-3d > .modal-actions {
+    position: sticky; bottom: -28px; z-index: 7; background: var(--bg-1);
+    padding: 10px 0 28px; margin: 12px 0 -28px;
+  }
+}
