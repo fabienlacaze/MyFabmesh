@@ -14431,12 +14431,13 @@ function _bs3dPanneau() {
 document.getElementById('ws-3d-buildstages')?.addEventListener('change', (e) => {
   const det = _bs3dPanneau();
   if (det) det.style.display = e.target.checked ? '' : 'none';
-  if (!e.target.checked) { window._chantierPrereglage = null; _bs3dLibelleCase(0); return; }
+  if (!e.target.checked) { window._chantierPrereglage = null; _bs3dLibelleCase(0); try { window.__majPrixMaillage && window.__majPrixMaillage(); } catch (_) {} return; }
   if (!window._chantierPrereglage) {   // premiere ouverture : les valeurs historiques de la case (3 etapes, materiaux automatiques)
     const c = document.getElementById('ws3d-stg-count'), cv = document.getElementById('ws3d-stg-count-val');
     if (c) c.value = '3'; if (cv) cv.textContent = '3';
   }
   _bs3dSauver();
+  try { window.__majPrixMaillage && window.__majPrixMaillage(); } catch (_) {}   // le prix des etapes s'affiche dans ses reglages (web)
 });
 
 function _chantierApresGeneration(p, meshPath) {

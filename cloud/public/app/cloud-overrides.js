@@ -1884,8 +1884,24 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
       }
       const chantier = document.getElementById('ws-3d-buildstages');
       const pc = _prixDe('construction3d');
-      vignette(chantier && chantier.closest('label'), pc,
-               pc == null ? '' : _tf('3D construction stages, run right after the mesh: {x} credit(s)', pc));
+      // 25/10 (user : « le prix ne doit pas etre en haut, surtout quand pas actif : il doit etre pour chaque parametre ») : plus de pastille sur la ligne de la case ;
+      // le prix des etapes de construction est dans le menu de ses reglages (a droite du titre), et seulement quand la case est COCHEE.
+      vignette(chantier && chantier.closest('label'), null);
+      const resumeEtapes = document.querySelector('#ws-3d-stages-opts > summary');
+      if (resumeEtapes) {
+        let pe = resumeEtapes.querySelector(':scope > #ws-3d-stages-cost');
+        if (!pe) {
+          pe = document.createElement('span');
+          pe.id = 'ws-3d-stages-cost';
+          pe.className = 'cloud-cost-badge opt-cost';
+          pe.style.marginLeft = '10px';
+          resumeEtapes.appendChild(pe);
+        }
+        const actif = !!(chantier && chantier.checked) && typeof pc === 'number' && pc > 0;
+        pe.textContent = actif ? String(pc) : '';
+        pe.title = actif ? _tf('3D construction stages, run right after the mesh: {x} credit(s)', pc) : '';
+        pe.style.display = actif ? '' : 'none';
+      }
       // Menu Quality : vignette du palier choisi, en bout de ligne.
       let vp = document.getElementById('ws-trellis2-preset-cost');
       if (!vp && preset.parentElement) {
