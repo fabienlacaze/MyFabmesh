@@ -5161,3 +5161,20 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+
+/* ============================================================
+ * LOT W07 (25/10) : editeur Paint Tools au gabarit commun .fen-3d (apercu a gauche, outils et reglages en colonne a droite,
+ * pied Annuler + action sur toute la largeur restante).
+ * ============================================================ */
+#modal-paint .modal-card.fen-paint { padding: 24px 28px; overflow: hidden; }
+#modal-paint .paint-apercu { background: #1a1a2e; }
+#modal-paint .paint-colonne { overflow-y: auto; padding-right: 4px; }
+#modal-paint .paint-rangee { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#modal-paint .paint-rangee .secondary-btn { padding: 5px 10px; font-size: 13px; width: auto; margin: 0; }
+#modal-paint .paint-colonne input[type=range] { width: 100%; }
+#modal-paint .modal-actions .primary-btn { flex: 1 1 auto; }
+@media (max-width: 900px) {
+  #modal-paint .modal-card.fen-paint { overflow-y: auto; }
+  #modal-paint .paint-apercu { height: 56vh !important; width: 100% !important; }
+}
