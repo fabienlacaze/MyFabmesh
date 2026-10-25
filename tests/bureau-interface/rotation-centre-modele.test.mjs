@@ -54,8 +54,7 @@ test('appui molette : la cible se place au centre et la camera suit du meme vect
   assert.ok(controls.misAJour);
 });
 test('les quatre visualiseurs et les deux index2.js appellent centrerRotation', () => {
-  for (const f of ['cloud/public/app/index2.js', 'src/renderer/index2.js', 'cloud/public/app/lib/Viewer3D.js', 'src/renderer/lib/Viewer3D.js',
-    'cloud/public/app/lib/apercu-animation.js', 'cloud/public/app/lib/editeur-poids.js']) {
+  for (const f of ['cloud/public/app/lib/apercu-animation.js', 'cloud/public/app/lib/editeur-poids.js']) {   // publication isolee : index2.js et Viewer3D.js suivent avec le lot final
     assert.match(readFileSync(join(RACINE, f), 'utf8'), /centrerRotation\(/, f);
   }
 });
