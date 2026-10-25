@@ -4935,3 +4935,14 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ===== LOT W18 (25/10) : Recolorier au gabarit commun (fen-3d) : apercu a gauche, reglages a droite, pied pleine largeur ===== */
+#modal-recolor .fen-apercu { display: flex; align-items: center; justify-content: center; }
+#modal-recolor .fen-apercu #rc-source-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+#modal-recolor .fen-apercu #rc-source-img:not([src]), #modal-recolor .fen-apercu #rc-source-img[src=""] { display: none; }
+#modal-recolor .fen-form { padding-right: 4px; }
+#modal-recolor .fen-form > select, #modal-recolor .fen-form > input { flex: 0 0 auto; }
+#modal-recolor .fen-form input[type="range"] { width: 100%; }
+#modal-recolor .modal-card > .modal-actions .primary-btn { flex: 1 1 auto; }
+#modal-recolor .modal-card.fen-3d { height: min(94vh, 1000px); }
+#modal-recolor .modal-card > .modal-actions { flex: 0 0 auto; }
