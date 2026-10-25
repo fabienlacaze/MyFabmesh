@@ -168,6 +168,9 @@ const FICHIERS = [
   // bureau / web (une derive entre les deux dictionnaires laissait des libelles traduits d'un seul cote).
   { nom: 'textes du serveur (traduction des refus)', source: 'src/renderer/lib/textes-serveur.js', copie: 'cloud/public/app/lib/textes-serveur.js' },
   { nom: 'traductions communes (lang/_additions6.js)', source: 'src/renderer/lang/_additions6.js', copie: 'cloud/public/app/lang/_additions6.js' },
+  // Modify image : retrait et remplacement (2026-10-20) : module pur + ses traductions, memes octets sur les deux pages
+  { nom: 'retrait dans Modify (JS)', source: 'src/renderer/lib/retrait-image.js', copie: 'cloud/public/app/lib/retrait-image.js' },
+  { nom: 'traductions de Modify (retrait)', source: 'src/renderer/lang/_additions_retrait.js', copie: 'cloud/public/app/lang/_additions_retrait.js' },
   // langue du texte de l'utilisateur (2026-10-13, audit de la langue) : bureau, site ET worker (cloud/src/worker.ts importe la copie du site)
   { nom: 'langue du texte', source: 'src/renderer/lib/langue-texte.js', copie: 'cloud/public/app/lib/langue-texte.js' },
   // encodeur SDXL des prompts longs (2026-10-13) : memes bornes de poids et memes jetons speciaux casses sur le bureau et sur Modal

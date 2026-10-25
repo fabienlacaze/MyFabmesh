@@ -8979,10 +8979,101 @@ ipcMain.handle('outfit-cutout', async (event, opts = {}) => {
   }
 });
 
-ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, dilate, rel, langueVerifiee }) => {
+// >>> REFUS RETRAIT MINEUR (2026-10-22, relecture securite) : MEME LOGIQUE dans src/main/main.js et cloud/src/worker.ts
+// (tests/main/retrait-mineur-serveur.test.mjs compare les deux sur le meme corpus, et au module client lib/retrait-image.js).
+// Le moteur de retrait detecte ce que le texte nomme et le REPEINT, sans classificateur d'image en sortie ; le refus des vetements du module
+// client est lexical (un mot inconnu passe) et un client modifie peut l'ignorer. Le SERVEUR refuse donc tout retrait / remplacement dont un
+// texte (cible, remplacement, consigne traduite, consigne tapee) nomme une personne qui est ou peut etre mineure. Seule exception, pour l'outil
+// Auto Inpaint LUI-MEME (aucune consigne de Modify jointe) : effacer la personne entiere, sans remplacement (« Find: the boy ») reste permis,
+// comme avant ce chantier. Une consigne de Modify qui nomme un enfant n'est jamais routee par le client : jointe ici, elle est refusee, quelle
+// que soit la cible (client modifie). Homoglyphes (cyrillique, grec) et accents
+// sont ramenes a l'ASCII avant la recherche (« dress » ecrit avec un e cyrillique, « girl » avec un i accentue).
+const _RM_CONFUSABLES = (() => {
+  const t = {};
+  const paires = [[0x430, 'a'], [0x435, 'e'], [0x451, 'e'], [0x456, 'i'], [0x457, 'i'], [0x458, 'j'], [0x43e, 'o'], [0x440, 'p'], [0x441, 'c'],
+    [0x443, 'y'], [0x445, 'x'], [0x455, 's'], [0x4bb, 'h'], [0x501, 'd'], [0x261, 'g'], [0x43a, 'k'], [0x43c, 'm'], [0x442, 't'], [0x432, 'b'],
+    [0x3b1, 'a'], [0x3b5, 'e'], [0x3b9, 'i'], [0x3bf, 'o'], [0x3c1, 'p'], [0x3c5, 'u'], [0x3bd, 'v'], [0x3ba, 'k'], [0x3c4, 't'], [0x3c7, 'x'],
+    [0x3b3, 'y'], [0x3c9, 'w'], [0x131, 'i'], [0x1d00, 'a'], [0x0251, 'a'], [0x0131, 'i']];
+  for (const [c, l] of paires) t[String.fromCharCode(c)] = l;
+  return t;
+})();
+const _RM_MINEURS = ['child', 'children', 'childs', 'childlike', 'kid', 'kids', 'kiddo', 'kiddie', 'kiddies', 'kiddy', 'baby', 'babies', 'infant',
+  'infants', 'toddler', 'toddlers', 'newborn', 'newborns', 'preteen', 'preteens', 'pre teen', 'pre teens', 'tween', 'tweens', 'teen', 'teens',
+  'teenage', 'teenaged', 'teenager', 'teenagers', 'minor', 'minors', 'underage', 'under age', 'juvenile', 'juveniles', 'prepubescent', 'pubescent',
+  'schoolgirl', 'schoolgirls', 'schoolboy', 'schoolboys', 'schoolchild', 'schoolchildren', 'schoolkid', 'schoolkids', 'girl', 'girls', 'boy',
+  'boys', 'girlie', 'lass', 'lassie', 'lad', 'lads', 'daughter', 'daughters', 'son', 'sons', 'niece', 'nieces', 'nephew', 'nephews', 'youngster',
+  'youngsters', 'youth', 'youths', 'young', 'younger', 'youngest', 'little one', 'little ones', 'kindergartener', 'kindergartner', 'pupil',
+  'pupils', 'loli', 'lolis', 'lolita', 'lolitas', 'shota', 'shotas', 'cub', 'cubs', 'kinder',
+  // consigne tapee en francais ou en espagnol (accents deja retires)
+  'enfant', 'enfants', 'fillette', 'fillettes', 'fille', 'filles', 'garcon', 'garcons', 'garconnet', 'bebe', 'bebes', 'ado', 'ados',
+  'adolescent', 'adolescente', 'adolescents', 'adolescentes', 'gamin', 'gamine', 'gamins', 'gamines', 'mineur', 'mineure', 'mineurs', 'mineures',
+  'ecolier', 'ecoliere', 'ecoliers', 'ecolieres', 'collegien', 'collegienne', 'collegiens', 'collegiennes', 'nino', 'nina', 'ninos', 'ninas',
+  'nene', 'nena', 'chico', 'chica', 'chicos', 'chicas', 'menor', 'menores', 'colegiala', 'colegialas', 'colegial', 'muchacha', 'muchacho'];
+const _RM_RE_MINEUR = new RegExp('(?:^| )(?:' + _RM_MINEURS.join('|') + ')(?: s)?(?= |$)');
+const _RM_NB = '(?:[0-9]|1[0-7]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)';
+const _RM_RE_AGE = new RegExp('(?:^| )' + _RM_NB + ' ?(?:yo|y o|yrs?|years?|year olds?|years? olds?|yr olds?|ans|anos)(?= |$)'
+  + '|(?:^| )(?:aged?|age of) ' + _RM_NB + '(?= |$)');
+const _RM_PERSONNE_SEULE = new Set(['the', 'a', 'an', 'this', 'that', 'little', 'small', 'tiny', 'young', 'cute', 'le', 'la', 'les', 'un', 'une',
+  'petit', 'petite', 'jeune', 'el', 'los', 'las', 'una', 'pequeno', 'pequena']);
+/** Texte ramene a des mots ASCII en minuscules separes par une espace (accents, homoglyphes, invisibles, ponctuation retires). */
+function _rmPlier(x) {
+  let s = typeof x === 'string' ? x : '';
+  try { s = s.normalize('NFKD'); } catch (_) { /* moteur sans normalize */ }
+  s = s.toLowerCase();
+  let r = '';
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    if (c >= 0x300 && c <= 0x36f) continue;                                   // accents combinants
+    if (c === 0xad || (c >= 0x200b && c <= 0x200f) || c === 0x2060 || c === 0xfeff) continue;   // invisibles : « gi​rl »
+    r += _RM_CONFUSABLES[ch] || ch;
+  }
+  return r.replace(/'/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+/** Raison du refus (texte), ou null si le retrait peut partir. consignes : consigne de Modify traduite et tapee ([] pour l'outil Auto Inpaint). */
+function refusRetraitMineur(cible, remplacement, consignes) {
+  const autres = (Array.isArray(consignes) ? consignes : []).map(_rmPlier).filter(Boolean);
+  const plies = [_rmPlier(cible), _rmPlier(remplacement), ...autres].filter(Boolean);
+  if (!plies.some((t) => _RM_RE_MINEUR.test(t) || _RM_RE_AGE.test(t))) return null;
+  const motsCible = _rmPlier(cible).split(' ').filter((w) => w && !_RM_PERSONNE_SEULE.has(w));
+  const personneSeule = !autres.length && !_rmPlier(remplacement) && motsCible.length > 0 && motsCible.every((w) => _RM_RE_MINEUR.test(w));
+  return personneSeule ? null : 'This edit is not available when the instruction mentions a child or a young person.';
+}
+// <<< REFUS RETRAIT MINEUR
+
+ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText: cibleBrute, prompt: remplacementBrut, dilate, rel, consigne: consigneBrute, consigneOriginale: consigneOriginaleBrute, langueVerifiee }) => {
   try {
-    const refusTexte = refusTexteOutil(targetText, prompt);   // 2026-10-13 (MODERATION-04)
+    const refusTexte = refusTexteOutil(cibleBrute, remplacementBrut);   // 2026-10-13 (MODERATION-04) : filtre de chaque champ + plancher sur les deux ensemble
     if (refusTexte) return { success: false, error: refusTexte };
+    // FILTRE DE SECURITE (2026-10-20). Ce gestionnaire ne verifiait RIEN, alors que 'img2img' verifie son prompt : « Modify » refusait
+    // un texte que « Auto Inpaint » (et ses deux champs, « Find » et « Replace with ») laissait passer. Depuis que « Modify image » confie
+    // les retraits a ce moteur, les deux outils partagent la meme porte. On verifie les chaines EXACTES envoyees au moteur (cible et
+    // remplacement, rognees UNE fois ici puis utilisees telles quelles plus bas) et leur assemblage (une combinaison « personne » + « nudite »
+    // repartie entre les deux champs n'est vue que sur le texte joint).
+    const targetText = String(cibleBrute == null ? '' : cibleBrute).trim();
+    const prompt = String(remplacementBrut == null ? '' : remplacementBrut).trim();
+    const texteVerifie = [targetText, prompt].filter(Boolean).join('. ');
+    // CONSIGNE COMPLETE (2026-10-20, relecture securite). « Modify image » extrait la cible et le remplacement de la consigne ; les mots de
+    // contexte (« girl », « woman », « on the girl ») en sont RETIRES, de sorte que le filtre ne voyait plus que « dress. no clothing » et
+    // laissait passer ce que 'img2img' refuse. Le renderer joint donc la consigne entiere (texte traduit ET texte tape) : elle passe par
+    // les memes filtres que le prompt de 'img2img', avant tout appel au moteur, et n'est JAMAIS envoyee au moteur.
+    const consignes = [consigneBrute, consigneOriginaleBrute]
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter((x, i, tous) => x && tous.indexOf(x) === i);
+    if (consignes.some((x) => x.length > 1000)) return { success: false, error: 'instruction too long' };
+    // UNE PERSONNE MINEURE NOMMEE (2026-10-22) : voir refusRetraitMineur ; avant tout filtre, tout appel au moteur et tout debit
+    const refusMineur = refusRetraitMineur(targetText, prompt, consignes);
+    if (refusMineur) return { success: false, error: refusMineur };
+    // CHAQUE CHAMP SEUL AUSSI (2026-10-22, deuxieme relecture securite) : le filtre recolle les lettres isolees PAR-DESSUS la jointure (cible
+    // « dress a » + remplacement « n u d e » -> « dress anude ») ; le texte joint seul laissait passer ce que le remplacement seul refuse.
+    // Meme liste que le worker (handleAutoInpaint) : texte joint, cible, remplacement, consignes, sans doublon.
+    const aVerifier = [texteVerifie, targetText, prompt, ...consignes].filter((x, i, tous) => x && tous.indexOf(x) === i);
+    for (const texte of aVerifier) {
+      const safety = checkPromptSafety(texte);
+      if (!safety.safe) return { success: false, error: safety.reason };
+      const aiSafety = await checkPromptSafetyAI(texte);
+      if (!aiSafety.safe) return { success: false, error: aiSafety.reason };
+    }
+
     const dir = path.dirname(imagePath);
     const ext = path.extname(imagePath);
     const base = safeBase(path.basename(imagePath, ext));
@@ -8994,7 +9085,13 @@ ipcMain.handle('auto-inpaint', async (event, { imagePath, targetText, prompt, di
     if (isCloudMode()) {
       const r = await cloudFallback.imageOp({
         endpoint: '/api/auto-inpaint', srcPath: imagePath, outPath: newImagePath,
-        extraBody: { targetText, prompt: prompt || '', dilate: dilate || 15, ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
+        // la consigne complete part AUSSI au serveur (2026-10-21) : il la verifie avec l'etat de CE compte (controle parental, alertes),
+        // comme /api/modify-image verifie le prompt que 'img2img' lui envoie ; le filtre local seul (mode sans restriction du poste) ne suffit
+        // pas. Le serveur ne la transmet jamais au moteur.
+        extraBody: { targetText, prompt: prompt || '', dilate: dilate || 15,
+          ...(typeof consigneBrute === 'string' && consigneBrute.trim() ? { consigne: consigneBrute.trim() } : {}),
+          ...(typeof consigneOriginaleBrute === 'string' && consigneOriginaleBrute.trim() ? { consigneOriginale: consigneOriginaleBrute.trim() } : {}),
+          ...(langueVerifiee === true ? { langueVerifiee: true } : {}) },
       });
       if (r.creditsRemaining != null) safeSend('ai3d-progress', `[cloud] Crédits restants: ${r.creditsRemaining}\n`);
       return r.success ? { success: true, newPath: r.newPath } : r;
