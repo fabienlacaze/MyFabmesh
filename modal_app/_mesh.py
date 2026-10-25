@@ -768,7 +768,10 @@ def generate(
         # et le bulbizard « other » la gardait) ; batiment, vehicule, avion, bateau, arme, objet restent exclus (vrais planchers).
         _type = str(asset_type or '').strip().lower()
         _concerne = type_concerne(_type) or _type in ('', 'other', 'other_living', 'insect', 'sans_pattes', 'en_vol', 'poisson', 'unit', 'humanoid')
-        glb_obj, _ = retirer_dalle_glb(glb_obj, _concerne and not tris_exact, log=lambda m: print(m, flush=True))
+        # 25/10 : la condition « pas avec Max triangles » BLOQUAIT TOUT : l'interface envoie toujours max_tris (500 000 par defaut), donc
+        # tris_exact etait vrai a chaque generation et la dalle n'etait jamais retiree (journal : « [tris] cible 500000 -> 483506 »). Le retrait prime ;
+        # le nombre de triangles livre est alors plus bas que la cible (la dalle en pesait ~30 %).
+        glb_obj, _ = retirer_dalle_glb(glb_obj, _concerne, log=lambda m: print(m, flush=True))
     except Exception as e:
         print(f'[mesh] dalle de sol : etape ignoree ({type(e).__name__}: {e})', flush=True)
     t_fin = time.time()
