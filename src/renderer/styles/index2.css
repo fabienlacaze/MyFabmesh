@@ -5146,7 +5146,7 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 :root { --vz-w-corps: min(1240px, 70vw); --vz-h-corps: max(360px, min(68vh, 820px)); }   /* 25/10 : « 896x576 me parait petit » -> 980x612 a 1400x900, 1240x734 a 1920x1080 */
 .modal-card.fen-3d .fen-corps { grid-template-columns: var(--vz-w-corps) minmax(0, 1fr) !important; }
 .modal-card.fen-3d .fen-apercu { box-sizing: content-box; width: var(--vz-w-corps); height: var(--vz-h-corps); min-height: 0; }
-#pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap, div:has(> #pe-viewport-wrap) {
+#pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap {
   flex: 0 0 var(--vz-w-corps) !important; width: var(--vz-w-corps) !important; max-width: 100%;
 }
 #pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap {
@@ -5157,7 +5157,20 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 @media (max-width: 900px) {
   :root { --vz-w-corps: 100%; }
   .modal-card.fen-3d .fen-corps { grid-template-columns: 1fr !important; }
-  #pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap, div:has(> #pe-viewport-wrap) {
+  #pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap {
     flex: 1 1 auto !important; width: 100% !important;
   }
 }
+
+/* ============================================================
+ * LOT W25 : fenetre Paint Emissive (re-texture / remodeler une zone) au gabarit .fen-3d :
+ * apercu a gauche, colonne de reglages a droite, pied « Annuler » + action sur toute la largeur restante.
+ * ============================================================ */
+#modal-paint-emissive .fen-corps { width: 100%; align-self: stretch; flex: 1 1 auto !important; }
+#modal-paint-emissive .modal-card.fen-3d { height: auto; max-height: 96vh; overflow-y: auto; }
+#modal-paint-emissive .modal-actions { gap: 12px; }
+#modal-paint-emissive .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; }
+#modal-paint-emissive .modal-actions .primary-btn { flex: 1 1 0; min-width: 0; }
+#modal-paint-emissive .fen-form > .ghost-btn { width: 100%; }
+#modal-paint-emissive #pe-mask-panel { padding: 8px; background: #160f2e; border: 1px solid var(--accent, #5a4fcf); border-radius: 6px; }
+#modal-paint-emissive #pe-clone-panel { padding: 8px; background: #0f1e2e; border: 1px solid #2a7fb8; border-radius: 6px; }
