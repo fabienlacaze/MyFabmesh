@@ -65,11 +65,15 @@ const COURBES_ACTIONS = {
     avance: [[0, 0], [0.5, -0.03], [1, -0.04]], roulis: [[0, 0], [0.6, 0], [0.8, 0.05], [1, 0.05]],
     tete: [[0, 0], [0.3, 0.2], [0.6, 0.12], [0.8, 0.28], [1, 0.3]],
   },
-  lie_down_bipede: {   // s'accroupit / s'assoit : bassin en arriere, tronc penche, bras en contrepoids
-    bob: [[0, 0], [0.25, -0.22], [0.55, -0.52], [0.8, -0.6], [1, -0.6]],
-    avance: [[0, 0], [0.3, -0.18], [0.6, -0.3], [1, -0.3]],
-    tangage: [[0, 0], [0.25, 0.28], [0.55, 0.18], [1, 0.1]], torseT: [[0, 0], [0.25, 0.15], [1, 0.08]],
-    tete: [[0, 0], [0.3, -0.1], [1, -0.05]], bras: [[0, 0], [0.25, 0.6], [0.55, 0.3], [1, 0.15]],
+  lie_down_bipede: {   // s'accroupit, s'assoit par terre (pieds plantes, bassin recule jusqu'au sol), puis se couche sur le dos
+    // (le tronc bascule en arriere autour du bassin, la tete suit). Avant : un accroupi fige sans sol sous le bassin (planche du 25/10).
+    // Schenkman et al. 1990 (Phys Ther 70:638) : tronc penche de 30-40 deg pendant la descente ; le coucher se fait en deux temps (assis, puis dos).
+    bob: [[0, 0], [0.2, -0.24], [0.4, -0.46], [0.6, -0.66], [0.78, -0.8], [1, -0.8]],
+    avance: [[0, 0], [0.2, -0.2], [0.4, -0.4], [0.58, -0.62], [0.8, -0.7], [1, -0.7]],
+    tangage: [[0, 0], [0.2, 0.28], [0.45, 0.2], [0.62, 0.05], [0.82, -0.8], [1, -1.45]],
+    torseT: [[0, 0], [0.2, 0.15], [0.5, 0.1], [1, 0]],
+    tete: [[0, 0], [0.62, 0], [0.82, -0.8], [1, -1.45]],   // la tete reste droite pendant la descente puis suit le tronc (compense la contre-rotation de la tete)
+    bras: [[0, 0], [0.2, 0.8], [0.45, 1.0], [0.7, 0.6], [1, 0.3]], brasSym: true,   // les deux bras en avant pour l'equilibre puis ecartes
   },
   attack: {            // se ramasse (arriere bas, tete en arriere), detente du corps puis de la tete, tient, revient
     avance: [[0, 0], [0.28, -0.10], [0.40, 0.26], [0.50, 0.26], [0.62, 0.15], [1, 0]],
@@ -77,6 +81,35 @@ const COURBES_ACTIONS = {
     tangage: [[0, 0], [0.28, -0.12], [0.40, 0.18], [0.52, 0.14], [1, 0]],
     tete: [[0, 0], [0.28, -0.55], [0.40, 0.75], [0.52, 0.60], [0.70, 0.20], [1, 0]],
     roulis: [[0, 0], [0.28, 0.04], [0.40, -0.05], [1, 0]],
+    // les pattes avant suivent la detente (les arriere poussent, plantees) : sans pas, le corps glissait sur des pieds figes
+  },
+  attack_felin: {      // coup de patte : arriere ramasse, patte avant droite levee puis lancee en avant et vers le bas, griffes qui ratissent
+    avance: [[0, 0], [0.26, -0.06], [0.40, 0.18], [0.56, 0.16], [0.82, 0.03], [1, 0]],
+    bob: [[0, 0], [0.22, -0.09], [0.30, -0.10], [0.40, -0.03], [0.56, -0.02], [1, 0]],
+    tangage: [[0, 0], [0.26, -0.06], [0.40, 0.10], [0.56, 0.08], [1, 0]],
+    roulis: [[0, 0], [0.26, 0.06], [0.40, -0.05], [0.6, -0.02], [1, 0]],
+    tete: [[0, 0], [0.26, -0.30], [0.40, 0.30], [0.58, 0.2], [0.8, 0.05], [1, 0]],
+    pieds: {
+      AD: { av: [[0, 0], [0.14, 0], [0.26, -0.18], [0.40, 0.45], [0.56, 0.42], [0.84, 0], [1, 0]], lev: [[0, 0], [0.14, 0], [0.26, 0.38], [0.34, 0.52], [0.42, 0.06], [0.56, 0.04], [0.70, 0.2], [0.86, 0], [1, 0]] },
+      AG: { av: [[0, 0], [0.3, 0], [0.5, 0.1], [0.9, 0], [1, 0]] },
+    },
+  },
+  attack_ours: {       // se dresse sur l'arriere (tangage cabre), les deux pattes avant frappent vers le bas l'une apres l'autre
+    avance: [[0, 0], [0.25, -0.08], [0.45, 0.10], [0.7, 0.08], [1, 0]],
+    bob: [[0, 0], [0.25, 0.05], [0.42, 0.08], [0.7, 0.04], [1, 0]],
+    tangage: [[0, 0], [0.25, -0.40], [0.42, -0.34], [0.58, -0.30], [0.8, -0.1], [1, 0]],
+    tete: [[0, 0], [0.25, -0.2], [0.45, 0.25], [0.7, 0.1], [1, 0]],
+    pieds: {
+      AD: { av: [[0, 0], [0.2, 0.05], [0.36, 0.25], [0.5, 0.3], [0.8, 0], [1, 0]], lev: [[0, 0], [0.1, 0.1], [0.25, 0.75], [0.34, 0.85], [0.44, 0.3], [0.7, 0.4], [0.86, 0], [1, 0]] },
+      AG: { av: [[0, 0], [0.3, 0.05], [0.48, 0.25], [0.6, 0.3], [0.88, 0], [1, 0]], lev: [[0, 0], [0.2, 0.1], [0.38, 0.75], [0.48, 0.85], [0.58, 0.3], [0.78, 0.4], [0.92, 0], [1, 0]] },
+    },
+  },
+  attack_equide: {     // ruade des deux postérieurs : l'avant s'abaisse et la tete se releve, les pieds arriere partent en arriere et en haut
+    avance: [[0, 0], [0.3, 0.04], [0.42, 0.06], [0.7, 0.02], [1, 0]],
+    bob: [[0, 0], [0.3, 0.02], [0.42, 0.02], [1, 0]],
+    tangage: [[0, 0], [0.25, 0.10], [0.40, 0.26], [0.56, 0.24], [0.8, 0.06], [1, 0]],
+    tete: [[0, 0], [0.3, -0.25], [0.42, -0.45], [0.6, -0.3], [0.85, -0.05], [1, 0]],
+    pieds: { P: { av: [[0, 0], [0.22, 0.04], [0.38, -0.78], [0.5, -0.8], [0.66, -0.3], [0.86, 0], [1, 0]], lev: [[0, 0], [0.22, 0.05], [0.34, 0.2], [0.42, 0.6], [0.52, 0.55], [0.7, 0.2], [0.88, 0], [1, 0]] } },
   },
   attack_bipede: {     // armement (bassin, torse, bras en arriere), frappe en chaine bassin -> torse -> bras
     avance: [[0, 0], [0.28, -0.05], [0.42, 0.14], [0.58, 0.14], [1, 0]],
@@ -88,6 +121,12 @@ const COURBES_ACTIONS = {
     lateral: [[0, 0], [0.28, -0.04], [0.42, 0.05], [0.6, 0.04], [1, 0]],
     tete: [[0, 0], [0.3, -0.05], [0.44, 0.08], [1, 0]],
     bras: [[0, 0], [0.28, -1.25], [0.40, -1.35], [0.58, 1.0], [0.70, 0.9], [1, 0]],
+    // fente : le pied avant (gauche, oppose au bras qui frappe) est leve pendant l'armement et pose devant a la frappe, le pied arriere
+    // reste plante (le corps passe dessus) ; tout revient apres la frappe (Marshall et Elliott 2000 : le pas avant precede la rotation du torse)
+    pieds: {
+      G: { av: [[0, 0], [0.18, 0], [0.38, 0.30], [0.62, 0.30], [0.88, 0.0], [1, 0]], lev: [[0, 0], [0.18, 0], [0.28, 0.16], [0.38, 0.0], [0.62, 0.0], [0.74, 0.12], [0.88, 0.0], [1, 0]] },
+      D: { av: [[0, 0], [0.28, -0.04], [0.5, -0.04], [0.88, 0], [1, 0]] },
+    },
   },
   hit: {               // recul brusque, tete rejetee, puis oscillations amorties jusqu'au retour
     avance: [[0, 0], [0.07, -0.14], [0.2, -0.02], [0.32, -0.05], [0.5, 0.0], [0.7, -0.01], [1, 0]],
@@ -106,13 +145,68 @@ const COURBES_ACTIONS = {
     roulis: [[0, 0], [0.07, 0.07], [0.22, -0.04], [0.4, 0.02], [1, 0]],
     tete: [[0, 0], [0.09, -0.45], [0.22, 0.25], [0.38, -0.1], [0.55, 0.03], [1, 0]],
     bras: [[0, 0], [0.09, -0.8], [0.24, 0.3], [0.42, -0.1], [1, 0]],
+    // pas de recul : le pied droit se leve et se pose derriere pour rattraper le torse, puis revient
+    pieds: { D: { av: [[0, 0], [0.08, 0], [0.26, -0.22], [0.6, -0.22], [0.84, 0], [1, 0]], lev: [[0, 0], [0.08, 0], [0.16, 0.12], [0.26, 0.0], [0.6, 0.0], [0.72, 0.1], [0.84, 0], [1, 0]] } },
   },
+};
+// Variantes QUADRUPEDES (pieds qui bougent) : choisies par animerAllure (« _<famille> » puis « _quad »). Gardees a part pour que les
+// creatures a pattes courtes ou nombreuses (tortue, araignee, crabe) gardent le calcul d'origine (pieds plantes, corps abaisse).
+COURBES_ACTIONS.lie_down_quad = {
+  ...COURBES_ACTIONS.lie_down,
+  // avant : les pieds glissent sous la poitrine (carpes au sol) ; arriere : les jarrets se replient, pieds vers l'avant (Lidfors 1989)
+  pieds: { A: { av: [[0, 0], [0.12, 0], [0.5, -0.5], [1, -0.5]] }, P: { av: [[0, 0], [0.35, 0], [0.8, 0.38], [1, 0.4]], pit: [[0, 0], [0.35, 0], [0.8, 1.4], [1, 1.45]] } },
+  queue: [[0, 0], [0.4, 0.4], [0.8, 1.5], [1, 1.7]],
+};
+// Manger, quadrupedes : le museau doit ATTEINDRE le sol (la tete de la Mule s'arretait a 0,45 de la hauteur : « broute en l'air »). Cou plus plie
+// (tete x 1,7), avant plus bas (tangage x 1,6), un antérieur avance et l'autre recule (pose de brouteur : la jambe avant porte le cou qui
+// descend, Rubenson et al. 2004 ne decrivent pas le cas ; reglage a l'oeil). L'attenuation d'amplitude automatique bute sur le sol : le museau
+// s'arrete donc au contact au lieu d'entrer dedans.
+const _mult = (c, m) => c.map(([u, v, ...r]) => [u, v * m, ...r]);
+COURBES_ACTIONS.eat_quad = {
+  ...COURBES_ACTIONS.eat,
+  tangage: _mult(COURBES_ACTIONS.eat.tangage, 1.6), bob: _mult(COURBES_ACTIONS.eat.bob, 1.3), tete: _mult(COURBES_ACTIONS.eat.tete, 1.7),
+  pieds: {
+    AG: { av: [[0, 0], [0.04, 0], [0.24, 0.2], [0.84, 0.2], [1, 0]], lev: [[0, 0], [0.04, 0], [0.12, 0.1], [0.24, 0], [0.76, 0], [0.86, 0.08], [1, 0]] },
+    AD: { av: [[0, 0], [0.04, 0], [0.24, -0.1], [0.84, -0.1], [1, 0]] },
+  },
+};
+COURBES_ACTIONS.attack_quad = {
+  ...COURBES_ACTIONS.attack,
+  pieds: { A: { av: [[0, 0], [0.30, 0], [0.44, 0.2], [0.64, 0.2], [0.92, 0], [1, 0]], lev: [[0, 0], [0.30, 0], [0.37, 0.12], [0.44, 0], [0.64, 0], [0.74, 0.1], [0.92, 0], [1, 0]] } },
 };
 // Bras d'un bipede qui SAUTE (rad, + = bras vers l'avant / le haut), sur le cycle accroupi -> poussee -> vol -> reception : les bras partent
 // derriere pendant l'elan (extension de l'epaule ~30 deg), puis montent vivement a la poussee (~75-80 deg au decollage, plus de 100 deg en
 // vol), et redescendent pour la reception. Un saut sans bras qui poussent perd 10 a 20 % de hauteur (Lees, Vanrenterghem & De Clercq 2004,
 // J Biomech 37 : le balancier des bras augmente la hauteur d'environ 10 %).
 const BRAS_SAUT = [[0, 0.2], [0.2, -0.55], [0.4, 0.75], [0.58, 1.55], [0.8, 0.7], [1, 0.2]];
+/** Membre replie sur le sol (se coucher) : le calcul par forme unique enfonce les articulations du milieu sous le sol quand la
+ *  hanche est tres basse. Passes FABRIK (base et bout fixes, longueurs des os conservees) qui releve toute articulation interieure
+ *  descendue sous ymin ; rend Q tel quel si rien ne passe sous le sol (aucune regression pour les autres cas). */
+function relever(Q, ymin) {
+  const n = Q.length;
+  if (n < 3 || !Q.slice(1, -1).some((q) => q[1] < ymin)) return Q;
+  const L = [];
+  for (let k = 0; k < n - 1; k++) L.push(norm(sub(Q[k + 1], Q[k])));
+  const base = Q[0], fin = Q[n - 1];
+  const P = Q.map((q) => q.slice());
+  const cale = (a, b, l) => { const d = sub(a, b); return add(b, mulS(d, l / (norm(d) + 1e-12))); };
+  for (let it = 0; it < 30; it++) {
+    P[n - 1] = fin.slice();
+    for (let k = n - 2; k >= 1; k--) { P[k] = cale(P[k], P[k + 1], L[k]); if (P[k][1] < ymin) P[k][1] = ymin; }
+    P[0] = base.slice();
+    for (let k = 1; k < n - 1; k++) { P[k] = cale(P[k], P[k - 1], L[k - 1]); if (P[k][1] < ymin) P[k][1] = ymin; }
+  }
+  P[0] = base.slice();
+  for (let k = 1; k < n; k++) P[k] = cale(k === n - 1 ? fin : P[k], P[k - 1], L[k - 1]);   // dernier passage : longueurs exactes
+  return P;
+}
+/** Courbes de pied d'une action pour une patte (voir C.pieds) : « AG » > « A » > « G », sinon aucune. */
+function pasPied(C, p) {
+  const T_ = C && C.pieds;
+  if (!T_) return null;
+  const AP = p.rang === 0 ? 'A' : 'P', GD = p.cote === 1 ? 'G' : 'D';
+  return T_[AP + GD] || T_[AP] || T_[GD] || null;
+}
 /** Valeur d'une courbe par cles [[u, v], ...] (u croissant dans 0..1) : Hermite cubique monotone
  *  (tangentes de Fritsch-Carlson : moyenne harmonique des pentes voisines, nulle a un extremum). La vitesse
  *  est continue, la courbe ne depasse jamais ses cles. */
@@ -1252,7 +1346,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   // --- actions (pieds plantes) : corps, tete et bras suivent les courbes ; V.ampleur les amplifie
   const avance = new Array(nT).fill(0), teteT = new Array(nT).fill(0), brasT = new Array(nT).fill(0);
   const torseL = new Array(nT).fill(0), torseP = new Array(nT).fill(0);       // torse (bipedes) : lacet et penche, en plus du bassin
-  const C = B.action ? (droit && COURBES_ACTIONS[B.action + '_bipede']) || COURBES_ACTIONS[B.action] : null;
+  const C = B.action ? (droit && COURBES_ACTIONS[B.action + '_bipede']) || (quadrupede && famille !== 'tortue' && (COURBES_ACTIONS[B.action + '_' + famille] || COURBES_ACTIONS[B.action + '_quad'])) || COURBES_ACTIONS[B.action] : null;
+  const kAct = (V.ampleur || 1) * ampleurMax;
   if (C) {
     const k = (V.ampleur || 1) * ampleurMax;
     for (let i = 0; i < nT; i++) {
@@ -1344,7 +1439,18 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     let u = 0;
     for (let i = 0; i < nT; i++) {
       let cible, phi = 0, b_ = p.beta;
-      if (!A.pas) cible = p.neutre.slice();
+      if (!A.pas) {
+        cible = p.neutre.slice();
+        // pieds qui BOUGENT pendant une action (pas d'attaque, patte levee, membres replies pour se coucher) : courbes C.pieds
+        // par patte, cle « AG » (avant gauche) > « A » (rang) > « G » (cote) ; avance dans le sens du corps, lat de cote, lev vers le haut
+        const sp = pasPied(C, p);
+        if (sp) {
+          const uu = t[i] / T;
+          const dv = [sp.lat ? cles(uu, sp.lat) * hanche * kAct : 0, 0, sp.av ? cles(uu, sp.av) * hanche * kAct : 0];
+          cible = add(cible, mv(Rcap[i], dv));
+          if (sp.lev) cible[1] += cles(uu, sp.lev) * hanche * kAct;
+        }
+      }
       else {
         const x = t[i] / T + p.phase, k = Math.floor(x);
         phi = x - k;
@@ -1372,6 +1478,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
           theta -= A.attaque * m_ * m_ * (3 - 2 * m_);
         }
       }
+      if (!A.pas) { const sp_ = pasPied(C, p); if (sp_ && sp_.pit) theta += cles(t[i] / T, sp_.pit) * kAct; }   // pied tourne autour du bout (pied replie, patte levee)
       const F = mm(Rcap[i], Rx(theta));
       Fpied[i] = F;
       if (p.pivotOff && theta > 0) {
@@ -1387,7 +1494,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       let cib = sub(cible, mv(F, p.piedOff));                // cible de la cheville
       const dd = sub(cib, hanche_i);
       if (norm(dd) > PORTEE_MAX * Lik) cib = add(hanche_i, mulS(dd, PORTEE_MAX * Lik / norm(dd)));   // portée bornée
-      const Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK));
+      let Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK));
+      if (!A.pas && C && (C.pieds || C.relever)) Q = relever(Q, sol + 0.012 * H);   // membre replie (coucher) : aucune articulation sous le sol
       for (let a = 0; a < ch.length - 1; a++) {
         const repos = mv(Rb[i], sub(P0[ch[a + 1]], P0[ch[a]]));
         Dch[a][i] = mm(aligner(repos, sub(Q[a + 1], Q[a])), Rb[i]);
@@ -1419,6 +1527,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       // marchant, Hutchinson 2011 ; Gatesy 1990)
       if (bipede && A.pas && !SAUT) balance.set(j, t.map((_, i) => Ry(-1.8 * A.queue * lacetBassin[i] * (a + 1) / cq.length)));
       else balance.set(j, t.map((tt) => Ry(ampQ * (a + 1) / cq.length * Math.sin(2 * Math.PI * tt / T * (A.pas ? 1 : 2) - 0.7 * a))));
+      // action : la queue se releve / s'etale (C.queue, rad, + = vers l'arriere) : coucher, attaque (fouet)
+      if (C && C.queue && !A.abdomen) { const b0 = balance.get(j); balance.set(j, b0.map((m, i) => mm(Rx(cles(t[i] / T, C.queue) * kAct / Math.max(cq.length - 1, 1)), m))); }
     });
   }
   palpes.forEach((cp, q) => {
@@ -1485,7 +1595,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       const baisse = enT && (famille === 'humain' || famille === 'primate' || (famille === 'generique' && b.main)) ? 1.2 : 0;
       const Rbaisse = baisse ? rotvec([0, 0, 1], -b.cote * baisse) : null;
       const ampL = enT && !baisse ? 0.35 * ampB : ampB;   // bras en T / aile : balancement reduit
-      const avant = t.map((tt, i) => (C && C.bras ? brasT[i] * (b.cote === -1 ? 1 : 0.25)   // action : bras droit qui frappe
+      const avant = t.map((tt, i) => (C && C.bras ? brasT[i] * (C.brasSym || b.cote === -1 ? 1 : 0.25)   // action : bras droit qui frappe
         : brasSaut ? brasSaut[i] * A.bras * (enT && !baisse ? 0.35 : 1)   // saut (action) : elan des bras en trois temps
         : SAUT && B.saut && !Pr.saut ? cles(((tt / T + pattes[0].phase) % 1 + 1) % 1, BRAS_SAUT) * A.bras   // saut : balancier des bras (voir BRAS_SAUT)
         : SAUT ? -ampL * Math.cos(2 * Math.PI * tt / T)           // saut : les deux bras ensemble (elan)
