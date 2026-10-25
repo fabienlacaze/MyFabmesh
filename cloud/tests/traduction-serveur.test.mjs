@@ -380,7 +380,7 @@ test('filet : outil en echec de traduction -> 422 avant le debit ; texte anglais
 /** Doublures des routes maillage / rectification : Modal (fetch), Supabase et R2 simules. */
 function monterOutils3d({ ai = fauxAI() } = {}) {
   const j = { depenses: [], op: [], dos: [], rect: [], modal: [], jobs: [] };
-  const w = charger(['handleTexVariant', 'handleRectifyImage', 'handleMeshReshape', 'ESTIMATED_USD_RESHAPE', '_opAtlasGpu', 'handleMeshTexVar',
+  const w = charger(['handleTexVariant', 'handleRectifyImage', 'handleMeshReshape', 'validerVueReshape', 'ESTIMATED_USD_RESHAPE', '_opAtlasGpu', 'handleMeshTexVar',
     'handleMeshRegionRetex', ...AUXILIAIRES], {
     ...doublesOutils(j),
     callModalRectify: async (_e, _u, input) => { j.rect.push(input); return 'https://r2.example/r.png'; },
@@ -572,7 +572,7 @@ function monterOutilsCredits(credits) {
   const j = { depenses: [], op: [], dos: [], rect: [], modal: [], jobs: [] };
   const ai = fauxAI();
   const w = charger(['handleModifyImage', 'handleAutoInpaint', 'handleMaskInpaint', 'handleRecolor', 'handleGenerateBackView',
-    'handleSegmentPreview', 'handleTexVariant', 'handleRectifyImage', 'handleMeshReshape', 'ESTIMATED_USD_RESHAPE', '_opAtlasGpu',
+    'handleSegmentPreview', 'handleTexVariant', 'handleRectifyImage', 'handleMeshReshape', 'validerVueReshape', 'ESTIMATED_USD_RESHAPE', '_opAtlasGpu',
     'handleMeshTexVar', 'handleMeshRegionRetex', ...AUXILIAIRES], {
     ...doublesOutils(j),
     getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits }),
@@ -1205,7 +1205,7 @@ function monterRoutesFiltreReel() {
     return nom === 'callModalImageOp' ? { url: 'https://r2.example/x.png' } : 'https://r2.example/x.png';
   };
   const noms = [...new Set([...ROUTES_FILET.map(([n]) => n), '_opAtlasGpu', '_checkPromptSafetyAlerte', 'categorieContenuGrave',
-    '_prixImageSelonPas', '_prixImageComplet', 'ESTIMATED_USD_RESHAPE', 'ESTIMATED_USD_ANIM', 'putAnimJobRecord', ...AUXILIAIRES])];
+    '_prixImageSelonPas', '_prixImageComplet', 'validerVueReshape', 'ESTIMATED_USD_RESHAPE', 'ESTIMATED_USD_ANIM', 'putAnimJobRecord', ...AUXILIAIRES])];
   const w = charger(noms, {
     getSessionUser: async () => ({ id: 'u1', email: 'a@b.c', credits: 500 }), err, json, LangueTexte,
     getParentalState: async () => ({}),

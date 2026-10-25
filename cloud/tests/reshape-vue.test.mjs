@@ -56,6 +56,7 @@ function monter({ vue, uvMask = false, corps = {} } = {}) {
     refundModalSpend: async () => {},
     // doublures INERTES sur ce code, utiles quand le lot « filet de langue » (integration-2) est fusionne : la fonction les appelle alors
     _filetLangue: async (_env, _uid, texte) => ({ texte, refus: null }),
+    neutraliserSyntaxePrompt: (t) => t,   // 2026-10-13 (MODERATION-07) : la route l'appelle avant l'envoi a Modal
     _refusChaineEnvoyee: async () => null,
     _spendRefusalMessage: async () => 'refus',
     signedR2Url: async (_env, cle) => 'https://site.example/r2/' + cle,
