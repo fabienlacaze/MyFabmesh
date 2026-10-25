@@ -8,6 +8,7 @@
 //   - l'enregistrement reecrit JOINTS_0 / WEIGHTS_0 DANS le GLB d'origine (tout le reste intact) et le
 //     rend a l'appelant, qui le range comme nouvelle version du rig.
 import { centrerRotation } from './centre-rotation.js';
+import { creerBarreVues3D } from './barre-vues-3d.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -33,11 +34,8 @@ function construireFenetre() {
       background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
     #modal-poids-peau .pp-os-btn:hover { background: rgba(255, 150, 30, 0.28); }
     #modal-poids-peau .pp-os-btn.actif { background: rgba(255, 60, 60, 0.35); font-weight: 600; }
-    #modal-poids-peau .modal-card.fen-3d .fen-corps { grid-template-columns: minmax(0, 1fr) 350px; }
-    #modal-poids-peau .pp-vues3d { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 6; display: flex; gap: 4px;
-      padding: 4px; border-radius: 8px; background: rgba(12, 12, 18, 0.72); }
-    #modal-poids-peau .pp-vues3d button { padding: 5px 11px; font-size: 12px; border: 1px solid var(--border, #3a3a4a); border-radius: 6px; background: rgba(255, 255, 255, 0.06); color: inherit; cursor: pointer; }
-    #modal-poids-peau .pp-vues3d button:hover { background: rgba(139, 92, 246, 0.35); }
+    #modal-poids-peau .pp-outils { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    #modal-poids-peau .pp-outils .fen-petit { align-self: stretch; text-align: center; }
     #modal-poids-peau .pp-form { gap: 10px; }
     #modal-poids-peau .pp-sect { display: flex; flex-direction: column; gap: 6px; }
     #modal-poids-peau .pp-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -57,21 +55,18 @@ function construireFenetre() {
   </style>
   <div class="modal-card fen-3d">
     <div class="fen-tete"><h2>&#127912; ${esc(T('Skin weights'))}</h2>
-      <div style="display:flex;gap:6px;align-items:center;margin-left:auto;margin-right:12px;">
-        <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
-        <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
-        <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled title="${esc(T('Undo'))} (Ctrl+Z)">&#8630; ${esc(T('Undo'))}</button>
-        <button type="button" class="ghost-btn fen-petit" id="pp-refaire" disabled title="${esc(T('Redo'))} (Ctrl+Y)">&#8631; ${esc(T('Redo'))}</button>
-      </div>
       <button type="button" class="settings-close-x" id="pp-close" title="Close">&#10005;</button></div>
     <p class="modal-subtitle">${esc(T('Colors show what each bone moves. Paint to change it.'))}</p>
     <div class="fen-corps">
       <div class="fen-apercu" id="pp-vue"><canvas id="pp-canvas" style="width:100%;height:100%;display:block;"></canvas>
-        <div class="pp-vues3d" id="pp-vues3d">
-          <button type="button" data-vue="iso">${esc(T('Iso'))}</button><button type="button" data-vue="front">${esc(T('Front'))}</button><button type="button" data-vue="back">${esc(T('Back'))}</button><button type="button" data-vue="left">${esc(T('Left'))}</button><button type="button" data-vue="right">${esc(T('Right'))}</button><button type="button" data-vue="top">${esc(T('Top'))}</button><button type="button" data-vue="bottom">${esc(T('Bottom'))}</button>
-        </div>
         <div class="fen-apercu-etat" id="pp-etat">${esc(T('Loading…'))}</div></div>
       <div class="fen-form pp-form">
+        <div class="pp-sect"><div class="pp-outils">
+          <button type="button" class="ghost-btn fen-petit" id="pp-tester">&#9654; ${esc(T('Test the bone'))}</button>
+          <button type="button" class="ghost-btn fen-petit active" id="pp-squelette">&#129460; ${esc(T('Skeleton'))}</button>
+          <button type="button" class="ghost-btn fen-petit" id="pp-annuler" disabled title="${esc(T('Undo'))} (Ctrl+Z)">&#8630; ${esc(T('Undo'))}</button>
+          <button type="button" class="ghost-btn fen-petit" id="pp-refaire" disabled title="${esc(T('Redo'))} (Ctrl+Y)">&#8631; ${esc(T('Redo'))}</button>
+        </div></div>
         <div class="pp-sect">
           <span class="fen-label">${esc(T('Bone'))}</span>
           <div id="pp-liste" class="pp-liste"></div>
@@ -690,14 +685,8 @@ export async function ouvrirEditeurPoids({ buffer, enregistrer }) {
     $('pp-squelette').classList.toggle('active', groupeSq.visible);
   };
 
-  // --- vues predefinies (memes conventions que les autres viewers : face +Z, droite +X, dessus +Y) ; distance et cible conservees
-  const DIRS_VUE = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.001], bottom: [0, -1, 0.001], iso: [0.7, 0.5, 0.7] };
-  fen.querySelectorAll('#pp-vues3d button').forEach((b) => b.onclick = () => {
-    const dir = DIRS_VUE[b.dataset.vue]; if (!dir) return;
-    const d0 = camera.position.distanceTo(ctrl.target) || ext;
-    camera.position.copy(ctrl.target).addScaledVector(new THREE.Vector3(...dir).normalize(), d0);
-    camera.lookAt(ctrl.target); ctrl.update();
-  });
+  // --- barre de vues commune (Iso ... Dessous, + - Ajuster), en bas de l'apercu
+  creerBarreVues3D($('pp-vue'), () => ({ camera, controls: ctrl, scene }), { cible: () => gltf.scene });
 
   // --- boucle
   const tourner = () => {

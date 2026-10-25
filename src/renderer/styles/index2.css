@@ -5450,3 +5450,8 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-align-texture .at-bascule button { flex: 1; padding: 5px; font-size: 13px; }
 #modal-align-texture .at-cases { padding: 8px 10px; background: #0a0a0a; border-radius: 4px; font-size: 13px; color: var(--text-2); }
 #modal-align-texture #at-reset { align-self: stretch; text-align: center; }
+/* ===== LOT W32 : editeur des poids de peau (#modal-poids-peau), pied de la fenetre de reference ===== */
+#modal-poids-peau .modal-card.fen-3d { width: min(1700px, 97vw); max-width: 97vw; height: min(94vh, 1000px); }
+#modal-poids-peau .modal-card.fen-3d .modal-actions { justify-content: stretch; }
+#modal-poids-peau .modal-card.fen-3d .modal-actions .ghost-btn { flex: 0 0 auto; min-width: 0; height: 36px; padding: 0 16px; }
+#modal-poids-peau .modal-card.fen-3d .modal-actions .primary-btn { flex: 1 1 0; }

@@ -142,8 +142,7 @@ test('le site reprend la frise traduite, la garde WebGL du bureau et le rig sour
 test('poids de peau et apercu d allures : ordre des vues, aide corrigee, curseur par defaut', () => {
   const poids = lire('src/renderer/lib/editeur-poids.js');
   assert.equal(poids, lire('cloud/public/app/lib/editeur-poids.js'));
-  const rangee = poids.slice(poids.indexOf('id="pp-vues3d"'), poids.indexOf('id="pp-etat"'));
-  assert.deepEqual([...rangee.matchAll(/data-vue="(\w+)"/g)].map((x) => x[1]), ORDRE);
+  assert.match(poids, /creerBarreVues3D\(\$\('pp-vue'\)/);   // LOT W32 : barre commune (ordre garanti par barre-vues-3d.js)
   assert.match(poids, /right drag = pan · middle drag = rotate/);
   assert.doesNotMatch(poids, /right drag = rotate/);
   const ap = lire('src/renderer/lib/apercu-animation.js');
