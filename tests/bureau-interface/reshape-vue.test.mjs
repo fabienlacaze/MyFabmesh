@@ -124,10 +124,8 @@ for (const c of CIBLES) {
     const js = lire(c.js), html = lire(c.html);
     assert.match(js, /from '\.\/lib\/reshape-vue\.js'/);
     for (const id of Object.keys(L.affichageEtape(1))) assert.ok(html.includes(`id="${id}"`), `${c.nom} : element #${id} absent de la page`);
-    assert.ok(html.includes('id="rrx-3d-canvas"') && html.includes('id="rrx-3d-info"') && html.includes('id="rrx-3d-presets"'));
-    const vues = [...html.matchAll(/data-rrx-yaw="(-?[\d.]+)" data-rrx-pitch="(-?[\d.]+)">(\w+)</g)].map((m) => [m[3], Number(m[1]), Number(m[2])]);
-    assert.deepEqual(vues, [['Iso', 45, 30], ['Front', 0, 0], ['Back', 180, 0], ['Left', -90, 0], ['Right', 90, 0], ['Top', 0, 89.9], ['Bottom', 0, -89.9]]);
-    for (const [, yaw, pitch] of vues) assert.equal(L.validerVue(yaw, pitch).ok, true);
+    assert.ok(html.includes('id="rrx-3d-canvas"') && html.includes('id="rrx-3d-info"'));   // les sept vues viennent de la barre commune (LOT W27)
+    for (const [yaw, pitch] of [[45, 30], [0, 0], [180, 0], [-90, 0], [90, 0], [0, 89.9], [0, -89.9]]) assert.equal(L.validerVue(yaw, pitch).ok, true);
     // l'etape 1 est la premiere chose que voit « Reshape a region »
     assert.match(js, /Viewer3D\(\{ canvas: (cv|\$\('rrx-3d-canvas'\))/);
     // « Use this view » rend la vue A PLAT depuis l'angle releve de la camera
