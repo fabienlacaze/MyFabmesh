@@ -640,7 +640,7 @@ export function message_refus(analyse, diagnostic, min_aretes, max_aretes) {
   if (cause === 'non_manifold') {
     return ['fill_holes_closed_nonmanifold',
       'Nothing to fill: the mesh has no open hole, but ' + d.aretes_non_manifold + ' edges are shared by more than two faces (double skin or glued parts). '
-      + 'The mesh was left unchanged.'];
+      + 'No hole in the outer skin was found either. The mesh was left unchanged.'];
   }
   if (cause === 'miettes') {
     return ['fill_holes_closed_debris',

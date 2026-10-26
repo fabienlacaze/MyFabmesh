@@ -11671,6 +11671,7 @@ async function runMeshTool(operation, params = [], options = undefined) {
         const h = s.holes_filled || 0;
         // Plus de verdict « normales inversees / double peau » apres coup : le noyau ne retire rien, et un maillage sans trou est REFUSE (non facture).
         if (s.verdict === 'OPEN_HOLES') toastMsg = _i18nTf('Filled {x} holes (+{y} faces). Some holes remain: widen the Min / Max range.', h, d);
+        else if (s.skin_holes_filled > 0) toastMsg = _i18nTf('Double skin: filled {x} holes in the outer skin (+{y} faces); nothing was removed or moved.', s.skin_holes_filled, d);
         else toastMsg = _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d);
       }
       showToast(toastMsg, toastKind, toastKind === 'success' ? 3000 : 6000);
