@@ -2254,7 +2254,11 @@ function actionSansPattes(allure, nage, T0, fps, Ltot, V) {
     AC.onde = (i) => 1 - cles(U(i), [[0, 0], [0.1, 0.8], [0.3, 0.9], [0.8, 0.4], [1, 0]]);
     AC.lacet = (i, k) => amplitude * ram(U(i)) * 1.25 * S(k * 0.9, 1) * decroit(k, 0.95);
     AC.pitch = (i, k) => amplitude * dresse(U(i)) * 0.95 * decroit(k, 0.5);
-    AC.avance = (i) => amplitude * cles(U(i), [[0, 0], [0.22, -0.06], [0.3, 0.16], [0.42, 0.14], [0.8, 0.03], [1, 0]]);
+    // frappe d'un serpent (Young 1991 ; Penning et al. 2016 : la frappe dure 50-150 ms, la tete parcourt ~0,3-0,5 L, precedee d'un ramassement du cou en S) :
+    // ramassement plus net (-0,10 L) puis coup en 0,10 s (0,22 -> 0,29 de 1,4 s) jusqu'a +0,22 L, tenue, retour lent
+    AC.avance = (i) => amplitude * (globalThis.__frappeSerpent !== false
+      ? cles(U(i), [[0, 0], [0.22, -0.1], [0.29, 0.22], [0.42, 0.18], [0.8, 0.03], [1, 0]])
+      : cles(U(i), [[0, 0], [0.22, -0.06], [0.3, 0.16], [0.42, 0.14], [0.8, 0.03], [1, 0]]));
     AC.roulis = (i) => 0.12 * amplitude * env(U(i), 0.2, 0.55);
     AC.ancre = 0.75;
   } else if (allure === 'attack') {
@@ -2479,7 +2483,15 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
       const Xi = pts.map((q) => add(tete, q));
       if (AC) {                                                  // la colonne est ancree vers l'arriere : le corps se replie, la tete recule / bondit
         const ka = Math.min(chemin.length - 1, Math.round(AC.ancre * (chemin.length - 1)));
-        const dx = P0[chemin[ka]][0] - Xi[ka][0], dz = P0[chemin[ka]][2] - Xi[ka][2] + AC.avance(i) * Ltot;
+        // cap du corps AU REPOS (queue -> tete, a plat) : l'avance part DANS l'axe du corps. Avant (26/10) elle partait toujours vers +z : sur un rig couche le long de X
+        // (le serpent du user) la « frappe » glissait de COTE (derive laterale 0,12 L) et la tete ne gagnait que ~0,05 L vers l'avant.
+        let fx = 0, fz = 1;
+        if (globalThis.__avanceAxeCorps !== false) {
+          const hx = P0[chemin[0]][0] - P0[chemin[ka]][0], hz = P0[chemin[0]][2] - P0[chemin[ka]][2], hn = Math.hypot(hx, hz);
+          if (hn > 1e-6) { fx = hx / hn; fz = hz / hn; }
+        }
+        const av = AC.avance(i) * Ltot;
+        const dx = P0[chemin[ka]][0] - Xi[ka][0] + av * (globalThis.__avanceAxeCorps !== false ? fx : 0), dz = P0[chemin[ka]][2] - Xi[ka][2] + av * fz;
         for (const q of Xi) { q[0] += dx; q[2] += dz; }
       }
       // chenille : les bosses se posent sur le sol (rien dessous). Cetace : en pleine eau, pas de sol : on releve
