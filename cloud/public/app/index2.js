@@ -12177,9 +12177,13 @@ const MESH_TOOL_SCHEMAS = {
       // (detection seule, jamais facturee, en lueur bleu clair) et « Apply » (sur le serveur) les bouche. « Apply on device » ne sait pas le faire.
       { id: 'skin_repair', label: 'Also repair holes in the outer skin', type: 'checkbox', default: false,
         hint: 'For models whose hull is pierced without an open edge, like a boat. Experimental: it can take a minute. Check the result.' },
+      // Option voisine (26/10), decochee par defaut : une GRANDE ouverture d'anatomie vers l'interieur du corps (bas du ventre, dessous), sans peau continue autour.
+      // Une fenetre ou un cockpit voulus seraient aussi fermes : d'ou la case explicite et l'apercu bleu clair.
+      { id: 'large_openings', label: 'Also close large openings (belly, base)', type: 'checkbox', default: false,
+        hint: 'For models where a big part of the body is open and you can see inside, like a missing belly. It closes every large opening, so leave it off if the model has real windows or doors. Check the light blue preview first.' },
     ],
     skinRepair: true,
-    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size), vals.skin_repair ? '1' : '0'],
+    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size), vals.skin_repair ? '1' : '0', vals.large_openings ? '1' : '0'],
     preview: (geom, vals) => _jsFillHoles(
       geom,
       Math.max(3, vals.min_hole_size | 0),
@@ -12532,9 +12536,21 @@ function _mtSkinReinit() {
   _mtSkinMinuteur(true);
   sk.etat = 'inactif';                         // un resultat deja calcule reste dans sk.detect (meme maillage : pas de nouveau calcul)
 }
+// Les deux recherches (trous de la peau exterieure, grandes ouvertures vers la cavite) partagent la meme lueur bleu clair et le meme apercu.
+function _mtSkinActif(vals) { return !!(vals && (vals.skin_repair || vals.large_openings)); }
 function _mtSkinTexte(vals) {
   const sk = mtState.skin;
-  if (!vals || !vals.skin_repair) return '';
+  if (!_mtSkinActif(vals)) return '';
+  if (!vals.skin_repair) {
+    // seule la case « grandes ouvertures » est cochee : recherche rapide (quelques secondes)
+    if (sk.etat === 'cherche') return _i18nT('Searching for large openings…');
+    if (sk.etat === 'erreur') return _i18nT('The search for skin holes failed. Apply can still try.');
+    if (sk.etat === 'pret') {
+      const n = (mtState.skinN || 0);
+      return n ? _i18nTf('Large openings: {x} detected (light blue). Apply will close them; nothing is removed.', n) : _i18nT('Large openings: none detected.');
+    }
+    return '';
+  }
   if (sk.etat === 'cherche') return _i18nTf('Searching the outer skin for holes (about a minute)… {x} s', Math.round((Date.now() - sk.t0) / 1000));
   if (sk.etat === 'erreur') return _i18nT('The search for skin holes failed. Apply can still try.');
   if (sk.etat === 'pret') {
@@ -12552,7 +12568,7 @@ function _mtSkinStatut() {
 function _mtSkinDessiner(vals) {
   const sk = mtState.skin;
   mtState.skinN = 0;
-  if (!vals.skin_repair || sk.etat !== 'pret' || !sk.detect) return 0;
+  if (!_mtSkinActif(vals) || sk.etat !== 'pret' || !sk.detect) return 0;
   const minE = Math.max(3, Number(vals.min_hole_size) || 3), maxE = Math.max(minE, Number(vals.max_hole_size) || 2000);
   const parent = mtState.origModel || mtState.scene;
   let total = 0;
@@ -12582,12 +12598,13 @@ function _mtSkinDessiner(vals) {
 async function _mtSkinChercher() {
   const sk = mtState.skin, chemin = mtState.meshPath;
   if (!chemin) return;
-  if (sk.detect && sk.cle === chemin) { sk.etat = 'pret'; return; }           // deja calcule pour ce maillage
+  const v = mtState.vals || {}, cle = chemin + '|' + (v.skin_repair ? 1 : 0) + (v.large_openings ? 1 : 0);
+  if (sk.detect && sk.cle === cle) { sk.etat = 'pret'; return; }           // deja calcule pour ce maillage et ces cases
   const jeton = ++sk.jeton;
-  sk.etat = 'cherche'; sk.cle = chemin; sk.detect = null; sk.t0 = Date.now();
+  sk.etat = 'cherche'; sk.cle = cle; sk.detect = null; sk.t0 = Date.now();
   _mtSkinMinuteur(false);
   let r;
-  try { r = await API.detectSkinHoles({ meshPath: chemin, min: 3, max: 5000, projectName: state.currentProject && state.currentProject.name }); }
+  try { r = await API.detectSkinHoles({ meshPath: chemin, min: 3, max: 5000, skin: !!v.skin_repair, openings: !!v.large_openings, projectName: state.currentProject && state.currentProject.name }); }
   catch (e) { r = { success: false, error: String(e && e.message || e) }; }
   if (jeton !== sk.jeton) return;              // fenetre fermee, case decochee ou autre maillage
   _mtSkinMinuteur(true);
@@ -12597,7 +12614,9 @@ async function _mtSkinChercher() {
 }
 function _mtSkinPreparer(vals) {
   const sk = mtState.skin;
-  if (!vals.skin_repair) { if (sk.etat !== 'inactif') _mtSkinReinit(); mtState.skinN = 0; return 0; }
+  if (!_mtSkinActif(vals)) { if (sk.etat !== 'inactif') _mtSkinReinit(); mtState.skinN = 0; return 0; }
+  const cle = (mtState.meshPath || '') + '|' + (vals.skin_repair ? 1 : 0) + (vals.large_openings ? 1 : 0);
+  if (sk.etat !== 'inactif' && sk.cle && sk.cle !== cle) _mtSkinReinit();      // une case a change : nouvelle recherche
   if (sk.etat === 'inactif') _mtSkinChercher();
   return _mtSkinDessiner(vals);
 }
@@ -12707,7 +12726,7 @@ function _mtRunPreview() {
   // move, or removeCount > LIVE_MAX), the user can't apply locally.
   const devBtn = document.getElementById('mt-apply-device');
   if (devBtn) {
-    if (mtState.schema.skinRepair && vals.skin_repair) {
+    if (mtState.schema.skinRepair && _mtSkinActif(vals)) {
       // la reparation de la peau (cartes de profondeur, Python) ne tourne pas dans le navigateur : « Apply » sur le serveur seulement
       devBtn.disabled = true;
       devBtn.title = _i18nT('Repairing the outer skin runs on the server: use Apply.');
@@ -12725,7 +12744,7 @@ function _mtRunPreview() {
       status.textContent = mtState.schema.previewStatus(vals, mtState);
       if (mtState.schema.skinRepair) {
         // case cochee et rien d'ouvert a boucher : le motif (« cochez la case ») n'a plus lieu d'etre, le compteur des trous de peau suffit
-        if (vals.skin_repair && !(mtState.lastStats && mtState.lastStats.filled)) status.textContent = '';
+        if (_mtSkinActif(vals) && !(mtState.lastStats && mtState.lastStats.filled)) status.textContent = '';
         mtState.statusBase = status.textContent;
         _mtSkinStatut();
       }
