@@ -1385,6 +1385,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   // Exerc 28:1402), detente explosive, vol PARABOLIQUE (gravite) ; le tronc se penche dans la creche.
   // Les cles « virtuelles » hors de [0, 1] imposent la vitesse verticale d'envol et de reception : la
   // vitesse du corps est continue entre l'appui et le vol (pas d'a-coup au decollage).
+  const SAUT_Q = globalThis.__sautQ ?? 0.5;
   const COURBES_SAUT = {
     bob: [[-0.2, 0.154], [0, 0], [0.2, -0.11], [0.38, -0.05], [0.6, -0.18], [1, 0], [1.2, 0.154]],
     tangage: [[0, 0.03], [0.2, 0.06], [0.4, 0.0], [0.6, 0.09], [1, -0.03]],
@@ -1422,7 +1423,10 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         brasSaut[i] = f < b0 ? cles(g, COURBES_SAUT.bras) : cles(x, COURBES_SAUT.brasVol);
         continue;
       }
-      bob[i] = f < b0 ? -0.12 * hanche * Math.sin(Math.PI * f / b0) : (Pr.sautH ?? 0.3) * hanche * (V.h || 1) * Math.sin(Math.PI * (f - b0) / (1 - b0));
+      // montee du centre de masse au-dessus de la hanche : 0,3 -> SAUT_Q (26/10, 2e passe : le saut de la mule ne montait que de 0,07 pour une hauteur totale de 0,30, soit 25 % ;
+      // un saut sur place de mammifere quadrupede eleve le centre de masse d'environ la moitie de la hauteur de hanche : chien / chat 0,4-0,6 (Alexander 2003, Principles of Animal Locomotion, ch. 3)
+      const sautH_ = Pr.sautH ?? (quadrupede && famMammifere && globalThis.__sautQuadrupede !== false ? SAUT_Q : 0.3);
+      bob[i] = f < b0 ? -0.12 * hanche * Math.sin(Math.PI * f / b0) : sautH_ * hanche * (V.h || 1) * Math.sin(Math.PI * (f - b0) / (1 - b0));
       if (quadrupede && famMammifere && Object.keys(Pr).length && globalThis.__corpsQuadrupede !== false) {
         // 28/10 (defaut Q6 : « translation verticale d'un corps horizontal ») : creche (arriere qui s'enfonce), CABRAGE au decollage (nez haut ~18 deg),
         // corps a plat au sommet, NEZ BAS a la reception (~16 deg) puis absorption ; le tangage est continu d'un saut a l'autre (fin de vol = debut d'appui)
@@ -1574,6 +1578,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
           // Winter 1991 ; Barrett, Mills & Begg 2010) avant l'attaque du talon. Le sin2 d'origine (pic a 50 %) levait le pied de 21 cm
           // EN MILIEU de balancier : marche « genoux hauts ».
           if (SAUT && droit && ALLURES[allure].saut) cible[1] += 0.26 * hanche * Math.sin(Math.PI * Math.min(u / 0.85, 1)) ** 2;   // saut de bipede : jambes REPLIEES en vol, tendues 15 % avant la reception
+          // quadrupede qui saute : les pieds suivent la MONTEE du corps (sinon ils ne s'elevent que de h pendant que le tronc monte de SAUT_Q * hanche : jambes tendues en echasses,
+          // aucune phase aerienne lisible) puis se replient de h par-dessus (planche avant / apres : C:/tmp/anim_realisme2)
+          if (SAUT && quadrupede && famMammifere && Object.keys(Pr).length && ALLURES[allure].saut && globalThis.__sautQuadrupede !== false) cible[1] += SAUT_Q * hanche * (V.h || 1) * Math.sin(Math.PI * u);
           cible[1] += A.levee && !(B.recul && droit) ? h / 1.06 * (Math.sin(Math.PI * Math.min(u / 0.62, 1)) ** 2 + 0.06 * Math.sin(Math.PI * u) ** 2) : h * Math.sin(Math.PI * (A.leve ? Math.pow(u, A.leve) : u)) ** 2;   // leve < 1 : le pied monte tot (quadrupedes, galop)
         }
       }

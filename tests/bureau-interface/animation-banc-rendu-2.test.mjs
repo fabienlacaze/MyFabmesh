@@ -63,3 +63,33 @@ test('frappe du serpent : l\'avance suit l\'axe du corps (pas de derive laterale
   assert.ok(apres.course > avant.course + 0.1, `course de la tete le long du corps ${avant.course.toFixed(2)} -> ${apres.course.toFixed(2)} L`);
   assert.ok(apres.course >= 0.3 && apres.course <= 0.65, `course ${apres.course.toFixed(2)} L (reference : 0,3-0,5 L)`);
 });
+
+function quadrupede() {
+  const s = [['bassin', -1, [0, 0.5, -0.3]], ['dos1', 0, [0, 0.55, 0]], ['dos2', 1, [0, 0.58, 0.3]], ['cou', 2, [0, 0.7, 0.45]], ['tete', 3, [0, 0.72, 0.65]]];
+  let p = 0;
+  for (let k = 1; k <= 5; k++) { s.push(['queue' + k, p, [0, 0.5 - 0.1 * k, -0.3 - 0.13 * k]]); p = s.length - 1; }
+  for (const [z, nom] of [[-0.3, 'ar'], [0.3, 'av']]) {
+    for (const cote of [-1, 1]) {
+      s.push([nom + 'h' + cote, nom === 'ar' ? 0 : 2, [0.12 * cote, 0.48, z]]); let q = s.length - 1;
+      for (const y of [0.25, 0.0]) { s.push([nom + 'j' + cote + y, q, [0.12 * cote, y, z + (y ? 0.04 : 0)]]); q = s.length - 1; }
+    }
+  }
+  return s;
+}
+test('saut d\'un quadrupede : le corps monte d\'au moins 0,3 H et les pieds le suivent en se repliant (plus d\'echasses)', () => {
+  const sq = __interne.charger(squelette(quadrupede()));
+  const sol = Math.min(...sq.P0.map((p) => p[1])), H = Math.max(...sq.P0.map((p) => p[1])) - sol, y0 = sq.P0[sq.racine][1];
+  const bouts = ['arj-10', 'arj10', 'avj-10', 'avj10'].map((n) => indexDe(sq, n)).filter((k) => k >= 0);
+  const mesure = (flag) => {
+    globalThis.__sautQuadrupede = flag;
+    try {
+      const c = __interne.animerAllureSure(sq, 'jump', 1, 30, 'normal', 'auto', 'equide');
+      const P = c.R.map((_, i) => positions(sq, c, i));
+      return { montee: (Math.max(...P.map((q) => q[sq.racine][1])) - y0) / H, pieds: (Math.max(...P.map((q) => Math.max(...bouts.map((b) => q[b][1])))) - sol) / H };
+    } finally { delete globalThis.__sautQuadrupede; }
+  };
+  const avant = mesure(false), apres = mesure(undefined);
+  assert.ok(apres.montee > avant.montee + 0.05, `montee du corps ${(100 * avant.montee).toFixed(0)} -> ${(100 * apres.montee).toFixed(0)} % de H`);
+  assert.ok(apres.montee >= 0.15, `montee ${(100 * apres.montee).toFixed(0)} % de H`);
+  assert.ok(apres.pieds >= apres.montee + 0.05, `les pieds montent plus haut que le corps (pliés) : pieds ${(100 * apres.pieds).toFixed(0)} % contre corps ${(100 * apres.montee).toFixed(0)} %`);
+});
