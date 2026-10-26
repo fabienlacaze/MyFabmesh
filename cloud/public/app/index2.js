@@ -20,7 +20,7 @@ import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
 import { creerApercu } from './lib/apercu-animation.js';
 import { creerBarreVues3D } from './lib/barre-vues-3d.js';   // barre commune des visualiseurs des fenetres d'outils (25/10)
-import { normaleDepuis, anglesDepuis, matriceMiroir, centresDesFaces, appliquerTampon, regionFaces, coteDesFaces, ecrireFaces } from './lib/symetrie-maillage.js';   // outil Symmetrize mesh (25/10)
+import { normaleDepuis, anglesDepuis, matriceMiroir, centresDesFaces, appliquerTampon, regionFaces, coteDesFaces, ecrireFaces, echantillonnerSurfaceNormales, trouverPlanSymetrie, axeEtAnglesDepuis, tournerNormale } from './lib/symetrie-maillage.js';   // outil Symmetrize mesh (25/10)
 import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retirerClauseFinale, actif as composeurActif,
   positifSansNegations, negationsDe, assainirNegatifs, nettoyerVirgules, detecterAvertissements, NEG_MAX_LONG } from './lib/composeur-intention.js';
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
@@ -14394,6 +14394,7 @@ const smState = {
   axis: 'x', tiltA: 0, tiltB: 0, P: new THREE.Vector3(), keep: 'pos', mode: 'full', gizmoMode: 'translate',
   brush: 6, effacer: false, stamps: [], peint: false, limiteDite: false,
   hist: [], histI: -1, zoneSale: false, zoneComplete: false, zoneTimer: null, survol: null,
+  auto: false, glisse: null, souris: null, bulle: null, cote: 1, ptsCadrage: null, vue: null,
 };
 const SM3_MAX_TAMPONS = 1200;
 const _sm3El = (id) => document.getElementById(id);
@@ -14525,12 +14526,98 @@ function _sm3Refresh() {
 }
 function _sm3MajAide() {
   const h = _sm3El('sm3-hint');
-  if (!h || smState.preparation) return;
+  if (!h || smState.preparation || smState.auto) return;
   let t;
   if (smState.riggee) t = 'This mesh is rigged or animated: symmetrize it before rigging.';
-  else if (smState.mode === 'mask') t = 'Left-drag paints the area to mirror · right-drag: pan · middle-drag: rotate · wheel: zoom';
-  else t = 'Drag the gizmo to move or rotate the plane · right-drag: pan · middle-drag: rotate · wheel: zoom';
+  else if (smState.mode === 'mask') t = 'Left-drag paints the area to mirror · Shift+drag on the plane: tilt it · right-drag: pan · middle-drag: rotate · wheel: zoom';
+  else t = 'Drag the plane to move it · Shift+drag: tilt it (Ctrl: 5° steps) · or use the gizmo · right-drag: pan · middle-drag: rotate · wheel: zoom';
   h.textContent = _i18nT(t);
+}
+
+// ---- cadrage de la camera ------------------------------------------------------------------------------------------
+const SM3_VUES = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.001], bottom: [0, -1, 0.001], iso: [0.64, 0.5, 0.9] };
+/** Place la camera dans la direction `dir` (tableau [x, y, z] ou null = direction actuelle) a la distance qui fait remplir au modele
+ *  ~70 % de la hauteur de la fenetre (et au plus 85 % de sa largeur). */
+function _sm3Cadrer(dir) {
+  const s = smState;
+  if (!s.camera || !s.model || !s.controls) return false;
+  const cam = s.camera;
+  const d = dir ? new THREE.Vector3(dir[0], dir[1], dir[2]) : cam.position.clone().sub(s.controls.target);
+  if (d.lengthSq() < 1e-12) d.set(...SM3_VUES.iso);
+  d.normalize();
+  s.holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(s.model);
+  const c = box.getCenter(new THREE.Vector3());
+  // vrais sommets (et non les coins de la boite : une boite deborde de la silhouette et laissait le modele a ~50 % de la hauteur)
+  if (!s.ptsCadrage) {
+    const pts = [];
+    const total = s.parts.reduce((a, p) => a + (p.geo.attributes.position.count || 0), 0);
+    const pas = Math.max(1, Math.floor(total / 6000));
+    for (const pt of s.parts) {
+      const pos = _sm3Positions(pt.geo), m = pt.rel;
+      for (let i = 0; i < pos.length / 3; i += pas) {
+        const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+        pts.push(new THREE.Vector3(m[0] * x + m[1] * y + m[2] * z + m[3], m[4] * x + m[5] * y + m[6] * z + m[7], m[8] * x + m[9] * y + m[10] * z + m[11]).add(s.holder.position));
+      }
+    }
+    s.ptsCadrage = pts;
+  }
+  const coins = s.ptsCadrage;
+  const tmp = new THREE.Vector3();
+  const place = (dist) => { cam.position.copy(c).addScaledVector(d, dist); cam.lookAt(c); cam.updateMatrixWorld(true); cam.updateProjectionMatrix(); };
+  const taux = (dist) => {
+    place(dist);   // (project() sert ci-dessous ; le decalage de vue vers le haut ne change pas les ecarts)
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of coins) { const q = tmp.copy(p).project(cam); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+    return Math.max((y1 - y0) / 1.4, (x1 - x0) / 1.7);
+  };
+  cam.clearViewOffset();
+  let lo = s.diag * 0.15, hi = s.diag * 30;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (taux(mid) > 1) lo = mid; else hi = mid; }
+  place(hi);
+  // centrage de la silhouette dans la partie LIBRE de la fenetre (le bandeau d'aide et la barre de vues couvrent le bas) : decalage
+  // d'objectif (setViewOffset), donc aucune deformation et la cible de la camera reste le centre du modele
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of coins) { const q = tmp.copy(p).project(cam); x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); }
+  s.vue = { fx: 0, fy: (0.1 - (y0 + y1) / 2) / 2 };   // seulement vers le haut : le plan « selon la vue » reste sur la verticale du centre
+  _sm3AppliquerDecalage();
+  s.controls.target.copy(c);
+  s.controls.update();
+  return true;
+}
+
+/** Applique le decalage d'objectif memorise par _sm3Cadrer (en fractions de la taille : il suit les redimensionnements). */
+function _sm3AppliquerDecalage() {
+  const cam = smState.camera, vp = _sm3El('sm3-viewport');
+  if (!cam || !vp || !smState.vue) return;
+  const w = vp.clientWidth || 640, h = vp.clientHeight || 420;
+  cam.setViewOffset(w, h, Math.round(smState.vue.fx * w), Math.round(smState.vue.fy * h), w, h);
+  cam.updateProjectionMatrix();
+}
+
+// ---- bulle d'angle pres du curseur ---------------------------------------------------------------------------------
+function _sm3BulleMontrer(texte) {
+  const vp = _sm3El('sm3-viewport');
+  if (!vp) return;
+  if (!smState.bulle || !smState.bulle.isConnected) {
+    const b = document.createElement('div');
+    b.id = 'sm3-bulle';
+    b.style.cssText = 'position:absolute;pointer-events:none;z-index:6;background:rgba(10,10,20,.88);color:#fff;border:1px solid #22c55e;border-radius:6px;padding:3px 8px;font:600 13px/1.3 system-ui,sans-serif;white-space:nowrap;display:none;';
+    vp.appendChild(b);
+    smState.bulle = b;
+  }
+  const b = smState.bulle, r = vp.getBoundingClientRect(), m = smState.souris;
+  b.textContent = texte;
+  b.style.display = 'block';
+  const x = m ? m.x - r.left : r.width / 2, y = m ? m.y - r.top : r.height / 2;
+  b.style.left = Math.max(4, Math.min(r.width - b.offsetWidth - 4, x + 16)) + 'px';
+  b.style.top = Math.max(4, Math.min(r.height - b.offsetHeight - 4, y + 18)) + 'px';
+}
+function _sm3BulleCacher() { if (smState.bulle) smState.bulle.style.display = 'none'; }
+/** Texte de la bulle : les deux inclinaisons (geste d'inclinaison) ou la position du plan (geste de translation). */
+function _sm3TexteBulle(inclinaison) {
+  if (inclinaison) return 'A ' + Math.round(smState.tiltA) + '° · B ' + Math.round(smState.tiltB) + '°';
+  return _i18nT('Plane position') + ' ' + Number(_sm3Decalage().toFixed(4));
 }
 
 // ---- zone peinte ---------------------------------------------------------------------------------------------------
@@ -14693,6 +14780,10 @@ function _sm3Cleanup() {
   smState.holder = smState.model = smState.mirrorGroup = smState.plane = smState.planeFleche = smState.curseur = null;
   smState.parts = []; smState.pret = false; smState.riggee = false; smState.survol = null; smState.peint = false;
   smState.zoneSale = false; smState.zoneComplete = false; smState.preparation = false;
+  smState.auto = false; smState.glisse = null; smState.souris = null; smState.ptsCadrage = null; smState.vue = null;
+  try { smState.bulle?.remove(); } catch (_) {}
+  smState.bulle = null;
+  const ba = _sm3El('sm3-auto'); if (ba) ba.disabled = false;
 }
 function _sm3Fermer() {
   _sm3El('modal-symmetrize-mesh')?.classList.add('hidden');
@@ -14746,12 +14837,18 @@ function _sm3Installer(model) {
   s.scene.add(holder);
 
   // le plan : un carre vert translucide + contour, visibles a travers le maillage, et une fleche du cote conserve vers la copie
-  const cote = s.diag * 0.9;
+  const cote = s.diag * 0.75;
   const g = new THREE.Group();
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.16,
+  s.cote = cote;
+  // dalle mince (visible aussi quand on la voit de profil : un simple carre disparaitrait) + cadre net
+  const quad = new THREE.Mesh(new THREE.BoxGeometry(0.006 / 0.75, 1, 1), new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.2,
     side: THREE.DoubleSide, depthWrite: false, depthTest: false }));
-  quad.rotation.y = Math.PI / 2; quad.scale.setScalar(cote); quad.renderOrder = 998; quad.userData.sm3Geo = true; quad.raycast = () => {};
-  const bord = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1)), new THREE.LineBasicMaterial({ color: 0x22c55e, depthTest: false }));
+  quad.scale.set(cote, cote, cote); quad.renderOrder = 998; quad.userData.sm3Geo = true; quad.raycast = () => {};
+  const ext = new THREE.Shape(); ext.moveTo(-0.5, -0.5); ext.lineTo(0.5, -0.5); ext.lineTo(0.5, 0.5); ext.lineTo(-0.5, 0.5); ext.closePath();
+  const epc = 0.009, trou = new THREE.Path();
+  trou.moveTo(-0.5 + epc, -0.5 + epc); trou.lineTo(-0.5 + epc, 0.5 - epc); trou.lineTo(0.5 - epc, 0.5 - epc); trou.lineTo(0.5 - epc, -0.5 + epc); trou.closePath();
+  ext.holes.push(trou);
+  const bord = new THREE.Mesh(new THREE.ShapeGeometry(ext), new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false }));
   bord.rotation.y = Math.PI / 2; bord.scale.setScalar(cote); bord.renderOrder = 999; bord.userData.sm3Geo = true; bord.raycast = () => {};
   g.add(quad); g.add(bord);
   const fleche = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 0.28 * s.diag, 0x22c55e, 0.08 * s.diag, 0.05 * s.diag);
@@ -14769,17 +14866,17 @@ function _sm3Installer(model) {
 
   // camera
   const cam = s.camera;
-  cam.position.set(s.diag * 0.9, s.diag * 0.7, s.diag * 1.4);
   cam.near = s.diag / 1000; cam.far = s.diag * 100; cam.updateProjectionMatrix();
-  s.controls.target.set(0, 0, 0); s.controls.update();
+  _sm3Cadrer(SM3_VUES.iso);   // le modele remplit ~70 % de la hauteur
 
   // gizmo : sur le plan, translation le long de la normale ou inclinaison
   const gizmo = new TransformControls(cam, s.renderer.domElement);
-  gizmo.setSize(0.9);
+  gizmo.setSize(1.7);
   gizmo.attach(g);
   gizmo.addEventListener('dragging-changed', (e) => {
     s.controls.enabled = !e.value;
-    if (!e.value) { _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush(); }   // fin du geste : on retire le roulis, on date l'etat
+    if (e.value) _sm3BulleMontrer(_sm3TexteBulle(s.gizmoMode !== 'translate'));
+    else { _sm3BulleCacher(); _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush(); }   // fin du geste : on retire le roulis, on date l'etat
   });
   gizmo.addEventListener('objectChange', () => {
     if (s.gizmoMode === 'translate') s.P.copy(g.position);
@@ -14789,6 +14886,7 @@ function _sm3Installer(model) {
       s.tiltA = t.a; s.tiltB = THREE.MathUtils.clamp(t.b, -90, 90);
     }
     _sm3Refresh();
+    _sm3BulleMontrer(_sm3TexteBulle(s.gizmoMode !== 'translate'));
   });
   s.scene.add(gizmo.getHelper ? gizmo.getHelper() : gizmo);
   s.gizmo = gizmo;
@@ -14824,11 +14922,13 @@ function openSymmetrizeMeshTool() {
   _sourisVisualiseur(controls, renderer.domElement);
   controls.enableDamping = true;
   Object.assign(smState, { renderer, scene, camera, controls });
-  creerBarreVues3D(vp, smState, { zoom: false });   // barre commune : vues + reset
+  creerBarreVues3D(vp, smState, { zoom: false, cadre: (act, vue) => _sm3Cadrer(act === 'fit' ? null : (SM3_VUES[act === 'reset' ? 'iso' : vue] || null)) });   // barre commune : vues + reset (modele a ~70 % de la fenetre)
 
   const resize = () => {
     const w = vp.clientWidth || 640, h = vp.clientHeight || 420;
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false); camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    _sm3AppliquerDecalage();
   };
   resize();
   smState.ro = new ResizeObserver(resize); smState.ro.observe(vp);
@@ -14909,8 +15009,7 @@ _sm3El('sm3-reset')?.addEventListener('click', () => {
 });
 _sm3El('sm3-recenter')?.addEventListener('click', () => {
   if (!smState.camera || !smState.pret) return;
-  smState.camera.position.set(smState.diag * 0.9, smState.diag * 0.7, smState.diag * 1.4);
-  smState.controls.target.set(0, 0, 0); smState.controls.update();
+  _sm3Cadrer(null);
 });
 // curseurs + zones de saisie : la position se lit le long de la normale, les inclinaisons en degres
 function _sm3LierChamp(idRange, idNum, appliquer) {
@@ -14926,6 +15025,145 @@ _sm3LierChamp('sm3-offset', 'sm3-offset-num', (v) => { const cur = _sm3Decalage(
 _sm3LierChamp('sm3-tilt-a', 'sm3-tilt-a-num', (v) => { smState.tiltA = Math.max(-180, Math.min(180, v)); });
 _sm3LierChamp('sm3-tilt-b', 'sm3-tilt-b-num', (v) => { smState.tiltB = Math.max(-90, Math.min(90, v)); });
 _sm3El('sm3-brush-size')?.addEventListener('input', (e) => { smState.brush = Number(e.target.value) || 6; const bv = _sm3El('sm3-brush-val'); if (bv) bv.textContent = String(smState.brush); });
+// ---- plan : detection automatique ------------------------------------------------------------------------------------
+async function _sm3Auto() {
+  if (!smState.pret || smState.auto) return;
+  const jeton = smState.jeton;
+  const bouton = _sm3El('sm3-auto'), hint = _sm3El('sm3-hint');
+  smState.auto = true;
+  if (bouton) bouton.disabled = true;
+  const dire = (pct) => { if (hint && jeton === smState.jeton) hint.textContent = _i18nT('Searching for the symmetry plane…') + (pct == null ? '' : ' ' + Math.round(pct * 100) + ' %'); };
+  dire(null);
+  try {
+    const parts = smState.parts.map((pt) => ({ positions: _sm3Positions(pt.geo), index: pt.idx, m: pt.rel }));
+    const e = await echantillonnerSurfaceNormales(parts, 15000);
+    if (jeton !== smState.jeton) return;
+    const r = await trouverPlanSymetrie(e.points, { normales: e.normales, tour: dire });
+    if (jeton !== smState.jeton) return;
+    smState.auto = false;
+    if (!r) { showToast(_i18nT('Could not search for a symmetry plane.'), 'error'); return; }
+    if (!r.symetrique) { showToast(_i18nT('No clear symmetry found: the plane was left where it is.') + ' (' + Math.round(r.confiance * 100) + ' %)', 'info', 4200); return; }
+    const c = axeEtAnglesDepuis(r.n);
+    smState.axis = c.axe; smState.tiltA = c.a; smState.tiltB = c.b;
+    smState.P.fromArray(r.P);
+    _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush();
+    showToast(_i18nT('Symmetry plane found. Confidence:') + ' ' + Math.round(r.confiance * 100) + ' %', 'success', 3200);
+  } catch (err) {
+    if (jeton === smState.jeton) showToast(_i18nT('Could not search for a symmetry plane.') + ' ' + (err?.message || err), 'error');
+  } finally {
+    if (jeton === smState.jeton) { smState.auto = false; if (bouton) bouton.disabled = false; _sm3MajAide(); }
+  }
+}
+_sm3El('sm3-auto')?.addEventListener('click', _sm3Auto);
+
+/** Plan « selon la vue » : le plan contient la direction de la camera ET la verticale de l'ecran (sa normale est la droite de la
+ *  camera) : vu d'ici, il se confond avec la ligne verticale au centre de l'ecran. Il passe par le point que la camera vise. */
+function _sm3PlanSelonVue() {
+  if (!smState.pret || !smState.camera) return;
+  const cam = smState.camera;
+  cam.updateMatrixWorld(true);
+  const droite = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).normalize();
+  const c = axeEtAnglesDepuis([droite.x, droite.y, droite.z]);
+  smState.axis = c.axe; smState.tiltA = c.a; smState.tiltB = c.b;
+  const n = _sm3Normale();
+  smState.holder.updateMatrixWorld(true);
+  const cible = smState.holder.worldToLocal(smState.controls.target.clone());
+  smState.P.addScaledVector(n, cible.clone().sub(smState.P).dot(n));
+  _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush();
+}
+_sm3El('sm3-face-view')?.addEventListener('click', _sm3PlanSelonVue);
+
+// ---- plan : glisser a la souris (Maj+glisser = incliner, glisser = deplacer le long de la normale) ------------------------
+function _sm3RayonSouris(ev) {
+  const cv = _sm3El('sm3-canvas'), r = cv.getBoundingClientRect();
+  _sm3Rc.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), smState.camera);
+  return { o: smState.holder.worldToLocal(_sm3Rc.ray.origin.clone()), d: _sm3Rc.ray.direction.clone() };   // le holder n'a qu'une translation
+}
+/** Vrai si le rayon de la souris traverse le carre du plan (ou sa bordure). */
+function _sm3SurLePlan(ev) {
+  if (!smState.holder || !smState.camera || !smState.plane) return false;
+  const { o, d } = _sm3RayonSouris(ev), n = _sm3Normale();
+  const den = d.dot(n);
+  if (Math.abs(den) < 1e-4) return false;
+  const t = smState.P.clone().sub(o).dot(n) / den;
+  if (t < 0) return false;
+  const loc = o.addScaledVector(d, t).sub(smState.P).applyQuaternion(smState.plane.quaternion.clone().invert());
+  const demi = smState.cote * 0.5 * 1.02;
+  return Math.abs(loc.y) <= demi && Math.abs(loc.z) <= demi;
+}
+/** Parametre s du point de la droite (P0 + s n) le plus proche du rayon de la souris ; null si on regarde le long de la normale. */
+function _sm3ParamNormale(ev, P0, n) {
+  const { o, d } = _sm3RayonSouris(ev);
+  const w0 = P0.clone().sub(o), b = n.dot(d), den = 1 - b * b;
+  if (den < 1e-4) return null;
+  return (b * d.dot(w0) - n.dot(w0)) / den;
+}
+(() => {
+  const cv = _sm3El('sm3-canvas');
+  if (!cv) return;
+  const fin = (ev) => {
+    const g = smState.glisse;
+    if (!g) return;
+    smState.glisse = null;
+    try { cv.releasePointerCapture(ev.pointerId); } catch (_) {}
+    if (smState.controls) smState.controls.enabled = true;
+    if (smState.gizmo) smState.gizmo.enabled = true;
+    _sm3BulleCacher();
+    if (g.change) { _sm3PoserPlan(); _sm3Refresh(); _sm3HistPush(); }
+  };
+  cv.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0 || !smState.pret || smState.riggee || smState.preparation) return;
+    if (smState.gizmo && (smState.gizmo.axis || smState.gizmo.dragging)) return;      // une poignee a la priorite
+    const incliner = ev.shiftKey;
+    if (smState.mode === 'mask' && !incliner) return;                                  // en mode Masque, le glisser simple peint
+    if (!_sm3SurLePlan(ev)) return;
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    try { cv.setPointerCapture(ev.pointerId); } catch (_) {}
+    const n = _sm3Normale();
+    smState.glisse = { type: incliner ? 'tilt' : 'move', x0: ev.clientX, y0: ev.clientY, n0: n.clone(), P0: smState.P.clone(), s0: incliner ? 0 : _sm3ParamNormale(ev, smState.P, n), change: false };
+    smState.souris = { x: ev.clientX, y: ev.clientY };
+    smState.controls.enabled = false;
+    if (smState.gizmo) { smState.gizmo.enabled = false; smState.gizmo.axis = null; }   // pas de survol de poignee pendant notre geste
+  });
+  cv.addEventListener('pointermove', (ev) => {
+    smState.souris = { x: ev.clientX, y: ev.clientY };
+    const g = smState.glisse;
+    if (!g) {
+      if (smState.pret && !smState.preparation && !(smState.mode === 'mask' && !ev.shiftKey) && !(smState.gizmo && smState.gizmo.axis) && _sm3SurLePlan(ev)) cv.style.cursor = ev.shiftKey ? 'grab' : 'move';
+      else cv.style.cursor = '';
+      return;
+    }
+    if (g.type === 'move') {
+      const s = _sm3ParamNormale(ev, g.P0, g.n0);
+      if (s == null || g.s0 == null) return;
+      const lim = smState.diag * 0.6;
+      const dec = Math.max(-lim, Math.min(lim, g.P0.clone().sub(smState.centre).dot(g.n0) + (s - g.s0)));
+      smState.P.copy(g.P0).addScaledVector(g.n0, dec - g.P0.clone().sub(smState.centre).dot(g.n0));
+      g.change = true;
+      _sm3PoserPlan(); _sm3Refresh();
+      _sm3BulleMontrer(_sm3TexteBulle(false));
+    } else {
+      // inclinaison en « boule » : l'horizontale tourne le plan autour de la verticale de l'ecran, la verticale autour de l'horizontale
+      const cam = smState.camera;
+      cam.updateMatrixWorld(true);
+      const haut = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1).normalize();
+      const droite = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).normalize();
+      const k = 0.4;   // degres par pixel
+      let n = tournerNormale(g.n0.toArray(), haut.toArray(), (ev.clientX - g.x0) * k);
+      n = tournerNormale(n, droite.toArray(), (ev.clientY - g.y0) * k);
+      const t = anglesDepuis(smState.axis, n);
+      let a = t.a, b = THREE.MathUtils.clamp(t.b, -90, 90);
+      if (ev.ctrlKey) { a = Math.round(a / 5) * 5; b = Math.round(b / 5) * 5; }
+      smState.tiltA = a; smState.tiltB = b;
+      g.change = true;
+      _sm3PoserPlan(); _sm3Refresh();
+      _sm3BulleMontrer(_sm3TexteBulle(true));
+    }
+  });
+  cv.addEventListener('pointerup', fin);
+  cv.addEventListener('pointercancel', fin);
+})();
+
 // peinture : bouton gauche sur le modele (le gizmo garde la priorite quand le pointeur est sur une poignee)
 (() => {
   const cv = _sm3El('sm3-canvas');
