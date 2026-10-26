@@ -643,8 +643,9 @@ def agreger(analyses, diagnostics):
     return somme, diag
 
 
-def message_refus(analyse, diagnostic, min_aretes, max_aretes):
-    """(code, texte) quand rien ne peut etre bouche. Le maillage reste inchange et rien n'est facture."""
+def message_refus(analyse, diagnostic, min_aretes, max_aretes, peau_cherchee=False):
+    """(code, texte) quand rien ne peut etre bouche. Le maillage reste inchange et rien n'est facture.
+    peau_cherchee : la reparation de la peau exterieure (option) a ete lancee et n'a rien trouve ; sinon le refus propose de la cocher."""
     if analyse['trop_petites'] + analyse['trop_grandes'] > 0 and analyse['a_boucher'] == 0:
         return ('fill_holes_range',
                 'No hole between %d and %d edges: the mesh has %d open hole(s) outside this range (smallest %d edges, largest %d). '
@@ -662,9 +663,13 @@ def message_refus(analyse, diagnostic, min_aretes, max_aretes):
                 'Nothing to fill: the mesh has no open hole, but %d faces point the wrong way (dark or see-through patches). '
                 'Use Fix normals instead. The mesh was left unchanged.' % d['faces_retournees'])
     if cause == 'non_manifold':
+        if peau_cherchee:
+            return ('fill_holes_closed_nonmanifold_skin',
+                    'Nothing to fill: the mesh has no open hole, but %d edges are shared by more than two faces (double skin or glued parts). '
+                    'No hole in the outer skin was found either. The mesh was left unchanged.' % d['aretes_non_manifold'])
         return ('fill_holes_closed_nonmanifold',
                 'Nothing to fill: the mesh has no open hole, but %d edges are shared by more than two faces (double skin or glued parts). '
-                'No hole in the outer skin was found either. The mesh was left unchanged.' % d['aretes_non_manifold'])
+                'If the hull looks pierced, tick "Also repair holes in the outer skin" and try again. The mesh was left unchanged.' % d['aretes_non_manifold'])
     if cause == 'miettes':
         return ('fill_holes_closed_debris',
                 'Nothing to fill: the mesh has no open hole, but %d small loose pieces float apart from the main body. '

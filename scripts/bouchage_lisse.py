@@ -1185,7 +1185,7 @@ def _noyau_peau():
     return P
 
 
-def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, peau=True):
+def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, peau=False):
     """Bouche les trous de TOUS les maillages de la scene trimesh (chargee avec process=False). Les geometries bouchees REMPLACENT les anciennes dans
     scene.geometry. Rend {'refus': (code, texte) | None, 'stats': {...}}. Rien a boucher -> refus, la scene n'est pas touchee."""
     import numpy as np
@@ -1203,7 +1203,7 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
         travail.append((nom, g, V, F, prep, a))
     peau_trouvee = 0
     if peau and sum(t[5]['a_boucher'] for t in travail) == 0:
-        # Aucun trou ouvert : le maillage est une pile de feuilles dont les trous n'ont pas d'arete de bord (voir bouchage_peau.py). On cherche ceux-la.
+        # OPTION (case « Reparer aussi les trous de la peau exterieure », decochee par defaut). Aucun trou ouvert : le maillage est une pile de feuilles dont les trous n'ont pas d'arete de bord (voir bouchage_peau.py). On cherche ceux-la.
         P = _noyau_peau()
         for i, (nom, g, V, F, prep, a) in enumerate(travail):
             try:
@@ -1217,7 +1217,7 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
     if sum(t[5]['a_boucher'] for t in travail) == 0:
         diagnostics = [T.diagnostiquer(t[4], t[5]) for t in travail]
         somme, diag = T.agreger([t[5] for t in travail], diagnostics)
-        code, texte = T.message_refus(somme, diag, min_aretes, max_aretes)
+        code, texte = T.message_refus(somme, diag, min_aretes, max_aretes, bool(peau))
         return {'refus': (code, texte), 'stats': None}
     par_maillage = []
     for nom, g, V, F, prep, a in travail:
@@ -1255,3 +1255,34 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
         'meshes': par_maillage,
     }
     return {'refus': None, 'stats': stats}
+
+
+def detecter_peau_scene(scene, min_aretes=3, max_aretes=2000, journal=print):
+    """DETECTION SEULE des trous de peau (aucune modification, rien de facturable) : pour chaque trou, son pourtour (points 3D), son centre et sa
+    normale (vers l'observateur). Rend {'nombre', 'trous': [{'n', 'centre', 'normale', 'rayon', 'points'}], 'duree'} (listes JSON). Les trous a bord ouvert
+    ne sont pas concernes (la detection ordinaire les montre deja)."""
+    import numpy as np
+    T = _noyau_trous()
+    P = _noyau_peau()
+    t0 = time.time()
+    trous = []
+    for indice, (nom, g) in enumerate(scene.geometry.items()):
+        if not (hasattr(g, 'faces') and len(g.faces)):
+            continue
+        V = np.asarray(g.vertices, dtype=np.float64)
+        F = np.asarray(g.faces, dtype=np.int64)
+        prep = T.preparer(V, F)
+        a = P.analyse_peau(V, F, prep, min_aretes, max_aretes, journal=journal)
+        for b in a['boucles']:
+            ring = V[np.asarray(b['debut'])[::-1]]
+            nrm = np.zeros(3)
+            for i in range(len(ring)):
+                u, w = ring[i], ring[(i + 1) % len(ring)]
+                nrm += np.array([(u[1] - w[1]) * (u[2] + w[2]), (u[2] - w[2]) * (u[0] + w[0]), (u[0] - w[0]) * (u[1] + w[1])])
+            ln = float(np.linalg.norm(nrm))
+            nrm = nrm / ln if ln > 0 else nrm
+            ctr = ring.mean(axis=0)
+            trous.append({'maillage': indice, 'n': int(b['n']), 'centre': [float(x) for x in ctr], 'normale': [float(x) for x in nrm],
+                          'rayon': float(np.linalg.norm(ring - ctr, axis=1).max()),
+                          'points': [[round(float(x), 6) for x in p] for p in ring]})
+    return {'nombre': len(trous), 'trous': trous, 'duree': round(time.time() - t0, 1)}

@@ -211,14 +211,14 @@ def etat(g):
     return {'faces': int(len(F)), 'aretes_de_bord': int((c == 1).sum()), 'aretes_non_manifold': int((c > 2).sum())}
 
 
-def faire_tourner(chemin):
+def faire_tourner(chemin, peau=True):
     sc = charger(chemin)
     g0 = list(sc.geometry.values())[0]
     V0, F0 = np.asarray(g0.vertices).copy(), np.asarray(g0.faces).copy()
     UV0 = np.asarray(g0.visual.uv).copy() if hasattr(g0.visual, 'uv') and g0.visual.uv is not None else None
     avant = etat(g0)
     t = time.time()
-    res = BL.boucher_scene(sc, 3, 2000, journal=lambda m: None)
+    res = BL.boucher_scene(sc, 3, 2000, journal=lambda m: None, peau=peau)
     duree = time.time() - t
     return sc, res, avant, duree, V0, F0, UV0
 
@@ -267,6 +267,73 @@ class Bateau(unittest.TestCase):
 
     def test_duree(self):
         self.assertLess(self.duree, 90.0, 'cible : moins de 60 s sur 500 000 faces ; garde-fou du banc 90 s (machine chargee) : %.0f s' % self.duree)
+
+
+MOISSONNEUSE = os.environ.get('FILL_HOLES_GLB', 'C:/tmp/moissonneuse.glb')
+
+
+class SansLOption(unittest.TestCase):
+    """DECISION DU USER : la reparation de peau est une OPTION decochee par defaut. Sans elle, Fill holes ne change RIEN pour un maillage sain ou en
+    double peau : « Nothing to fill » comme avant, aucune recherche (donc rien de lent), le maillage n'est pas touche."""
+
+    def _sans(self, chemin):
+        sc = charger(chemin)
+        t = time.time()
+        res = BL.boucher_scene(sc, 3, 2000, journal=lambda m: None)           # peau=False par defaut
+        return sc, res, time.time() - t
+
+    def test_defaut_faux(self):
+        import inspect
+        self.assertIs(inspect.signature(BL.boucher_scene).parameters['peau'].default, False)
+
+    @unittest.skipUnless(os.path.exists(BATEAU), 'bateau absent')
+    def test_bateau_refus_qui_propose_la_case(self):
+        sc, res, duree = self._sans(BATEAU)
+        self.assertIsNotNone(res['refus'])
+        code, texte = res['refus']
+        self.assertEqual(code, 'fill_holes_closed_nonmanifold')
+        self.assertIn('Also repair holes in the outer skin', texte)
+        self.assertLess(duree, 15.0, 'aucune recherche de peau : quelques secondes')
+        MESURES.setdefault('sans_option', {})['bateau_s'] = round(duree, 1)
+
+    @unittest.skipUnless(os.path.exists(MOISSONNEUSE), 'moissonneuse absente')
+    def test_moissonneuse_saine_inchangee(self):
+        sc, res, duree = self._sans(MOISSONNEUSE)
+        self.assertIsNotNone(res['refus'], 'plus aucun bouchon sur la moissonneuse saine')
+        self.assertIsNone(res['stats'])
+        self.assertLess(duree, 15.0)
+        MESURES.setdefault('sans_option', {})['moissonneuse_s'] = round(duree, 1)
+        MESURES['sans_option']['moissonneuse_refus'] = res['refus'][0]
+
+    @unittest.skipUnless(os.path.exists(BATEAU), 'bateau absent')
+    def test_detection_seule(self):
+        sc = charger(BATEAU)
+        g0 = list(sc.geometry.values())[0]
+        F0 = np.asarray(g0.faces).copy()
+        t = time.time()
+        d = BL.detecter_peau_scene(sc, 3, 5000, journal=lambda m: None)
+        duree = time.time() - t
+        MESURES.setdefault('detection_seule', {})['bateau'] = {'trous': d['nombre'], 'duree_s': round(duree, 1)}
+        self.assertTrue(30 <= d['nombre'] <= 90)
+        self.assertEqual(d['nombre'], len(d['trous']))
+        h = d['trous'][0]
+        for cle in ('n', 'centre', 'normale', 'rayon', 'points', 'maillage'):
+            self.assertIn(cle, h)
+        self.assertEqual(len(h['points']), h['n'])
+        self.assertAlmostEqual(sum(x * x for x in h['normale']), 1.0, places=3)
+        json.dumps(d)                                                        # exportable tel quel
+        self.assertTrue(np.array_equal(np.asarray(list(sc.geometry.values())[0].faces), F0), 'la detection ne modifie rien')
+
+    def test_cli_cinquieme_argument(self):
+        """mesh_tools.py fill_holes <in> <out> 3 2000 0 : le 5e argument existe, l'appel a 4 arguments reste valide."""
+        import inspect
+        sys.path.insert(0, os.path.join(RACINE, 'scripts'))
+        import mesh_tools
+        params = inspect.signature(mesh_tools.fill_holes).parameters
+        self.assertIn('skin_repair', params)
+        self.assertEqual(params['skin_repair'].default, 0)
+        self.assertEqual(list(params)[:4], ['input_path', 'output_path', 'min_hole_size', 'max_hole_size'])
+        self.assertIn('detect_skin', open(os.path.join(RACINE, 'scripts', 'mesh_tools.py'), encoding='utf-8').read())
 
 
 @unittest.skipUnless(os.path.exists(PIKACHU), 'Pikachu TRELLIS absent (%s)' % PIKACHU)

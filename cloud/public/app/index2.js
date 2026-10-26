@@ -26,6 +26,7 @@ import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retire
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
 import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 import { anglesDepuisCamera as _rrxAngles, validerVue as _rrxValiderVue, nomVue as _rrxNomVue, matriceVue as _rrxMatriceVue, vueNeutre as _rrxVueNeutre, xmagPourVue as _rrxXmagPourVue, affichageEtape as _rrxAffichage } from './lib/reshape-vue.js';
+import { geometrie as geometrieTrousPeau, diagonale as diagonaleTrousPeau, COULEUR_PEAU } from './lib/trous-peau.js';
 import { preparer as preparerTrous, analyser as analyserTrous, diagnostiquer as diagnostiquerTrous, agreger as agregerTrous, message_refus as messageRefusTrous, rendu_apercu as renduApercuTrous, indices_avec_rustines as indicesAvecRustines } from './lib/bouchage-trous.js';
 
 // Raycast accelere par BVH (three-mesh-bvh, MIT) — repris du bureau avec le
@@ -12166,8 +12167,13 @@ const MESH_TOOL_SCHEMAS = {
     params: [
       { id: 'min_hole_size', label: 'Min hole size (edges)', type: 'range', min: 3,  max: 5000, step: 1,  default: 3 },
       { id: 'max_hole_size', label: 'Max hole size (edges)', type: 'range', min: 3,  max: 5000, step: 10, default: 2000 },
+      // Option a part (26/10) : decochee par defaut ; rien ne change pour un maillage sain. Cochee : la fenetre cherche les trous de la PEAU exterieure
+      // (detection seule, jamais facturee, en lueur bleu clair) et « Apply » (sur le serveur) les bouche. « Apply on device » ne sait pas le faire.
+      { id: 'skin_repair', label: 'Also repair holes in the outer skin', type: 'checkbox', default: false,
+        hint: 'For models whose hull is pierced without an open edge, like a boat. Experimental: it can take a minute. Check the result.' },
     ],
-    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size)],
+    skinRepair: true,
+    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size), vals.skin_repair ? '1' : '0'],
     preview: (geom, vals) => _jsFillHoles(
       geom,
       Math.max(3, vals.min_hole_size | 0),
@@ -12325,6 +12331,8 @@ const mtState = {
   origModel: null,        // the GLTF scene loaded — we mutate its geometries on preview
   origGeoms: [],          // [{ mesh, originalGeom }] — to restore on params change
   helpers: [],            // Object3D overlays added by the preview hook (Fill Holes boundary lines etc.)
+  meshPath: '',           // maillage charge dans la fenetre (apercu des trous de peau)
+  skin: { jeton: 0, etat: 'inactif', cle: '', detect: null, t0: 0, minuteur: null },   // trous de PEAU : inactif | cherche | pret | erreur
   schema: null,
   vals: {},
   previewTimer: null,
@@ -12506,6 +12514,88 @@ async function _mtApplyOnDevice(opType) {
   }
 }
 
+// ── Trous de PEAU : lueur bleu clair (2026-10-26) — meme code que le bureau (src/renderer/index2.js), meme module lib/trous-peau.js ─────────────────────
+function _mtSkinMinuteur(arreter) {
+  const sk = mtState.skin;
+  if (sk.minuteur) { clearInterval(sk.minuteur); sk.minuteur = null; }
+  if (!arreter) sk.minuteur = setInterval(() => _mtSkinStatut(), 1000);
+}
+function _mtSkinReinit() {
+  const sk = mtState.skin;
+  sk.jeton++;                                  // une recherche en cours devient sans effet
+  _mtSkinMinuteur(true);
+  sk.etat = 'inactif';                         // un resultat deja calcule reste dans sk.detect (meme maillage : pas de nouveau calcul)
+}
+function _mtSkinTexte(vals) {
+  const sk = mtState.skin;
+  if (!vals || !vals.skin_repair) return '';
+  if (sk.etat === 'cherche') return _i18nTf('Searching the outer skin for holes (about a minute)… {x} s', Math.round((Date.now() - sk.t0) / 1000));
+  if (sk.etat === 'erreur') return _i18nT('The search for skin holes failed. Apply can still try.');
+  if (sk.etat === 'pret') {
+    const n = (mtState.skinN || 0);
+    return n ? _i18nTf('Outer skin: {x} holes detected (light blue). Apply will patch them; nothing is removed.', n) : _i18nT('Outer skin: no hole detected.');
+  }
+  return '';
+}
+function _mtSkinStatut() {
+  const status = document.getElementById('mt-preview-status');
+  if (!status || !mtState.schema || !mtState.schema.skinRepair) return;
+  const sk = _mtSkinTexte(mtState.vals);
+  status.textContent = (mtState.statusBase ? mtState.statusBase + (sk ? ' · ' : '') : '') + sk;
+}
+function _mtSkinDessiner(vals) {
+  const sk = mtState.skin;
+  mtState.skinN = 0;
+  if (!vals.skin_repair || sk.etat !== 'pret' || !sk.detect) return 0;
+  const minE = Math.max(3, Number(vals.min_hole_size) || 3), maxE = Math.max(minE, Number(vals.max_hole_size) || 2000);
+  const parent = mtState.origModel || mtState.scene;
+  let total = 0;
+  mtState.origGeoms.forEach((e, i) => {
+    const pos = e.originalGeom && e.originalGeom.attributes && e.originalGeom.attributes.position;
+    if (!pos) return;
+    const partie = { trous: (sk.detect.trous || []).filter((t) => (t.maillage || 0) === i || (mtState.origGeoms.length === 1)) };
+    const g = geometrieTrousPeau(partie, minE, maxE, diagonaleTrousPeau(_positionsPlates(pos)));
+    if (!g.nombre) return;
+    const ajouter = (obj, ordre) => { obj.renderOrder = ordre; obj.frustumCulled = false; parent.add(obj); mtState.helpers.push(obj); };
+    const tri = (tab, opacite, ordre, additif) => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(tab, 3));
+      ajouter(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: COULEUR_PEAU, transparent: true, opacity: opacite, depthTest: false, depthWrite: false,
+        side: THREE.DoubleSide, blending: additif ? THREE.AdditiveBlending : THREE.NormalBlending })), ordre);
+    };
+    tri(g.halo, 0.22, 998, true);       // halo : la meme zone, plus large et plus pale (additif : il luit sur fond sombre)
+    tri(g.zone, 0.55, 999, false);      // zone translucide bleu clair, legerement en retrait de la coque (pas additive : reste bleue sur une coque blanche)
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(g.lignes, 3));
+    ajouter(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: COULEUR_PEAU, transparent: true, opacity: 1, depthTest: false })), 1001);
+    total += g.nombre;
+  });
+  mtState.skinN = total;
+  return total;
+}
+async function _mtSkinChercher() {
+  const sk = mtState.skin, chemin = mtState.meshPath;
+  if (!chemin) return;
+  if (sk.detect && sk.cle === chemin) { sk.etat = 'pret'; return; }           // deja calcule pour ce maillage
+  const jeton = ++sk.jeton;
+  sk.etat = 'cherche'; sk.cle = chemin; sk.detect = null; sk.t0 = Date.now();
+  _mtSkinMinuteur(false);
+  let r;
+  try { r = await API.detectSkinHoles({ meshPath: chemin, min: 3, max: 5000, projectName: state.currentProject && state.currentProject.name }); }
+  catch (e) { r = { success: false, error: String(e && e.message || e) }; }
+  if (jeton !== sk.jeton) return;              // fenetre fermee, case decochee ou autre maillage
+  _mtSkinMinuteur(true);
+  if (r && r.success && r.detect) { sk.etat = 'pret'; sk.detect = r.detect; try { console.log(`[fill-holes] skin holes: ${r.detect.nombre} (${r.detect.duree}s)`); } catch (_) {} }
+  else { sk.etat = 'erreur'; sk.detect = null; console.warn('[fill-holes] skin hole search failed:', r && r.error); }
+  _mtSchedulePreview();                        // redessine la lueur et le compteur
+}
+function _mtSkinPreparer(vals) {
+  const sk = mtState.skin;
+  if (!vals.skin_repair) { if (sk.etat !== 'inactif') _mtSkinReinit(); mtState.skinN = 0; return 0; }
+  if (sk.etat === 'inactif') _mtSkinChercher();
+  return _mtSkinDessiner(vals);
+}
+
 function _mtRunPreview() {
   if (!mtState.schema || !mtState.origModel) return;
   const body = document.getElementById('mt-body');
@@ -12565,6 +12655,7 @@ function _mtRunPreview() {
       allOk = false;
     }
   }
+  if (mtState.schema.skinRepair) _mtSkinPreparer(vals);
   mtState.lastPreviewOk = allOk;
   // Drive TransformControls for schemas that opt in. We position
   // - the dummy (= what TC drags) at the CURRENT pivot (preset + offset)
@@ -12610,7 +12701,11 @@ function _mtRunPreview() {
   // move, or removeCount > LIVE_MAX), the user can't apply locally.
   const devBtn = document.getElementById('mt-apply-device');
   if (devBtn) {
-    if (allOk) {
+    if (mtState.schema.skinRepair && vals.skin_repair) {
+      // la reparation de la peau (cartes de profondeur, Python) ne tourne pas dans le navigateur : « Apply » sur le serveur seulement
+      devBtn.disabled = true;
+      devBtn.title = _i18nT('Repairing the outer skin runs on the server: use Apply.');
+    } else if (allOk) {
       devBtn.disabled = false;
       devBtn.removeAttribute('title');   // l'enregistrement est facture : pas de « no credits used »
     } else {
@@ -12622,6 +12717,12 @@ function _mtRunPreview() {
   if (status) {
     if (mtState.schema.previewStatus) {
       status.textContent = mtState.schema.previewStatus(vals, mtState);
+      if (mtState.schema.skinRepair) {
+        // case cochee et rien d'ouvert a boucher : le motif (« cochez la case ») n'a plus lieu d'etre, le compteur des trous de peau suffit
+        if (vals.skin_repair && !(mtState.lastStats && mtState.lastStats.filled)) status.textContent = '';
+        mtState.statusBase = status.textContent;
+        _mtSkinStatut();
+      }
     } else {
       status.textContent = fn
         ? `Live preview · ${Object.entries(vals).map(([k,v]) => `${k}=${v}`).join(' · ')}`
@@ -12768,6 +12869,7 @@ function _mtStatut(texte) {
 }
 function _mtLoadMesh(meshPath) {
   const jeton = ++_mtJeton;
+  mtState.meshPath = meshPath;
   if (mtState.origModel && mtState.scene) {
     mtState.scene.remove(mtState.origModel);
   }
@@ -13189,6 +13291,7 @@ function openMeshToolModal(toolName) {
     // overlays the preview hook added (Fill Holes boundary lines, ...).
     for (const e of mtState.origGeoms) { e.mesh.geometry = e.originalGeom; }
     _mtClearHelpers();
+    _mtSkinReinit();
     // Tear down the draggable pivot widget so the next tool's modal
     // doesn't see a stale gizmo (and OrbitControls regains focus).
     if (mtState.transformControls) _mtDisableTransformGizmo();
