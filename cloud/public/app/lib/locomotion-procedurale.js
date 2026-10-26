@@ -1160,6 +1160,11 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       }
     }
     p.neutre = N;
+    p.axeDeroule = null;
+    if (!debout && !bipede && globalThis.__deroulePiedLibre !== false) {
+      const ho = [p.piedOff[0], 0, p.piedOff[2]], hl = norm(ho);
+      if (hl > 0.2 * norm(p.piedOff) && hl > 1e-9) { const ax = cross([0, 1, 0], mulS(ho, 1 / hl)); p.axeDeroule = mulS(ax, 1 / (norm(ax) + 1e-12)); }
+    }
     const a_ = P0[p.ik[0]], b_ = P0[p.ik[p.ik.length - 1]];
     const u_ = mulS(sub(b_, a_), 1 / (norm(sub(b_, a_)) + 1e-12));
     let pole = [0, 0, 0], ecartMax = 0;
@@ -1612,7 +1617,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         }
       }
       if (!A.pas) { const sp_ = pasPied(C, p); if (sp_ && sp_.pit) theta += cles(t[i] / T, sp_.pit) * kAct; }   // pied tourne autour du bout (pied replie, patte levee)
-      const F = mm(Rcap[i], Rx(theta));
+      // axe de deroule du pied : Rx tourne le pied « vers l'avant (+z) ». Une patte etalee dont le pied pointe vers l'ARRIERE ou de COTE (araignee, insecte, lezard) etait roulee a
+      // l'envers : la cheville s'enfoncait de 2 cm sous le sol (12 % de H sur une araignee). L'axe est donc perpendiculaire a la direction horizontale du pied.
+      const F = mm(Rcap[i], p.axeDeroule && theta ? rotvec(p.axeDeroule, theta) : Rx(theta));
       Fpied[i] = F;
       if (p.pivotOff && theta > 0) {
         const orteil = add(cible, mv(Rcap[i], p.pivotOff));
