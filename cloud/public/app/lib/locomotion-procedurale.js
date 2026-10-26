@@ -2099,7 +2099,39 @@ function animerChute(sq, det, fps, variante) {
     let bas = Infinity;
     for (let j = 0; j < J; j++) bas = Math.min(bas, P[j][1]);
     const hop = u > U_IMPACT && u < 0.97 ? 0.025 * H * rebond(u) : 0;
-    const monte = sol - bas + hop;
+    let monte = sol - bas + hop;
+    // 26/10 (banc de rendu visuel, defaut « corps flottant ») : un bipede couche gardait le tronc a 0,22 m du sol (31 % de sa hauteur) parce que le plus bas des os,
+    // un bras ou un pied pointant droit vers le bas, le tenait comme un pilier. Une fois couche, c'est le TRONC (colonne, tete, bassin) qui se pose au sol, a une
+    // demi-epaisseur de corps (~5 % de H, Winter 2009 : profondeur du thorax ~ 0,13 H) ; les membres qui passeraient alors sous le sol se replient a plat dessus.
+    let gg = 0;
+    if (bip && globalThis.__mortAPlat !== false) {
+      gg = sm01((th / thF - 0.6) / 0.4);
+      if (gg > 0) {
+        let basT = Infinity;
+        for (const j of tronc) basT = Math.min(basT, P[j][1]);
+        for (const j of duCou) basT = Math.min(basT, P[j][1]);
+        const monteT = sol + 0.05 * H - basT + hop;
+        if (monteT < monte) monte += gg * (monteT - monte);
+        const gl = sol - monte + 0.004 * H;                  // le sol, dans le repere du calcul
+        for (const j of ordre) {
+          const q = par[j];
+          if (q < 0) { D[j] = Ri[j]; P[j] = j === racine ? r0 : tourne(th, P0[j]); continue; }
+          P[j] = add(P[q], mv(D[q], sub(P0[j], P0[q])));
+          // membre libre (chaine a un seul enfant, hors tronc et cou) dont l'articulation passerait sous le sol : il pivote autour de son parent jusqu'a poser le bout a plat
+          if (!tronc.has(j) && !duCou.has(j) && E[q].length === 1 && P[j][1] < gl && P[q][1] >= gl - 0.5 * H) {
+            const v = sub(P[j], P[q]), L = norm(v), dy = Math.min(gl - P[q][1], 0.999 * L), hx = Math.hypot(v[0], v[2]);
+            const hz = Math.sqrt(L * L - dy * dy), vN = hx > 1e-9 ? [v[0] * hz / hx, dy, v[2] * hz / hx] : [hz, dy, 0];
+            const ax = cross(v, vN), ang = Math.atan2(norm(ax), dot(v, vN));
+            if (ang > 1e-6) {
+              D[q] = mm(rotvec(ax, ang), D[q]);
+              Ri[q] = par[q] < 0 ? D[q] : mm(tr(D[par[q]]), D[q]);
+              P[j] = add(P[q], mv(D[q], sub(P0[j], P0[q])));
+            }
+          }
+          D[j] = mm(D[q], Ri[j]);
+        }
+      }
+    }
     R.push(Ri);
     racineMonde.push(add(r0, [0, monte, 0]));
     sec.forEach((r, k) => posSec[k].push(add(tourne(th, P0[r]), [0, monte, 0])));
@@ -2700,13 +2732,16 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
   }
   const balance = new Map();                                   // joint -> rotations locales (par rapport au parent), une par image
   const ampAile = PV.amp * (V.h || 1);
+  // 26/10 (banc de rendu visuel) : l'elevation du bout d'aile ne couvrait que 52 deg crete a crete en croisiere (62 en vol rapide) sur un rig reel, loin des 80-120 deg
+  // cites ci-dessus : le retard de phase le long de la chaine (0,55 rad par os) fait perdre ~40 % de l'amplitude sommee. Facteur de compensation 1,6 (mesure : 52 -> ~85 deg).
+  const FACTEUR_AILE = globalThis.__ailesAmples === false ? 1 : 1.6;
   for (const a of ailes) {
     // amplitude TOTALE du bout de l'aile (somme des rotations de la chaine) fixee, quelle que soit la longueur de la chaine : avant, une aile a
     // 4 articulations balayait ~170 deg crete a crete (bout d'aile du sol au-dessus de la verticale). Course des oiseaux : 80-120 deg crete a crete
     // (Tobalske & Dial 1996 ; Hedrick et al. 2002), vol stationnaire un peu plus.
     const nArt = a.chaine.length - 1, somme = Array.from({ length: nArt }, (_, k) => Math.pow(0.72, k)).reduce((x, y) => x + y, 0);
     a.chaine.slice(0, -1).forEach((j, k) => {
-      const amp = (PV.total ? PV.total * (V.h || 1) / somme : ampAile) * Math.pow(0.72, k), retard = 0.55 * k;     // l'extremite suit avec retard et moins d'amplitude
+      const amp = (PV.total ? PV.total * (V.h || 1) / somme : ampAile) * FACTEUR_AILE * Math.pow(0.72, k), retard = 0.55 * k;     // l'extremite suit avec retard et moins d'amplitude
       const repli = k >= 1 ? (PV.fold ?? 0) * (V.repli_aile ?? 1) * (k === 1 ? 1 : 0.6) : 0;     // coude / poignet flechis a la remontee, aile qui balaie vers l'arriere
       balance.set(j, t.map((tt) => {
         const u_ = uu(tt), ka = (AV ? AV.amp(u_) : 1) * gl(tt), fo = AV ? AV.fold(u_) : 0, ha = AV ? AV.haut(u_) * Math.pow(0.5, k) : 0;
