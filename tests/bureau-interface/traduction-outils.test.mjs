@@ -63,7 +63,7 @@ const DECLARATIONS = [
   '_stripColorWords', '_RC_COLOR_WORDS', '_ageBuildPrompt', '_ageStrength', '_preremplirPrompt',
   // New project (mode Auto)
   '_npAutoSync', '_npTexteAnalyse', 'NP_TYPE_NON_DETECTE', '_npTraductions', '_npTradMinuteur', '_npDescAuto', '_npAutoInfo', '_npResume',
-  'detecterTypeEtStyle', '_npNormaliser', '_NP_TYPES', '_NP_STYLES', '_npCompter', '_NP_MOTS', '_NP_LATIN_PLUS', '_npCompterUnicode', '_i18nT', '_i18nTf',
+  'detecterTypeEtStyle', '_npNormaliser', '_NP_TYPES', '_NP_STYLES', '_npCompter', '_NP_MOTS', '_NP_LATIN_PLUS', '_NP_COMPOSES', '_npCompterUnicode', '_i18nT', '_i18nTf',
   // avertissements avant depense (24/10, chantier ingestion)
   '_TEXTES_AVERTISSEMENT', '_nbMotsAvertissement', '_bridageEquilibre', '_confirmerAvertissements', '_verifierAvantDepense',
 ];
