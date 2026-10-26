@@ -316,7 +316,7 @@ class Couture(unittest.TestCase):
             return n
 
         self.assertEqual(defauts(), 0)
-        sans_filet = mock.patch.object(S, 'fermer_trous_couture', lambda V, F, A, N, sujet, pts=None: (V, F, A, N, 0))   # le filet final cacherait l'absence d'un etage
+        sans_filet = mock.patch.object(S, 'fermer_trous_couture', lambda V, F, A, N, W, sw, rep: (V, F, A, N, 0, W, sw, rep))   # le filet final cacherait l'absence d'un etage
         sans_filet.start(); self.addCleanup(sans_filet.stop)
         with mock.patch.object(S, 'relier_trou_et_copie', lambda V, A, C: np.zeros((0, 3), dtype=np.int64)):
             self.assertGreater(defauts(), 0, 'sans la bande de couture')
