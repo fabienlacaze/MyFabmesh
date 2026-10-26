@@ -5266,21 +5266,7 @@ html[dir="rtl"] .res-tailles { direction: ltr; unicode-bidi: isolate; }
 #modal-anim-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; align-content: start; box-sizing: border-box; width: 100%; padding: 16px; }
 #modal-anim-types .anim-type-opt { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 15px;
   padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; }
-#modal-anim-gen .modal-actions .primary-btn,
-#modal-job-details .modal-actions .primary-btn { flex: 1 1 auto; }
-#modal-job-details .modal-actions { justify-content: stretch; margin-top: 16px; }
-#modal-job-details .fen-tete.job-details-head { align-items: flex-start; margin-bottom: 0; padding-right: 0; }
-#modal-job-details .job-details-head-text { padding-right: 190px; }
-#modal-job-details .fen-apercu { display: flex; align-items: center; justify-content: center; }
-#jd-ref-img { width: 100%; height: 100%; object-fit: contain; border: 0; border-radius: 0; background: transparent; display: block; }
-#jd-ref-img[style*="none"] { display: none; }
-/* Sans image de reference : petite fenetre, une colonne (pas d'apercu vide de 980 x 612). */
-#modal-job-details .modal-card.fen-detail:has(#jd-ref-img:not([src])),
-#modal-job-details .modal-card.fen-detail:has(#jd-ref-img[style*="none"]) { width: min(560px, 92vw); max-width: 92vw; height: auto; }
-#modal-job-details .modal-card.fen-detail:has(#jd-ref-img:not([src])) .fen-corps,
-#modal-job-details .modal-card.fen-detail:has(#jd-ref-img[style*="none"]) .fen-corps { grid-template-columns: 1fr !important; }
-#modal-job-details .modal-card.fen-detail:has(#jd-ref-img:not([src])) .fen-apercu,
-#modal-job-details .modal-card.fen-detail:has(#jd-ref-img[style*="none"]) .fen-apercu { display: none; }
+#modal-anim-gen .modal-actions .primary-btn { flex: 1 1 auto; }
 
 
 /* ══ REGLE COMMUNE (25/10) : fenetre de reference .fen-3d = min(1700px, 97vw) x min(94vh, 1000px) ; colonne de droite >= 330 px a 1400 x 900.
