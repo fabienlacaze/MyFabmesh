@@ -5594,3 +5594,8 @@ html[dir="rtl"] .p3-cat { text-align: start; }
 
 /* arabe : le lien « Expert mode » de l'assistant de selection suit le sens de lecture (test arabe-rtl) */
 html[dir="rtl"] .me-w-link { text-align: start; }
+
+/* arabe : pendants logiques des alignements a gauche de l'assistant de selection (test arabe-rtl) */
+html[dir="rtl"] .me-w-head { text-align: start; }
+html[dir="rtl"] #me-wizard .me-w-big { text-align: start; }
+html[dir="rtl"] .me-w-card { text-align: start; }
