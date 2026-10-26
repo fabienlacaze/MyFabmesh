@@ -5591,3 +5591,6 @@ html[dir="rtl"] .p3-cat { text-align: start; }
 #modal-mesh-edit.me-select-mode #me-w-chip { display: flex; }
 #me-w-back::before, #me-w-back1::before, #me-w-back2::before { content: '\2039\00a0'; }
 #me-w-expert::after, #me-w-next1::after { content: '\00a0\203A'; }
+
+/* arabe : le lien « Expert mode » de l'assistant de selection suit le sens de lecture (test arabe-rtl) */
+html[dir="rtl"] .me-w-link { text-align: start; }
