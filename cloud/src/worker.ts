@@ -16191,7 +16191,8 @@ async function handleUploadRig(req: Request, env: Env): Promise<Response> {
   let nom = String(url.searchParams.get('filename') || 'rig').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 200)
     .replace(/\.(glb|gltf)$/i, '') || 'rig';
   // « _rigged_ » : c'est lui qui range le fichier parmi les rigs au rechargement
-  if (!/_rigged_/i.test(nom)) nom += '_rigged_manual';
+  // kind=mesh (27/10) : un maillage edite (Select faces, Sculpt...) trop gros pour le base64 de /api/upload-mesh passe ici mais n'est PAS un rig
+  if (url.searchParams.get('kind') !== 'mesh' && !/_rigged_/i.test(nom)) nom += '_rigged_manual';
   const nomProjet = String(url.searchParams.get('projectName') || '');
   const projet = nomProjet ? slugProjet(nomProjet) : '';   // nom non latin : segment unique (2026-10-13)
   const key = projet

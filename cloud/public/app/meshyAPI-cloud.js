@@ -1081,6 +1081,22 @@
         try {
           const normPath = String(arg.path).replace(/\\/g, '/');
           const filename = _basename(normPath) || ('mesh_' + Date.now() + '.glb');
+          // Gros maillage (27/10, « upload failed » sur la moissonneuse) : le base64 JSON decode dans le Worker depasse sa memoire (128 Mo) ;
+          // au-dela de ~12 Mo le GLB part BRUT, en flux, par la route des rigs (kind=mesh : pas de suffixe de rig).
+          if (arg.base64.length > 16e6) {
+            const bin = atob(arg.base64), oct = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) oct[i] = bin.charCodeAt(i);
+            const q = new URLSearchParams({ filename, kind: 'mesh' });
+            const projet = _projetAuLancement(arg.projectName);
+            if (projet) q.set('projectName', projet);
+            if (arg.tool) q.set('tool', arg.tool);
+            const rb = await fetch('/api/upload-rig?' + q.toString(), {
+              method: 'POST', credentials: 'include', headers: { 'Content-Type': 'model/gltf-binary' }, body: oct });
+            const jb = await rb.json().catch(() => ({}));
+            if (arg.tool && typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+            if (!rb.ok || !jb?.success) return { success: false, error: jb?.error || `upload failed (HTTP ${rb.status})` };
+            return { success: true, ok: true, path: jb.path, url: jb.url };
+          }
           const resp = await fetch('/api/upload-mesh', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1093,7 +1109,7 @@
           });
           const r = await resp.json().catch(() => ({}));
           if (!r || !r.success) {
-            return { success: false, error: (r && r.error) || 'upload failed' };
+            return { success: false, error: (r && r.error) || `upload failed (HTTP ${resp.status})` };
           }
           if (arg.tool && typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
           return { success: true, ok: true, path: r.path, url: r.url };
