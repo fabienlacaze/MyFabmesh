@@ -442,7 +442,7 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
   const seuilPlat = Math.max(SEUIL_PLAT * tol, BRUIT_FLOAT32 * maxabs);
   const boucles = [];
   const ajout = [];
-  const modes = { triangle: 0, quad: 0, optimal: 0, oreilles: 0 };
+  const modes = { triangle: 0, quad: 0, optimal: 0, oreilles: 0, lisse: 0 };
   for (const cycle of cycles) {
     const n = cycle.length;
     const reels = cycle.filter((e) => e >= 0);
@@ -475,10 +475,13 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
     else {
       reste -= cout_travail(n);
       const res = trianguler(pts.slice().reverse());
-      if (res === null) item.categorie = 'non_triangulable';
-      else {
+      item.categorie = 'a_boucher';
+      if (res === null) {
+        // Pourtour non plan ou qui se replie : aucune triangulation plate valable, mais le bouchon lisse (scripts/bouchage_lisse.py) n'en a pas besoin.
+        item.mode = 'lisse';
+        modes.lisse++;
+      } else {
         const [mode, triangles] = res;
-        item.categorie = 'a_boucher';
         item.mode = mode;
         modes[mode]++;
         for (const t of triangles) {
@@ -666,8 +669,19 @@ export function rendu_apercu(analyse, positions) {
     if (!liste) continue;
     for (let j = 0; j < b.n; j++) seg(liste, b.debut[j], b.debut[(j + 1) % b.n]);
     if (b.categorie === 'a_boucher') {
-      for (const t of b.triangles) {
-        for (const v of t) faces.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]);
+      if (b.triangles.length) {
+        for (const t of b.triangles) {
+          for (const v of t) faces.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]);
+        }
+      } else {
+        // Pourtour courbe ou replie : pas de triangulation plate (le bouchon lisse n'en a pas besoin), l'apercu le montre par un eventail depuis le centre.
+        let cx = 0, cy = 0, cz = 0;
+        for (let j = 0; j < b.n; j++) { cx += P[b.debut[j] * 3]; cy += P[b.debut[j] * 3 + 1]; cz += P[b.debut[j] * 3 + 2]; }
+        cx /= b.n; cy /= b.n; cz /= b.n;
+        for (let j = 0; j < b.n; j++) {
+          const u = b.debut[j], w = b.debut[(j + 1) % b.n];
+          faces.push(P[u * 3], P[u * 3 + 1], P[u * 3 + 2], P[w * 3], P[w * 3 + 1], P[w * 3 + 2], cx, cy, cz);
+        }
       }
     }
   }

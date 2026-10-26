@@ -13518,12 +13518,19 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
           kind: 'op', op: operation, parent: meshPath,
           params: namedParams || { args: params || [] },
         });
+        // Fill holes : mesh_tools.py ecrit « [mesh_tools] BILAN: {json} » (trous bouches, faces ajoutees, verdict) pour le message de fin.
+        let _bilan = null;
+        if (operation === 'fill_holes') {
+          const mb = /\[mesh_tools\] BILAN: (\{[^\r\n]*\})/.exec(stdout || '');
+          if (mb) { try { _bilan = JSON.parse(mb[1]); } catch (_) { _bilan = null; } }
+        }
         resolve({
           success: true,
           newPath: outPath,
           filename: path.basename(outPath),
           size: stats.size,
           operation,
+          ...(_bilan ? { stats: _bilan } : {}),
         });
       }
     });

@@ -457,7 +457,7 @@ def analyser(V, F, min_aretes=3, max_aretes=2000, tol=None, prep=None, budget=No
 
     boucles = []
     ajout = []
-    modes = {'triangle': 0, 'quad': 0, 'optimal': 0, 'oreilles': 0}
+    modes = {'triangle': 0, 'quad': 0, 'optimal': 0, 'oreilles': 0, 'lisse': 0}
     for cycle in cycles:
         n = len(cycle)
         reels = [e for e in cycle if e >= 0]
@@ -503,11 +503,15 @@ def analyser(V, F, min_aretes=3, max_aretes=2000, tol=None, prep=None, budget=No
             reste -= cout_travail(n)
             P = pts[::-1]
             res = trianguler(P)
+            item['categorie'] = 'a_boucher'
             if res is None:
-                item['categorie'] = 'non_triangulable'
+                # Pourtour non plan (surface courbe) ou qui se replie : AUCUNE triangulation plate valable, mais le bouchon lisse
+                # (bouchage_lisse.py : parametrage elliptique + sommets interieurs + lissage) n'en a pas besoin. Avant le 2026-10-26 ce cas
+                # etait « impossible a remplir » : un pourtour de 28 aretes sur une surface courbe n'etait pas bouche.
+                item['mode'] = 'lisse'
+                modes['lisse'] += 1
             else:
                 mode, triangles = res
-                item['categorie'] = 'a_boucher'
                 item['mode'] = mode
                 modes[mode] += 1
                 for t in triangles:

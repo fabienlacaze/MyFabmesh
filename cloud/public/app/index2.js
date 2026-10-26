@@ -12159,7 +12159,7 @@ const MESH_TOOL_SCHEMAS = {
   },
   fill_holes: {
     title: 'Fill holes',
-    subtitle: 'Open holes whose outline has between Min and Max edges show in GREEN (they will be filled); grey = too small, red = too big. Apply only ADDS faces: nothing existing is removed or moved, and each patch takes its texture from the neighbouring faces. Missing or thin areas that are not open holes cannot be fixed here.',
+    subtitle: 'Open holes whose outline has between Min and Max edges show in GREEN (they will be filled); grey = too small, red = too big. Apply only ADDS faces: nothing existing is removed or moved. Each patch is smooth: it follows the curve of the surface around the hole and takes its colours from the neighbouring texture. Missing or thin areas that are not open holes cannot be fixed here.',
     needsImage: false,
     supportsClientApply: true,
     params: [
@@ -12175,9 +12175,9 @@ const MESH_TOOL_SCHEMAS = {
     previewStatus: (vals, st) => {
       const s = st.lastStats;
       if (!s || !s.fh) return _i18nT('Computing…');
-      if (s.faces) {
+      if (s.filled) {
         return _i18nTf('Holes: {x} to fill (green)', s.filled) + ` · ` + _i18nTf('{x} too small (grey)', s.tooSmall) + ` · ` + _i18nTf('{x} too large (red)', s.tooBig)
-          + ` · ` + _i18nTf('+{x} faces will be added; nothing is removed', s.faces)
+          + ` · ` + _i18nT('Each hole gets a smooth patch that follows the surface and its colours; nothing is removed')
           + (s.unfillable ? ` · ` + _i18nTf('{x} cannot be filled (red)', s.unfillable) : '')
           + (s.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', s.flat) : '');
       }

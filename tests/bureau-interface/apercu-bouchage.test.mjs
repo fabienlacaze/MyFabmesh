@@ -224,7 +224,7 @@ function geometrie(c) {
     };
     traduit.length = 0;
     const bilan = etat('sphere_trois_trous_plage', 5, 12);
-    assert.match(bilan, /^Holes: 2 to fill \(green\) · 1 too small \(grey\) · 0 too large \(red\) · \+16 faces will be added; nothing is removed$/);
+    assert.match(bilan, /^Holes: 2 to fill \(green\) · 1 too small \(grey\) · 0 too large \(red\) · Each hole gets a smooth patch that follows the surface and its colours; nothing is removed$/);
     assert.equal(traduit.length, 0, 'le bilan ne passe pas par le traducteur de refus');
     const t = etat('sphere_t_jonction', 3, 2000);
     assert.equal(t, 'TRADUIT:' + cas('sphere_t_jonction').attendu.refus[1]);

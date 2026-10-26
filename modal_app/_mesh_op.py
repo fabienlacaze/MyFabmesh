@@ -282,67 +282,23 @@ def _charger_sans_traitement(glb_bytes: bytes):
 def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000):
     """Bouche les trous (pourtours d'aretes de bord) dont le nombre d'aretes est dans [min_edges, max_edges]. Rend (glb_bytes, stats).
 
-    NON DESTRUCTIF (refonte du 2026-10-21) : le noyau modal_app/bouchage_trous.py LIT les sommets et les faces et ne rend que des faces a
-    AJOUTER. Aucune face n'est supprimee, aucune UV reecrite, aucun sommet deplace : la version precedente fusionnait les sommets
-    (merge_vertices), supprimait les « faces cassees » et normalisait les normales, ce qui, mesure sur l'orc de 512 000 faces, supprimait
-    11,9 % des faces, reecrivait 38 % des UV et creait 204 boucles ouvertes (ou refusait a 17 % apres 74 a 160 s).
+    BOUCHON LISSE (2026-10-26, noyau modal_app/bouchage_lisse.py = scripts/bouchage_lisse.py, MEME code que le bureau) : la rustine suit la courbure
+    du voisinage et prend ses couleurs dans les texels voisins. NON DESTRUCTIF (refonte du 2026-10-21) : aucune face supprimee, aucune UV reecrite,
+    aucun sommet deplace. L'ancienne version fusionnait les sommets (merge_vertices), supprimait les « faces cassees » et normalisait les normales :
+    mesure sur l'orc de 512 000 faces, 11,9 % des faces supprimees, 38 % des UV reecrites, 204 boucles ouvertes creees (ou refus a 17 % apres 74 a 160 s).
 
     Rien a boucher -> RuntimeError EXPLIQUEE (le worker rembourse, le maillage n'est pas touche), avec le diagnostic du maillage ferme :
     faces retournees, aretes a plus de deux faces, miettes flottantes, ou « la matiere manquante n'est pas un trou »."""
-    import numpy as np
-    from modal_app.bouchage_trous import preparer, analyser, diagnostiquer, faces_ajoutees, agreger, message_refus
+    from modal_app.bouchage_lisse import boucher_scene
 
     scene = _charger_sans_traitement(glb_bytes)
-    maillages = [(nom, m) for nom, m in scene.geometry.items() if hasattr(m, 'faces') and len(m.faces)]
-    analyses, diagnostics, preps, ajouts = [], [], [], []
-    for nom, m in maillages:
-        V = np.asarray(m.vertices, dtype=np.float64)
-        F = np.asarray(m.faces, dtype=np.int64)
-        prep = preparer(V, F)
-        a = analyser(V, F, min_edges, max_edges, prep=prep)
-        analyses.append(a)
-        preps.append(prep)
-        ajouts.append(faces_ajoutees(a))
-        print(f'[mesh-op] fill_holes mesh={nom} faces={len(F)} bord={a["aretes_de_bord"]} boucles: a_boucher={a["a_boucher"]} '
-              f'trop_petites={a["trop_petites"]} trop_grandes={a["trop_grandes"]} degenerees={a["degenerees"]} '
-              f'non_triangulables={a["non_triangulables"]} -> +{a["faces_ajoutees"]} faces modes={a["modes"]}', flush=True)
-
-    total_ajoute = sum(len(x) for x in ajouts)
-    if total_ajoute == 0:
-        diagnostics = [diagnostiquer(p, a) for p, a in zip(preps, analyses)]
-        somme, diag = agreger(analyses, diagnostics)
-        code, texte = message_refus(somme, diag, min_edges, max_edges)
+    res = boucher_scene(scene, min_edges, max_edges, journal=lambda m: print(f'[mesh-op] fill_holes {m}', flush=True))
+    if res['refus']:
+        code, texte = res['refus']
         print(f'[mesh-op] fill_holes: rien a boucher ({code})', flush=True)
         raise RuntimeError(texte)
-
-    per_mesh = []
-    avant = 0
-    apres = 0
-    for (nom, m), a, ajout in zip(maillages, analyses, ajouts):
-        F = np.asarray(m.faces, dtype=np.int64)
-        V_avant = np.asarray(m.vertices).copy() if len(ajout) else None
-        if len(ajout):
-            m.faces = np.vstack([F, ajout])
-            # garde : le noyau ne fait QU'AJOUTER (aucune face existante touchee, aucun sommet deplace)
-            if not np.array_equal(np.asarray(m.faces)[:len(F)], F) or not np.array_equal(np.asarray(m.vertices), V_avant):
-                raise RuntimeError('internal check failed: the mesh would have been altered, nothing was changed.')
-        avant += len(F)
-        apres += len(m.faces)
-        per_mesh.append({
-            'name': nom, 'faces_before': int(len(F)), 'faces_after': int(len(m.faces)),
-            'holes_filled': a['a_boucher'], 'skipped_too_small': a['trop_petites'], 'skipped_too_big': a['trop_grandes'],
-            'degenerate_loops': a['degenerees'], 'unfillable': a['non_triangulables'], 'boundary_edges': a['aretes_de_bord'],
-            'holes_filled_delta_faces': int(len(ajout)), 'modes': a['modes'],
-        })
-    restantes = sum(a['restantes'] for a in analyses)
-    stats = {
-        'verdict': 'OPEN_HOLES' if restantes else 'CLOSED_OK',
-        'holes_filled_delta_faces': total_ajoute,
-        'holes_filled': sum(a['a_boucher'] for a in analyses),
-        'holes_remaining': restantes,
-        'meshes': per_mesh,
-    }
-    print(f'[mesh-op] fill_holes: {avant} -> {apres} faces (+{total_ajoute}), verdict={stats["verdict"]}', flush=True)
+    stats = res['stats']
+    print(f'[mesh-op] fill_holes: +{stats["holes_filled_delta_faces"]} faces, {stats["holes_filled"]} trous bouches, verdict={stats["verdict"]}', flush=True)
     return _export(scene), stats
 
 

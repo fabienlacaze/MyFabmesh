@@ -17,6 +17,7 @@ Operations:
 import sys
 import os
 import time
+import json
 import numpy as np
 
 # Python EMBARQUE de l'appli installee (fichier ._pth) : le dossier du script n'est PAS dans sys.path (2026-09-30, audit de
@@ -320,43 +321,29 @@ class Refus(Exception):
 def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000):
     """Bouche les trous dont le pourtour a entre `min_hole_size` et `max_hole_size` ARETES.
 
-    NON DESTRUCTIF (refonte du 2026-10-21) : le noyau partage bouchage_trous.py (= modal_app/bouchage_trous.py, MEME logique que les apercus
-    du bureau et du site) LIT les sommets et les faces et ne rend que des faces a AJOUTER. Aucune face supprimee, aucune UV reecrite,
-    aucun sommet deplace ni ajoute ; les rustines sont orientees a l'inverse des faces de rive et reprennent les UV des coins voisins.
-    Avant : eventail au barycentre (rustine retournee), `fix_normals()` apres coup (qui retourne des faces), tolerance propre a ce fichier.
-    Rien a boucher -> Refus explique (le maillage ferme, ou « la matiere manquante n'est pas un trou »)."""
+    BOUCHON LISSE (refonte du 2026-10-26, noyau scripts/bouchage_lisse.py = modal_app/bouchage_lisse.py) : la detection est celle du noyau partage
+    bouchage_trous.py (MEME logique que les apercus du bureau et du site) ; la rustine, elle, suit la courbure du voisinage (sommets interieurs lisses,
+    tangente au raccord) et prend ses couleurs dans les texels du voisinage. NON DESTRUCTIF : aucune face d'entree supprimee, aucune UV reecrite, aucun
+    sommet deplace ; les rustines sont orientees comme le voisinage. Rien a boucher -> Refus explique (maillage ferme, hors plage...)."""
     import trimesh
-    from bouchage_trous import preparer, analyser, diagnostiquer, faces_ajoutees, agreger, message_refus
+    from bouchage_lisse import boucher_scene
     try:
         min_e = max(3, int(min_hole_size))
         max_e = max(min_e, int(max_hole_size))
     except (TypeError, ValueError):
         min_e, max_e = 3, 2000
     scene = trimesh.load(input_path, process=False)
-    geom_names = list(scene.geometry.keys()) if hasattr(scene, 'geometry') else [None]
-    geoms = list(scene.geometry.values()) if hasattr(scene, 'geometry') else [scene]
-    travail = []
-    for gi, g in enumerate(geoms):
-        if not hasattr(g, 'faces') or not hasattr(g, 'vertices') or len(g.faces) == 0:
-            continue
-        V = np.asarray(g.vertices, dtype=np.float64)
-        F = np.asarray(g.faces, dtype=np.int64)
-        prep = preparer(V, F)
-        a = analyser(V, F, min_e, max_e, prep=prep)
-        log(f'mesh {geom_names[gi]}: {len(F)} faces, {a["aretes_de_bord"]} boundary edges, loops: {a["a_boucher"]} to fill, '
-            f'{a["trop_petites"]} < {min_e}, {a["trop_grandes"]} > {max_e}, {a["degenerees"]} flat, {a["non_triangulables"]} unfillable '
-            f'-> +{a["faces_ajoutees"]} faces {a["modes"]}')
-        travail.append((gi, g, F, prep, a, faces_ajoutees(a)))
-    if sum(len(t[5]) for t in travail) == 0:
-        diagnostics = [diagnostiquer(t[3], t[4]) for t in travail]
-        somme, diag = agreger([t[4] for t in travail], diagnostics)
-        raise Refus(message_refus(somme, diag, min_e, max_e)[1])
-    for gi, g, F, prep, a, ajout in travail:
-        if not len(ajout):
-            continue
-        g.faces = np.vstack([F, ajout])
+    if not hasattr(scene, 'geometry'):
+        scene = trimesh.Scene(scene)
+    res = boucher_scene(scene, min_e, max_e, journal=log)
+    if res['refus']:
+        raise Refus(res['refus'][1])
+    geoms = list(scene.geometry.values())
     _export(scene, geoms, output_path)
-    log(f'holes filled: {sum(t[4]["a_boucher"] for t in travail)} (+{sum(len(t[5]) for t in travail)} faces, nothing removed)')
+    st = res['stats']
+    log(f'holes filled: {st["holes_filled"]} (+{st["holes_filled_delta_faces"]} faces, nothing removed)')
+    print('[mesh_tools] BILAN: ' + json.dumps({'holes_filled': st['holes_filled'], 'holes_remaining': st['holes_remaining'],
+                                              'holes_filled_delta_faces': st['holes_filled_delta_faces'], 'verdict': st['verdict']}), flush=True)
 
 
 def center(input_path, output_path):
