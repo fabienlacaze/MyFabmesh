@@ -10,13 +10,14 @@ Operations:
     decimate <input> <output> [target_faces=5000]
     subdivide <input> <output> [levels=1]
     fix_normals <input> <output>
-    fill_holes <input> <output> [max_hole_size=100]
+    fill_holes <input> <output> [min_hole_size=3] [max_hole_size=2000]   (aretes du pourtour ; AJOUTE des faces, ne retire rien)
     center <input> <output>
     retexture <input> <output> <source_image> [tex_res=2048]
 """
 import sys
 import os
 import time
+import json
 import numpy as np
 
 # Python EMBARQUE de l'appli installee (fichier ._pth) : le dossier du script n'est PAS dans sys.path (2026-09-30, audit de
@@ -313,137 +314,36 @@ def fix_normals(input_path, output_path):
     log('normals fixed (welded)')
 
 
-def _grouped_boundary_loops(verts, faces, bb_diag, cap=200000):
-    """Boundary loops in position-group space — IDENTICAL logic to the
-    renderer's _jsHoleFillPreview so the green preview matches the fill.
-
-    Returns loops as lists of REPRESENTATIVE original-vertex indices."""
-    from collections import defaultdict
-    # Strip degenerate triangles (zero-area / duplicate index) so they don't
-    # register as false boundary edges — same as the JS preview.
-    if len(faces):
-        f0, f1, f2 = faces[:, 0], faces[:, 1], faces[:, 2]
-        nondup = (f0 != f1) & (f1 != f2) & (f2 != f0)
-        cr = np.cross(verts[f1] - verts[f0], verts[f2] - verts[f0])
-        keep = nondup & (np.linalg.norm(cr, axis=1) * 0.5 >= bb_diag * 1e-12)
-        faces = faces[keep]
-    if not len(faces):
-        return []
-    # tol = bb_diag*1e-4 (kept in sync with the JS preview _jsHoleFillPreview).
-    # 2026-07-07 fix: was 1e-3 ~= a dense voxel-1024 edge length, so adjacent
-    # DISTINCT boundary verts welded together and the loop detector found ~0
-    # holes (no green preview + nothing filled). 1e-4 = the value the cloud
-    # _jsFillHoles converged on empirically (1e-5 was too strict: duplicate
-    # seam verts then failed to merge, missing holes the other way).
-    Q = 1.0 / (bb_diag * 1e-4)
-    keys = np.round(verts * Q).astype(np.int64)
-    uniq, first_idx, inv = np.unique(keys, axis=0, return_index=True, return_inverse=True)
-    group = inv.astype(np.int64)
-    rep = first_idx.astype(np.int64)          # original vertex index per group
-    Gn = len(uniq)
-    g0 = group[faces[:, 0]]; g1 = group[faces[:, 1]]; g2 = group[faces[:, 2]]
-    ea = np.concatenate([g0, g1, g2]); eb = np.concatenate([g1, g2, g0])
-    m = ea != eb
-    ea, eb = ea[m], eb[m]
-    lo = np.minimum(ea, eb); hi = np.maximum(ea, eb)
-    keyud = lo * Gn + hi
-    uvals, ucounts = np.unique(keyud, return_counts=True)
-    cntper = ucounts[np.searchsorted(uvals, keyud)]
-    isb = cntper == 1
-    succ = defaultdict(list)
-    for a, b in zip(ea[isb].tolist(), eb[isb].tolist()):
-        succ[a].append(b)
-    loops = []
-    for start in list(succ.keys()):
-        while succ.get(start):
-            loop = []
-            g = start
-            for _ in range(100000):
-                loop.append(g)
-                lst = succ.get(g)
-                nx = lst.pop() if lst else None
-                if nx is None or nx == start:
-                    break
-                g = nx
-            if len(loop) >= 3:
-                loops.append([int(rep[x]) for x in loop])
-            # A short chain (<3) is a dead-end, not a loop — skip it but keep
-            # draining this start's remaining successors (was `else: break`,
-            # which threw away every other loop sharing this start node).
-            if len(loops) >= cap:
-                return loops
-    return loops
+class Refus(Exception):
+    """Refus EXPLIQUE d'une operation (rien a faire) : le bureau l'affiche tel quel, aucun fichier n'est ecrit."""
 
 
 def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000):
-    """Fill mesh holes whose boundary loop is between min and max EDGES.
+    """Bouche les trous dont le pourtour a entre `min_hole_size` et `max_hole_size` ARETES.
 
-    Uses the SAME position-group boundary detection as the renderer's live
-    green preview (_jsHoleFillPreview), so the holes shown in green are
-    exactly the ones filled. Each in-range loop is closed by a fan: a
-    size-3 hole gets one triangle, larger holes a centroid fan whose new
-    centre vertex takes the average UV of the loop so the patch inherits
-    the surrounding texture."""
+    BOUCHON LISSE (refonte du 2026-10-26, noyau scripts/bouchage_lisse.py = modal_app/bouchage_lisse.py) : la detection est celle du noyau partage
+    bouchage_trous.py (MEME logique que les apercus du bureau et du site) ; la rustine, elle, suit la courbure du voisinage (sommets interieurs lisses,
+    tangente au raccord) et prend ses couleurs dans les texels du voisinage. NON DESTRUCTIF : aucune face d'entree supprimee, aucune UV reecrite, aucun
+    sommet deplace ; les rustines sont orientees comme le voisinage. Rien a boucher -> Refus explique (maillage ferme, hors plage...)."""
     import trimesh
+    from bouchage_lisse import boucher_scene
     try:
         min_e = max(3, int(min_hole_size))
         max_e = max(min_e, int(max_hole_size))
     except (TypeError, ValueError):
         min_e, max_e = 3, 2000
-    scene = trimesh.load(input_path)
-    geom_names = list(scene.geometry.keys()) if hasattr(scene, 'geometry') else [None]
-    geoms = list(scene.geometry.values()) if hasattr(scene, 'geometry') else [scene]
-    for gi, g in enumerate(geoms):
-        if not hasattr(g, 'faces') or not hasattr(g, 'vertices') or len(g.faces) == 0:
-            continue
-        verts = np.asarray(g.vertices, dtype=np.float64)
-        faces = np.asarray(g.faces, dtype=np.int64)
-        is_tex = isinstance(getattr(g, 'visual', None), trimesh.visual.TextureVisuals)
-        old_uv = None
-        if is_tex and getattr(g.visual, 'uv', None) is not None and len(g.visual.uv) == len(verts):
-            old_uv = np.asarray(g.visual.uv, dtype=np.float64)
-        old_mat = getattr(g.visual, 'material', None) if is_tex else None
-        bb_diag = float(np.linalg.norm(verts.max(0) - verts.min(0))) or 1.0
-        loops = _grouped_boundary_loops(verts, faces, bb_diag)
-        new_verts, new_uv, new_faces = [], [], []
-        filled = skipped_small = skipped_big = 0
-        base = len(verts)
-        for loop in loops:
-            nL = len(loop)
-            if nL < min_e:
-                skipped_small += 1
-                continue
-            if nL > max_e:
-                skipped_big += 1
-                continue
-            if nL == 3:
-                new_faces.append((loop[0], loop[1], loop[2]))
-            else:
-                ci = base + len(new_verts)
-                new_verts.append(verts[loop].mean(0))
-                if old_uv is not None:
-                    new_uv.append(old_uv[loop].mean(0))
-                for i in range(nL):
-                    new_faces.append((loop[i], loop[(i + 1) % nL], ci))
-            filled += 1
-        if new_faces:
-            allverts = np.vstack([verts, np.asarray(new_verts, dtype=np.float64)]) if new_verts else verts
-            allfaces = np.vstack([faces, np.asarray(new_faces, dtype=np.int64)])
-            ng = trimesh.Trimesh(vertices=allverts, faces=allfaces, process=False)
-            if old_uv is not None:
-                alluv = np.vstack([old_uv, np.asarray(new_uv, dtype=np.float64)]) if new_uv else old_uv
-                ng.visual = trimesh.visual.TextureVisuals(uv=alluv, material=old_mat)
-            geoms[gi] = ng
-            if geom_names[gi] is not None:
-                scene.geometry[geom_names[gi]] = ng
-            g = ng
-        try:
-            g.fix_normals()
-        except Exception:
-            pass
-        log(f'holes filled: {filled} (skipped {skipped_small} < {min_e}, '
-            f'{skipped_big} > {max_e} edges)')
+    scene = trimesh.load(input_path, process=False)
+    if not hasattr(scene, 'geometry'):
+        scene = trimesh.Scene(scene)
+    res = boucher_scene(scene, min_e, max_e, journal=log)
+    if res['refus']:
+        raise Refus(res['refus'][1])
+    geoms = list(scene.geometry.values())
     _export(scene, geoms, output_path)
+    st = res['stats']
+    log(f'holes filled: {st["holes_filled"]} (+{st["holes_filled_delta_faces"]} faces, nothing removed)')
+    print('[mesh_tools] BILAN: ' + json.dumps({'holes_filled': st['holes_filled'], 'holes_remaining': st['holes_remaining'],
+                                              'holes_filled_delta_faces': st['holes_filled_delta_faces'], 'verdict': st['verdict']}), flush=True)
 
 
 def center(input_path, output_path):
@@ -971,6 +871,10 @@ if __name__ == '__main__':
         _marquer_ia(out)
         log(f'{op} done in {time.time()-t0:.1f}s')
         log(f'output: {out} ({os.path.getsize(out)} bytes)')
+    except Refus as e:
+        # Refus EXPLIQUE (rien a faire) : une ligne « REFUS: » que main.js remonte telle quelle a l'interface, pas de trace Python.
+        print(f'[mesh_tools] REFUS: {e}', flush=True)
+        sys.exit(3)
     except Exception as e:
         log(f'ERROR: {type(e).__name__}: {e}')
         import traceback
