@@ -137,5 +137,56 @@ class TestFillbench(unittest.TestCase):
         self.assertEqual(r['ouvertures_bouchees'], 1)
 
 
+VERITE2 = os.path.join(RACINE, 'verite_v2.json')
+FACES2 = os.path.join(RACINE, 'verite_v2_faces.npz')
+
+
+@unittest.skipUnless(os.path.exists(VERITE2) and os.path.exists(FACES2), 'cas v2 absents (fillbench_generer.py --v2)')
+class TestFillbenchV2(unittest.TestCase):
+    """Cas v2 : peau exterieure simple et fermee, peau interieure ENTIEREMENT dessous, visible de l'exterieur sous chaque trou."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(VERITE2, encoding='utf-8') as fh:
+            cls.v = json.load(fh)['cas']
+        cls.faces = np.load(FACES2)
+
+    def _geoms(self, nom):
+        import trimesh
+        sc = trimesh.load(os.path.join(RACINE, self.v[nom]['fichier']), force='scene', process=False)
+        return sc.geometry['peau_ext'], sc.geometry['peau_int']
+
+    def test_interieur_sous_exterieur(self):
+        import trimesh
+        for nom in ('peau_double_perce_2', 'peau_collee_perce_2'):
+            ext, inte = self._geoms(nom)
+            f = self.v[nom]
+            diag = f['diag']
+            Vi = np.asarray(inte.vertices)
+            rng = np.random.default_rng(0)
+            pts = Vi[rng.choice(len(Vi), 2500, replace=False)]
+            loin = np.ones(len(pts), dtype=bool)
+            for t in f['trous']:
+                loin &= np.linalg.norm(pts - np.asarray(t['centre']), axis=1) > 3 * t['rayon'] + 0.03 * diag
+            pts = pts[loin]
+            q, dist, tri = trimesh.proximity.closest_point(ext, pts)
+            sgn = ((pts - q) * np.asarray(ext.face_normals)[tri]).sum(axis=1)
+            self.assertLessEqual(float(sgn.max()), 1e-4 * diag, '%s : de la peau interieure sort de l exterieure' % nom)
+            self.assertGreater(float(ext.volume), 0, '%s : peau exterieure mal orientee' % nom)
+
+    def test_interieur_visible_sous_les_trous(self):
+        import fillbench_generer as G
+        for nom in ('peau_double_perce_2', 'peau_collee_perce_2'):
+            f = self.v[nom]
+            V, F, _ = S.charger_cas(os.path.join(RACINE, f['fichier']), souder=False)
+            nfe = f['faces_ext']
+            self.assertGreaterEqual(len(f['trous']), 2)
+            for i, t in enumerate(f['trous'][:4]):
+                ids = nfe + self.faces['%s__%d' % (nom, i)]
+                pct = 100 * G.visibilite_trou(V, F, ids, t['centre'], t['normale'], t['rayon'], f['diag'])
+                self.assertGreaterEqual(pct, 80.0, '%s trou %d : interieur visible a %.0f %% seulement' % (nom, i, pct))
+                self.assertGreaterEqual(t['visible_int_pct'], 80.0)
+
+
 if __name__ == '__main__':
     unittest.main()

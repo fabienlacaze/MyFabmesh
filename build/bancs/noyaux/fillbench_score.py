@@ -207,12 +207,13 @@ def main():
     ap.add_argument('--delai', type=int, default=1800)
     ap.add_argument('--json', default='')
     ap.add_argument('--option', action='append', default=[])
+    ap.add_argument('--v2', action='store_true', help='cas v2 (cases_v2/, verite_v2.json) : peau simple propre, interieur visible par les trous')
     ap.add_argument('--enfant', nargs=3, metavar=('GLB', 'SORTIE', 'OPTIONS_JSON'))
     a = ap.parse_args()
     if a.enfant:
         enfant(a.module, a.enfant[0], a.enfant[1], json.loads(a.enfant[2]))
         return 0
-    verite = json.load(open(os.path.join(a.racine, 'verite.json'), encoding='utf-8'))['cas']
+    verite = json.load(open(os.path.join(a.racine, 'verite_v2.json' if a.v2 else 'verite.json'), encoding='utf-8'))['cas']
     options = {'max_trou_relatif': MAX_TROU_RELATIF}
     for o in a.option:
         k, _, v = o.partition('=')
@@ -268,7 +269,7 @@ def main():
     print('GLOBAL : ' + '  '.join('%s=%s' % (k, ('%.3f' % v) if isinstance(v, float) else v) for k, v in glob.items()))
     ag = agreger(res)
     print('RAPPEL PAR CATEGORIE : ' + '  '.join('%s %d/%d' % (k, v['trouves'], v['total']) for k, v in ag.items()))
-    sortie = a.json or os.path.join(a.racine, 'resultats', '%s_%s.json' % (etiquette, time.strftime('%Y%m%d_%H%M%S')))
+    sortie = a.json or os.path.join(a.racine, 'resultats', '%s%s_%s.json' % (etiquette, '_v2' if a.v2 else '', time.strftime('%Y%m%d_%H%M%S')))
     os.makedirs(os.path.dirname(sortie), exist_ok=True)
     json.dump(_jsonable({'module': a.module, 'options': options, 'global': glob, 'categories': ag, 'cas': res}), open(sortie, 'w', encoding='utf-8'),
               indent=1)
