@@ -20386,6 +20386,9 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
     // Collect selected triangles (any vertex selected).
     const tris = [];
     for (let i = 0; i < idx.length; i += 3) {
+      if (sel.has(idx[i]) && sel.has(idx[i + 1]) && sel.has(idx[i + 2])) tris.push(idx[i], idx[i + 1], idx[i + 2]);   // FACES ENTIERES (sinon la copie « eclate »)
+    }
+    if (!tris.length) for (let i = 0; i < idx.length; i += 3) {
       if (sel.has(idx[i]) || sel.has(idx[i + 1]) || sel.has(idx[i + 2])) tris.push(idx[i], idx[i + 1], idx[i + 2]);
     }
     if (!tris.length) return;
@@ -20394,8 +20397,13 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
     for (const [i, o] of sel) col.setXYZ(i, o[0], o[1], o[2]);
     geom.computeBoundingBox();
     const bb = geom.boundingBox;
-    const eps = (bb ? bb.min.distanceTo(bb.max) : 1) * 0.01;
-    const oldV = pos.count, addV = tris.length;
+    const eps = (bb ? bb.min.distanceTo(bb.max) : 1) * 0.004;
+    // SOMMETS PARTAGES : chaque sommet source n'est copie qu'UNE fois (surface continue, plus de triangles isoles)
+    const remap = new Map(), uniq = [];
+    for (const v of tris) if (!remap.has(v)) { remap.set(v, pos.count + uniq.length); uniq.push(v); }
+    if (!geom.attributes.normal) geom.computeVertexNormals();
+    const nor = geom.attributes.normal;
+    const oldV = pos.count, addV = uniq.length;
     // 2026-10-03 (campagne 3D, defaut 13) : seuls POSITION et COLOR_0 etaient prolonges ; TEXCOORD_0,
     // NORMAL (et peaux eventuelles) gardaient l ancien nombre de sommets -> GLB invalide (81 125
     // contre 24 005 elements). On prolonge TOUS les attributs ; si la geometrie porte des cibles de
@@ -20418,36 +20426,27 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
       for (let q = 0; q < oldV; q++) for (let c2 = 0; c2 < k; c2++) nv[q * k + c2] = entrelace ? at.getComponent(q, c2) : at.array[q * k + c2];
       autres.push([nom, at, nv]);
     }
-    const newIdx = Array.from(idx);
-    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vD = new THREE.Vector3(), n = new THREE.Vector3(), tmp = new THREE.Vector3();
-    let w = oldV;
-    for (let t = 0; t < tris.length; t += 3) {
-      const a = tris[t], b = tris[t + 1], d = tris[t + 2];
-      vA.fromBufferAttribute(pos, a); vB.fromBufferAttribute(pos, b); vD.fromBufferAttribute(pos, d);
-      n.subVectors(vB, vA).cross(tmp.subVectors(vD, vA)).normalize().multiplyScalar(eps);
-      const base = w, ids = [a, b, d];
-      for (let k = 0; k < 3; k++) {
-        const s = ids[k];
-        newPos[w * 3] = pos.getX(s) + n.x; newPos[w * 3 + 1] = pos.getY(s) + n.y; newPos[w * 3 + 2] = pos.getZ(s) + n.z;
-        newCol[w * 3] = col.getX(s); newCol[w * 3 + 1] = col.getY(s); newCol[w * 3 + 2] = col.getZ(s);
-        for (const [, at, nv] of autres) { const kk = at.itemSize; for (let c2 = 0; c2 < kk; c2++) nv[w * kk + c2] = at.isInterleavedBufferAttribute ? at.getComponent(s, c2) : at.array[s * kk + c2]; }
-        w++;
-      }
-      newIdx.push(base, base + 1, base + 2);
+    for (let j = 0; j < addV; j++) {
+      const s = uniq[j], w = oldV + j;
+      newPos[w * 3] = pos.getX(s) + nor.getX(s) * eps; newPos[w * 3 + 1] = pos.getY(s) + nor.getY(s) * eps; newPos[w * 3 + 2] = pos.getZ(s) + nor.getZ(s) * eps;
+      newCol[w * 3] = col.getX(s); newCol[w * 3 + 1] = col.getY(s); newCol[w * 3 + 2] = col.getZ(s);
+      for (const [, at, nv] of autres) { const kk = at.itemSize; for (let c2 = 0; c2 < kk; c2++) nv[w * kk + c2] = at.isInterleavedBufferAttribute ? at.getComponent(s, c2) : at.array[s * kk + c2]; }
     }
+    const newIdx = Array.from(idx);
+    for (let q = 0; q < tris.length; q++) newIdx.push(remap.get(tris[q]));
     geom.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
     geom.setAttribute('color', new THREE.BufferAttribute(newCol, 3));
     for (const [nom, at, nv] of autres) geom.setAttribute(nom, new THREE.BufferAttribute(nv, at.itemSize, at.isInterleavedBufferAttribute ? false : at.normalized));
     geom.setIndex(newIdx);
     // Select the duplicate (cyan), drop the old selection.
     const nsel = new Map(), ncol = geom.attributes.color;
-    for (let v = oldV; v < w; v++) { nsel.set(v, [ncol.getX(v), ncol.getY(v), ncol.getZ(v)]); ncol.setXYZ(v, 0, 1, 1); }
+    for (let v = oldV; v < oldV + addV; v++) { nsel.set(v, [ncol.getX(v), ncol.getY(v), ncol.getZ(v)]); ncol.setXYZ(v, 0, 1, 1); }
     geom._selSaved = nsel;
     geom._posGroups = null; geom._posKeyByIndex = null;
     geom.attributes.position.needsUpdate = true;
     geom.attributes.color.needsUpdate = true;
-    geom.computeVertexNormals();
-    total += addV / 3;
+    geom.deleteAttribute('normal'); geom.computeVertexNormals();   // normales recreees a la nouvelle taille
+    total += tris.length / 3;
   });
   _meUpdateSelButtons();
   showToast(total ? `Duplicated ${total} faces` : 'Nothing selected', total ? 'success' : 'info', 1500);
