@@ -71,6 +71,20 @@ class Collier:
         return self.indices[self.indptr[g]:self.indptr[g + 1]]
 
 
+class ColliersFiltre:
+    """Le collier restreint a un ensemble de groupes : les trous de PEAU (bouchage_peau.py) n'ont pas de bord ouvert, leurs sommets de pourtour touchent
+    aussi le fond du puits ; seuls les voisins de la peau EXTERIEURE doivent tenir la tangente du bouchon."""
+
+    def __init__(self, base, permis):
+        self.base = base
+        self.permis = permis
+        self.groupe = base.groupe
+        self.pos = base.pos
+
+    def voisins(self, g):
+        return [v for v in self.base.voisins(g) if int(v) in self.permis]
+
+
 # --------------------------------------------------------------------------------------------------------------------------------------------
 # Parametrage elliptique et semis
 # --------------------------------------------------------------------------------------------------------------------------------------------
@@ -1034,7 +1048,8 @@ def boucher(V, F, analyse, prep, UV=None, normales=None, couleurs_sommets=None, 
             debut = np.asarray(item['debut'], dtype=np.int64)[::-1]      # ordre de la rustine
             R = V[debut]
             Nr = np.asarray(normales, dtype=np.float64)[debut] if normales is not None else None
-            r = boucher_un(R, Nr, collier, groupe[debut], ordre, Ng_ring=Ng[groupe[debut]])
+            col = ColliersFiltre(collier, item['voisins_ok']) if item.get('voisins_ok') is not None else collier
+            r = boucher_un(R, Nr, col, groupe[debut], ordre, Ng_ring=Ng[groupe[debut]])
             if UVa is not None:
                 UVr = UVa[debut]
                 if occupation is not None and nilots < ILOTS_MAX and poser_ilot(r, R, UVr, ecriture, occupation, densite):
@@ -1149,7 +1164,15 @@ def _noyau_trous():
     return T
 
 
-def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2):
+def _noyau_peau():
+    try:
+        import bouchage_peau as P             # bureau : scripts/
+    except ImportError:
+        from modal_app import bouchage_peau as P      # Modal : paquet modal_app
+    return P
+
+
+def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, peau=True):
     """Bouche les trous de TOUS les maillages de la scene trimesh (chargee avec process=False). Les geometries bouchees REMPLACENT les anciennes dans
     scene.geometry. Rend {'refus': (code, texte) | None, 'stats': {...}}. Rien a boucher -> refus, la scene n'est pas touchee."""
     import numpy as np
@@ -1165,6 +1188,19 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2):
         journal(f'mesh {nom}: {len(F)} faces, {a["aretes_de_bord"]} boundary edges, loops: {a["a_boucher"]} to fill, {a["trop_petites"]} < {a["min_aretes"]}, '
                 f'{a["trop_grandes"]} > {a["max_aretes"]}, {a["degenerees"]} flat, {a["non_triangulables"]} unfillable, {a["chaines_ouvertes"]} open chains')
         travail.append((nom, g, V, F, prep, a))
+    peau_trouvee = 0
+    if peau and sum(t[5]['a_boucher'] for t in travail) == 0:
+        # Aucun trou ouvert : le maillage est une pile de feuilles dont les trous n'ont pas d'arete de bord (voir bouchage_peau.py). On cherche ceux-la.
+        P = _noyau_peau()
+        for i, (nom, g, V, F, prep, a) in enumerate(travail):
+            try:
+                ap = P.analyse_peau(V, F, prep, min_aretes, max_aretes, journal=journal)
+            except Exception as e:                  # la detection de peau ne doit jamais faire echouer l'outil
+                journal(f'mesh {nom}: skin-hole search failed ({type(e).__name__}: {e})')
+                continue
+            if ap['a_boucher']:
+                travail[i] = (nom, g, V, F, prep, ap)
+                peau_trouvee += ap['a_boucher']
     if sum(t[5]['a_boucher'] for t in travail) == 0:
         diagnostics = [T.diagnostiquer(t[4], t[5]) for t in travail]
         somme, diag = T.agreger([t[5] for t in travail], diagnostics)
@@ -1200,6 +1236,7 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2):
     stats = {
         'verdict': 'OPEN_HOLES' if restantes else 'CLOSED_OK',
         'holes_filled': sum(t[5]['a_boucher'] for t in travail),
+        'skin_holes_filled': int(peau_trouvee),
         'holes_remaining': int(restantes),
         'holes_filled_delta_faces': sum(m['faces_after'] - m['faces_before'] for m in par_maillage),
         'meshes': par_maillage,
