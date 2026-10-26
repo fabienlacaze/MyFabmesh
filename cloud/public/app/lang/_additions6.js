@@ -1731,7 +1731,17 @@
     "New symmetrical version created.": ["Nouvelle version symétrique créée.", "Se creó una nueva versión simétrica.", "已创建新的对称版本。", "नया सममित संस्करण बन गया।", "تم إنشاء نسخة متناظرة جديدة."],
     "Preparing the mesh for painting…": ["Préparation du maillage pour la peinture…", "Preparando la malla para pintar…", "正在准备网格以便涂抹…", "पेंटिंग के लिए मेश तैयार हो रहा है…", "جارٍ تجهيز الشبكة للرسم…"],
     "Brush limit reached: apply, or erase part of the area.": ["Limite du pinceau atteinte : appliquez, ou effacez une partie de la zone.", "Límite del pincel alcanzado: aplica o borra parte de la zona.", "已达到画笔上限：请应用，或擦除部分区域。", "ब्रश की सीमा पूरी हुई: लागू करें, या क्षेत्र का कुछ हिस्सा मिटाएँ।", "تم بلوغ حد الفرشاة: طبّق أو امسح جزءاً من المنطقة."],
-    "This mesh is rigged or animated: symmetrize it before rigging.": ["Ce maillage est riggé ou animé : symétrisez-le avant de le riguer.", "Esta malla tiene rig o animación: simetrízala antes de hacer el rig.", "此网格已绑定骨骼或带动画：请在绑定骨骼之前进行对称。", "इस मेश में रिग या एनिमेशन है: रिग करने से पहले इसे सममित करें।", "هذه الشبكة مزوّدة بهيكل عظمي أو حركة: طبّق التناظر قبل إنشاء الهيكل."]
+    "This mesh is rigged or animated: symmetrize it before rigging.": ["Ce maillage est riggé ou animé : symétrisez-le avant de le riguer.", "Esta malla tiene rig o animación: simetrízala antes de hacer el rig.", "此网格已绑定骨骼或带动画：请在绑定骨骼之前进行对称。", "इस मेश में रिग या एनिमेशन है: रिग करने से पहले इसे सममित करें।", "هذه الشبكة مزوّدة بهيكل عظمي أو حركة: طبّق التناظر قبل إنشاء الهيكل."],
+    "Margin": ["Marge", "Margen", "边距", "मार्जिन", "الهامش"],
+    "15 % of the longest side, on each side": ["15 % du plus grand côté, de chaque côté", "15 % del lado más largo, en cada lado", "最长边的 15%，每边各加", "सबसे लंबी भुजा का 15 %, हर तरफ", "15 % من أطول ضلع، على كل جانب"],
+    "Current size": ["Taille actuelle", "Tamaño actual", "当前尺寸", "वर्तमान आकार", "الحجم الحالي"],
+    "New size": ["Nouvelle taille", "Nuevo tamaño", "新尺寸", "नया आकार", "الحجم الجديد"],
+    "Margin colour": ["Couleur de la marge", "Color del margen", "边距颜色", "मार्जिन का रंग", "لون الهامش"],
+    "Matches the image edge when it is uniform, white otherwise.": ["Reprend la couleur du bord de l'image quand il est uni, blanc sinon.", "Toma el color del borde de la imagen si es uniforme; si no, blanco.", "图像边缘颜色均匀时沿用该颜色，否则为白色。", "किनारा एकसमान हो तो उसी रंग का, नहीं तो सफ़ेद।", "يطابق لون حافة الصورة إن كانت موحّدة، وإلا فأبيض."],
+    "Position": ["Position", "Posición", "位置", "स्थिति", "الموضع"],
+    "HSL": ["TSL", "HSL", "HSL", "HSL", "HSL"],
+    "Image size": ["Taille de l'image", "Tamaño de la imagen", "图像尺寸", "छवि का आकार", "حجم الصورة"],
+    "Click to copy the HEX value.": ["Cliquez pour copier la valeur HEX.", "Haz clic para copiar el valor HEX.", "点击即可复制 HEX 值。", "HEX मान कॉपी करने के लिए क्लिक करें।", "انقر لنسخ قيمة HEX."]
   };
   for (var i = 0; i < L.length; i++) {
     var d = {};

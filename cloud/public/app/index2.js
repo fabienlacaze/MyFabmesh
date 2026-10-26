@@ -9094,6 +9094,8 @@ document.getElementById('ws-picker-btn')?.addEventListener('click', async () => 
       document.getElementById('cpick-swatch').style.background = '#000';
       document.getElementById('cpick-hex').textContent = '';
       document.getElementById('cpick-rgb').textContent = 'Move cursor over image';
+      { const _h = document.getElementById('cpick-hsl'), _p = document.getElementById('cpick-pos'), _d = document.getElementById('cpick-dim');
+        if (_h) _h.textContent = ''; if (_p) _p.textContent = ''; if (_d) _d.textContent = img.width + ' \u00d7 ' + img.height; }
     };
     img.onerror = () => showToast('Color picker: load failed', 'error', 4000);
     img.src = finalSrc;
@@ -9172,6 +9174,16 @@ document.getElementById('ws-picker-btn')?.addEventListener('click', async () => 
     document.getElementById('cpick-swatch').style.background = hex;
     document.getElementById('cpick-hex').textContent = hex;
     document.getElementById('cpick-rgb').textContent = `rgb(${r}, ${g}, ${b})`;
+    { const _mx = Math.max(r, g, b) / 255, _mn = Math.min(r, g, b) / 255, _l = (_mx + _mn) / 2, _dd = _mx - _mn;
+      let _hh = 0, _ss = 0;
+      if (_dd > 0) {
+        _ss = _dd / (1 - Math.abs(2 * _l - 1));
+        if (_mx === r / 255) _hh = ((g - b) / 255 / _dd + 6) % 6; else if (_mx === g / 255) _hh = (b - r) / 255 / _dd + 2; else _hh = (r - g) / 255 / _dd + 4;
+        _hh *= 60;
+      }
+      const _H = document.getElementById('cpick-hsl'), _P = document.getElementById('cpick-pos');
+      if (_H) _H.textContent = `hsl(${Math.round(_hh)}, ${Math.round(_ss * 100)}%, ${Math.round(_l * 100)}%)`;
+      if (_P) _P.textContent = x + ', ' + y; }
     const cur = document.getElementById('cpick-cursor');
     if (cur) { cur.style.left = (e.clientX - rect.left) + 'px'; cur.style.top = (e.clientY - rect.top) + 'px'; cur.style.display = 'block'; }
     _cpUpdateLoupe(e);
@@ -32765,11 +32777,11 @@ const _OUTILS_A_VALIDER = {
   'ws-removebg-btn': { titre: 'Remove background', texte: 'Cuts the subject out, on a transparent background.', action: 'Remove background', apercu: 'image' },
   'ws-facefix-btn': { titre: 'Face Fix', texte: "Sharpens the face, or an animal's head.", action: 'Fix the face', apercu: 'image' },
   'ws-symmetrize-auto-btn': { titre: 'Auto symmetry', texte: 'Mirrors the left half of the image onto the right half.', action: 'Symmetrize', apercu: 'image' },
-  'ws-extend-btn': { titre: 'Extend', texte: 'Adds a margin around the image (15 % on each side).', action: 'Extend', apercu: 'image' },
+  'ws-extend-btn': { titre: 'Extend', texte: 'Adds a margin around the image (15 % on each side).', action: 'Extend', apercu: 'image', details: 'extend' },
   'ws-mesh-enhance-tex-btn': { titre: 'Sharpen texture (x2)', texte: 'Doubles the texture resolution, without inventing detail.', action: 'Sharpen', apercu: 'mesh' },
   'ws-mesh-detail-synth-btn': { titre: 'Detail++', texte: 'Adds fine AI detail to the texture.', action: 'Add detail', apercu: null },
   // outils manuels PAYANTS sur le web (1 credit a l'ouverture) : validation seulement s'il y a un prix
-  'ws-picker-btn': { titre: 'Color Pick', texte: 'Opens the colour picker on the image.', action: 'Open', apercu: 'image', siPayant: true },
+  'ws-picker-btn': { titre: 'Color Pick', texte: 'Opens the colour picker on the image.', action: 'Open', apercu: 'image', siPayant: true, sansVersion: true },
   // 'ws-lm-manual' (Skeleton points) RETIRE de la liste (2026-09-29, user : « il faut direct ouvrir la page ») : le bouton ouvre
   // lui-meme un editeur, une fenetre de validation avant serait un doublon.
 };
@@ -32789,6 +32801,54 @@ function _lctPastilleEntete(prix) {
   const v = document.getElementById('lct-credits-val');
   if (v) v.textContent = ok ? String(prix) : '';
 }
+/** Fenetre de lancement : lignes « etiquette / valeur » de la colonne de droite (Extend : marge, tailles avant / apres). */
+function _lctLigne(parent, etiquette, valeur) {
+  const t = (s) => ((typeof _i18nT === 'function') ? _i18nT(s) : s);
+  const c = document.createElement('div');
+  c.className = 'fen-champ';
+  const h = document.createElement('div');
+  h.className = 'fen-champ-tete';
+  const l = document.createElement('span');
+  l.className = 'fen-label';
+  l.textContent = t(etiquette);
+  const v = document.createElement('span');
+  v.className = 'fen-valeur';
+  v.setAttribute('translate', 'no');
+  v.textContent = valeur;
+  h.appendChild(l);
+  h.appendChild(v);
+  c.appendChild(h);
+  parent.appendChild(c);
+  return v;
+}
+function _lctDetails(def, img) {
+  const det = document.getElementById('lct-details');
+  if (!det) return;
+  det.textContent = '';
+  det.hidden = true;
+  if (def.details !== 'extend' || !img) return;
+  const t = (s) => ((typeof _i18nT === 'function') ? _i18nT(s) : s);
+  det.hidden = false;
+  _lctLigne(det, 'Margin', '15 %');
+  const n = document.createElement('div');
+  n.className = 'fen-note';
+  n.textContent = t('15 % of the longest side, on each side');
+  det.appendChild(n);
+  const actuelle = _lctLigne(det, 'Current size', '...');
+  const nouvelle = _lctLigne(det, 'New size', '...');
+  const note = document.createElement('div');
+  note.className = 'fen-note';
+  note.textContent = t('Margin colour') + ' : ' + t('Matches the image edge when it is uniform, white otherwise.');
+  det.appendChild(note);
+  const maj = () => {
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return;
+    const pad = Math.floor(Math.max(w, h) * 0.15);   // meme calcul que l'operation (meshyAPI-cloud / quick-edit : padding 0.15)
+    actuelle.textContent = w + ' \u00d7 ' + h;
+    nouvelle.textContent = (w + 2 * pad) + ' \u00d7 ' + (h + 2 * pad);
+  };
+  if (img.complete && img.naturalWidth) maj(); else img.addEventListener('load', maj, { once: true });
+}
 function _ouvrirLancement(def, boutonPrix) {
   return new Promise((resoudre) => {
     const m = document.getElementById('modal-lancement');
@@ -32805,6 +32865,8 @@ function _ouvrirLancement(def, boutonPrix) {
     document.getElementById('lct-canvas').hidden = !mesh;
     document.getElementById('lct-etat').hidden = !mesh;
     if (src) document.getElementById('lct-image').src = src;
+    _lctDetails(def, src ? document.getElementById('lct-image') : null);
+    { const n = document.getElementById('lct-note'); if (n) n.hidden = !!def.sansVersion; }   // la pipette ne cree aucune version
     const lancer = document.getElementById('lct-lancer');
     const annuler = document.getElementById('lct-annuler');
     const fermer = document.getElementById('lct-fermer');
