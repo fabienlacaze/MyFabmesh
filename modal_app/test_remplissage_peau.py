@@ -22,9 +22,10 @@ def _mesurer(glb: bytes):
     import trimesh
 
     from modal_app import _mesh_op
+    from modal_app import bouchage_ouverture
     from modal_app import bouchage_peau
 
-    rapport = {'numba': bool(bouchage_peau._AVEC_NUMBA), 'octets_entree': len(glb)}
+    rapport = {'numba': bool(bouchage_peau._AVEC_NUMBA), 'numba_ouvertures': bool(bouchage_ouverture._AVEC_NUMBA), 'octets_entree': len(glb)}
     t = time.time()
     _, det = _mesh_op.fill_holes(glb, 3, 2000, detect_only=True)
     rapport['detection_seule'] = {'duree_s': round(time.time() - t, 1), 'trous': det['nombre']}
@@ -32,6 +33,14 @@ def _mesurer(glb: bytes):
     sortie, stats = _mesh_op.fill_holes(glb, 3, 2000, skin_repair=True)
     rapport['reparation'] = {'duree_s': round(time.time() - t, 1), 'trous_de_peau': stats.get('skin_holes_filled'),
                              'faces_ajoutees': stats.get('holes_filled_delta_faces'), 'verdict': stats.get('verdict')}
+    # GRANDES OUVERTURES (case « Also close large openings », 26/10) : a mesurer sur le Pikachu (--glb C:/tmp/pikachu.glb), la limite de Cloudflare est 100 s
+    t = time.time()
+    try:
+        so, st_o = _mesh_op.fill_holes(glb, 3, 2000, large_openings=True)
+        rapport['grandes_ouvertures'] = {'duree_s': round(time.time() - t, 1), 'ouvertures_bouchees': st_o.get('large_openings_filled'),
+                                         'faces_ajoutees': st_o.get('holes_filled_delta_faces'), 'verdict': st_o.get('verdict')}
+    except RuntimeError as e:
+        rapport['grandes_ouvertures'] = {'duree_s': round(time.time() - t, 1), 'refus': str(e)[:160]}
     g0 = list(trimesh.load(io.BytesIO(glb), file_type='glb', force='scene', process=False).geometry.values())[0]
     g1 = list(trimesh.load(io.BytesIO(sortie), file_type='glb', force='scene', process=False).geometry.values())[0]
     rapport['prefixe_intact'] = bool(np.array_equal(np.asarray(g1.faces)[:len(g0.faces)], np.asarray(g0.faces)))

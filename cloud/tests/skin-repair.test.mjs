@@ -8,9 +8,9 @@ const src = lireSource();
 const i = src.indexOf('async function handleMeshOp(');
 const corps = src.slice(i, src.indexOf('\nasync function ', i + 40));
 
-test('fill_holes : liste BLANCHE des parametres (seuls min, max, skin_repair, detect_only partent vers Modal)', () => {
+test('fill_holes : liste BLANCHE des parametres (seuls min, max, skin_repair, detect_only, large_openings, skin_detect partent vers Modal)', () => {
   assert.match(corps, /if \(op === 'fill_holes'\) \{/);
-  assert.match(corps, /params = \{ min_hole_size: borne\(pr\.min_hole_size, 3\), max_hole_size: borne\(pr\.max_hole_size, 1_000_000\),\s+skin_repair: pr\.skin_repair === true, detect_only: detectOnly \};/);
+  assert.match(corps, /params = \{ min_hole_size: borne\(pr\.min_hole_size, 3\), max_hole_size: borne\(pr\.max_hole_size, 1_000_000\),\s+skin_repair: pr\.skin_repair === true, detect_only: detectOnly,[\s\S]*?large_openings: pr\.large_openings === true, skin_detect: pr\.skin_detect !== false \};/);
   assert.match(corps, /detectOnly = pr\.detect_only === true;/);
   assert.match(corps, /let params = paramsEntree;/);
 });
@@ -41,4 +41,15 @@ test('les deux refus « double peau » ont chacun leur code (avec / sans la rech
   assert.equal(codeRefus(avec).code, 'fill_holes_closed_nonmanifold_skin');
   assert.equal(codeRefus(sans).params.n, 25801);
   assert.equal(codeRefus(avec).params.n, 25801);
+});
+
+test('grandes ouvertures : booleen strict, faux par defaut ; skin_detect ne vaut faux que pour un faux explicite', () => {
+  assert.match(corps, /large_openings: pr\.large_openings === true/);
+  assert.match(corps, /skin_detect: pr\.skin_detect !== false/);
+  // reproduit l'expression du worker : une valeur absente / texte / 1 ne coche pas la case ; seul `false` coupe la recherche de peau de l'apercu
+  const lo = (x) => x === true, sd = (x) => x !== false;
+  assert.deepEqual([undefined, 'true', 1, {}, false].map(lo), [false, false, false, false, false]);
+  assert.equal(lo(true), true);
+  assert.deepEqual([undefined, true, 0, 'false'].map(sd), [true, true, true, true]);
+  assert.equal(sd(false), false);
 });

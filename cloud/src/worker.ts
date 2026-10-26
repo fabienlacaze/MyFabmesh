@@ -14348,7 +14348,9 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     const borne = (x: unknown, defaut: number) => { const n = Math.trunc(Number(x)); return Number.isFinite(n) && n >= 3 ? Math.min(n, 1_000_000) : defaut; };
     detectOnly = pr.detect_only === true;
     params = { min_hole_size: borne(pr.min_hole_size, 3), max_hole_size: borne(pr.max_hole_size, 1_000_000),
-      skin_repair: pr.skin_repair === true, detect_only: detectOnly };
+      skin_repair: pr.skin_repair === true, detect_only: detectOnly,
+      // case « Fermer aussi les grandes ouvertures » (faux par defaut) ; `skin_detect: false` : l'apercu ne cherche pas les trous de peau (plus rapide)
+      large_openings: pr.large_openings === true, skin_detect: pr.skin_detect !== false };
   }
 
   // Cheap op (CPU, ~$0.001 Modal) — defaults to 1 credit, admin-tunable.

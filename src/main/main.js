@@ -13363,13 +13363,13 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
 // Fill holes : APERCU des trous de la PEAU exterieure (2026-10-26). DETECTION SEULE, rien n'est ecrit a cote du maillage et rien n'est facture :
 // en local c'est mesh_tools.py detect_skin (meme noyau que fill_holes skin_repair=1), en mode Cloud la route /api/mesh-op avec detect_only (jamais debitee).
 // Rend { success, detect: { nombre, trous: [{ n, centre, normale, rayon, points }], duree } }.
-ipcMain.handle('detect-skin-holes', async (_event, { meshPath, min, max } = {}) => {
+ipcMain.handle('detect-skin-holes', async (_event, { meshPath, min, max, skin = true, openings = false } = {}) => {
   if (!meshPath || !isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
   const lo = Math.max(3, parseInt(min, 10) || 3);
   const hi = Math.max(lo, parseInt(max, 10) || 5000);
   if (isCloudMode()) {
     try {
-      const r = await cloudFallback.meshOp({ meshPath, opType: 'fill_holes', params: { min_hole_size: lo, max_hole_size: hi, detect_only: true }, outPath: null, projectName: null });
+      const r = await cloudFallback.meshOp({ meshPath, opType: 'fill_holes', params: { min_hole_size: lo, max_hole_size: hi, detect_only: true, skin_detect: skin !== false, large_openings: openings === true }, outPath: null, projectName: null });
       return r.success ? { success: true, detect: r.detect } : { success: false, error: r.error || 'cloud detection failed', ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
     } catch (e) { return { success: false, error: e.message || String(e) }; }
   }
@@ -13377,7 +13377,7 @@ ipcMain.handle('detect-skin-holes', async (_event, { meshPath, min, max } = {}) 
   const sortie = path.join(os.tmpdir(), `fabmesh_skin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.json`);
   const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
   return new Promise((resolve) => {
-    execFile(_aiPython(), [path.join(SCRIPTS_DIR, 'mesh_tools.py'), 'detect_skin', meshPath, sortie, String(lo), String(hi)],
+    execFile(_aiPython(), [path.join(SCRIPTS_DIR, 'mesh_tools.py'), 'detect_skin', meshPath, sortie, String(lo), String(hi), skin !== false ? '1' : '0', openings === true ? '1' : '0'],
       { timeout: 600000, maxBuffer: 10 * 1024 * 1024, env }, (error, stdout, stderr) => {
         try {
           if (error || !fs.existsSync(sortie)) { resolve({ success: false, error: (error && error.message) || 'detection produced no result', stderr }); return; }
@@ -13469,7 +13469,7 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
         case 'watertight':  opParams = { resolution: Number(p[0]) || 192, mode: p[1] ? String(p[1]) : 'seal' }; break;
         // Fill holes : les curseurs Min / Max (en ARETES du pourtour) sont TRANSMIS, comme le fait le site (meshyAPI-cloud.js). Avant, ils etaient
         // jetes (« ignorés par Modal ») alors que l'apercu coloriait les trous selon eux : le bouchage ne correspondait pas a ce qui etait montre.
-        case 'fill_holes':  opParams = { min_hole_size: Math.max(3, parseInt(p[0], 10) || 3), max_hole_size: Math.max(3, parseInt(p[1], 10) || 2000), skin_repair: p[2] === '1' }; break;
+        case 'fill_holes':  opParams = { min_hole_size: Math.max(3, parseInt(p[0], 10) || 3), max_hole_size: Math.max(3, parseInt(p[1], 10) || 2000), skin_repair: p[2] === '1', large_openings: p[3] === '1' }; break;
         case 'center':
         case 'fix_normals': opParams = {}; break;
         case 'retexture': {

@@ -10,8 +10,8 @@ Operations:
     decimate <input> <output> [target_faces=5000]
     subdivide <input> <output> [levels=1]
     fix_normals <input> <output>
-    fill_holes <input> <output> [min_hole_size=3] [max_hole_size=2000] [skin_repair=0]   (aretes du pourtour ; AJOUTE des faces, ne retire rien ; skin_repair=1 : trous de peau aussi)
-    detect_skin <input> <output.json> [min_hole_size=3] [max_hole_size=2000]   (detection seule des trous de peau, JSON, rien n'est modifie)
+    fill_holes <input> <output> [min_hole_size=3] [max_hole_size=2000] [skin_repair=0] [large_openings=0]   (aretes du pourtour ; AJOUTE des faces, ne retire rien ; skin_repair=1 : trous de peau aussi)
+    detect_skin <input> <output.json> [min_hole_size=3] [max_hole_size=2000] [skin_repair=1] [large_openings=0]   (detection seule des trous de peau, JSON, rien n'est modifie)
     center <input> <output>
     retexture <input> <output> <source_image> [tex_res=2048]
 """
@@ -319,11 +319,13 @@ class Refus(Exception):
     """Refus EXPLIQUE d'une operation (rien a faire) : le bureau l'affiche tel quel, aucun fichier n'est ecrit."""
 
 
-def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000, skin_repair=0):
+def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000, skin_repair=0, large_openings=0):
     """Bouche les trous dont le pourtour a entre `min_hole_size` et `max_hole_size` ARETES.
 
     OPTION skin_repair (0 / 1, defaut 0 : rien ne change pour un maillage sain) : cherche aussi les trous de la PEAU exterieure (scripts/bouchage_peau.py) quand
     le maillage n'a aucun trou ouvert (coque percee sans bord, ex. un bateau TRELLIS) ; plus long (environ une minute sur 500 000 faces).
+    OPTION large_openings (0 / 1, defaut 0) : ferme aussi les GRANDES ouvertures d'anatomie vers la cavite (bas du ventre, dessous : scripts/bouchage_ouverture.py,
+    fuite de rayons depuis la cavite) ; quelques secondes. Decochee par defaut : une fenetre ou un cockpit est une ouverture voulue.
 
     BOUCHON LISSE (refonte du 2026-10-26, noyau scripts/bouchage_lisse.py = modal_app/bouchage_lisse.py) : la detection est celle du noyau partage
     bouchage_trous.py (MEME logique que les apercus du bureau et du site) ; la rustine, elle, suit la courbure du voisinage (sommets interieurs lisses,
@@ -340,7 +342,8 @@ def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000, ski
     if not hasattr(scene, 'geometry'):
         scene = trimesh.Scene(scene)
     reparer_peau = str(skin_repair).strip().lower() in ('1', 'true', 'yes', 'oui', 'on')
-    res = boucher_scene(scene, min_e, max_e, journal=log, peau=reparer_peau)
+    fermer_ouvertures = str(large_openings).strip().lower() in ('1', 'true', 'yes', 'oui', 'on')
+    res = boucher_scene(scene, min_e, max_e, journal=log, peau=reparer_peau, ouverture=fermer_ouvertures)
     if res['refus']:
         raise Refus(res['refus'][1])
     geoms = list(scene.geometry.values())
@@ -349,10 +352,11 @@ def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000, ski
     log(f'holes filled: {st["holes_filled"]} (+{st["holes_filled_delta_faces"]} faces, nothing removed)')
     print('[mesh_tools] BILAN: ' + json.dumps({'holes_filled': st['holes_filled'], 'holes_remaining': st['holes_remaining'],
                                               'holes_filled_delta_faces': st['holes_filled_delta_faces'], 'verdict': st['verdict'],
-                                              'skin_holes_filled': st.get('skin_holes_filled', 0)}), flush=True)
+                                              'skin_holes_filled': st.get('skin_holes_filled', 0),
+                                              'large_openings_filled': st.get('large_openings_filled', 0)}), flush=True)
 
 
-def detect_skin(input_path, output_json, min_hole_size=3, max_hole_size=2000):
+def detect_skin(input_path, output_json, min_hole_size=3, max_hole_size=2000, skin_repair=1, large_openings=0):
     """DETECTION SEULE des trous de peau : ecrit un JSON {nombre, trous: [{n, centre, normale, rayon, points}], duree} ; le maillage n'est pas modifie.
     Aucun credit : c'est le meme noyau que fill_holes (skin_repair=1) sans boucher, pour l'apercu de la fenetre Fill holes."""
     import trimesh
@@ -365,7 +369,8 @@ def detect_skin(input_path, output_json, min_hole_size=3, max_hole_size=2000):
     scene = trimesh.load(input_path, process=False)
     if not hasattr(scene, 'geometry'):
         scene = trimesh.Scene(scene)
-    res = detecter_peau_scene(scene, min_e, max_e, journal=log)
+    vrai = lambda x: str(x).strip().lower() in ('1', 'true', 'yes', 'oui', 'on')
+    res = detecter_peau_scene(scene, min_e, max_e, journal=log, peau=vrai(skin_repair), ouverture=vrai(large_openings))
     with open(output_json, 'w', encoding='utf-8') as f:
         json.dump(res, f)
     print('[mesh_tools] DETECT: ' + json.dumps({'nombre': res['nombre'], 'duree': res['duree']}), flush=True)

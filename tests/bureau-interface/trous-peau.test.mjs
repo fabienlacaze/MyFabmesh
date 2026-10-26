@@ -70,14 +70,25 @@ for (const [nom, rel] of [['bureau', 'src/renderer/index2.js'], ['site', 'cloud/
     assert.match(src, /import \{ geometrie as geometrieTrousPeau, diagonale as diagonaleTrousPeau, COULEUR_PEAU \} from '\.\/lib\/trous-peau\.js';/);
     assert.match(src, /\{ id: 'skin_repair', label: 'Also repair holes in the outer skin', type: 'checkbox', default: false,/);
     assert.match(src, /hint: 'For models whose hull is pierced without an open edge, like a boat\. Experimental: it can take a minute\. Check the result\.'/);
-    assert.match(src, /build: \(vals\) => \[String\(vals\.min_hole_size\), String\(vals\.max_hole_size\), vals\.skin_repair \? '1' : '0'\],/);
+    assert.match(src, /build: \(vals\) => \[String\(vals\.min_hole_size\), String\(vals\.max_hole_size\), vals\.skin_repair \? '1' : '0', vals\.large_openings \? '1' : '0'\],/);
+  });
+
+  test(`${nom} : la case « grandes ouvertures » est DECOCHEE par defaut, avec une aide, et le 4e parametre part vers l'operation`, () => {
+    const src = lire(rel);
+    assert.match(src, /\{ id: 'large_openings', label: 'Also close large openings \(belly, base\)', type: 'checkbox', default: false,/);
+    assert.match(src, /hint: 'For models where a big part of the body is open and you can see inside, like a missing belly\./);
+    assert.match(src, /function _mtSkinActif\(vals\) \{ return !!\(vals && \(vals\.skin_repair \|\| vals\.large_openings\)\); \}/);
+    assert.match(src, /skin: !!v\.skin_repair, openings: !!v\.large_openings/, 'la detection ne cherche que ce qui est coche');
+    for (const t of ['Searching for large openings…', 'Large openings: {x} detected (light blue). Apply will close them; nothing is removed.', 'Large openings: none detected.']) {
+      assert.ok(src.includes(t), t);
+    }
   });
 
   test(`${nom} : la detection n'est lancee QUE quand la case est cochee, et ses resultats sont mis en cache par maillage`, () => {
     const src = lire(rel);
-    assert.match(src, /if \(!vals\.skin_repair\) \{ if \(sk\.etat !== 'inactif'\) _mtSkinReinit\(\); mtState\.skinN = 0; return 0; \}/);
+    assert.match(src, /if \(!_mtSkinActif\(vals\)\) \{ if \(sk\.etat !== 'inactif'\) _mtSkinReinit\(\); mtState\.skinN = 0; return 0; \}/);
     assert.match(src, /if \(sk\.etat === 'inactif'\) _mtSkinChercher\(\);/);
-    assert.match(src, /if \(sk\.detect && sk\.cle === chemin\) \{ sk\.etat = 'pret'; return; \}/);
+    assert.match(src, /if \(sk\.detect && sk\.cle === cle\) \{ sk\.etat = 'pret'; return; \}/, 'cache par maillage ET par cases cochees');
     assert.match(src, /API\.detectSkinHoles\(\{ meshPath: chemin, min: 3, max: 5000/);
     assert.match(src, /_mtSkinReinit\(\);/, 'la fermeture de la fenetre annule la recherche');
   });
@@ -108,7 +119,9 @@ test('chaque texte neuf est traduit dans les 5 langues (vrai dictionnaire commun
   for (const cle of ['Also repair holes in the outer skin', 'For models whose hull is pierced without an open edge, like a boat. Experimental: it can take a minute. Check the result.',
     'Searching the outer skin for holes (about a minute)… {x} s', 'Outer skin: {x} holes detected (light blue). Apply will patch them; nothing is removed.',
     'Outer skin: no hole detected.', 'The search for skin holes failed. Apply can still try.', 'Repairing the outer skin runs on the server: use Apply.',
-    'Double skin: filled {x} holes in the outer skin (+{y} faces); nothing was removed or moved.']) {
+    'Double skin: filled {x} holes in the outer skin (+{y} faces); nothing was removed or moved.',
+    'Also close large openings (belly, base)', 'Searching for large openings…', 'Large openings: none detected.',
+    'Large openings: {x} detected (light blue). Apply will close them; nothing is removed.']) {
     const m = dict.match(new RegExp('"' + cle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '": (\\[.*\\]),'));
     assert.ok(m, 'pas de traduction pour : ' + cle);
     const t = JSON.parse(m[1]);
@@ -127,9 +140,9 @@ test('les deux copies du module d\'apercu sont identiques (noyau partage)', () =
 test('bureau : processus principal, preload et mode Cloud', () => {
   const main = lire('src/main/main.js');
   assert.match(main, /ipcMain\.handle\('detect-skin-holes'/);
-  assert.match(main, /'detect_skin', meshPath, sortie, String\(lo\), String\(hi\)/, 'mode local : mesh_tools.py detect_skin');
-  assert.match(main, /params: \{ min_hole_size: lo, max_hole_size: hi, detect_only: true \}/, 'mode Cloud : detect_only, jamais debite');
-  assert.match(main, /skin_repair: p\[2\] === '1' \}/, 'le 3e parametre part vers le serveur en mode Cloud');
+  assert.match(main, /'detect_skin', meshPath, sortie, String\(lo\), String\(hi\), skin !== false \? '1' : '0', openings === true \? '1' : '0'/, 'mode local : mesh_tools.py detect_skin');
+  assert.match(main, /params: \{ min_hole_size: lo, max_hole_size: hi, detect_only: true, skin_detect: skin !== false, large_openings: openings === true \}/, 'mode Cloud : detect_only, jamais debite');
+  assert.match(main, /skin_repair: p\[2\] === '1', large_openings: p\[3\] === '1' \}/, 'les 3e et 4e parametres partent vers le serveur en mode Cloud');
   assert.match(lire('src/main/preload.js'), /detectSkinHoles: \(opts\) => ipcRenderer\.invoke\('detect-skin-holes', opts\)/);
   assert.match(lire('src/main/cloud_fallback.js'), /if \(j\.detect\) return \{ success: true, detect: j\.detect \};/);
 });
@@ -137,13 +150,14 @@ test('bureau : processus principal, preload et mode Cloud', () => {
 test('site : le shim transmet skin_repair et expose detectSkinHoles (detect_only)', () => {
   const shim = lire('cloud/public/app/meshyAPI-cloud.js');
   assert.match(shim, /finalParams\.skin_repair = a\[2\] === '1' \|\| a\[2\] === true;/);
-  assert.match(shim, /detectSkinHoles: async \(\{ meshPath, meshUrl, min = 3, max = 5000, projectName \} = \{\}\)/);
-  assert.match(shim, /opType: 'fill_holes', projectName: projectName \|\| null,\s+params: \{ min_hole_size: [^}]*detect_only: true \}/);
+  assert.match(shim, /finalParams\.large_openings = a\[3\] === '1' \|\| a\[3\] === true;/);
+  assert.match(shim, /detectSkinHoles: async \(\{ meshPath, meshUrl, min = 3, max = 5000, projectName, skin = true, openings = false \} = \{\}\)/);
+  assert.match(shim, /opType: 'fill_holes', projectName: projectName \|\| null,\s+params: \{ min_hole_size: [^}]*detect_only: true,\s+skin_detect: skin !== false, large_openings: openings === true \}/);
 });
 
 test('le script bureau accepte le 5e argument sans casser l\'appel a 4 arguments', () => {
   const py = lire('scripts/mesh_tools.py');
-  assert.match(py, /def fill_holes\(input_path, output_path, min_hole_size=3, max_hole_size=2000, skin_repair=0\):/);
-  assert.match(py, /def detect_skin\(input_path, output_json, min_hole_size=3, max_hole_size=2000\):/);
-  assert.match(py, /peau=reparer_peau/);
+  assert.match(py, /def fill_holes\(input_path, output_path, min_hole_size=3, max_hole_size=2000, skin_repair=0, large_openings=0\):/);
+  assert.match(py, /def detect_skin\(input_path, output_json, min_hole_size=3, max_hole_size=2000, skin_repair=1, large_openings=0\):/);
+  assert.match(py, /peau=reparer_peau, ouverture=fermer_ouvertures/);
 });
