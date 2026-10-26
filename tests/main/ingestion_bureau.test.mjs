@@ -68,7 +68,7 @@ test('generate-images : poseLibre est lu par le handler et transmis a argsCloud'
   const i = texteMain.indexOf("ipcMain.handle('generate-images', async (event, {");
   assert.ok(i > 0);
   const corps = texteMain.slice(i, texteMain.indexOf('\n});\n', i));
-  assert.ok(/\bposeLibre, negativeExtra \}\) => \{/.test(corps), 'poseLibre n\'est pas dans les parametres du handler');
+  assert.ok(/\bposeLibre, negativeExtra(, tposeDemandee)? \}\) => \{/.test(corps), 'poseLibre n\'est pas dans les parametres du handler');
   assert.ok(/poseLibre: poseLibre === true \|\| undefined,/.test(corps), 'argsCloud ne transmet pas poseLibre');
 });
 

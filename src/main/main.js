@@ -11599,7 +11599,7 @@ function _texteDeModeration(prompt, negatifs) {
   if (!negatifs || !negatifs.length) return prompt;
   return String(prompt) + ', ' + negatifs.map((t) => 'no ' + t + ', without ' + t).join(', ');
 }
-ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPromptAnglais, numImages, projectName, engine, quality, steps, vramFraction, assetType, assetStyle, buildStages, computeMode, langueVerifiee, poseLibre, negativeExtra }) => {
+ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPromptAnglais, numImages, projectName, engine, quality, steps, vramFraction, assetType, assetStyle, buildStages, computeMode, langueVerifiee, poseLibre, negativeExtra, tposeDemandee }) => {
   // GARDE MANQUANTE — cause du REFUS STORE du 2026-08-08 (10.1.2.10
   // « Unusable Feature: Generate »).
   //
@@ -11732,6 +11732,8 @@ ipcMain.handle('generate-images', async (event, { prompt, userPrompt, userPrompt
           langueVerifiee: langueVerifiee === true || undefined,
           // CASE « T-pose » decochee (24/10, M9) : le serveur n'impose plus la T-pose (tpose:false, poseLibre:true dans /api/generate-image). Case cochee : rien n'est envoye (aucun supplement de prix pour le bureau, CLAUDE.md §19).
           poseLibre: poseLibre === true || undefined,
+          // PARITE T-POSE (26/10) : case cochee (personnage) -> route T-pose du serveur + supplement `tpose` (le prix annonce par la pastille le contient)
+          tposeDemandee: tposeDemandee === true || undefined,
           negativeExtra: _negatifs,   // « no helmet » du texte de l'utilisateur : termes de negatif pour le serveur (champ `negativeExtra` de /api/generate-image)
           steps,
           turbo: engine === 'local-lightning',
