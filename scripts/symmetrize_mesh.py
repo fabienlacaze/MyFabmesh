@@ -548,6 +548,94 @@ def _miroir(V, F, A, N, sur, plats, point, nn, souder):
     return V, Fm, Am, Nm, Vm, N
 
 
+def retirer_ponts_non_manifold(V, F, nc):
+    """Une arete portee par plus de deux faces rend le maillage non etanche : on retire, parmi les faces de couture (indices >= nc), la plus petite de chaque arete
+    en exces ; le bord ainsi ouvert est ensuite referme par fermer_trous_couture. Rend F sans les faces retirees."""
+    import numpy as np
+    for _ in range(8):
+        E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=0)
+        lo, hi = np.minimum(E[:, 0], E[:, 1]), np.maximum(E[:, 0], E[:, 1])
+        cles = lo * len(V) + hi
+        u, inv, cnt = np.unique(cles, return_inverse=True, return_counts=True)
+        exces = np.nonzero(cnt > 2)[0]
+        if not len(exces):
+            break
+        face_de = np.tile(np.arange(len(F)), 3)
+        aire = 0.5 * np.linalg.norm(np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]), axis=1)
+        retire = np.zeros(len(F), dtype=bool)
+        for k in exces:
+            fs = np.unique(face_de[inv == k])
+            fs = fs[~retire[fs]]
+            cand = [f for f in fs.tolist() if f >= nc]
+            cand.sort(key=lambda f: aire[f])
+            reste = len(fs)
+            for f in cand:
+                if reste <= 2:
+                    break
+                retire[f] = True
+                reste -= 1
+        if not retire.any():
+            break
+        F = F[~retire]
+        nc = min(nc, len(F))
+    return F
+
+def fermer_trous_couture(V, F, A, N, sujet):
+    """Derniere etape du mode zone (26/10, user : « il ne doit pas y avoir de trou ») : tout bord OUVERT dont les deux sommets sont sujets (sommets de la copie miroir
+    ou du bord du trou laisse par les faces retirees) est BOUCHE, quelle que soit la forme de la zone peinte : pour chaque boucle, un sommet au barycentre (attributs et
+    normale moyennes) relie tous les cotes (un triangle seul pour une boucle de 3). Les bords deja ouverts dans le maillage d'origine ne sont jamais touches (leurs
+    sommets ne sont pas sujets). Rend (V, F, A, N, nb_boucles)."""
+    import numpy as np
+    n = len(V)
+    E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=0)
+    cle = E[:, 0] * n + E[:, 1]
+    inv = E[:, 1] * n + E[:, 0]
+    bord = E[~np.isin(inv, cle)]
+    bord = bord[sujet[bord[:, 0]] & sujet[bord[:, 1]]]
+    if not len(bord):
+        return V, F, A, N, 0
+    sortant = {}
+    for a, c in bord.tolist():
+        sortant.setdefault(a, []).append(c)
+    boucles = []
+    while sortant:
+        a0 = next(iter(sortant))
+        boucle = [a0]
+        a = a0
+        while True:
+            suites = sortant.get(a)
+            if not suites:
+                break
+            c = suites.pop()
+            if not suites:
+                del sortant[a]
+            if c == a0:
+                break
+            boucle.append(c)
+            a = c
+        if len(boucle) >= 3:
+            boucles.append(boucle)
+    Vn, Fn, An, Nn = [V], [F], ([A] if A is not None else None), ([N] if N is not None else None)
+    base = n
+    for boucle in boucles:
+        L = np.asarray(boucle, dtype=np.int64)
+        if len(L) == 3:
+            Fn.append(np.asarray([[L[0], L[2], L[1]]], dtype=np.int64))
+            continue
+        c = base
+        base += 1
+        Vn.append(V[L].mean(axis=0)[None, :])
+        if An is not None:
+            An.append(A[L].mean(axis=0)[None, :])
+        if Nn is not None:
+            nm = N[L].mean(axis=0)
+            ln = float(np.linalg.norm(nm))
+            Nn.append((nm / ln if ln > 1e-9 else nm)[None, :])
+        suiv = np.roll(L, -1)
+        Fn.append(np.stack([suiv, L, np.full(len(L), c, dtype=np.int64)], axis=1))   # aretes a->b du bord : la face de fermeture porte b->a
+    return (np.concatenate(Vn), np.concatenate(Fn).astype(np.int64), None if An is None else np.concatenate(An),
+            None if Nn is None else np.concatenate(Nn), len(boucles))
+
 def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0), garder='pos', mode='full', stamps=None):
     """Coeur de l'outil, sur des tableaux. V (n,3), F (m,3) entiers, A (n,k) attributs a interpoler (UV, couleurs),
     N (n,3) normales ou None. Rend (V, F, A, N, stats) ; stats = {gardees, miroir, retirees, ponts, ouvert} (ponts = faces de couture du mode zone, ouvert = aretes de bord
@@ -617,6 +705,14 @@ def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0),
     Fo = np.concatenate([corps, ponts]).astype(np.int64)
     Ao = None if Ab is None else np.concatenate([Ab, Am])
     No = None if Nb is None else np.concatenate([Nb, Nm])
+    Fo = retirer_ponts_non_manifold(Vo, Fo, len(corps))   # arete portee par plus de 2 faces : on retire la face de couture en exces (refermee ci-dessous)
+    # derniere etape : aucun trou ne doit rester a la couture (sommets de la copie miroir et du bord du trou uniquement)
+    sujet = np.zeros(len(Vo), dtype=bool)
+    sujet[nb:] = True
+    if len(Eh):
+        sujet[rb[Eh].ravel()] = True
+    Vo, Fo, Ao, No, bouchees = fermer_trous_couture(Vo, Fo, Ao, No, np.concatenate([sujet, np.zeros(0, dtype=bool)]))
+    stats['bouchees'] = bouchees
     stats.update(gardees=len(Fb), miroir=len(Fm), retirees=int(retire.sum()), ponts=len(Fo) - len(Fb) - len(Fm),
                  ouvert=max(0, _defauts_bord(Fo, len(Vo)) - _defauts_bord(F, len(V))))
     return Vo, Fo, Ao, No, stats

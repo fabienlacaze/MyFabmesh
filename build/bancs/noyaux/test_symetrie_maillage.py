@@ -316,6 +316,8 @@ class Couture(unittest.TestCase):
             return n
 
         self.assertEqual(defauts(), 0)
+        sans_filet = mock.patch.object(S, 'fermer_trous_couture', lambda V, F, A, N, sujet: (V, F, A, N, 0))   # le filet final cacherait l'absence d'un etage
+        sans_filet.start(); self.addCleanup(sans_filet.stop)
         with mock.patch.object(S, 'relier_trou_et_copie', lambda V, A, C: np.zeros((0, 3), dtype=np.int64)):
             self.assertGreater(defauts(), 0, 'sans la bande de couture')
         with mock.patch.object(S, 'combler_ilots', lambda F, region, M, permis, limite=40: region):
@@ -323,14 +325,32 @@ class Couture(unittest.TestCase):
         with mock.patch.object(S, 'resorber_colineaires', lambda V, corps, ponts: (corps, ponts)):
             self.assertGreater(defauts(), 0, 'sans la resorption des jonctions en T')
 
-    def test_copie_dans_le_vide_reste_ouverte_et_le_dit(self):
-        # la zone peinte tombe de l'autre cote dans le vide (maillage tres asymetrique) : pas de vis-a-vis, rien d'invente
+    def test_copie_dans_le_vide_est_refermee(self):
+        # la zone peinte tombe de l'autre cote dans le vide (maillage tres asymetrique) : pas de vis-a-vis, la couture est refermee par une face de bouchage (26/10 : pas de trou)
         m = blob(3)
         V, F, A, N, st = S.symetriser_tableaux(m.vertices, m.faces, None, None, (-3.0, 0, 0), (1, 0, 0), 'pos', 'mask',
                                                [[*m.vertices[int(np.argmax(m.vertices[:, 0]))], 0.4, 1]])
         self.assertEqual(st['retirees'], 0)
-        self.assertEqual(st['ponts'], 0)
-        self.assertGreater(st['ouvert'], 0)
+        self.assertEqual(st['ouvert'], 0)
+        self.assertEqual(sum(aretes_de_bord(souder(V, F))), 0)
+
+    def test_zones_aleatoires_jamais_de_trou(self):
+        # 101 groupes de traits au hasard sur une icosphere deformee : tout resultat produit est ferme (0 arete de bord, 0 arete a plus de 2 faces) ; seuls les refus
+        # « zone hors de la surface » sont admis
+        m = blob(5)
+        rng = np.random.default_rng(3)
+        produits = 0
+        for k in range(101):
+            st = [[float(rng.uniform(-0.2, 1.4)), float(rng.uniform(-0.9, 0.9)), float(rng.uniform(-0.9, 0.9)), float(rng.uniform(0.08, 0.6)), 1] for _ in range(int(rng.integers(1, 4)))]
+            try:
+                V, F, A, N, stt = S.symetriser_tableaux(m.vertices, m.faces, None, None, (0.3, 0, 0), (1, 0, 0), 'pos', 'mask', st)
+            except ValueError:
+                continue
+            produits += 1
+            # topologie PAR INDICES (le fichier garde ses sommets : un sommet de la copie pose exactement sur le plan reste distinct de celui du cote conserve)
+            sm = trimesh.Trimesh(vertices=V, faces=F, process=False)
+            self.assertEqual(aretes_de_bord(sm), (0, 0), f'trou ou arete a plus de 2 faces, essai {k}')
+        self.assertGreater(produits, 30)
 
 
 class Vitesse(unittest.TestCase):
