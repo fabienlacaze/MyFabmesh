@@ -19742,6 +19742,16 @@ function _meSetMoveMode(mode) {
     document.getElementById('me-move-' + m)?.classList.toggle('tool-active', m === mode);
   }
 }
+/** Pendant le DEPLACEMENT (gizmo), les sommets selectionnes reprennent leur couleur d'ORIGINE a l'affichage (texture / peinture visibles) ; la selection (_selSaved) n'est pas
+ *  touchee et la surbrillance cyan revient a la fin du deplacement (26/10, user : la copie dupliquee paraissait sans texture). */
+function _meMasquerTeinteDeplacement(masquer) {
+  meState.mesh?.traverse(o => {
+    const sel = o.isMesh && o.geometry?._selSaved, col = o.isMesh && o.geometry?.attributes?.color;
+    if (!sel || !sel.size || !col) return;
+    if (masquer) { for (const [i, v] of sel) col.setXYZ(i, v[0], v[1], v[2]); o.geometry._teinteMasquee = true; col.needsUpdate = true; }
+    else if (o.geometry._teinteMasquee) { o.geometry._teinteMasquee = false; for (const [i] of sel) col.setXYZ(i, 0, 1, 1); col.needsUpdate = true; }
+  });
+}
 function _meStartMove() {
   if (meState.moveActive) { _meEndMove(); return; }   // toggle off
   if (!_meHasSelection()) { showToast('Select faces first', 'info', 1400); return; }
@@ -19781,6 +19791,7 @@ function _meStartMove() {
   meState.moveProxy = proxy;
   meState.moveGizmo = tc;
   meState.moveActive = true;
+  _meMasquerTeinteDeplacement(true);
   const _bc = document.getElementById('me-brush-cursor'); if (_bc) _bc.style.display = 'none';
   document.getElementById('me-sel-move')?.classList.add('tool-active');
   const modeRow = document.getElementById('me-move-mode-row'); if (modeRow) modeRow.style.display = 'flex';
@@ -19798,6 +19809,7 @@ function _meEndMove() {
   meState.moveGizmo = null; meState.moveProxy = null;
   meState.moveInitInv = null; meState.moveSnap = null;
   meState.moveActive = false;
+  _meMasquerTeinteDeplacement(false);
   if (meState.controls) meState.controls.enabled = true;
   // Recompute normals on the meshes we moved.
   meState.mesh?.traverse(c => {

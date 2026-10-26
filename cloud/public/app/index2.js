@@ -20275,6 +20275,18 @@ function _meSetMoveMode(mode) {
     document.getElementById('me-move-' + m)?.classList.toggle('tool-active', m === mode);
   }
 }
+/** Pendant le DEPLACEMENT (gizmo), la teinte orange de selection est masquee a l'affichage : sinon elle se multiplie a la texture et la copie / la zone deplacee parait unie,
+ *  « sans texture » (26/10, user). La selection elle-meme (couleur de sommet) n'est pas touchee : seul `material.vertexColors` est coupe, puis remis a la fin du deplacement. */
+function _meMasquerTeinteDeplacement(masquer) {
+  meState.mesh?.traverse(o => {
+    if (!o.isMesh || !o.material || !o.geometry) return;
+    if (masquer) {
+      if (o.geometry._selOnlyColor && o.material.vertexColors) { o.material.vertexColors = false; o.material.needsUpdate = true; o.geometry._teinteMasquee = true; }
+    } else if (o.geometry._teinteMasquee) {
+      o.geometry._teinteMasquee = false; o.material.vertexColors = true; o.material.needsUpdate = true;
+    }
+  });
+}
 function _meStartMove() {
   if (meState.moveActive) { _meEndMove(); return; }   // toggle off
   if (!meState.mesh) return;
@@ -20318,6 +20330,7 @@ function _meStartMove() {
   meState.moveProxy = proxy;
   meState.moveGizmo = tc;
   meState.moveActive = true;
+  _meMasquerTeinteDeplacement(true);
   const _bc = document.getElementById('me-brush-cursor'); if (_bc) _bc.style.display = 'none';
   document.getElementById('me-sel-move')?.classList.add('tool-active');
   const modeRow = document.getElementById('me-move-mode-row'); if (modeRow) modeRow.style.display = 'flex';
@@ -20335,6 +20348,7 @@ function _meEndMove() {
   meState.moveGizmo = null; meState.moveProxy = null;
   meState.moveInitInv = null; meState.moveSnap = null;
   meState.moveActive = false;
+  _meMasquerTeinteDeplacement(false);
   if (meState.controls) meState.controls.enabled = true;
   // Recompute normals on the meshes we moved. Cloud-only extra: the three-mesh-bvh
   // boundsTree caches vertex positions, so it must be refit or every later

@@ -65,3 +65,16 @@ for (const f of ['cloud/public/app/index2.js', 'src/renderer/index2.js']) {
     assert.ok(!/\* eps;/.test(g.split('Duplicated')[0].split('// DECALAGE RIGIDE')[1] || ''), 'plus de * eps par sommet');
   });
 }
+
+// ---- 26/10 : la copie dupliquee garde sa TEXTURE pendant le deplacement ; la fenetre n'est pas gratuite : prix visible sur « Save as new version » ----
+for (const f of ['cloud/public/app/index2.js', 'src/renderer/index2.js']) {
+  test(`${f} : la teinte de selection est masquee pendant le deplacement puis remise`, () => {
+    const s = lire(f);
+    assert.ok(s.includes('function _meMasquerTeinteDeplacement(masquer) {'));
+    assert.ok(s.includes('_meMasquerTeinteDeplacement(true);'), 'masquee au debut du deplacement');
+    assert.ok(s.includes('_meMasquerTeinteDeplacement(false);'), 'remise a la fin du deplacement');
+  });
+}
+test('site : le bouton Save de la fenetre Sculpt / Paint / Select porte la pastille du tarif manual_tool', () => {
+  assert.ok(lire('cloud/public/app/cloud-overrides.js').includes("'me-save':                  'manual_tool',"));
+});
