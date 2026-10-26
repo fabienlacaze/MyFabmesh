@@ -13871,7 +13871,13 @@ async function runMeshTool(operation, params = [], namedParams = null, options =
           if (er && er.success && er.newPath) newPath = er.newPath;
         } catch (_) {}
       }
-      showToast(_i18nTf('{x} done', _i18nT(operation)), 'success');
+      // Fill holes : bilan reel (trous bouches, faces ajoutees) renvoye par l'operation (Python local ou Modal).
+      if (operation === 'fill_holes' && result.stats && typeof result.stats.holes_filled === 'number') {
+        const s = result.stats, h = s.holes_filled, d = s.holes_filled_delta_faces || 0;
+        showToast(s.verdict === 'OPEN_HOLES'
+          ? _i18nTf('Filled {x} holes (+{y} faces). Some holes remain: widen the Min / Max range.', h, d)
+          : _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d), 'success', s.verdict === 'OPEN_HOLES' ? 6000 : 3000);
+      } else showToast(_i18nTf('{x} done', _i18nT(operation)), 'success');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
       // Register the new mesh version. populateWorkspace only RENDERS
       // p.meshes — it does not re-scan disk — so without this the decimated/
@@ -14544,7 +14550,7 @@ function _mtBuildFillOverlays(vals) {
   // Rien a boucher : DIRE POURQUOI (hors plage, ou maillage ferme + diagnostic : faces retournees, aretes a plus de deux faces, miettes), au
   // lieu d'affirmer sans preuve que les taches sombres sont des normales inversees.
   let refus = null;
-  if (!faces && analyses.length) {
+  if (!filled && analyses.length) {
     const [somme, diag] = agregerTrous(analyses, analyses.map((a, i) => diagnostiquerTrous(preps[i], a)));
     const [code, texte] = messageRefusTrous(somme, diag, minE, maxE);
     refus = { code, texte };
@@ -14626,7 +14632,7 @@ const MESH_TOOL_SCHEMAS = {
   },
   fill_holes: {
     title: 'Fill holes',
-    subtitle: 'Open holes whose outline has between Min and Max edges show in GREEN (they will be filled); grey = too small, red = too big. Apply only ADDS faces: nothing existing is removed or moved, and each patch takes its texture from the neighbouring faces. Missing or thin areas that are not open holes cannot be fixed here.',
+    subtitle: 'Open holes whose outline has between Min and Max edges show in GREEN (they will be filled); grey = too small, red = too big. Apply only ADDS faces: nothing existing is removed or moved. Each patch is smooth: it follows the curve of the surface around the hole and takes its colours from the neighbouring texture. Missing or thin areas that are not open holes cannot be fixed here.',
     needsImage: false,
     overlayPreview: true,   // green fill + coloured outlines, not a geom swap
     heavyPreview: true,
@@ -14858,9 +14864,9 @@ function _mtRunPreview() {
     } else if (mtState.schema.overlayPreview) {
       const st = _mtBuildFillOverlays(vals);
       if (status) {
-        if (st.faces) {
+        if (st.filled) {
           status.textContent = _i18nTf('Holes: {x} to fill (green)', st.filled) + ` · ` + _i18nTf('{x} too small (grey)', st.tooSmall) + ` · ` + _i18nTf('{x} too large (red)', st.tooBig)
-            + ` · ` + _i18nTf('+{x} faces will be added; nothing is removed', st.faces)
+            + ` · ` + _i18nT('Each hole gets a smooth patch that follows the surface and its colours; nothing is removed')
             + (st.unfillable ? ` · ` + _i18nTf('{x} cannot be filled (red)', st.unfillable) : '')
             + (st.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', st.flat) : '');
         } else if (st.refus) {

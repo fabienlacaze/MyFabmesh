@@ -177,6 +177,8 @@ const FICHIERS = [
   // bureau (mesh_tools.py), Modal (_mesh_op.py::fill_holes) et les apercus des deux interfaces ; Python = serveur et bureau, JS = les deux pages
   { nom: 'bouchage de trous (Python)', source: 'scripts/bouchage_trous.py', copie: 'modal_app/bouchage_trous.py' },
   { nom: 'bouchage de trous (JS)', source: 'src/renderer/lib/bouchage-trous.js', copie: 'cloud/public/app/lib/bouchage-trous.js' },
+  // Bouchon LISSE (2026-10-26) : rustine qui suit la courbure + couleurs du voisinage ; bureau (mesh_tools.py) et Modal (_mesh_op.py::fill_holes)
+  { nom: 'bouchon lisse de trous (Python)', source: 'scripts/bouchage_lisse.py', copie: 'modal_app/bouchage_lisse.py' },
   // Lot interface multilingue (2026-10-13) : refus du serveur traduits a l'affichage, et traductions communes
   // bureau / web (une derive entre les deux dictionnaires laissait des libelles traduits d'un seul cote).
   { nom: 'textes du serveur (traduction des refus)', source: 'src/renderer/lib/textes-serveur.js', copie: 'cloud/public/app/lib/textes-serveur.js' },
