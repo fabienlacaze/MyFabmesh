@@ -38,9 +38,14 @@ triangles de la rustine sont orientes dans le sens du voisinage ; une corde de l
 Dependances : numpy, scipy (+ PIL deja present pour les textures). Aucun module non commercial.
 """
 import math
+import os
+import sys
 import time
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # le Python embarque de l'appli installee n'ajoute PAS le dossier du script : bouchage_trous (voisin) en depend
+
 
 VERSION = 1
 
