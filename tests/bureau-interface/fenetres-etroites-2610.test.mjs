@@ -39,7 +39,7 @@ for (const [nom, h, c, j, l] of cotes) {
     assert.match(js, /function _lctDetails\(def, img\)/);
     assert.match(js, /_lctDetails\(def, src \? document\.getElementById\('lct-image'\) : null\)/);
     // meme calcul que l'operation (meshyAPI-cloud : floor(max(w, h) * 0.15) de chaque cote)
-    assert.match(js, /Math\.floor\(Math\.max\(w, h\) \* 0\.15\)/);
+    assert.match(js, /Math\.(floor|round)\(Math\.max\(w, h\) \* 0\.15\)/);
     assert.match(js, /cpick-hsl/);
     for (const k of ['Margin', 'Current size', 'New size', 'Position', 'Image size', 'Click to copy the HEX value.']) {
       assert.ok(t.includes('"' + k + '":'), 'traduction ' + k);
@@ -61,3 +61,9 @@ for (const [nom, h, , j] of cotes) {
     assert.match(js, /n\.hidden = !!def\.sansVersion/);
   });
 }
+
+// 26/10 (audit) : la taille annoncee par « Etendre » est celle de l'operation de chaque plateforme (bureau : round avec minimum 1 ; site : floor)
+test('Etendre : marge calculee comme l operation, bureau (round) et site (floor)', () => {
+  assert.ok(fs.readFileSync('src/renderer/index2.js', 'utf8').includes('const pad = Math.max(1, Math.round(Math.max(w, h) * 0.15));'));
+  assert.ok(fs.readFileSync('cloud/public/app/index2.js', 'utf8').includes('const pad = Math.floor(Math.max(w, h) * 0.15);'));
+});

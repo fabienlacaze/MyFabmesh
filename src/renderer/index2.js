@@ -34655,7 +34655,7 @@ function _lctDetails(def, img) {
   const maj = () => {
     const w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h) return;
-    const pad = Math.floor(Math.max(w, h) * 0.15);   // meme calcul que l'operation (meshyAPI-cloud / quick-edit : padding 0.15)
+    const pad = Math.max(1, Math.round(Math.max(w, h) * 0.15));   // meme calcul que l'operation BUREAU (main.js : Math.max(1, Math.round(max * 0.15))) ; le site, lui, arrondit vers le bas
     actuelle.textContent = w + ' \u00d7 ' + h;
     nouvelle.textContent = (w + 2 * pad) + ' \u00d7 ' + (h + 2 * pad);
   };
