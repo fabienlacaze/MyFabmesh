@@ -525,31 +525,83 @@ def _miroir(V, F, A, N, sur, plats, point, nn, souder):
     return V, Fm, Am, Nm, Vm, N
 
 
-def retirer_ponts_non_manifold(V, F, nc):
-    """Une arete portee par plus de deux faces rend le maillage non etanche : on retire, parmi les faces de couture (indices >= nc), la plus petite de chaque arete
-    en exces ; le bord ainsi ouvert est ensuite referme par fermer_trous_couture. Rend F sans les faces retirees."""
+def _ids_soudes(V):
+    """Identifiant de sommet SOUDE PAR POSITION, a tolerance (26/10) : un maillage texture porte des sommets dedoubles aux coutures UV (la moissonneuse d'essai : 340 000 aretes
+    « ouvertes » par indices, 0 une fois soudee) et la reflexion par le plan laisse des ecarts d'arrondi : deux sommets a moins de 1e-6 de la diagonale sont le MEME point
+    (arbre spatial + composantes connexes ; un simple arrondi sur une grille coupe en deux des points quasi confondus). Rend (ids, representant)."""
     import numpy as np
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+    V = np.asarray(V, dtype=np.float64)
+    n = len(V)
+    if n == 0:
+        return np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
+    diag = float(np.linalg.norm(V.max(axis=0) - V.min(axis=0)))
+    paires = cKDTree(V).query_pairs(max(diag * 1e-6, 1e-12), output_type='ndarray')
+    if not len(paires):
+        return np.arange(n, dtype=np.int64), np.arange(n, dtype=np.int64)
+    g = coo_matrix((np.ones(len(paires), dtype=np.int8), (paires[:, 0], paires[:, 1])), shape=(n, n))
+    k, ids = connected_components(g, directed=False)
+    ids = ids.astype(np.int64)
+    rep = np.full(k, n, dtype=np.int64)
+    np.minimum.at(rep, ids, np.arange(n, dtype=np.int64))
+    return ids, rep
+
+
+def _comptes_aretes(W, F):
+    import numpy as np
+    Fw = W[F]
+    E = np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]], axis=0)
+    E = E[E[:, 0] != E[:, 1]]
+    lo, hi = np.minimum(E[:, 0], E[:, 1]), np.maximum(E[:, 0], E[:, 1])
+    return np.unique(lo.astype(np.int64) * (int(W.max()) + 1) + hi, return_counts=True), int(W.max()) + 1
+
+
+def defauts_soudes(V, F):
+    """(aretes de bord, aretes a plus de 2 faces) du maillage SOUDE par position."""
+    import numpy as np
+    if not len(F):
+        return 0, 0
+    W, _ = _ids_soudes(V)
+    (u, c), _ = _comptes_aretes(W, np.asarray(F, dtype=np.int64))
+    return int((c == 1).sum()), int((c > 2).sum())
+
+
+def retirer_ponts_non_manifold(V, F, nc):
+    """Une arete (soudee par position) portee par plus de faces qu'elle n'en portait SANS les faces de couture (indices >= nc) rend le maillage non etanche : on
+    retire la plus petite face de couture de chaque arete en exces ; le bord ainsi ouvert est ensuite referme par fermer_trous_couture. Les defauts deja presents
+    dans le maillage d'origine ne sont jamais attribues a la couture. Rend F sans les faces retirees."""
+    import numpy as np
+    W, _ = _ids_soudes(V)
+    n = int(W.max()) + 1
     for _ in range(8):
-        E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=0)
-        lo, hi = np.minimum(E[:, 0], E[:, 1]), np.maximum(E[:, 0], E[:, 1])
-        cles = lo * len(V) + hi
+        Fw = W[F]
+        E = np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]], axis=0)
+        face_de = np.tile(np.arange(len(F)), 3)
+        ok = E[:, 0] != E[:, 1]
+        E, face_de = E[ok], face_de[ok]
+        cles = np.minimum(E[:, 0], E[:, 1]).astype(np.int64) * n + np.maximum(E[:, 0], E[:, 1])
         u, inv, cnt = np.unique(cles, return_inverse=True, return_counts=True)
-        exces = np.nonzero(cnt > 2)[0]
+        inv = inv.reshape(-1)
+        base = np.bincount(inv[face_de < nc], minlength=len(u))      # portage de l'arete SANS la couture
+        exces = np.nonzero(cnt > np.maximum(2, base))[0]
         if not len(exces):
             break
-        face_de = np.tile(np.arange(len(F)), 3)
         aire = 0.5 * np.linalg.norm(np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]), axis=1)
         retire = np.zeros(len(F), dtype=bool)
-        for k in exces:
-            fs = np.unique(face_de[inv == k])
+        ordre = np.argsort(inv, kind='stable')
+        debuts = np.searchsorted(inv[ordre], exces)
+        fins = np.searchsorted(inv[ordre], exces, side='right')
+        for k, d, f in zip(exces, debuts, fins):
+            fs = np.unique(face_de[ordre[d:f]])
             fs = fs[~retire[fs]]
-            cand = [f for f in fs.tolist() if f >= nc]
-            cand.sort(key=lambda f: aire[f])
+            cand = sorted([x for x in fs.tolist() if x >= nc], key=lambda x: aire[x])
             reste = len(fs)
-            for f in cand:
-                if reste <= 2:
+            for x in cand:
+                if reste <= max(2, int(base[k])):
                     break
-                retire[f] = True
+                retire[x] = True
                 reste -= 1
         if not retire.any():
             break
@@ -557,18 +609,34 @@ def retirer_ponts_non_manifold(V, F, nc):
         nc = min(nc, len(F))
     return F
 
-def fermer_trous_couture(V, F, A, N, sujet):
-    """Derniere etape du mode zone (26/10, user : « il ne doit pas y avoir de trou ») : tout bord OUVERT dont les deux sommets sont sujets (sommets de la copie miroir
-    ou du bord du trou laisse par les faces retirees) est BOUCHE, quelle que soit la forme de la zone peinte : pour chaque boucle, un sommet au barycentre (attributs et
-    normale moyennes) relie tous les cotes (un triangle seul pour une boucle de 3). Les bords deja ouverts dans le maillage d'origine ne sont jamais touches (leurs
-    sommets ne sont pas sujets). Rend (V, F, A, N, nb_boucles)."""
+
+def fermer_trous_couture(V, F, A, N, sujet, pts_sujets=None):
+    """Derniere etape du mode zone (26/10, user : « il ne doit pas y avoir de trou ») : tout bord OUVERT (au sens du maillage SOUDE par position, pas des indices : les
+    coutures UV dedoublent les sommets) dont les deux sommets sont sujets (copie miroir ou bord du trou laisse par les faces retirees) est BOUCHE : pour chaque
+    boucle, un sommet au barycentre (attributs et normale moyennes) relie tous les cotes (un triangle seul pour 3 sommets). Les bords deja ouverts dans le maillage
+    d'origine ne sont jamais touches. pts_sujets = positions (k, 3) dont les sommets soudes sont AUSSI sujets (sommets des faces retirees : le bord du trou coupe par une couture UV
+    ne passe pas par les indices du bord detecte). Rend (V, F, A, N, nb_boucles)."""
     import numpy as np
     n = len(V)
-    E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=0)
-    cle = E[:, 0] * n + E[:, 1]
-    inv = E[:, 1] * n + E[:, 0]
+    if pts_sujets is not None and len(pts_sujets):
+        Wt, rep = _ids_soudes(np.concatenate([V, np.asarray(pts_sujets, dtype=np.float64)]))
+        W = Wt[:n]
+        nw = len(rep)
+        sw = np.zeros(nw, dtype=bool)
+        sw[W[sujet]] = True
+        sw[Wt[n:]] = True
+    else:
+        W, rep = _ids_soudes(V)
+        nw = len(rep)
+        sw = np.zeros(nw, dtype=bool)
+        sw[W[sujet]] = True
+    Fw = W[F]
+    E = np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]], axis=0)
+    E = E[E[:, 0] != E[:, 1]]
+    cle = E[:, 0] * nw + E[:, 1]
+    inv = E[:, 1] * nw + E[:, 0]
     bord = E[~np.isin(inv, cle)]
-    bord = bord[sujet[bord[:, 0]] & sujet[bord[:, 1]]]
+    bord = bord[sw[bord[:, 0]] & sw[bord[:, 1]]]
     if not len(bord):
         return V, F, A, N, 0
     sortant = {}
@@ -595,7 +663,7 @@ def fermer_trous_couture(V, F, A, N, sujet):
     Vn, Fn, An, Nn = [V], [F], ([A] if A is not None else None), ([N] if N is not None else None)
     base = n
     for boucle in boucles:
-        L = np.asarray(boucle, dtype=np.int64)
+        L = rep[np.asarray(boucle, dtype=np.int64)]          # un indice reel par sommet soude
         if len(L) == 3:
             Fn.append(np.asarray([[L[0], L[2], L[1]]], dtype=np.int64))
             continue
@@ -612,6 +680,7 @@ def fermer_trous_couture(V, F, A, N, sujet):
         Fn.append(np.stack([suiv, L, np.full(len(L), c, dtype=np.int64)], axis=1))   # aretes a->b du bord : la face de fermeture porte b->a
     return (np.concatenate(Vn), np.concatenate(Fn).astype(np.int64), None if An is None else np.concatenate(An),
             None if Nn is None else np.concatenate(Nn), len(boucles))
+
 
 def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0), garder='pos', mode='full', stamps=None):
     """Coeur de l'outil, sur des tableaux. V (n,3), F (m,3) entiers, A (n,k) attributs a interpoler (UV, couleurs),
@@ -688,10 +757,17 @@ def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0),
     sujet[nb:] = True
     if len(Eh):
         sujet[rb[Eh].ravel()] = True
-    Vo, Fo, Ao, No, bouchees = fermer_trous_couture(Vo, Fo, Ao, No, np.concatenate([sujet, np.zeros(0, dtype=bool)]))
+    pts_ret = V[np.unique(F[retire].ravel())] if retire.any() else None
+    bouchees = 0
+    for _passe in range(4):                      # une fermeture peut en reveler une autre (boucles non simples, chaines rompues) : on repasse jusqu'a ce qu'il n'y ait plus rien
+        sujet = np.concatenate([sujet, np.ones(len(Vo) - len(sujet), dtype=bool)])      # les sommets ajoutes (barycentres) sont sujets
+        Vo, Fo, Ao, No, k = fermer_trous_couture(Vo, Fo, Ao, No, sujet, pts_ret)
+        bouchees += k
+        if not k:
+            break
     stats['bouchees'] = bouchees
     stats.update(gardees=len(Fb), miroir=len(Fm), retirees=int(retire.sum()), ponts=len(Fo) - len(Fb) - len(Fm),
-                 ouvert=max(0, _defauts_bord(Fo, len(Vo)) - _defauts_bord(F, len(V))))
+                 ouvert=max(0, sum(defauts_soudes(Vo, Fo)) - sum(defauts_soudes(V, F))))
     return Vo, Fo, Ao, No, stats
 
 
