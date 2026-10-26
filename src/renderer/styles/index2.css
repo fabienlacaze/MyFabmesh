@@ -5579,25 +5579,49 @@ html[dir="rtl"] .p3-cat { text-align: start; }
       a la barre, qui se coupait en deux lignes et recouvrait le texte d'etat). */
 .mesh-toolbar.fen { left: 0; right: 0; transform: none; margin: 0 auto; width: fit-content; max-width: calc(100% - 16px); }
 .mesh-toolbar.fen .bv3-groupe { flex-wrap: nowrap; }
-/* 3. Fenetre etroite (< 900 px, une colonne) : la carte defile en entier (apercu moins haut, reglages visibles), pied toujours atteignable. */
+/* 3. Fenetre etroite (< 900 px, une colonne) — 26/10 : l'en-tete et le PIED restent en place (le pied n'est plus coupe ni colle au bord) ;
+      l'apercu garde une hauteur raisonnable (~40 vh) et c'est le CORPS de la carte qui defile, avec une barre fine et un degrade en haut / en bas qui
+      signalent qu'il y a de quoi defiler. */
 @media (max-width: 900px) {
-  :root { --vz-h-corps: max(300px, 42vh); }
+  :root { --vz-h-corps: clamp(170px, 40vh, 420px); }
   html body .modal-card.fen-3d {
-    height: auto !important; max-height: 94vh !important; overflow-y: auto !important;
+    height: auto !important; max-height: 94vh !important; overflow: hidden !important;
+    display: flex !important; flex-direction: column;
   }
-  html body .modal-card.fen-3d .fen-corps { flex: 0 0 auto !important; grid-template-columns: 1fr !important; }
+  @supports (height: 1dvh) { html body .modal-card.fen-3d { max-height: 94dvh !important; } }
+  html body .modal-card.fen-3d > * { flex-shrink: 0; }
+  html body .modal-card.fen-3d .fen-corps {
+    display: flex !important; flex-direction: column; grid-template-columns: 1fr !important;
+    flex: 1 1 auto !important; min-height: 0 !important; height: auto !important; max-height: none !important;
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--accent, #8b5cf6) transparent;
+    padding-bottom: 4px;
+    background:
+      linear-gradient(var(--bg-1), var(--bg-1)) top / 100% 22px local no-repeat,
+      linear-gradient(var(--bg-1), var(--bg-1)) bottom / 100% 22px local no-repeat,
+      radial-gradient(farthest-side at 50% 0, rgba(168, 85, 247, .55), transparent) top / 100% 14px scroll no-repeat,
+      radial-gradient(farthest-side at 50% 100%, rgba(168, 85, 247, .55), transparent) bottom / 100% 14px scroll no-repeat;
+  }
   html body .modal-card.fen-3d .fen-apercu, #modal-style .modal-card.fen-3d .fen-apercu, #modal-lancement .modal-card.fen-3d .fen-apercu {
-    box-sizing: border-box !important; width: 100% !important; height: var(--vz-h-corps) !important;
+    box-sizing: border-box !important; width: 100% !important; height: var(--vz-h-corps) !important; flex: 0 0 auto;
   }
   #modal-paint .paint-apercu { height: var(--vz-h-corps) !important; }
+  html body #modal-blur .modal-card.fen-3d .fen-apercu { height: var(--vz-h-corps) !important; }   /* Blur : meme hauteur d'apercu que les autres (avant : 50 vh) */
+  /* un apercu / visualiseur ne s'ecrase jamais : c'est le corps qui defile (les visualiseurs a identifiant ont leur propre regle : meme interdiction) */
+  html body .modal-card.fen-3d .fen-corps > * { flex-shrink: 0 !important; }
+  #pm-viewport-wrap, #me-viewport, #rz-viewport, #pe-viewport-wrap { flex: 0 0 auto !important; }
   html body .modal-card.fen-3d .fen-form { overflow: visible; min-height: max-content; height: auto; flex: 0 0 auto; }
-  html body .modal-card.fen-3d .fen-corps { display: flex !important; flex-direction: column; height: auto !important; max-height: none !important; }
-  html body .modal-card.fen-3d .fen-corps > .fen-apercu { flex: 0 0 auto; }
   html body .modal-card.fen-3d .fen-form > * { flex-shrink: 0; }
   html body .modal-card.fen-3d > .modal-actions {
-    position: sticky !important; bottom: -28px; z-index: 7; background: var(--bg-1);
-    padding: 10px 0 28px !important; margin: 12px 0 -28px !important;
+    position: static !important; flex: 0 0 auto; z-index: 7; background: var(--bg-1);
+    padding: 12px 0 0 !important; margin: 8px 0 0 !important; border-top: 1px solid var(--border);
   }
+}
+/* Barre de vues sur DEUX lignes (apercu < ~600 px de large) : le bandeau d'etat monte au-dessus d'elle au lieu de passer dessous. */
+@media (max-width: 700px) {
+  html body .fen-apercu:has(.barre-vues-3d) .fen-apercu-etat,
+  html body #pm-viewport-wrap:has(.barre-vues-3d) #pm-status,
+  html body #pe-viewport-wrap:has(.barre-vues-3d) #pe-status,
+  html body #rz-viewport:has(.barre-vues-3d) #rz-hint { bottom: 82px !important; }
 }
 
 /* RESTAURATION (25/10) : fenetre « Tache en cours » (#modal-job-details) : son ancienne mise en forme, que la conversion au gabarit avait cassee (apercu qui deborde sur les boutons) */
