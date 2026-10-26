@@ -279,7 +279,7 @@ def _charger_sans_traitement(glb_bytes: bytes):
     return trimesh.load(io.BytesIO(glb_bytes), file_type='glb', force='scene', process=False)
 
 
-def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000):
+def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000, skin_repair: bool = False, detect_only: bool = False):
     """Bouche les trous (pourtours d'aretes de bord) dont le nombre d'aretes est dans [min_edges, max_edges]. Rend (glb_bytes, stats).
 
     BOUCHON LISSE (2026-10-26, noyau modal_app/bouchage_lisse.py = scripts/bouchage_lisse.py, MEME code que le bureau) : la rustine suit la courbure
@@ -287,12 +287,18 @@ def fill_holes(glb_bytes: bytes, min_edges: int = 3, max_edges: int = 1_000_000)
     aucun sommet deplace. L'ancienne version fusionnait les sommets (merge_vertices), supprimait les « faces cassees » et normalisait les normales :
     mesure sur l'orc de 512 000 faces, 11,9 % des faces supprimees, 38 % des UV reecrites, 204 boucles ouvertes creees (ou refus a 17 % apres 74 a 160 s).
 
+    OPTION skin_repair (defaut False) : cherche aussi les trous de la PEAU exterieure (scripts/bouchage_peau.py), environ une minute sur 500 000 faces.
+
     Rien a boucher -> RuntimeError EXPLIQUEE (le worker rembourse, le maillage n'est pas touche), avec le diagnostic du maillage ferme :
     faces retournees, aretes a plus de deux faces, miettes flottantes, ou « la matiere manquante n'est pas un trou »."""
-    from modal_app.bouchage_lisse import boucher_scene
+    from modal_app.bouchage_lisse import boucher_scene, detecter_peau_scene
 
     scene = _charger_sans_traitement(glb_bytes)
-    res = boucher_scene(scene, min_edges, max_edges, journal=lambda m: print(f'[mesh-op] fill_holes {m}', flush=True))
+    if detect_only:
+        # DETECTION SEULE des trous de peau (apercu de la fenetre Fill holes) : aucun GLB, aucun credit (le worker ne debite pas cette variante).
+        res = detecter_peau_scene(scene, min_edges, max_edges, journal=lambda m: print(f'[mesh-op] fill_holes detect {m}', flush=True))
+        return b'', dict(res, detect_only=True)
+    res = boucher_scene(scene, min_edges, max_edges, journal=lambda m: print(f'[mesh-op] fill_holes {m}', flush=True), peau=bool(skin_repair))
     if res['refus']:
         code, texte = res['refus']
         print(f'[mesh-op] fill_holes: rien a boucher ({code})', flush=True)
@@ -1387,5 +1393,7 @@ def _executer(op_type: str, glb_bytes: bytes, params: dict | None = None):
             glb_bytes,
             min_edges=int(p.get('min_hole_size', 3) or 3),
             max_edges=int(p.get('max_hole_size', 1_000_000) or 1_000_000),
+            skin_repair=bool(p.get('skin_repair', False)),
+            detect_only=bool(p.get('detect_only', False)),
         )
     return OPS[op_type](glb_bytes), None

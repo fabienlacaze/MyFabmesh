@@ -3507,6 +3507,9 @@ class MyFabmeshMesh:
     secrets=[
         modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"]),
     ],
+    # 26/10 : Fill holes « Reparer aussi les trous de la peau exterieure » tourne ICI (op CPU synchrone). Mesure (banc test_remplissage_peau.py, bateau de
+    # 497 616 faces) : 81 s au defaut de Modal, 61 s a 2 coeurs ; Cloudflare coupe a 100 s (524). 2 coeurs laissent la marge ; les autres ops n'y perdent rien.
+    cpu=2.0,
 )
 @modal.asgi_app()
 def mesh_router():
@@ -3667,6 +3670,8 @@ def mesh_router():
                 # (fill_holes : « aucun trou », « aurait supprime X % des faces ») leve RuntimeError.
                 # Sans ce 422, FastAPI rendait un 500 muet et l'utilisateur ne lisait qu'un echec generique.
                 raise HTTPException(status_code=422, detail=str(e))
+            if isinstance(stats, dict) and stats.get('detect_only'):
+                return {"success": True, "detect": {k: v for k, v in stats.items() if k != 'detect_only'}}     # detection seule : pas de GLB
             resp = _rendre_glb(out, payload, op_type=op_type)
             if stats is not None:
                 resp["stats"] = stats

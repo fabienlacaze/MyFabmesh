@@ -25,6 +25,7 @@ import { analyser as analyserIntention, composerGabarit, clauseObjetTenu, retire
 import { analyserRetrait, estRoute } from './lib/retrait-image.js';
 import { langueSource, normaliserCodeLangue, ressembleAnglais } from './lib/langue-texte.js';
 import { anglesDepuisCamera as _rrxAngles, validerVue as _rrxValiderVue, nomVue as _rrxNomVue, affichageEtape as _rrxAffichage } from './lib/reshape-vue.js';
+import { geometrie as geometrieTrousPeau, diagonale as diagonaleTrousPeau, COULEUR_PEAU } from './lib/trous-peau.js';
 import { preparer as preparerTrous, analyser as analyserTrous, diagnostiquer as diagnostiquerTrous, agreger as agregerTrous, message_refus as messageRefusTrous, rendu_apercu as renduApercuTrous } from './lib/bouchage-trous.js';
 
 // BVH-accelerated raycasting (three-mesh-bvh, MIT). The 3D clone-stamp fires
@@ -14120,7 +14121,9 @@ async function runMeshTool(operation, params = [], namedParams = null, options =
         const s = result.stats, h = s.holes_filled, d = s.holes_filled_delta_faces || 0;
         showToast(s.verdict === 'OPEN_HOLES'
           ? _i18nTf('Filled {x} holes (+{y} faces). Some holes remain: widen the Min / Max range.', h, d)
-          : _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d), 'success', s.verdict === 'OPEN_HOLES' ? 6000 : 3000);
+          : (s.skin_holes_filled > 0
+            ? _i18nTf('Double skin: filled {x} holes in the outer skin (+{y} faces); nothing was removed or moved.', s.skin_holes_filled, d)
+            : _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d)), 'success', s.verdict === 'OPEN_HOLES' ? 6000 : 3000);
       } else showToast(_i18nTf('{x} done', _i18nT(operation)), 'success');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
       // Register the new mesh version. populateWorkspace only RENDERS
@@ -14802,6 +14805,91 @@ function _mtBuildFillOverlays(vals) {
   return { loops, filled, tooSmall, tooBig, unfillable, flat, faces, boundaryEdges, refus };
 }
 
+// ── Trous de PEAU : lueur bleu clair (2026-10-26) ─────────────────────────────────────────────────────────────────────────────────────────────
+// Detection SEULE (mesh_tools.py detect_skin, ou la route du site en mode Cloud : jamais facturee), lancee quand on COCHE « Also repair holes in the outer skin ».
+// Les pourtours ne sont calcules qu'une fois par maillage (min 3, max 5000 aretes) ; les curseurs Min / Max filtrent ensuite sans rien recalculer.
+function _mtSkinMinuteur(arreter) {
+  const sk = mtState.skin;
+  if (sk.minuteur) { clearInterval(sk.minuteur); sk.minuteur = null; }
+  if (!arreter) sk.minuteur = setInterval(() => _mtSkinStatut(), 1000);
+}
+function _mtSkinReinit() {
+  const sk = mtState.skin;
+  sk.jeton++;                                  // une recherche en cours devient sans effet
+  _mtSkinMinuteur(true);
+  if (sk.etat === 'cherche' || sk.etat === 'erreur') sk.etat = 'inactif';
+  else if (sk.etat === 'pret') sk.etat = 'inactif';   // le resultat reste dans sk.detect (meme maillage : pas de nouveau calcul)
+}
+function _mtSkinTexte(vals) {
+  const sk = mtState.skin;
+  if (!vals || !vals.skin_repair) return '';
+  if (sk.etat === 'cherche') return _i18nTf('Searching the outer skin for holes (about a minute)… {x} s', Math.round((Date.now() - sk.t0) / 1000));
+  if (sk.etat === 'erreur') return _i18nT('The search for skin holes failed. Apply can still try.');
+  if (sk.etat === 'pret') {
+    const n = (mtState.skinN || 0);
+    return n ? _i18nTf('Outer skin: {x} holes detected (light blue). Apply will patch them; nothing is removed.', n) : _i18nT('Outer skin: no hole detected.');
+  }
+  return '';
+}
+function _mtSkinStatut() {
+  const status = document.getElementById('mt-preview-status');
+  if (!status || !mtState.schema || mtState.schema.overlayPreview !== true) return;
+  const sk = _mtSkinTexte(mtState.vals);
+  status.textContent = (mtState.statusBase ? mtState.statusBase + (sk ? ' · ' : '') : '') + sk;
+}
+// Dessine la lueur des trous retenus par les curseurs ; rend leur nombre.
+function _mtSkinDessiner(vals) {
+  const sk = mtState.skin;
+  mtState.skinN = 0;
+  if (!vals.skin_repair || sk.etat !== 'pret' || !sk.detect) return 0;
+  const minE = Math.max(3, Number(vals.min_hole_size) || 3), maxE = Math.max(minE, Number(vals.max_hole_size) || 2000);
+  let total = 0;
+  mtState.origGeoms.forEach((e, i) => {
+    const pos = e.originalGeom && e.originalGeom.attributes && e.originalGeom.attributes.position;
+    if (!pos) return;
+    const partie = { trous: (sk.detect.trous || []).filter((t) => (t.maillage || 0) === i || (mtState.origGeoms.length === 1)) };
+    const g = geometrieTrousPeau(partie, minE, maxE, diagonaleTrousPeau(_positionsPlates(pos)));
+    if (!g.nombre) return;
+    const ajouter = (obj, ordre) => { obj.renderOrder = ordre; obj.frustumCulled = false; e.mesh.add(obj); mtState.overlays.push(obj); };
+    const tri = (tab, opacite, ordre, additif) => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(tab, 3));
+      ajouter(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: COULEUR_PEAU, transparent: true, opacity: opacite, depthTest: false, depthWrite: false,
+        side: THREE.DoubleSide, blending: additif ? THREE.AdditiveBlending : THREE.NormalBlending })), ordre);
+    };
+    tri(g.halo, 0.22, 998, true);       // halo : la meme zone, plus large et plus pale (additif : il luit sur fond sombre)
+    tri(g.zone, 0.55, 999, false);      // zone translucide bleu clair, legerement en retrait de la coque (pas additive : reste bleue sur une coque blanche)
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(g.lignes, 3));
+    ajouter(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: COULEUR_PEAU, transparent: true, opacity: 1, depthTest: false })), 1001);
+    total += g.nombre;
+  });
+  mtState.skinN = total;
+  return total;
+}
+async function _mtSkinChercher() {
+  const sk = mtState.skin, chemin = mtState.meshPath;
+  if (!chemin) return;
+  if (sk.detect && sk.cle === chemin) { sk.etat = 'pret'; return; }           // deja calcule pour ce maillage
+  const jeton = ++sk.jeton;
+  sk.etat = 'cherche'; sk.cle = chemin; sk.detect = null; sk.t0 = Date.now();
+  _mtSkinMinuteur(false);
+  let r;
+  try { r = await API.detectSkinHoles({ meshPath: chemin, min: 3, max: 5000 }); } catch (e) { r = { success: false, error: String(e && e.message || e) }; }
+  if (jeton !== sk.jeton) return;              // fenetre fermee, case decochee ou autre maillage
+  _mtSkinMinuteur(true);
+  if (r && r.success && r.detect) { sk.etat = 'pret'; sk.detect = r.detect; try { console.log(`[fill-holes] skin holes: ${r.detect.nombre} (${r.detect.duree}s)`); } catch (_) {} }
+  else { sk.etat = 'erreur'; sk.detect = null; console.warn('[fill-holes] skin hole search failed:', r && r.error); }
+  _mtSchedulePreview();                        // redessine la lueur et le compteur
+}
+// Appelee a chaque apercu : lance la recherche quand la case est cochee, dessine la lueur, ou efface tout quand elle ne l'est plus.
+function _mtSkinPreparer(vals) {
+  const sk = mtState.skin;
+  if (!vals.skin_repair) { if (sk.etat !== 'inactif') _mtSkinReinit(); mtState.skinN = 0; return 0; }
+  if (sk.etat === 'inactif') _mtSkinChercher();
+  return _mtSkinDessiner(vals);
+}
+
 const MESH_TOOL_SCHEMAS = {
   smooth: {
     title: 'Smooth mesh',
@@ -14883,8 +14971,12 @@ const MESH_TOOL_SCHEMAS = {
     params: [
       { id: 'min_hole_size', label: 'Min hole size (edges)', type: 'range', min: 3, max: 5000, step: 1,  default: 3 },
       { id: 'max_hole_size', label: 'Max hole size (edges)', type: 'range', min: 3, max: 5000, step: 10, default: 2000 },
+      // Option a part (26/10) : decochee par defaut ; rien ne change pour un maillage sain. Cochee : la fenetre cherche les trous de la PEAU exterieure
+      // (detection seule, gratuite, en lueur bleu clair) et « Apply » les bouche.
+      { id: 'skin_repair', label: 'Also repair holes in the outer skin', type: 'checkbox', default: false,
+        hint: 'For models whose hull is pierced without an open edge, like a boat. Experimental: it can take a minute. Check the result.' },
     ],
-    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size)],
+    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size), vals.skin_repair ? '1' : '0'],
   },
   center: {
     title: 'Center mesh',
@@ -14977,6 +15069,8 @@ const mtState = {
   overlays: [],           // Fill-holes preview overlays (green fills + outlines)
   wireframes: [],         // wireframe overlays (△ Triangles toggle)
   showWire: false,
+  meshPath: '',           // maillage charge dans la fenetre (apercu des trous de peau)
+  skin: { jeton: 0, etat: 'inactif', cle: '', detect: null, t0: 0, minuteur: null },   // trous de PEAU : inactif | cherche | pret | erreur
 };
 
 // Ecrit la valeur affichee a cote d'un curseur. Depuis que les parametres de
@@ -15107,6 +15201,7 @@ function _mtRunPreview() {
       if (status) status.textContent = `Pivot: ${vals.pivot || 'bottom'} — ` + _i18nT('the yellow gizmo shows where the origin will be. Apply moves the mesh.');
     } else if (mtState.schema.overlayPreview) {
       const st = _mtBuildFillOverlays(vals);
+      _mtSkinPreparer(vals);
       if (status) {
         if (st.filled) {
           status.textContent = _i18nTf('Holes: {x} to fill (green)', st.filled) + ` · ` + _i18nTf('{x} too small (grey)', st.tooSmall) + ` · ` + _i18nTf('{x} too large (red)', st.tooBig)
@@ -15114,10 +15209,13 @@ function _mtRunPreview() {
             + (st.unfillable ? ` · ` + _i18nTf('{x} cannot be filled (red)', st.unfillable) : '')
             + (st.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', st.flat) : '');
         } else if (st.refus) {
-          status.textContent = (window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte;
+          // Rien a boucher : le motif (dont « cochez la case » pour une double peau). Case cochee : le compteur des trous de peau suffit.
+          status.textContent = vals.skin_repair ? '' : ((window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte);
         } else {
           status.textContent = _i18nT('Computing…');
         }
+        mtState.statusBase = status.textContent;
+        _mtSkinStatut();
       }
     } else if (status) {
       status.textContent = fn
@@ -15203,6 +15301,7 @@ function _mtStatut(texte) {
 }
 function _mtLoadMesh(meshPath) {
   const jeton = ++_mtJeton;
+  mtState.meshPath = meshPath;
   if (!mtState.renderer || !mtState.scene) return;   // WebGL indisponible
   if (mtState.origModel && mtState.scene) {
     mtState.scene.remove(mtState.origModel);
@@ -15506,6 +15605,7 @@ function openMeshToolModal(toolName) {
     if (closeX) closeX.onclick = null;
     _mtClearOverlays();
     _mtClearWireframes();
+    _mtSkinReinit();
     // Restore original geoms (memory hygiene).
     for (const e of mtState.origGeoms) { e.mesh.geometry = e.originalGeom; }
   };

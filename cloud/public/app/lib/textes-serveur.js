@@ -50,6 +50,7 @@
     // et le bureau). Le generique « Nothing to fill: the mesh has no open hole. » doit rester apres les cas precis qui continuent par « , but ... ».
     [/^No hole between (\d+) and (\d+) edges\b/i, 'fill_holes_range', (m) => ({ min: Number(m[1]), max: Number(m[2]) })],
     [/^Nothing to fill: the mesh has no open hole, but (\d+) faces point the wrong way\b/i, 'fill_holes_closed_flipped', (m) => ({ n: Number(m[1]) })],
+    [/^Nothing to fill: the mesh has no open hole, but (\d+) edges are shared by more than two faces \(double skin or glued parts\)\. No hole in the outer skin\b/i, 'fill_holes_closed_nonmanifold_skin', (m) => ({ n: Number(m[1]) })],
     [/^Nothing to fill: the mesh has no open hole, but (\d+) edges are shared by more than two faces\b/i, 'fill_holes_closed_nonmanifold', (m) => ({ n: Number(m[1]) })],
     [/^Nothing to fill: the mesh has no open hole, but (\d+) small loose pieces\b/i, 'fill_holes_closed_debris', (m) => ({ n: Number(m[1]) })],
     [/^Nothing to fill: the mesh has no open hole\./i, 'fill_holes_closed', null],
@@ -96,7 +97,8 @@
     prompt_too_long: (p) => tf('Your description is too long ({x} of {y} characters). Please shorten it.', p.n, p.max),
     fill_holes_range: (p) => tf('No hole between {x} and {y} edges. Widen the range. The mesh was left unchanged and nothing was charged.', p.min, p.max),
     fill_holes_closed_flipped: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} faces point the wrong way (dark or see-through patches). Use Fix normals instead. The mesh was left unchanged and nothing was charged.', p.n),
-    fill_holes_closed_nonmanifold: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} edges are shared by more than two faces (double skin or glued parts). The mesh was left unchanged and nothing was charged.', p.n),
+    fill_holes_closed_nonmanifold: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} edges are shared by more than two faces (double skin or glued parts). If the hull looks pierced, tick "Also repair holes in the outer skin" and try again. The mesh was left unchanged and nothing was charged.', p.n),
+    fill_holes_closed_nonmanifold_skin: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} edges are shared by more than two faces (double skin or glued parts). No hole in the outer skin was found either. The mesh was left unchanged and nothing was charged.', p.n),
     fill_holes_closed_debris: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} small loose pieces float apart from the main body. The mesh was left unchanged and nothing was charged.', p.n),
     fill_holes_closed: () => t('Nothing to fill: the mesh has no open hole. Missing or thin areas are not holes in the surface, so this tool cannot fix them. The mesh was left unchanged and nothing was charged.'),
     fill_holes_unfillable: (p) => tf('Could not fill the {x} open holes: their outline is too complex or folds over itself. The mesh was left unchanged and nothing was charged.', p.n),
