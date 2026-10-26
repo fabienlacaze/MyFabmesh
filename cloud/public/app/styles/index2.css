@@ -5533,3 +5533,61 @@ html[dir="rtl"] .p3-cat { text-align: start; }
 /* Fenetre « Skeleton points » : barre de vues sur UNE ligne, comme la barre commune (reset, vues, zoom). */
 .lm-fs-view-toolbar { flex-wrap: nowrap; width: max-content; max-width: calc(100% - 12px); overflow-x: auto; row-gap: 0; gap: 2px; padding: 4px; }
 .lm-fs-view-toolbar button { padding: 4px 6px; height: 24px; white-space: nowrap; flex: 0 0 auto; }
+
+/* ============================================================
+ * 26/10 : « Select faces » en ASSISTANT 3 etapes (menu vertical a droite). Aucun controle propre : voir index2.js, « ASSISTANT SELECTION ».
+ * Visible seulement en mode Select quand le mode expert est coupe (#modal-mesh-edit.me-simple). Commun site / bureau.
+ * ============================================================ */
+#me-wizard, #me-w-back { display: none; }
+#modal-mesh-edit.me-simple #me-wizard { display: flex; flex-direction: column; gap: 8px; }
+#modal-mesh-edit.me-simple #me-panel > :not(#me-wizard):not(#me-actions-row) { display: none !important; }
+#modal-mesh-edit.me-simple #me-actions-row { order: -1; }
+.me-w-link { background: none; border: 0; color: #c4a1ff; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; text-align: left; padding: 4px 2px; }
+.me-w-link:hover { color: #e5d4ff; }
+.me-w-count { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--bg-2); }
+.me-w-count b { font-size: 24px; line-height: 1.1; color: var(--text-0); }
+.me-w-count span { font-size: 12px; color: var(--text-1); }
+.me-w-count small { margin-left: auto; font-size: 11px; color: var(--text-2); }
+.me-w-step { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-1); overflow: hidden; }
+.me-w-step.on { border-color: var(--amber, #f59e0b); background: rgba(245, 158, 11, 0.06); }
+.me-w-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; background: none; border: 0; color: var(--text-1); font: inherit; cursor: pointer; text-align: left; }
+.me-w-head i { font-style: normal; flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-3); color: var(--text-1); font-weight: 700; font-size: 13px; }
+.me-w-head .me-w-title { font-size: 14px; font-weight: 600; color: var(--text-0); }
+.me-w-head small { margin-left: auto; font-size: 11px; color: var(--text-2); text-align: right; }
+.me-w-step.on .me-w-head i { background: var(--amber, #f59e0b); color: #000; }
+.me-w-step.done .me-w-head i { background: var(--success, #4ade80); color: #000; }
+.me-w-step.locked .me-w-head { opacity: 0.45; cursor: not-allowed; }
+.me-w-body { display: none; flex-direction: column; gap: 8px; padding: 2px 12px 12px; }
+.me-w-step.on .me-w-body { display: flex; }
+.me-w-hint { margin: 0; font-size: 12px; color: var(--text-2); }
+.me-w-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.me-w-grid3 { grid-template-columns: 1fr 1fr 1fr; }
+#me-wizard .tool-btn { font-size: 12px !important; padding: 8px 6px !important; min-height: 34px; }
+#me-wizard .me-w-big { display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 52px; padding: 8px 10px !important; text-align: left; font-size: 14px !important; font-weight: 600; }
+#me-wizard .me-w-big em { font-style: normal; font-size: 20px; width: 26px; text-align: center; flex: none; }
+#me-wizard .me-w-big span { display: flex; flex-direction: column; line-height: 1.2; }
+#me-wizard .me-w-big small { font-size: 10.5px; font-weight: 400; opacity: 0.8; white-space: normal; }
+#me-wizard .me-w-col { flex-direction: column; justify-content: center; text-align: center; gap: 2px; }
+#me-wizard .me-w-col span { align-items: center; }
+.me-w-slider { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-1); }
+.me-w-slider span { flex: none; min-width: 86px; }
+.me-w-slider input { flex: 1; min-width: 40px; }
+.me-w-slider b { min-width: 34px; text-align: right; color: var(--text-0); font-weight: 600; }
+.me-w-nav { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+#me-wizard .me-w-next { min-height: 38px; font-weight: 700; }
+.me-w-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.me-w-card { display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border: 1px solid #2a3a66; border-radius: 9px; background: linear-gradient(#18254a, #121c38); color: var(--text-0); font: inherit; text-align: left; cursor: pointer; }
+.me-w-card:hover:not(:disabled) { border-color: #5a6fb0; }
+.me-w-card b { font-size: 13px; }
+.me-w-card b em { font-style: normal; margin-right: 6px; }
+.me-w-card span { font-size: 11px; color: var(--text-1); line-height: 1.3; }
+.me-w-card.on { background: var(--amber, #f59e0b); border-color: var(--amber, #f59e0b); color: #000; }
+.me-w-card.on span { color: #1b1200; }
+.me-w-card.me-w-danger { border-color: rgba(255, 80, 80, 0.55); background: linear-gradient(#3a1620, #2a1018); }
+.me-w-card.me-w-danger b { color: #ff9d9d; }
+.me-w-card:disabled, #me-wizard button:disabled { opacity: 0.4; cursor: not-allowed; }
+#me-w-chip { position: absolute; left: 10px; top: 10px; z-index: 5; pointer-events: none; display: none; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 8px; background: rgba(15, 15, 25, 0.88); border: 1px solid var(--border-strong); color: var(--text-1); font-size: 12px; }
+#me-w-chip b { color: #fff; font-size: 13px; }
+#modal-mesh-edit.me-select-mode #me-w-chip { display: flex; }
+#me-w-back::before, #me-w-back1::before, #me-w-back2::before { content: '\2039\00a0'; }
+#me-w-expert::after, #me-w-next1::after { content: '\00a0\203A'; }

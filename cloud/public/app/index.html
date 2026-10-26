@@ -4097,9 +4097,78 @@
                here in 2D so it never disturbs the WebGL canvas. -->
           <canvas id="me-lasso-canvas" style="position:absolute; left:0; top:0; width:100%; height:100%; display:none; pointer-events:none; z-index:900;"></canvas>
           <div id="me-brush-cursor" style="position:fixed; pointer-events:none; border:2px solid rgba(255,200,50,0.8); border-radius:50%; display:none; z-index:1000;"></div>
+          <div id="me-w-chip"><span style="color:#f59e0b;">&#9635;</span><b>0</b><span>faces chosen</span></div>
           <div id="me-loupe"><canvas id="me-loupe-canvas" width="150" height="150" style="width:150px; height:150px;"></canvas></div>
         </div>
         <div id="me-panel" class="fen-form" style="gap:10px;">
+          <!-- ASSISTANT « Select faces » en 3 etapes (26/10, decision du user : menu VERTICAL a droite). Ne contient AUCUN controle propre :
+               chaque bouton declenche un controle me-* existant (.click()). Les curseurs sont des miroirs de me-brush-size / me-sel-wand-angle.
+               Visible seulement en mode Select quand le mode expert est coupe (classe me-simple sur #modal-mesh-edit). Logique : index2.js, « ASSISTANT SELECTION ». -->
+          <button id="me-w-back" type="button" class="me-w-link" style="display:none;">Guided mode</button>
+          <div id="me-wizard" class="me-wizard">
+            <div class="me-w-count"><b id="me-w-count-n">0</b><span>faces chosen</span><small id="me-w-count-pct"></small></div>
+            <div class="me-w-step on" id="me-w-step-1">
+              <button type="button" class="me-w-head" id="me-w-head-1"><i>1</i><span class="me-w-title">Choose the area</span><small id="me-w-sum-1">Nothing chosen yet</small></button>
+              <div class="me-w-body">
+                <p class="me-w-hint">Paint on the model with the mouse. You can fix it afterwards.</p>
+                <div class="me-w-grid">
+                  <button type="button" class="secondary-btn me-w-big" id="me-w-add"><em>&#9998;</em><span>Paint<small>drag over the area</small></span></button>
+                  <button type="button" class="secondary-btn me-w-big" id="me-w-erase"><em>&#129529;</em><span>Erase<small>remove part of the choice</small></span></button>
+                  <button type="button" class="secondary-btn me-w-big" id="me-w-wand"><em>&#10024;</em><span>Surface<small>one click = the whole flat surface</small></span></button>
+                  <button type="button" class="secondary-btn me-w-big" id="me-w-lasso"><em>&#10057;</em><span>Outline<small>draw a loop around the area</small></span></button>
+                </div>
+                <div class="me-w-slider" id="me-w-radius-row"><span>Brush size</span><input type="range" id="me-w-radius" min="1" max="100" value="25" /><b id="me-w-radius-val">0.05</b></div>
+                <div class="me-w-slider" id="me-w-angle-row" style="display:none;"><span>Surface tolerance</span><input type="range" id="me-w-angle" min="1" max="80" value="20" /><b id="me-w-angle-val">20&deg;</b></div>
+                <div class="me-w-grid">
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-grow">&#10133;&nbsp;Grow the choice</button>
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-shrink">&#10134;&nbsp;Shrink the choice</button>
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-all">&#9635;&nbsp;Choose everything</button>
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-invert">&#8634;&nbsp;Choose the rest</button>
+                </div>
+                <div class="me-w-nav">
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-clear">&#10005;&nbsp;Start over</button>
+                  <button type="button" class="secondary-btn tool-btn tool-active me-w-next" id="me-w-next1">Next: what to do</button>
+                </div>
+              </div>
+            </div>
+            <div class="me-w-step" id="me-w-step-2">
+              <button type="button" class="me-w-head" id="me-w-head-2"><i>2</i><span class="me-w-title">What do you want to do?</span><small id="me-w-sum-2">Pick an action</small></button>
+              <div class="me-w-body">
+                <p class="me-w-hint">Nothing is final: you can undo.</p>
+                <div class="me-w-cards">
+                  <button type="button" class="me-w-card" id="me-w-c-duplicate"><b><em>&#10697;</em>Duplicate</b><span>Makes a copy of the area and lets you place it.</span></button>
+                  <button type="button" class="me-w-card" id="me-w-c-move"><b><em>&#10021;</em>Move</b><span>Moves, turns or enlarges the area in space.</span></button>
+                  <button type="button" class="me-w-card" id="me-w-c-isolate"><b><em>&#9673;</em>Isolate</b><span>Shows only the area so you can work in peace.</span></button>
+                  <button type="button" class="me-w-card" id="me-w-c-hide"><b><em>&#128065;</em>Hide</b><span>Hides the area without deleting it.</span></button>
+                  <button type="button" class="me-w-card" id="me-w-c-smooth"><b><em>&#8767;</em>Soften</b><span>Smooths the surface to remove sharp angles.</span></button>
+                  <button type="button" class="me-w-card" id="me-w-c-flip"><b><em>&#8644;</em>Flip</b><span>Reverses the visible side of the faces (if they look empty).</span></button>
+                  <button type="button" class="me-w-card me-w-danger" id="me-w-c-crop"><b><em>&#9986;</em>Keep only the area</b><span>Deletes everything else in the model.</span></button>
+                  <button type="button" class="me-w-card me-w-danger" id="me-w-c-delete"><b><em>&#128465;</em>Delete the area</b><span>Removes these faces from the model.</span></button>
+                </div>
+                <div class="me-w-nav">
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-back1">Change the area</button>
+                </div>
+              </div>
+            </div>
+            <div class="me-w-step" id="me-w-step-3">
+              <button type="button" class="me-w-head" id="me-w-head-3"><i>3</i><span class="me-w-title">Adjust and finish</span><small id="me-w-sum-3">Place the area</small></button>
+              <div class="me-w-body">
+                <p class="me-w-hint">Drag the arrows in the 3D view to place the area.</p>
+                <div class="me-w-grid me-w-grid3">
+                  <button type="button" class="secondary-btn me-w-big me-w-col" id="me-w-translate"><em>&#10021;</em><span>Move</span></button>
+                  <button type="button" class="secondary-btn me-w-big me-w-col" id="me-w-rotate"><em>&#8635;</em><span>Turn</span></button>
+                  <button type="button" class="secondary-btn me-w-big me-w-col" id="me-w-scale"><em>&#8690;</em><span>Enlarge</span></button>
+                </div>
+                <p class="me-w-hint">Keys: T move &middot; R turn &middot; Y enlarge</p>
+                <button type="button" class="secondary-btn tool-btn tool-active me-w-next" id="me-w-gizmo">Finish placing</button>
+                <p class="me-w-hint">When you are happy, press Save as new version below. Nothing is saved before.</p>
+                <div class="me-w-nav">
+                  <button type="button" class="secondary-btn tool-btn" id="me-w-back2">Another action</button>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="me-w-link" id="me-w-expert">Expert mode: all options</button>
+          </div>
           <div id="me-actions-row" style="display:flex; gap:4px; align-items:center;">
             <button id="me-loupe-toggle" class="secondary-btn tool-btn" title="Magnifier: show a zoomed loupe under the cursor (toggle)">&#128269;</button>
             <button id="me-undo" class="secondary-btn tool-btn" disabled title="Undo">&#8630;</button>
