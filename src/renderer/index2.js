@@ -20374,6 +20374,7 @@ document.getElementById('me-sel-smooth')?.addEventListener('click', () => {
 // their normals so the copy is visible, then select the copy. ---
 document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
   if (!meState.mesh || !_meHasSelection()) return;
+  if (meState.moveActive) _meEndMove();   // un gizmo deja ouvert : on le ferme, un nouveau s'ouvre sur la COPIE
   _meRestoreView();
   _mePushUndo();
   let total = 0;
@@ -20450,6 +20451,7 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
   });
   _meUpdateSelButtons();
   showToast(total ? `Duplicated ${total} faces` : 'Nothing selected', total ? 'success' : 'info', 1500);
+  if (total) _meStartMove();   // le gizmo apparait sur la copie pour la deplacer tout de suite (demande du user, 26/10)
 });
 
 // --- Extra Paint tools: Pick / Fill / Smooth / Reset ---

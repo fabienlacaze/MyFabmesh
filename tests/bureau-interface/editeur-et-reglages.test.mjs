@@ -63,9 +63,11 @@ test('Select > Duplicate : POSITION, UV, NORMAL et COLOR ont le meme nombre de s
   for (let i = 0; i < col.count; i++) { sel.set(i, [col.getX(i), col.getY(i), col.getZ(i)]); col.setXYZ(i, 0, 1, 1); }
   g._selSaved = sel;
   const ensureColor = (c) => c.geometry.attributes.color;
-  new Function('document', 'meState', 'THREE', '_meRestoreView', '_mePushUndo', '_meHasSelection', '_meEnsureColor', '_meUpdateSelButtons', 'showToast', code)(
-    e.document, e.meState, THREE, () => {}, () => {}, () => true, ensureColor, () => {}, e.showToast);
+  let gizmoOuvert = 0;
+  new Function('document', 'meState', 'THREE', '_meRestoreView', '_mePushUndo', '_meHasSelection', '_meEnsureColor', '_meUpdateSelButtons', 'showToast', '_meStartMove', '_meEndMove', code)(
+    e.document, e.meState, THREE, () => {}, () => {}, () => true, ensureColor, () => {}, e.showToast, () => { gizmoOuvert++; }, () => {});
   e.clics['me-sel-duplicate']();
+  assert.equal(gizmoOuvert, 1, 'le gizmo doit s ouvrir sur la copie des que Dupliquer est clique (demande du user, 26/10)');
   const n = g.attributes.position.count;
   assert.equal(n, 4 + 6, '2 triangles dupliques = 6 sommets de plus');
   for (const nom of Object.keys(g.attributes)) assert.equal(g.attributes[nom].count, n, nom + ' doit avoir ' + n + ' sommets (GLB valide)');

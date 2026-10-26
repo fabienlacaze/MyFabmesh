@@ -19964,6 +19964,7 @@ document.getElementById('me-sel-smooth')?.addEventListener('click', () => {
 });
 document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
   if (!meState.mesh || !_meSelHas()) return;
+  if (meState.moveActive) _meEndMove();   // un gizmo deja ouvert : on le ferme, un nouveau s'ouvre sur la COPIE
   _meRestoreView(); _mePushUndo();
   meState.mesh.traverse(c => {
     if (!c.isMesh || !c.geometry?.index || !c.geometry.attributes.color) return;
@@ -19999,12 +20000,15 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
     geom.setAttribute('color', new THREE.BufferAttribute(newCol, 3));
     if (uv) geom.setAttribute('uv', new THREE.BufferAttribute(newUV, 2));
     geom.setIndex(newIdx);
+    // l'ORIGINAL n'est plus selectionne : seule la COPIE l'est (orange), pour que le gizmo ne deplace qu'elle
+    { const cur = geom.attributes.color, gris = geom._selOnlyColor ? 0.7 : 1; for (let i = 0; i < oldV; i++) if (_meOrange(cur, i)) cur.setXYZ(i, gris, gris, gris); }
     geom._posGroups = null; geom._posKeyByIndex = null;
     geom.attributes.position.needsUpdate = true; geom.attributes.color.needsUpdate = true;
     geom.computeVertexNormals();
     c.material.vertexColors = true; c.material.needsUpdate = true;
   });
   showToast('Duplicated selection', 'success', 1500);
+  _meStartMove();   // le gizmo apparait sur la copie pour la deplacer tout de suite (demande du user, 26/10)
 });
 
 // ════════════════════════════════════════════════════════════════════
