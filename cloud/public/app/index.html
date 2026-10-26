@@ -1905,6 +1905,7 @@
         <div class="fen-corps" id="lct-corps">
           <div class="fen-apercu" id="lct-apercu"><img id="lct-image" alt="" /><canvas id="lct-canvas" hidden></canvas><div id="lct-etat" class="fen-apercu-etat" hidden>Right-drag to pan &middot; middle-drag to rotate &middot; wheel to zoom</div></div>
           <div class="fen-form">
+            <div id="lct-details" class="fen-champ" hidden></div>
             <p class="fen-note">A new version is created &mdash; the original is kept.</p>
           </div>
         </div>
@@ -3808,6 +3809,17 @@
             <div class="fen-champ-tete"><span class="fen-label">RGB</span></div>
             <div id="cpick-rgb" translate="no" dir="ltr" class="cpick-rgb"></div>
           </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">HSL</span></div>
+            <div id="cpick-hsl" translate="no" dir="ltr" class="cpick-rgb"></div>
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Position</span><span id="cpick-pos" class="fen-valeur" translate="no" dir="ltr"></span></div>
+          </div>
+          <div class="fen-champ">
+            <div class="fen-champ-tete"><span class="fen-label">Image size</span><span id="cpick-dim" class="fen-valeur" translate="no" dir="ltr"></span></div>
+          </div>
+          <p class="fen-note">Click to copy the HEX value.</p>
         </div>
       </div>
       <div class="modal-actions fen-pied-editeur">

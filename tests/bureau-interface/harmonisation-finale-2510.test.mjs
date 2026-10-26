@@ -19,8 +19,9 @@ for (const [nom, h, c] of cotes) {
     assert.match(bloc, /\.mesh-toolbar\.fen \{ left: 0; right: 0; transform: none; margin: 0 auto; width: fit-content;/);
     // fenetre etroite : la carte defile, le pied reste atteignable
     assert.match(bloc, /@media \(max-width: 900px\)/);
-    assert.match(bloc, /height: auto !important; max-height: 94vh !important; overflow-y: auto !important;/);
-    assert.match(bloc, /\.modal-card\.fen-3d > \.modal-actions \{\s*position: sticky( !important)?;/);
+    // (26/10 : c'est le CORPS qui defile et le pied reste en place, voir fenetres-etroites-2610.test.mjs)
+    assert.match(bloc, /height: auto !important; max-height: 94vh !important; overflow: hidden !important;/);
+    assert.match(bloc, /\.modal-card\.fen-3d > \.modal-actions \{\s*position: static( !important)?;/);
     // la hauteur forcee de la colonne ne s'applique pas en une colonne (sinon la carte s'ecrase a 200 px)
     assert.match(bloc, /@media \(min-width: 901px\) \{\s*\.modal-card\.fen-3d\.fen-editeur-2d \.fen-corps/);
   });
