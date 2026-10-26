@@ -1185,7 +1185,34 @@ def _noyau_peau():
     return P
 
 
-def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, peau=False):
+def _noyau_ouverture():
+    try:
+        import bouchage_ouverture as O        # bureau : scripts/
+    except ImportError:
+        from modal_app import bouchage_ouverture as O      # Modal : paquet modal_app
+    return O
+
+
+def _fusionner_analyses(base, autre):
+    """Ajoute les pourtours de `autre` (analyse d'ouvertures) a `base` (analyse de peau) sans doubler un trou deja trouve : un pourtour qui partage 30 %
+    de ses sommets soudes avec un pourtour de la base est le MEME endroit."""
+    if base is None or not base['a_boucher']:
+        return autre
+    pris = [set(int(v) for v in b['debut']) for b in base['boucles']]
+    for b in autre['boucles']:
+        ens = set(int(v) for v in b['debut'])
+        if any(len(ens & p) >= 0.3 * min(len(ens), len(p)) for p in pris):
+            continue
+        base['boucles'].append(b)
+    base['a_boucher'] = len(base['boucles'])
+    base['plus_petite'] = min(b['n'] for b in base['boucles'])
+    base['plus_grande'] = max(b['n'] for b in base['boucles'])
+    base['modes'] = {'lisse': len(base['boucles'])}
+    base['ouvertures'] = autre.get('ouvertures')
+    return base
+
+
+def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, peau=False, ouverture=False):
     """Bouche les trous de TOUS les maillages de la scene trimesh (chargee avec process=False). Les geometries bouchees REMPLACENT les anciennes dans
     scene.geometry. Rend {'refus': (code, texte) | None, 'stats': {...}}. Rien a boucher -> refus, la scene n'est pas touchee."""
     import numpy as np
@@ -1202,18 +1229,29 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
                 f'{a["trop_grandes"]} > {a["max_aretes"]}, {a["degenerees"]} flat, {a["non_triangulables"]} unfillable, {a["chaines_ouvertes"]} open chains')
         travail.append((nom, g, V, F, prep, a))
     peau_trouvee = 0
-    if peau and sum(t[5]['a_boucher'] for t in travail) == 0:
+    ouvertures_trouvees = 0
+    if (peau or ouverture) and sum(t[5]['a_boucher'] for t in travail) == 0:
         # OPTION (case « Reparer aussi les trous de la peau exterieure », decochee par defaut). Aucun trou ouvert : le maillage est une pile de feuilles dont les trous n'ont pas d'arete de bord (voir bouchage_peau.py). On cherche ceux-la.
-        P = _noyau_peau()
+        # OPTION voisine (case « Fermer aussi les grandes ouvertures », decochee par defaut) : une GRANDE ouverture d'anatomie vers la cavite (bas du
+        # ventre, dessous) : voir bouchage_ouverture.py. Les deux recherches se combinent ; leurs pourtours sont bouches par le meme noyau.
         for i, (nom, g, V, F, prep, a) in enumerate(travail):
-            try:
-                ap = P.analyse_peau(V, F, prep, min_aretes, max_aretes, journal=journal)
-            except Exception as e:                  # la detection de peau ne doit jamais faire echouer l'outil
-                journal(f'mesh {nom}: skin-hole search failed ({type(e).__name__}: {e})')
-                continue
-            if ap['a_boucher']:
+            ap = None
+            if peau:
+                try:
+                    ap = _noyau_peau().analyse_peau(V, F, prep, min_aretes, max_aretes, journal=journal)
+                except Exception as e:                  # la detection de peau ne doit jamais faire echouer l'outil
+                    journal(f'mesh {nom}: skin-hole search failed ({type(e).__name__}: {e})')
+            if ouverture:
+                try:
+                    ao = _noyau_ouverture().analyse_ouverture(V, F, prep, min_aretes, max_aretes, journal=journal)
+                    if ao['a_boucher']:
+                        ap = _fusionner_analyses(ap, ao)
+                        ouvertures_trouvees += sum(1 for b in ap['boucles'] if b.get('ouverture'))
+                except Exception as e:
+                    journal(f'mesh {nom}: large-opening search failed ({type(e).__name__}: {e})')
+            if ap is not None and ap['a_boucher']:
                 travail[i] = (nom, g, V, F, prep, ap)
-                peau_trouvee += ap['a_boucher']
+                peau_trouvee += sum(1 for b in ap['boucles'] if not b.get('ouverture'))
     if sum(t[5]['a_boucher'] for t in travail) == 0:
         diagnostics = [T.diagnostiquer(t[4], t[5]) for t in travail]
         somme, diag = T.agreger([t[5] for t in travail], diagnostics)
@@ -1249,7 +1287,9 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
     stats = {
         'verdict': 'OPEN_HOLES' if restantes else 'CLOSED_OK',
         'holes_filled': sum(m.get('holes_filled', 0) for m in par_maillage),
-        'skin_holes_filled': int(peau_trouvee) if not par_maillage else sum(m.get('holes_filled', 0) for m, t in zip(par_maillage, travail) if t[5].get('peau')),
+        'skin_holes_filled': int(peau_trouvee) if not par_maillage else sum(max(0, m.get('holes_filled', 0) - sum(1 for b in t[5]['boucles'] if b.get('ouverture')))
+                                                                           for m, t in zip(par_maillage, travail) if t[5].get('peau')),
+        'large_openings_filled': sum(min(m.get('holes_filled', 0), sum(1 for b in t[5]['boucles'] if b.get('ouverture'))) for m, t in zip(par_maillage, travail)),
         'holes_remaining': int(restantes),
         'holes_filled_delta_faces': sum(m['faces_after'] - m['faces_before'] for m in par_maillage),
         'meshes': par_maillage,
@@ -1257,13 +1297,13 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
     return {'refus': None, 'stats': stats}
 
 
-def detecter_peau_scene(scene, min_aretes=3, max_aretes=2000, journal=print):
+def detecter_peau_scene(scene, min_aretes=3, max_aretes=2000, journal=print, peau=True, ouverture=False):
     """DETECTION SEULE des trous de peau (aucune modification, rien de facturable) : pour chaque trou, son pourtour (points 3D), son centre et sa
     normale (vers l'observateur). Rend {'nombre', 'trous': [{'n', 'centre', 'normale', 'rayon', 'points'}], 'duree'} (listes JSON). Les trous a bord ouvert
-    ne sont pas concernes (la detection ordinaire les montre deja)."""
+    ne sont pas concernes (la detection ordinaire les montre deja). `peau` : trous de peau ; `ouverture` : grandes ouvertures vers la cavite
+    (bouchage_ouverture.py) ; les deux apercus se combinent comme les deux recherches de boucher_scene."""
     import numpy as np
     T = _noyau_trous()
-    P = _noyau_peau()
     t0 = time.time()
     trous = []
     for indice, (nom, g) in enumerate(scene.geometry.items()):
@@ -1272,7 +1312,17 @@ def detecter_peau_scene(scene, min_aretes=3, max_aretes=2000, journal=print):
         V = np.asarray(g.vertices, dtype=np.float64)
         F = np.asarray(g.faces, dtype=np.int64)
         prep = T.preparer(V, F)
-        a = P.analyse_peau(V, F, prep, min_aretes, max_aretes, journal=journal)
+        a = None
+        if peau:
+            a = _noyau_peau().analyse_peau(V, F, prep, min_aretes, max_aretes, journal=journal)
+        if ouverture:
+            try:
+                ao = _noyau_ouverture().analyse_ouverture(V, F, prep, min_aretes, max_aretes, journal=journal)
+                a = _fusionner_analyses(a, ao)
+            except Exception as e:
+                journal(f'mesh {nom}: large-opening search failed ({type(e).__name__}: {e})')
+        if a is None:
+            continue
         for b in a['boucles']:
             ring = V[np.asarray(b['debut'])[::-1]]
             nrm = np.zeros(3)
@@ -1282,7 +1332,7 @@ def detecter_peau_scene(scene, min_aretes=3, max_aretes=2000, journal=print):
             ln = float(np.linalg.norm(nrm))
             nrm = nrm / ln if ln > 0 else nrm
             ctr = ring.mean(axis=0)
-            trous.append({'maillage': indice, 'n': int(b['n']), 'centre': [float(x) for x in ctr], 'normale': [float(x) for x in nrm],
+            trous.append({'maillage': indice, 'n': int(b['n']), 'ouverture': bool(b.get('ouverture')), 'centre': [float(x) for x in ctr], 'normale': [float(x) for x in nrm],
                           'rayon': float(np.linalg.norm(ring - ctr, axis=1).max()),
                           'points': [[round(float(x), 6) for x in p] for p in ring]})
     return {'nombre': len(trous), 'trous': trous, 'duree': round(time.time() - t0, 1)}

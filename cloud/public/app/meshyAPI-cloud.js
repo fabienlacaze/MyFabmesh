@@ -3670,6 +3670,7 @@
             if (a[1] != null) finalParams.max_hole_size = parseInt(a[1], 10) || 1000000;
             // case « Reparer aussi les trous de la peau exterieure » (faux par defaut) : transmise telle quelle, le worker la valide
             finalParams.skin_repair = a[2] === '1' || a[2] === true;
+            finalParams.large_openings = a[3] === '1' || a[3] === true;      // case « Fermer aussi les grandes ouvertures » (faux par defaut)
             break;
           // center/fix_normals/align_texture/material take
           // no params on the Modal side — drop positional values.
@@ -3699,13 +3700,14 @@
 
     // Fill holes : APERCU des trous de la PEAU exterieure (26/10). Detection seule via /api/mesh-op (detect_only) : le worker ne la debite JAMAIS et
     // ne renvoie aucun maillage, seulement { nombre, trous: [{ n, centre, normale, rayon, points }] } (meme noyau que « Reparer aussi... »).
-    detectSkinHoles: async ({ meshPath, meshUrl, min = 3, max = 5000, projectName } = {}) => {
+    detectSkinHoles: async ({ meshPath, meshUrl, min = 3, max = 5000, projectName, skin = true, openings = false } = {}) => {
       const url = meshUrl || meshPath;
       if (!url) return { success: false, error: 'meshPath or meshUrl required' };
       try {
         const r = await postJSON('/api/mesh-op', {
           meshUrl: url, opType: 'fill_holes', projectName: projectName || null,
-          params: { min_hole_size: Math.max(3, parseInt(min, 10) || 3), max_hole_size: Math.max(3, parseInt(max, 10) || 5000), detect_only: true },
+          params: { min_hole_size: Math.max(3, parseInt(min, 10) || 3), max_hole_size: Math.max(3, parseInt(max, 10) || 5000), detect_only: true,
+                   skin_detect: skin !== false, large_openings: openings === true },
         });
         if (r?.success && r.detect) return { success: true, detect: r.detect };
         return { success: false, error: r?.error || 'detection failed' };

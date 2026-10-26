@@ -19,7 +19,8 @@ METHODE (par la FUITE de rayons depuis la cavite).
      converti en sommets reels du maillage (le sommet de la face touchee le plus proche du point d'impact), ordonne le long du contour. C'est une boucle
      fermee de sommets reels : un trou a bord OUVERT virtuel, que bouchage_lisse.py ferme (plan / Liepa, couleurs du voisinage, UV du voisinage).
   4. GARDE-FOUS : taille du pourtour (fraction de la diagonale) entre `OUVERTURE_MIN` et `max_trou_relatif`, nombre d'aretes <= max_aretes, cone assez
-     large pour ne pas etre une fissure.
+     large pour ne pas etre une fissure, pourtour sans SAUTS (les cordes entre sommets consecutifs restent du meme ordre : sur une moissonneuse, les
+     pourtours qui passent d'une piece a une autre en profondeur donnaient des voiles diagonaux ; refuses).
 
 NON DESTRUCTIF : meme garantie que le bouchon lisse (aucune face retiree, aucun sommet deplace, aucune UV reecrite).
 
@@ -49,6 +50,8 @@ OUVERTURE_MIN_SR = 0.02          # angle solide minimal (fraction de la sphere) 
 OUVERTURE_MIN = 0.05             # taille minimale du pourtour (fraction de la diagonale)
 MAX_TROU_RELATIF = 0.40          # taille maximale du pourtour (fraction de la diagonale) par defaut
 OUVERTURES_MAX = 6
+SAUT_PART_MAX = 0.02             # part des cordes du pourtour plus longues que 5 fois la corde mediane : un pourtour qui SAUTE d'une piece a une autre
+SAUT_CORDE_MAX = 20.0            # (rambarde, cabine, pieces separees en profondeur) n'est pas le bord d'UNE ouverture : le bouchon ferait des voiles diagonaux
 
 try:
     import numba as _numba
@@ -414,6 +417,12 @@ def ouvertures_depuis(gr, c, diag, groupe, max_relatif=MAX_TROU_RELATIF, max_are
         if ext_ < OUVERTURE_MIN * diag or ext_ > max_relatif * diag:
             if debug is not None:
                 debug.append(('taille', ext_ / diag))
+            continue
+        cordes = np.linalg.norm(P - np.roll(P, -1, axis=0), axis=1)
+        med = float(np.median(cordes))
+        if med > 0 and (float((cordes > 5.0 * med).mean()) > SAUT_PART_MAX or float(cordes.max()) > SAUT_CORDE_MAX * med):
+            if debug is not None:
+                debug.append(('sauts', float((cordes > 5.0 * med).mean()), float(cordes.max() / med)))
             continue
         # direction moyenne de fuite du cone = vers l'exterieur ; le bouchon regarde l'exterieur
         dm = D[m].sum(axis=0)

@@ -14820,9 +14820,21 @@ function _mtSkinReinit() {
   if (sk.etat === 'cherche' || sk.etat === 'erreur') sk.etat = 'inactif';
   else if (sk.etat === 'pret') sk.etat = 'inactif';   // le resultat reste dans sk.detect (meme maillage : pas de nouveau calcul)
 }
+// Les deux recherches (trous de la peau exterieure, grandes ouvertures vers la cavite) partagent la meme lueur bleu clair et le meme apercu.
+function _mtSkinActif(vals) { return !!(vals && (vals.skin_repair || vals.large_openings)); }
 function _mtSkinTexte(vals) {
   const sk = mtState.skin;
-  if (!vals || !vals.skin_repair) return '';
+  if (!_mtSkinActif(vals)) return '';
+  if (!vals.skin_repair) {
+    // seule la case « grandes ouvertures » est cochee : recherche rapide (quelques secondes)
+    if (sk.etat === 'cherche') return _i18nT('Searching for large openings…');
+    if (sk.etat === 'erreur') return _i18nT('The search for skin holes failed. Apply can still try.');
+    if (sk.etat === 'pret') {
+      const n = (mtState.skinN || 0);
+      return n ? _i18nTf('Large openings: {x} detected (light blue). Apply will close them; nothing is removed.', n) : _i18nT('Large openings: none detected.');
+    }
+    return '';
+  }
   if (sk.etat === 'cherche') return _i18nTf('Searching the outer skin for holes (about a minute)… {x} s', Math.round((Date.now() - sk.t0) / 1000));
   if (sk.etat === 'erreur') return _i18nT('The search for skin holes failed. Apply can still try.');
   if (sk.etat === 'pret') {
@@ -14841,7 +14853,7 @@ function _mtSkinStatut() {
 function _mtSkinDessiner(vals) {
   const sk = mtState.skin;
   mtState.skinN = 0;
-  if (!vals.skin_repair || sk.etat !== 'pret' || !sk.detect) return 0;
+  if (!_mtSkinActif(vals) || sk.etat !== 'pret' || !sk.detect) return 0;
   const minE = Math.max(3, Number(vals.min_hole_size) || 3), maxE = Math.max(minE, Number(vals.max_hole_size) || 2000);
   let total = 0;
   mtState.origGeoms.forEach((e, i) => {
@@ -14870,12 +14882,13 @@ function _mtSkinDessiner(vals) {
 async function _mtSkinChercher() {
   const sk = mtState.skin, chemin = mtState.meshPath;
   if (!chemin) return;
-  if (sk.detect && sk.cle === chemin) { sk.etat = 'pret'; return; }           // deja calcule pour ce maillage
+  const v = mtState.vals || {}, cle = chemin + '|' + (v.skin_repair ? 1 : 0) + (v.large_openings ? 1 : 0);
+  if (sk.detect && sk.cle === cle) { sk.etat = 'pret'; return; }           // deja calcule pour ce maillage et ces cases
   const jeton = ++sk.jeton;
-  sk.etat = 'cherche'; sk.cle = chemin; sk.detect = null; sk.t0 = Date.now();
+  sk.etat = 'cherche'; sk.cle = cle; sk.detect = null; sk.t0 = Date.now();
   _mtSkinMinuteur(false);
   let r;
-  try { r = await API.detectSkinHoles({ meshPath: chemin, min: 3, max: 5000 }); } catch (e) { r = { success: false, error: String(e && e.message || e) }; }
+  try { r = await API.detectSkinHoles({ meshPath: chemin, min: 3, max: 5000, skin: !!v.skin_repair, openings: !!v.large_openings }); } catch (e) { r = { success: false, error: String(e && e.message || e) }; }
   if (jeton !== sk.jeton) return;              // fenetre fermee, case decochee ou autre maillage
   _mtSkinMinuteur(true);
   if (r && r.success && r.detect) { sk.etat = 'pret'; sk.detect = r.detect; try { console.log(`[fill-holes] skin holes: ${r.detect.nombre} (${r.detect.duree}s)`); } catch (_) {} }
@@ -14885,7 +14898,9 @@ async function _mtSkinChercher() {
 // Appelee a chaque apercu : lance la recherche quand la case est cochee, dessine la lueur, ou efface tout quand elle ne l'est plus.
 function _mtSkinPreparer(vals) {
   const sk = mtState.skin;
-  if (!vals.skin_repair) { if (sk.etat !== 'inactif') _mtSkinReinit(); mtState.skinN = 0; return 0; }
+  if (!_mtSkinActif(vals)) { if (sk.etat !== 'inactif') _mtSkinReinit(); mtState.skinN = 0; return 0; }
+  const cle = (mtState.meshPath || '') + '|' + (vals.skin_repair ? 1 : 0) + (vals.large_openings ? 1 : 0);
+  if (sk.etat !== 'inactif' && sk.cle && sk.cle !== cle) _mtSkinReinit();      // une case a change : nouvelle recherche
   if (sk.etat === 'inactif') _mtSkinChercher();
   return _mtSkinDessiner(vals);
 }
@@ -14975,8 +14990,12 @@ const MESH_TOOL_SCHEMAS = {
       // (detection seule, gratuite, en lueur bleu clair) et « Apply » les bouche.
       { id: 'skin_repair', label: 'Also repair holes in the outer skin', type: 'checkbox', default: false,
         hint: 'For models whose hull is pierced without an open edge, like a boat. Experimental: it can take a minute. Check the result.' },
+      // Option voisine (26/10), decochee par defaut : une GRANDE ouverture d'anatomie vers l'interieur du corps (bas du ventre, dessous), sans peau continue autour.
+      // Une fenetre ou un cockpit voulus seraient aussi fermes : d'ou la case explicite et l'apercu bleu clair.
+      { id: 'large_openings', label: 'Also close large openings (belly, base)', type: 'checkbox', default: false,
+        hint: 'For models where a big part of the body is open and you can see inside, like a missing belly. It closes every large opening, so leave it off if the model has real windows or doors. Check the light blue preview first.' },
     ],
-    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size), vals.skin_repair ? '1' : '0'],
+    build: (vals) => [String(vals.min_hole_size), String(vals.max_hole_size), vals.skin_repair ? '1' : '0', vals.large_openings ? '1' : '0'],
   },
   center: {
     title: 'Center mesh',
@@ -15210,7 +15229,7 @@ function _mtRunPreview() {
             + (st.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', st.flat) : '');
         } else if (st.refus) {
           // Rien a boucher : le motif (dont « cochez la case » pour une double peau). Case cochee : le compteur des trous de peau suffit.
-          status.textContent = vals.skin_repair ? '' : ((window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte);
+          status.textContent = _mtSkinActif(vals) ? '' : ((window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte);
         } else {
           status.textContent = _i18nT('Computing…');
         }
