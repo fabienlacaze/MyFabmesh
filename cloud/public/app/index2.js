@@ -19819,6 +19819,28 @@ function _meBuildPosAdj(geom) {
   }
   geom._posGroups = groups; geom._posKeyByIndex = keyByIndex;
 }
+/** DUPLIQUER : ne garde, parmi les triangles a copier (liste d'indices a plat), que les GROS MORCEAUX CONNEXES (26/10, capture du user : « toujours eclate »). Un pinceau ou un lasso
+ *  selectionne des SOMMETS dans l'espace : il ramasse au passage des fragments d'autres pieces (tiges, feuilles jumelles, interieur de la tole) qui, copies puis deplacees, ressemblent
+ *  a des debris. La connexite est jugee par POSITIONS SOUDEES (les coutures UV dedoublent les sommets). Un morceau est garde s'il a au moins max(24 triangles, 8 % du plus gros). */
+function _meGarderGrosMorceaux(geom, tris) {
+  if (tris.length < 3 * 40) return tris;
+  _meBuildPosAdj(geom);
+  const keyOf = geom._posKeyByIndex, parent = new Map();
+  const find = (k) => { let r = k; while (parent.get(r) !== r) r = parent.get(r); while (parent.get(k) !== r) { const n = parent.get(k); parent.set(k, r); k = n; } return r; };
+  const joindre = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(rb, ra); };
+  for (let t = 0; t < tris.length; t += 3) {
+    const a = keyOf[tris[t]], b = keyOf[tris[t + 1]], d = keyOf[tris[t + 2]];
+    if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); if (!parent.has(d)) parent.set(d, d);
+    joindre(a, b); joindre(a, d);
+  }
+  const taille = new Map();
+  for (let t = 0; t < tris.length; t += 3) { const r = find(keyOf[tris[t]]); taille.set(r, (taille.get(r) || 0) + 1); }
+  let max = 0; for (const n of taille.values()) if (n > max) max = n;
+  const seuil = Math.max(24, Math.ceil(0.08 * max));
+  const out = [];
+  for (let t = 0; t < tris.length; t += 3) { if (taille.get(find(keyOf[tris[t]])) >= seuil) out.push(tris[t], tris[t + 1], tris[t + 2]); }
+  return out.length ? out : tris;
+}
 function _meRestoreView() {
   if (!meState.viewMode || meState.viewMode === 'none') return;
   meState.mesh?.traverse(c => {
@@ -19969,33 +19991,33 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
   meState.mesh.traverse(c => {
     if (!c.isMesh || !c.geometry?.index || !c.geometry.attributes.color) return;
     const geom = c.geometry, col = geom.attributes.color, pos = geom.attributes.position, idx = geom.index.array, tris = [];
-    for (let i = 0; i < idx.length; i += 3) { if (_meOrange(col, idx[i]) || _meOrange(col, idx[i + 1]) || _meOrange(col, idx[i + 2])) tris.push(idx[i], idx[i + 1], idx[i + 2]); }
+    // FACES ENTIERES : un triangle n'est copie que si ses TROIS sommets sont selectionnes (sinon les triangles de bord, a moitie selectionnes, se detachent et la copie « eclate » :
+    // capture du user, 26/10) ; repli sur « au moins un sommet » si la selection est si fine qu'aucun triangle n'est entier.
+    for (let i = 0; i < idx.length; i += 3) { if (_meOrange(col, idx[i]) && _meOrange(col, idx[i + 1]) && _meOrange(col, idx[i + 2])) tris.push(idx[i], idx[i + 1], idx[i + 2]); }
+    if (!tris.length) for (let i = 0; i < idx.length; i += 3) { if (_meOrange(col, idx[i]) || _meOrange(col, idx[i + 1]) || _meOrange(col, idx[i + 2])) tris.push(idx[i], idx[i + 1], idx[i + 2]); }
     if (!tris.length) return;
+    { const garde = _meGarderGrosMorceaux(geom, tris); if (garde !== tris) { tris.length = 0; for (const v of garde) tris.push(v); } }   // fragments d'autres pieces ramasses par le pinceau : ecartes
     geom.computeBoundingBox();
-    const bb = geom.boundingBox, eps = (bb ? bb.min.distanceTo(bb.max) : 1) * 0.01;
-    const oldV = pos.count, addV = tris.length;
+    const bb = geom.boundingBox, eps = (bb ? bb.min.distanceTo(bb.max) : 1) * 0.004;
+    // SOMMETS PARTAGES : chaque sommet source n'est copie qu'UNE fois (la copie garde sa connexite : surface continue, plus de triangles isoles)
+    const remap = new Map(), uniq = [];
+    for (const v of tris) if (!remap.has(v)) { remap.set(v, pos.count + uniq.length); uniq.push(v); }
+    if (!geom.attributes.normal) geom.computeVertexNormals();
+    const nor = geom.attributes.normal;
+    const oldV = pos.count, addV = uniq.length;
     const newPos = new Float32Array((oldV + addV) * 3); newPos.set(pos.array.subarray(0, oldV * 3));
     const newCol = new Float32Array((oldV + addV) * 3); newCol.set(col.array.subarray(0, oldV * 3));
     const uv = geom.attributes.uv || null;
     const newUV = uv ? new Float32Array((oldV + addV) * 2) : null;
     if (uv) newUV.set(uv.array.subarray(0, oldV * 2));
-    const newIdx = Array.from(idx);
-    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vD = new THREE.Vector3(), n = new THREE.Vector3(), tmp = new THREE.Vector3();
-    let w = oldV;
-    for (let t = 0; t < tris.length; t += 3) {
-      const a = tris[t], b = tris[t + 1], d = tris[t + 2];
-      vA.fromBufferAttribute(pos, a); vB.fromBufferAttribute(pos, b); vD.fromBufferAttribute(pos, d);
-      n.subVectors(vB, vA).cross(tmp.subVectors(vD, vA)).normalize().multiplyScalar(eps);
-      const base = w, ids = [a, b, d];
-      for (let k = 0; k < 3; k++) {
-        const s = ids[k];
-        newPos[w * 3] = pos.getX(s) + n.x; newPos[w * 3 + 1] = pos.getY(s) + n.y; newPos[w * 3 + 2] = pos.getZ(s) + n.z;
-        newCol[w * 3] = 1.0; newCol[w * 3 + 1] = 0.3; newCol[w * 3 + 2] = 0.1;
-        if (uv) { newUV[w * 2] = uv.getX(s); newUV[w * 2 + 1] = uv.getY(s); }
-        w++;
-      }
-      newIdx.push(base, base + 1, base + 2);
+    for (let j = 0; j < addV; j++) {
+      const s = uniq[j], w = oldV + j;
+      newPos[w * 3] = pos.getX(s) + nor.getX(s) * eps; newPos[w * 3 + 1] = pos.getY(s) + nor.getY(s) * eps; newPos[w * 3 + 2] = pos.getZ(s) + nor.getZ(s) * eps;
+      newCol[w * 3] = 1.0; newCol[w * 3 + 1] = 0.3; newCol[w * 3 + 2] = 0.1;
+      if (uv) { newUV[w * 2] = uv.getX(s); newUV[w * 2 + 1] = uv.getY(s); }
     }
+    const newIdx = Array.from(idx);
+    for (let q = 0; q < tris.length; q++) newIdx.push(remap.get(tris[q]));
     geom.setAttribute('position', new THREE.BufferAttribute(newPos, 3));
     geom.setAttribute('color', new THREE.BufferAttribute(newCol, 3));
     if (uv) geom.setAttribute('uv', new THREE.BufferAttribute(newUV, 2));
@@ -20004,7 +20026,7 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
     { const cur = geom.attributes.color, gris = geom._selOnlyColor ? 0.7 : 1; for (let i = 0; i < oldV; i++) if (_meOrange(cur, i)) cur.setXYZ(i, gris, gris, gris); }
     geom._posGroups = null; geom._posKeyByIndex = null;
     geom.attributes.position.needsUpdate = true; geom.attributes.color.needsUpdate = true;
-    geom.computeVertexNormals();
+    geom.deleteAttribute('normal'); geom.computeVertexNormals();   // normales recreees a la nouvelle taille
     c.material.vertexColors = true; c.material.needsUpdate = true;
   });
   showToast('Duplicated selection', 'success', 1500);
