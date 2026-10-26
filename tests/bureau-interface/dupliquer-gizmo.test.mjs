@@ -55,3 +55,13 @@ for (const f of ['cloud/public/app/index2.js', 'src/renderer/index2.js']) {
     assert.deepEqual(gros({ _posKeyByIndex: ['a', 'b', 'c', 'd', 'e', 'f'] }, tris), tris);
   });
 }
+
+// ---- 26/10 : la copie garde l'ECHELLE (translation rigide, plus de gonflement par la normale de chaque sommet) ----
+for (const f of ['cloud/public/app/index2.js', 'src/renderer/index2.js']) {
+  test(`${f} : Dupliquer decale la copie d'une TRANSLATION unique (pas de poussee par sommet)`, () => {
+    const g = gestionnaire(lire(f));
+    assert.ok(g.includes('const decX = sx / lnN * dec'), 'decalage rigide calcule une fois');
+    assert.ok(g.includes('+ decX;') && g.includes('+ decY;') && g.includes('+ decZ;'));
+    assert.ok(!/\* eps;/.test(g.split('Duplicated')[0].split('// DECALAGE RIGIDE')[1] || ''), 'plus de * eps par sommet');
+  });
+}

@@ -20010,9 +20010,19 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
     const uv = geom.attributes.uv || null;
     const newUV = uv ? new Float32Array((oldV + addV) * 2) : null;
     if (uv) newUV.set(uv.array.subarray(0, oldV * 2));
+    // DECALAGE RIGIDE de la copie (26/10, user : « ca fait grossir la selection dupliquee ») : avant, chaque sommet etait pousse de 0,4 % de la diagonale du MODELE le long de sa normale :
+    // sur une petite zone (une dent) la copie gonflait de plusieurs dizaines de %. Maintenant une TRANSLATION unique (normale moyenne de la zone, 2 % de la taille de la ZONE) : meme echelle, meme forme.
+    let sx = 0, sy = 0, sz = 0, x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (const s of uniq) {
+      sx += nor.getX(s); sy += nor.getY(s); sz += nor.getZ(s);
+      const px = pos.getX(s), py = pos.getY(s), pz = pos.getZ(s);
+      if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; if (pz < z0) z0 = pz; if (pz > z1) z1 = pz;
+    }
+    const lnN = Math.hypot(sx, sy, sz) || 1, dec = 0.02 * (Math.hypot(x1 - x0, y1 - y0, z1 - z0) || 1);
+    const decX = sx / lnN * dec, decY = sy / lnN * dec, decZ = sz / lnN * dec;
     for (let j = 0; j < addV; j++) {
       const s = uniq[j], w = oldV + j;
-      newPos[w * 3] = pos.getX(s) + nor.getX(s) * eps; newPos[w * 3 + 1] = pos.getY(s) + nor.getY(s) * eps; newPos[w * 3 + 2] = pos.getZ(s) + nor.getZ(s) * eps;
+      newPos[w * 3] = pos.getX(s) + decX; newPos[w * 3 + 1] = pos.getY(s) + decY; newPos[w * 3 + 2] = pos.getZ(s) + decZ;
       newCol[w * 3] = 1.0; newCol[w * 3 + 1] = 0.3; newCol[w * 3 + 2] = 0.1;
       if (uv) { newUV[w * 2] = uv.getX(s); newUV[w * 2 + 1] = uv.getY(s); }
     }

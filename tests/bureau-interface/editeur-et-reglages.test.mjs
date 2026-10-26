@@ -72,6 +72,11 @@ test('Select > Duplicate : POSITION, UV, NORMAL et COLOR ont le meme nombre de s
   assert.equal(n, 4 + 4, '2 triangles dupliques = leurs 4 sommets UNIQUES de plus (sommets partages : la copie reste connexe, 26/10)');
   for (const nom of Object.keys(g.attributes)) assert.equal(g.attributes[nom].count, n, nom + ' doit avoir ' + n + ' sommets (GLB valide)');
   assert.equal(g.index.count, 12);
+  // la copie a la MEME ECHELLE que l'original : meme distance entre sommets, translation unique (26/10 : « ca fait grossir la selection dupliquee »)
+  const P = g.attributes.position, d = (i, j) => Math.hypot(P.getX(i) - P.getX(j), P.getY(i) - P.getY(j), P.getZ(i) - P.getZ(j));
+  for (const [i, j] of [[0, 1], [1, 2], [2, 3], [0, 2]]) assert.ok(Math.abs(d(i, j) - d(4 + i, 4 + j)) < 1e-6, `arete ${i}-${j} : meme longueur sur la copie`);
+  const t0 = [P.getX(4) - P.getX(0), P.getY(4) - P.getY(0), P.getZ(4) - P.getZ(0)];
+  for (let k = 1; k < 4; k++) assert.ok(Math.abs(P.getX(4 + k) - P.getX(k) - t0[0]) + Math.abs(P.getY(4 + k) - P.getY(k) - t0[1]) + Math.abs(P.getZ(4 + k) - P.getZ(k) - t0[2]) < 1e-6, 'translation unique');
   // les UV de la copie reprennent ceux des sommets d origine
   assert.deepEqual([g.attributes.uv.getX(4), g.attributes.uv.getY(4)], [0, 0]);
 });
