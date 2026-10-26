@@ -50,6 +50,9 @@ DELTA = 0.006                # marche de profondeur (fraction de la diagonale) q
 TAILLE_MAX = 0.12            # un trou ne depasse pas 12 % de la diagonale (au-dela : ce n'est pas un trou de peau)
 AIRE_MIN_PX = 8              # plus petite tache retenue (pixels)
 FRACTION_PROCHE = 0.8        # part du pourtour d'une tache qui doit border une plage plus proche
+CONTINUITE_ECART = 0.006     # un pixel de la couronne s'ecarte de la peau lissee (surface quadratique) de plus de 0,6 % de la diagonale : peau discontinue
+CONTINUITE_MAX = 0.30        # part maximale de ces pixels : au-dela, le trou n'est pas entoure d'UNE peau continue (rambardes, poupe, mobilier)
+LARGEUR_MIN = 0.0030         # largeur (diametre du plus grand disque inscrit, fraction de la diagonale) sous laquelle une tache est un filet (pied de rambarde), pas un trou
 PAS_ECHANTILLON = 0.7        # espacement des echantillons de surface (pixels) : aucun pixel d'un triangle ne reste vide
 TROUS_MAX = 400              # garde-fou : au-dela, les plus grands seulement
 ECHANTILLONS_MAX = 40_000_000
@@ -589,6 +592,44 @@ def _router_par_aretes(ring, groupe, rep, adj, permis, arete):
     return [v for _, v in _cycle_simple(sortie)]
 
 
+def _ramener_sur_peau(ring, groupe, rep, adj, permis):
+    """Le pourtour lu sur la carte saute parfois d'une feuille a sa jumelle (deux feuilles a 0,03 % de la diagonale : le z-buffer hesite entre elles) ; les
+    sommets de la feuille minoritaire n'ont aucun chemin d'aretes vers les autres, donc le bouchon laisse une fente. On garde la composante connexe de la
+    peau (parmi les sommets permis) qui porte le plus de sommets du pourtour, et chaque sommet d'une autre composante est remplace par le plus proche
+    sommet de celle-ci. Rend le nouveau pourtour (sommets d'origine)."""
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+    indptr, indices, pos = adj
+    noeuds = np.fromiter(permis, dtype=np.int64)
+    if len(noeuds) < 3:
+        return ring
+    local = -np.ones(len(indptr) - 1, dtype=np.int64)
+    local[noeuds] = np.arange(len(noeuds))
+    from scipy.sparse import csr_matrix
+    ligne = np.repeat(np.arange(len(indptr) - 1), np.diff(indptr))
+    ok = (local[ligne] >= 0) & (local[indices] >= 0)
+    m = csr_matrix((np.ones(int(ok.sum()), dtype=np.int8), (local[ligne[ok]], local[indices[ok]])), shape=(len(noeuds), len(noeuds)))
+    _, lab = connected_components(m, directed=False)
+    gr = np.array([int(groupe[v]) for v in ring])
+    dans = local[gr] >= 0
+    if not dans.any():
+        return ring
+    comp = lab[local[gr[dans]]]
+    principale = int(np.bincount(comp).argmax())
+    if int((comp == principale).sum()) == int(dans.sum()) and bool(dans.all()):
+        return ring
+    membres = noeuds[lab == principale]
+    arbre = cKDTree(pos[membres])
+    sortie = []
+    for v, g, d in zip(ring, gr, dans):
+        if d and lab[local[g]] == principale:
+            sortie.append(v)
+        else:
+            _, k = arbre.query(pos[g])
+            sortie.append(int(rep[membres[k]]))
+    return sortie
+
+
 def _sommets_a_pli(prep):
     """Pour chaque groupe de sommets soudes : vrai s'il touche une arete REPLIEE (deux faces de normales presque opposees, le pourtour d'une feuille sans
     epaisseur) ou une arete a plus de deux faces (feuilles collees). C'est la signature d'un trou dans une peau TRELLIS : le bord d'un trou est un
@@ -630,6 +671,25 @@ def _fils():
         except Exception:
             pass
     return ThreadPoolExecutor(max_workers=n)
+
+
+def _coherence(zb, hit, masque, s, diag):
+    """Mesures de COHERENCE d'une tache dans la carte fine : (part de la couronne qui s'ecarte de la peau lissee, largeur relative de la tache).
+    Un vrai trou de peau est entoure d'une peau CONTINUE (une surface quadratique rend compte de la courbure de la coque) ; une rambarde, un mobilier, une poupe
+    sont entoures de reliefs qui ne s'ajustent a aucune surface. Largeur : filet etroit = pied de rambarde, pas un trou."""
+    from scipy import ndimage as ndi
+    R = zb.shape[0]
+    cour = ndi.binary_dilation(masque, iterations=10) & ~ndi.binary_dilation(masque, iterations=2) & hit
+    ys, xs = np.nonzero(cour)
+    ecart = 0.0
+    if len(ys) >= 30:
+        x = (xs - xs.mean()) / R
+        y = (ys - ys.mean()) / R
+        A = np.c_[x, y, x * x, x * y, y * y, np.ones(len(x))]
+        co, *_ = np.linalg.lstsq(A, zb[ys, xs], rcond=None)
+        ecart = float((np.abs(zb[ys, xs] - A @ co) > CONTINUITE_ECART * diag).mean())
+    largeur = 2.0 * float(ndi.distance_transform_edt(masque).max()) / s / diag
+    return ecart, largeur
 
 
 def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RESOLUTION_BALAYAGE, journal=None, budget_s=None, debug=None):
@@ -706,6 +766,15 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
             if debug is not None:
                 debug.append(('fenetre_sans_tache', g['c'], g['r'], len(res)))
             return None
+        R_ = RESOLUTION_REPRISE
+        grand = np.zeros((R_, R_), dtype=bool)
+        grand[meilleur['y0']:meilleur['y0'] + meilleur['masque'].shape[0], meilleur['x0']:meilleur['x0'] + meilleur['masque'].shape[1]] = meilleur['masque']
+        from scipy import ndimage as _ndi
+        ecart, largeur = _coherence(zb, fid >= 0, _ndi.binary_fill_holes(grand), s, diag)
+        if ecart > CONTINUITE_MAX or largeur < LARGEUR_MIN:
+            if debug is not None:
+                debug.append(('coherence', g['c'], g['r'], ecart, largeur))
+            return 'structure'                           # pas de peau continue autour, ou simple filet : une structure, pas un trou de peau (aucune autre vue n'y change rien)
         out = _pourtour_de_tache(meilleur, lab, fid, zb, proj, V, F, groupe, dmax=3.0 * arete if arete > 0 else None)
         if out is None:
             if debug is not None:
@@ -717,7 +786,9 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         garde = dc <= 2.5 * np.median(dc) + 2.0 * arete + 1e-12          # un sommet loin des autres (grand triangle voisin) deformerait tout le bouchon
         ring = [v for v, k in zip(ring, garde) if k]
         if len(ring) >= 3:
-            ring = _router_par_aretes(ring, groupe, rep, adj, set(int(x) for x in np.unique(groupe[F[faces_vues].reshape(-1)])), arete)
+            permis = set(int(x) for x in np.unique(groupe[F[faces_vues].reshape(-1)]))
+            ring = _ramener_sur_peau(ring, groupe, rep, adj, permis)
+            ring = _router_par_aretes(ring, groupe, rep, adj, permis, arete)
         n = len(ring)
         if n < max(3, int(min_aretes)) or n > int(max_aretes):
             if debug is not None:
@@ -744,7 +815,10 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
     def reprendre(membres):
         for g in membres[:ESSAIS_PAR_TROU]:             # la meilleure vue d'abord ; si la reprise echoue, la suivante
             h = essayer(g)
+            if h == 'structure':
+                return None
             if h is not None:
+                h['votes'] = len(set(m['iv'] for m in membres))
                 return h
         return None
     trouves = [h for h in pool.map(reprendre, groupes) if h is not None]
