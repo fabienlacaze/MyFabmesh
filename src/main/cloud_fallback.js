@@ -339,7 +339,7 @@ async function status() {
 // Retourne { success, images:[chemins locaux], creditsRemaining } ou
 // { success:false, needsCloudLogin:true } si aucune session valide.
 // -----------------------------------------------------------------------------
-async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee, negativeExtra, poseLibre }) {
+async function generateImages({ prompt, numImages, imagesDir, assetType, assetStyle, steps, turbo, projectName, langueVerifiee, negativeExtra, poseLibre, tposeDemandee }) {
   // Termes de negatif de l'utilisateur (« no helmet » -> « helmet ») : 20 au plus (NEG_MAX_LONG), 40 caracteres, lettres / espaces / tirets ; le serveur re-verifie.
   const _negatifs = Array.isArray(negativeExtra)
     ? negativeExtra.filter((x) => typeof x === 'string' && x.length <= 40 && /^[a-z]+(?:[ -][a-z]+)*$/.test(x)).slice(0, 20)
@@ -381,6 +381,8 @@ async function generateImages({ prompt, numImages, imagesDir, assetType, assetSt
           ...(langueVerifiee ? { langueVerifiee: true } : {}),
           // case « T-pose » decochee (24/10, M9) : pose libre, pas de route T-pose ni de supplement
           ...(poseLibre ? { tpose: false, poseLibre: true } : {}),
+          // PARITE T-POSE (26/10) : case cochee -> le worker passe par /tpose (useTpose) et ajoute le supplement `tpose` ; jamais avec poseLibre
+          ...(tposeDemandee && !poseLibre ? { tpose: true } : {}),
           steps: Number(steps) || 30,
           turbo: !!turbo,
           ...(_negatifs.length ? { negativeExtra: _negatifs } : {}),   // negations de l'utilisateur : ajoutees au negatif par le serveur

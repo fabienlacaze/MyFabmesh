@@ -89,7 +89,7 @@ test('generate-images : le terme passe au filtre, au pont local (FABMESH_NEGATIV
   const i = texteMain.indexOf("ipcMain.handle('generate-images', async (event, {");
   assert.ok(i > 0);
   const corps = texteMain.slice(i, texteMain.indexOf('\n});\n', i));
-  assert.ok(/\bnegativeExtra \}\) => \{/.test(corps), 'negativeExtra n\'est pas dans les parametres du handler');
+  assert.ok(/\bnegativeExtra(, tposeDemandee)? \}\) => \{/.test(corps), 'negativeExtra n\'est pas dans les parametres du handler');
   assert.ok(corps.includes('const _negatifs = _assainirNegativeExtra(negativeExtra);'), 'termes non re-verifies');
   assert.ok(corps.includes('const _texteModere = _texteDeModeration(prompt, _negatifs);'));
   assert.ok(corps.includes('checkPromptSafety(_texteModere)') && corps.includes('checkPromptSafetyAI(_texteModere)'), 'le filtre doit lire le texte AVEC les locutions');

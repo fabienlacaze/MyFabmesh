@@ -9520,7 +9520,9 @@ document.getElementById('ws-generate-image').addEventListener('click', async () 
       const _genArgs = { prompt, userPrompt, userPromptAnglais: englishUser, negativeExtra, engine, numImages: count, projectName: p.name, steps, multiView: _mvSent, buildStages, jobId: job.id, vramFraction: _fractionVramEquivalente(), assetType, computeMode: _computeM,
         assetStyle, langueVerifiee: _tr.telQuel || undefined,
         // CASE « T-pose » DECOCHEE (24/10, M9) : pose libre. Le mode Cloud du bureau l'ignorait (le serveur remettait la T-pose dans son gabarit).
-        ...(_optionsPose(assetType).tpose === false ? { poseLibre: true } : {}) };
+        ...(_optionsPose(assetType).tpose === false ? { poseLibre: true } : {}),
+        // PARITE T-POSE (26/10, decision du proprietaire) : case cochee, personnage -> le serveur utilise sa route T-pose (squelette ControlNet) et facture le supplement `tpose`, comme le site
+        ...(assetType === 'character' && document.getElementById('ws-tpose')?.checked && engine !== 'local-lightning' ? { tposeDemandee: true } : {}) };
       // La modale de connexion + le retry sont gérés en amont par le wrapper
       // API (voir _CLOUD_LOGIN_METHODS) — commun à TOUS les outils cloud.
       const r = await API.generateImages(_genArgs);
@@ -33218,14 +33220,18 @@ window._applyCloudCostPill = function (btn) {
     // (cloud-overrides.js, recalcImage).
     const etapes = !!document.getElementById('ws-img-buildstages')?.checked;
     const n = etapes ? 3 : Math.max(1, parseInt(document.getElementById('ws-count')?.value, 10) || 4);
-    window._posePastille(btn, img ? n * img.prix : null, true);
+    // PARITE T-POSE (26/10) : supplement par image quand la case est cochee (personnage) et que le moteur n'est pas Turbo : MEME regle que l'appel (tposeDemandee) et que le worker (useTpose)
+    const suppGrille = window._prixDe('tpose');
+    const supp = (document.getElementById('ws-asset-type')?.value || 'character') === 'character' && !!document.getElementById('ws-tpose')?.checked
+      && !(img && img.turbo) && typeof suppGrille === 'number' ? suppGrille : 0;
+    window._posePastille(btn, img ? n * (img.prix + supp) : null, true);
     const pill = btn.querySelector('.generate-cost-pill');
-    if (pill && img) pill.title = `${n} × ${img.prix}`;
+    if (pill && img) pill.title = supp ? `${n} × (${img.prix} + ${supp} T-pose)` : `${n} × ${img.prix}`;
   } catch (_) {}
 };
 // Nombre d'images, qualite, moteur et etapes de construction changent le prix :
 // pastille ET mention « credits par image » de la ligne Compute suivent.
-['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages'].forEach((id) => {
+['ws-count', 'ws-quality', 'ws-engine', 'ws-img-buildstages', 'ws-tpose', 'ws-asset-type'].forEach((id) => {
   const el = document.getElementById(id);
   const maj = () => { window._applyCloudCostPill(); window._majMentionsPrixImage?.(); };
   el?.addEventListener('change', maj);
