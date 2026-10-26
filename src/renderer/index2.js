@@ -2143,6 +2143,11 @@ const _NP_STYLES = [
   ['stylized', ['stylized', 'stylised', 'stylise']],
   ['pbr', ['pbr']],
 ];
+// 26/10 (user : « un cerf-volant c'est pas un animal ... (si ?) ») : une expression COMPOSEE ecrite avec un espace (« cerf volant », « loup garou »)
+// est ramenee a sa forme a trait d'union avant le comptage ; sinon chaque morceau comptait seul (« cerf » = animal).
+const _NP_COMPOSES = [['cerfs volants', 'cerfs-volants'], ['cerf volant', 'cerf-volant'], ['loup garou', 'loup-garou'], ['loups garous', 'loup-garou'],
+  ['hombre lobo', 'loup-garou'], ['hombres lobo', 'loup-garou'], ['chauve souris', 'chauve-souris'], ['chauves souris', 'chauve-souris'],
+  ['mille pattes', 'mille-pattes'], ['stag beetle', 'stag-beetle']];
 function _npNormaliser(t) {
   return String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\- ]+/g, ' ');
 }
@@ -2181,7 +2186,8 @@ function _npCompterUnicode(texte, termes) {
 }
 /** Deduit { type, style } (null = indetermine) d'un texte libre, par MOTS ENTIERS. */
 function detecterTypeEtStyle(texte) {
-  const t = ' ' + _npNormaliser(texte).replace(/\s+/g, ' ').trim() + ' ';
+  let t = ' ' + _npNormaliser(texte).replace(/\s+/g, ' ').trim() + ' ';
+  for (const [a, b] of _NP_COMPOSES) t = t.split(' ' + a + ' ').join(' ' + b + ' ');
   let type = null, meilleur = 0;
   for (const [id, liste] of _NP_TYPES) {           // ordre = priorite en cas d'egalite
     const n = _npCompter(t.trim(), _NP_LATIN_PLUS[id] ? liste + ' ' + _NP_LATIN_PLUS[id] : liste) + _npCompterUnicode(texte, _NP_MOTS && _NP_MOTS.unicode && _NP_MOTS.unicode[id]);

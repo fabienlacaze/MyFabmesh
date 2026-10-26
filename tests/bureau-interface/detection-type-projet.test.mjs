@@ -14,7 +14,7 @@ const FICHIERS = {
   bureau: [join(RACINE, 'src/renderer/index2.js'), join(RACINE, 'src/renderer/lib/mots-projet.js')],
   site: [join(RACINE, 'cloud/public/app/index2.js'), join(RACINE, 'cloud/public/app/lib/mots-projet.js')],
 };
-const NOMS = ['_NP_TYPES', '_NP_STYLES', '_npNormaliser', '_npCompter', '_NP_MOTS', '_NP_LATIN_PLUS', '_npCompterUnicode', 'detecterTypeEtStyle'];
+const NOMS = ['_NP_TYPES', '_NP_STYLES', '_npNormaliser', '_npCompter', '_NP_MOTS', '_NP_LATIN_PLUS', '_NP_COMPOSES', '_npCompterUnicode', 'detecterTypeEtStyle'];
 
 function charger([index, mots]) {
   const src = readFileSync(index, 'utf-8');
