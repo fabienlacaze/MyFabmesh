@@ -343,7 +343,8 @@ def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000):
     st = res['stats']
     log(f'holes filled: {st["holes_filled"]} (+{st["holes_filled_delta_faces"]} faces, nothing removed)')
     print('[mesh_tools] BILAN: ' + json.dumps({'holes_filled': st['holes_filled'], 'holes_remaining': st['holes_remaining'],
-                                              'holes_filled_delta_faces': st['holes_filled_delta_faces'], 'verdict': st['verdict']}), flush=True)
+                                              'holes_filled_delta_faces': st['holes_filled_delta_faces'], 'verdict': st['verdict'],
+                                              'skin_holes_filled': st.get('skin_holes_filled', 0)}), flush=True)
 
 
 def center(input_path, output_path):

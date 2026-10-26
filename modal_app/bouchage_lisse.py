@@ -1050,6 +1050,12 @@ def boucher(V, F, analyse, prep, UV=None, normales=None, couleurs_sommets=None, 
             Nr = np.asarray(normales, dtype=np.float64)[debut] if normales is not None else None
             col = ColliersFiltre(collier, item['voisins_ok']) if item.get('voisins_ok') is not None else collier
             r = boucher_un(R, Nr, col, groupe[debut], ordre, Ng_ring=Ng[groupe[debut]])
+            if item.get('peau'):
+                # garde des trous de peau : un bouchon dont un sommet s'eloigne beaucoup du pourtour est une extrapolation qui a diverge (pourtour tres
+                # allonge sur une surface courbe) : il vaut mieux ne rien poser que poser une pointe
+                ray = float(np.linalg.norm(R - R.mean(axis=0), axis=1).max())
+                if float(np.linalg.norm(r['X'] - R.mean(axis=0), axis=1).max()) > 1.6 * ray:
+                    continue
             if UVa is not None:
                 UVr = UVa[debut]
                 if occupation is not None and nilots < ILOTS_MAX and poser_ilot(r, R, UVr, ecriture, occupation, densite):
@@ -1060,6 +1066,8 @@ def boucher(V, F, analyse, prep, UV=None, normales=None, couleurs_sommets=None, 
             r['debut'] = debut
             resultats[k] = r
         for k in range(len(aBoucher)):
+            if k not in resultats:
+                continue
             r = resultats[k]
             n = r['n']
             sommets.append(r['X'])
@@ -1229,14 +1237,14 @@ def boucher_scene(scene, min_aretes=3, max_aretes=2000, journal=print, ordre=2, 
         scene.geometry[nom] = ng
         journal(f'mesh {nom}: +{bilan["faces_ajoutees"]} faces, +{bilan["sommets_ajoutes"]} vertices, methods {bilan["methodes"]}, '
                 f'texture: {bilan.get("uv_ilot", 0)} island / {bilan.get("uv_palette", 0)} palette / {bilan.get("uv_constante", 0)} constant, {time.time() - t0:.1f} s')
-        par_maillage.append({'name': nom, 'faces_before': int(len(F)), 'faces_after': int(len(ng.faces)), 'holes_filled': a['a_boucher'],
+        par_maillage.append({'name': nom, 'faces_before': int(len(F)), 'faces_after': int(len(ng.faces)), 'holes_filled': int(bilan.get('rustines', a['a_boucher'])),
                              'skipped_too_small': a['trop_petites'], 'skipped_too_big': a['trop_grandes'], 'unfillable': a['non_triangulables'],
                              'vertices_added': bilan['sommets_ajoutes'], 'methods': bilan['methodes']})
     restantes = sum(t[5]['restantes'] for t in travail)
     stats = {
         'verdict': 'OPEN_HOLES' if restantes else 'CLOSED_OK',
-        'holes_filled': sum(t[5]['a_boucher'] for t in travail),
-        'skin_holes_filled': int(peau_trouvee),
+        'holes_filled': sum(m.get('holes_filled', 0) for m in par_maillage),
+        'skin_holes_filled': int(peau_trouvee) if not par_maillage else sum(m.get('holes_filled', 0) for m, t in zip(par_maillage, travail) if t[5].get('peau')),
         'holes_remaining': int(restantes),
         'holes_filled_delta_faces': sum(m['faces_after'] - m['faces_before'] for m in par_maillage),
         'meshes': par_maillage,

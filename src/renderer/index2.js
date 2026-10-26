@@ -14114,7 +14114,9 @@ async function runMeshTool(operation, params = [], namedParams = null, options =
         const s = result.stats, h = s.holes_filled, d = s.holes_filled_delta_faces || 0;
         showToast(s.verdict === 'OPEN_HOLES'
           ? _i18nTf('Filled {x} holes (+{y} faces). Some holes remain: widen the Min / Max range.', h, d)
-          : _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d), 'success', s.verdict === 'OPEN_HOLES' ? 6000 : 3000);
+          : (s.skin_holes_filled > 0
+            ? _i18nTf('Double skin: filled {x} holes in the outer skin (+{y} faces); nothing was removed or moved.', s.skin_holes_filled, d)
+            : _i18nTf('Filled {x} holes (+{y} faces); nothing was removed or moved.', h, d)), 'success', s.verdict === 'OPEN_HOLES' ? 6000 : 3000);
       } else showToast(_i18nTf('{x} done', _i18nT(operation)), 'success');
       if (job && typeof completeJob === 'function') completeJob(job.id, true);
       // Register the new mesh version. populateWorkspace only RENDERS
@@ -15108,7 +15110,11 @@ function _mtRunPreview() {
             + (st.unfillable ? ` · ` + _i18nTf('{x} cannot be filled (red)', st.unfillable) : '')
             + (st.flat ? ` · ` + _i18nTf('{x} flat loops ignored (nothing to fill)', st.flat) : '');
         } else if (st.refus) {
-          status.textContent = (window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte;
+          // Double peau (aretes a plus de deux faces) : l'apercu ne sait pas chercher les trous de la PEAU (cartes de profondeur, Python seulement) ;
+          // « Appliquer » les cherche. On le dit, au lieu d'afficher « rien a boucher » qui serait faux.
+          status.textContent = st.refus.code === 'fill_holes_closed_nonmanifold'
+            ? _i18nT('No open hole, but this mesh is a stack of thin layers (double skin). Holes in the outer skin cannot be previewed: Apply searches for them and adds smooth patches without removing anything.')
+            : ((window.FabMessages && window.FabMessages.traduire) ? window.FabMessages.traduire(st.refus.texte) : st.refus.texte);
         } else {
           status.textContent = _i18nT('Computing…');
         }

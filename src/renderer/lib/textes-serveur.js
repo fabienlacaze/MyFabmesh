@@ -96,7 +96,7 @@
     prompt_too_long: (p) => tf('Your description is too long ({x} of {y} characters). Please shorten it.', p.n, p.max),
     fill_holes_range: (p) => tf('No hole between {x} and {y} edges. Widen the range. The mesh was left unchanged and nothing was charged.', p.min, p.max),
     fill_holes_closed_flipped: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} faces point the wrong way (dark or see-through patches). Use Fix normals instead. The mesh was left unchanged and nothing was charged.', p.n),
-    fill_holes_closed_nonmanifold: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} edges are shared by more than two faces (double skin or glued parts). The mesh was left unchanged and nothing was charged.', p.n),
+    fill_holes_closed_nonmanifold: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} edges are shared by more than two faces (double skin or glued parts). No hole in the outer skin was found either. The mesh was left unchanged and nothing was charged.', p.n),
     fill_holes_closed_debris: (p) => tf('Nothing to fill: the mesh has no open hole, but {x} small loose pieces float apart from the main body. The mesh was left unchanged and nothing was charged.', p.n),
     fill_holes_closed: () => t('Nothing to fill: the mesh has no open hole. Missing or thin areas are not holes in the surface, so this tool cannot fix them. The mesh was left unchanged and nothing was charged.'),
     fill_holes_unfillable: (p) => tf('Could not fill the {x} open holes: their outline is too complex or folds over itself. The mesh was left unchanged and nothing was charged.', p.n),
