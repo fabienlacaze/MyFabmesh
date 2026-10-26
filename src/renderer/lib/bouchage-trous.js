@@ -442,7 +442,7 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
   const seuilPlat = Math.max(SEUIL_PLAT * tol, BRUIT_FLOAT32 * maxabs);
   const boucles = [];
   const ajout = [];
-  const modes = { triangle: 0, quad: 0, optimal: 0, oreilles: 0 };
+  const modes = { triangle: 0, quad: 0, optimal: 0, oreilles: 0, lisse: 0 };
   for (const cycle of cycles) {
     const n = cycle.length;
     const reels = cycle.filter((e) => e >= 0);
@@ -475,10 +475,13 @@ export function analyser(positions, indices, min_aretes = 3, max_aretes = 2000, 
     else {
       reste -= cout_travail(n);
       const res = trianguler(pts.slice().reverse());
-      if (res === null) item.categorie = 'non_triangulable';
-      else {
+      item.categorie = 'a_boucher';
+      if (res === null) {
+        // Pourtour non plan ou qui se replie : aucune triangulation plate valable, mais le bouchon lisse (scripts/bouchage_lisse.py) n'en a pas besoin.
+        item.mode = 'lisse';
+        modes.lisse++;
+      } else {
         const [mode, triangles] = res;
-        item.categorie = 'a_boucher';
         item.mode = mode;
         modes[mode]++;
         for (const t of triangles) {
