@@ -40,6 +40,7 @@ VERSION = 1
 RESOLUTION_BALAYAGE = 1024    # pixels de cote d'une carte de balayage (grossiere)
 RESOLUTION_REPRISE = 256      # pixels de cote de la carte fine centree sur un trou
 NB_VUES = 48                  # directions du balayage
+ESSAIS_PAR_TROU = 4            # vues essayees, au plus, pour reprendre un meme trou
 RAYON_MIN_ARETES = 2.0        # un trou a moins de 2 aretes moyennes de rayon est un grain de la carte, pas un trou
 DELTA = 0.006                # marche de profondeur (fraction de la diagonale) qui separe deux plages
 TAILLE_MAX = 0.12            # un trou ne depasse pas 12 % de la diagonale (au-dela : ce n'est pas un trou de peau)
@@ -284,6 +285,25 @@ def taches_enfoncees(zb, hit, delta, aire_max, aire_min=AIRE_MIN_PX, fraction=FR
     fin = np.searchsorted(sd_tri, cand, side='right')
     pris = np.zeros((R, R), dtype=bool)
     objets = ndi.find_objects(lab + 1)
+    voisines = {}
+    for a_, b_ in np.unique(np.stack([sd, sn], axis=1), axis=0):
+        voisines.setdefault(int(a_), set()).add(int(b_))
+        voisines.setdefault(int(b_), set()).add(int(a_))
+
+    def region_par_plages(sg, T_l):
+        """Repli : la graine et les petites plages qui la touchent (3 sauts au plus), hors plages proches, fond exterieur et gros morceaux."""
+        dedans = {sg}
+        front = [sg]
+        for _ in range(3):
+            nxt = []
+            for u in front:
+                for v in voisines.get(u, ()):
+                    if v in dedans or v in T_l or touche[v] or aire[v] > aire_max:
+                        continue
+                    dedans.add(v)
+                    nxt.append(v)
+            front = nxt
+        return dedans
     for sgraine, i0, i1 in sorted(zip(cand, debut, fin), key=lambda t: -aire[t[0]]):
         sl = objets[sgraine]
         if sl is None:
@@ -315,7 +335,7 @@ def taches_enfoncees(zb, hit, delta, aire_max, aire_min=AIRE_MIN_PX, fraction=FR
         A = np.c_[xs, ys, np.ones(len(xs))].astype(np.float64)
         zt = zfull[y0:y1, x0:x1][ys, xs]
         coef, *_ = np.linalg.lstsq(A, zt, rcond=None)
-        if float(np.std(zt - A @ coef)) > 2.0 * delta:
+        if float(np.std(zt - A @ coef)) > 4.0 * delta:
             if rejets is not None:
                 rejets.append(('plan', (gy.start, gx.start), int(aire[sgraine]), float(np.std(zt - A @ coef) / delta)))
             continue
@@ -325,17 +345,16 @@ def taches_enfoncees(zb, hit, delta, aire_max, aire_min=AIRE_MIN_PX, fraction=FR
         profonds = (zfull[y0:y1, x0:x1] - plan > delta) & ~dans_T
         zones, _ = ndi.label(profonds)
         ks = zones[graine & (zones > 0)]
-        if len(ks) == 0:
-            continue
-        reg = zones == int(np.bincount(ks).argmax())
-        if (reg[0].any() and y0 > 0) or (reg[-1].any() and y1 < R) or (reg[:, 0].any() and x0 > 0) or (reg[:, -1].any() and x1 < R):
-            if rejets is not None:
-                rejets.append(('cadre', (gy.start, gx.start), int(aire[sgraine])))
-            continue                                  # deborde du cadre de recherche : pas un petit trou
-        if reg[0].any() or reg[-1].any() or reg[:, 0].any() or reg[:, -1].any():
-            if rejets is not None:
-                rejets.append(('bord', (gy.start, gx.start), int(aire[sgraine])))
-            continue                                  # touche le bord de l'image
+        reg = zones == int(np.bincount(ks).argmax()) if len(ks) else None
+        fuite = reg is None or reg[0].any() or reg[-1].any() or reg[:, 0].any() or reg[:, -1].any()
+        if fuite:
+            # la zone « plus profonde que le plan » deborde (fente qui se prolonge, creux voisin) : repli sur les petites plages voisines
+            dedans = region_par_plages(sgraine, set(T_liste))
+            reg = np.isin(sous, list(dedans))
+            if reg[0].any() or reg[-1].any() or reg[:, 0].any() or reg[:, -1].any():
+                if rejets is not None:
+                    rejets.append(('cadre', (gy.start, gx.start), int(aire[sgraine])))
+                continue
         a_reg = int(reg.sum())
         if a_reg > aire_max:
             if rejets is not None:
@@ -350,6 +369,7 @@ def taches_enfoncees(zb, hit, delta, aire_max, aire_min=AIRE_MIN_PX, fraction=FR
         ry, rx = np.nonzero(reg)
         cyl, cxl = float(ry.mean()), float(rx.mean())
         res.append({'y0': y0, 'x0': x0, 'masque': reg, 'proche': T_liste, 'aire': a_reg, 'cy': y0 + cyl, 'cx': x0 + cxl,
+                    'etendue': 0.5 * math.hypot(float(np.ptp(ry)) + 1.0, float(np.ptp(rx)) + 1.0), 'pente': (float(coef[0]), float(coef[1])),
                     'zc': float(coef[0] * (cxl + 0.5) + coef[1] * (cyl + 0.5) + coef[2])})
     return res, lab
 
@@ -412,31 +432,18 @@ def _normale_newell(P):
 
 
 def _cycle_simple(seq):
-    """seq : liste de (groupe, sommet) formant un cycle. Rend un cycle SANS repetition de groupe : on part d'un groupe qui n'apparait qu'une fois, puis
-    chaque retour sur un groupe deja vu supprime la boucle parcourue entre les deux passages (les allers-retours du bruit de pixel). Lineaire."""
-    seq = list(seq)
-    if len(seq) < 3:
-        return seq
-    compte = {}
-    for g, _ in seq:
-        compte[g] = compte.get(g, 0) + 1
-    depart = next((i for i, (g, _) in enumerate(seq) if compte[g] == 1), 0)
-    seq = seq[depart:] + seq[:depart]
-    pile = []
-    place = {}
+    """seq : liste de (groupe, sommet) formant un cycle. Rend un cycle SANS repetition de groupe : on garde la PREMIERE apparition de chaque groupe (le
+    pourtour tourne une seule fois ; un groupe qui revient est le meme sommet vu de pixels voisins, jamais un nouveau tour). Lineaire."""
+    vu = set()
+    sortie = []
     for g, v in seq:
-        if g in place:
-            k = place[g]
-            for gg, _ in pile[k + 1:]:
-                place.pop(gg, None)
-            del pile[k + 1:]
-        else:
-            place[g] = len(pile)
-            pile.append((g, v))
-    return pile
+        if g not in vu:
+            vu.add(g)
+            sortie.append((g, v))
+    return sortie
 
 
-def _pourtour_de_tache(t, lab, fid, zb, proj, V, F, groupe):
+def _pourtour_de_tache(t, lab, fid, zb, proj, V, F, groupe, dmax=None):
     """Pourtour (indices de sommets, dans l'ordre) de la tache `t` (voir taches_enfoncees). Rend None si inexploitable, sinon
     (sommets du pourtour, faces vues de la peau proche autour du trou : pour restreindre le collier)."""
     from scipy import ndimage as ndi
@@ -473,7 +480,10 @@ def _pourtour_de_tache(t, lab, fid, zb, proj, V, F, groupe):
             continue
         P = c + ((xx + 0.5 - R / 2.0) * a + (yy + 0.5 - R / 2.0) * b) / s + zb[yy, xx] * d
         vs = F[f]
-        k = int(np.argmin(np.linalg.norm(V[vs] - P, axis=1)))
+        dist = np.linalg.norm(V[vs] - P, axis=1)
+        k = int(np.argmin(dist))
+        if dmax is not None and dist[k] > dmax:
+            continue                                  # grand triangle : aucun de ses sommets n'est pres de ce point du pourtour
         g = int(groupe[vs[k]])
         if not sommets or sommets[-1][0] != g:
             sommets.append((g, int(vs[k])))
@@ -501,10 +511,10 @@ def directions_fibonacci(n):
 def _centre_trou(t, proj, R):
     """Point 3D (sur le plan de la peau) du centre d'une tache et son rayon (unites du maillage)."""
     a, b, d, c, s = proj
-    return c + ((t['cx'] + 0.5 - R / 2.0) * a + (t['cy'] + 0.5 - R / 2.0) * b) / s + t['zc'] * d, math.sqrt(t['aire'] / math.pi) / s
+    return c + ((t['cx'] + 0.5 - R / 2.0) * a + (t['cy'] + 0.5 - R / 2.0) * b) / s + t['zc'] * d, max(math.sqrt(t['aire'] / math.pi), t['etendue']) / s
 
 
-def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RESOLUTION_BALAYAGE, journal=None, budget_s=None):
+def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RESOLUTION_BALAYAGE, journal=None, budget_s=None, debug=None):
     """Trous de peau du maillage. Rend (liste de trous, rapport). Un trou : {'debut': sommets du pourtour (ordre du pourtour), 'n', 'centre', 'rayon',
     'voisins_ok': groupes de la peau exterieure voisine, 'vue': indice, 'aire_px'}. Ne modifie rien.
     1. BALAYAGE : cartes de profondeur grossieres depuis NB_VUES directions ; chaque tache enfoncee entouree donne un candidat (centre 3D, rayon, vue).
@@ -531,22 +541,26 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         res, _ = taches_enfoncees(zb, fid >= 0, delta, int((TAILLE_MAX * diag * proj[4]) ** 2))
         for t in res:
             c3, r = _centre_trou(t, proj, resolution)
-            cands.append({'c': c3, 'r': r, 'iv': iv, 'aire': t['aire']})
+            frontal = 1.0 / math.sqrt(1.0 + (t['pente'][0] * proj[4]) ** 2 + (t['pente'][1] * proj[4]) ** 2)       # 1 = la peau est de face, 0 = rasante
+            cands.append({'c': c3, 'r': r, 'iv': iv, 'aire': t['aire'] * frontal, 'rg': math.sqrt(t['aire'] / math.pi) / proj[4]})
     # regroupement : les plus grands (les plus de face) d'abord
     n_cands = len(cands)
-    cands = [h for h in cands if h['r'] >= RAYON_MIN_ARETES * arete]        # les grains de la carte ne valent pas une reprise
+    cands = [h for h in cands if h['rg'] >= RAYON_MIN_ARETES * arete or h['r'] >= 4.0 * arete]        # les grains de la carte ne valent pas une reprise
     cands.sort(key=lambda h: -h['aire'])
     cF = V[F].mean(axis=1)                                         # pour ne rendre dans une fenetre que les faces qui la touchent
     rF = np.linalg.norm(V[F] - cF[:, None, :], axis=2).max(axis=1)
     groupes = []
     for h in cands:
-        for g in groupes:
-            if np.linalg.norm(h['c'] - g['c']) < 0.9 * max(h['r'], g['r']) + 0.5 * arete:
+        for membres in groupes:
+            g = membres[0]
+            if np.linalg.norm(h['c'] - g['c']) < 0.9 * max(h['rg'], g['rg']) + 0.5 * arete:
+                membres.append(h)
                 break
         else:
-            groupes.append(h)
+            groupes.append([h])
     trouves = []
-    for g in groupes:
+
+    def essayer(g):
         d = dirs[g['iv']]
         demi = max(3.0 * g['r'], 8.0 * arete, 0.01 * diag)
         a_, b_ = _base(d / np.linalg.norm(d))
@@ -563,29 +577,55 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
             if dist < 0.35 * RESOLUTION_REPRISE and (meilleur is None or t['aire'] > meilleur['aire']):
                 meilleur = t
         if meilleur is None:
-            continue
-        out = _pourtour_de_tache(meilleur, lab, fid, zb, proj, V, F, groupe)
+            if debug is not None:
+                debug.append(('fenetre_sans_tache', g['c'], g['r'], len(res)))
+            return None
+        out = _pourtour_de_tache(meilleur, lab, fid, zb, proj, V, F, groupe, dmax=3.0 * arete if arete > 0 else None)
         if out is None:
-            continue
+            if debug is not None:
+                debug.append(('pourtour', g['c'], g['r']))
+            return None
         ring, faces_vues = out
+        Pr = V[ring]
+        dc = np.linalg.norm(Pr - np.median(Pr, axis=0), axis=1)
+        garde = dc <= 2.5 * np.median(dc) + 2.0 * arete + 1e-12          # un sommet loin des autres (grand triangle voisin) deformerait tout le bouchon
+        ring = [v for v, k in zip(ring, garde) if k]
         n = len(ring)
         if n < max(3, int(min_aretes)) or n > int(max_aretes):
-            continue
+            if debug is not None:
+                debug.append(('n', g['c'], g['r'], n))
+            return None
         P = V[ring]
         ctr = P.mean(axis=0)
         rayon = float(np.linalg.norm(P - ctr, axis=1).max())
         if rayon < RAYON_MIN_ARETES * arete:
-            continue                                  # trop petit pour etre autre chose qu'un grain de la carte
+            if debug is not None:
+                debug.append(('rayon', g['c'], g['r'], rayon))
+            return None                                  # trop petit pour etre autre chose qu'un grain de la carte
         ordre_rustine = list(ring)
         if float(_normale_newell(P) @ proj[2]) > 0:     # le bouchon regarde l'observateur
             ordre_rustine = ordre_rustine[::-1]
-        trouves.append({'debut': ordre_rustine[::-1], 'n': n, 'centre': ctr, 'rayon': rayon, 'faces_vues': faces_vues, 'vue': g['iv'],
-                        'aire_px': meilleur['aire']})
+        return {'debut': ordre_rustine[::-1], 'n': n, 'centre': ctr, 'rayon': rayon, 'faces_vues': faces_vues, 'vue': g['iv'], 'aire_px': meilleur['aire']}
+
+    for membres in groupes:
+        for g in membres[:ESSAIS_PAR_TROU]:             # la meilleure vue d'abord ; si la reprise echoue, la suivante
+            h = essayer(g)
+            if h is not None:
+                trouves.append(h)
+                break
     # deux groupes qui retombent sur le meme trou
     trouves.sort(key=lambda h: -h['rayon'])
     gardes = []
     for h in trouves:
-        if all(np.linalg.norm(h['centre'] - g['centre']) >= 0.8 * max(h['rayon'], g['rayon']) for g in gardes):
+        ens = set(int(groupe[v]) for v in h['debut'])
+        h['_ens'] = ens
+        doublon = False
+        for g in gardes:
+            commun = len(ens & g['_ens']) / float(max(1, min(len(ens), len(g['_ens']))))
+            if commun >= 0.3 or np.linalg.norm(h['centre'] - g['centre']) < 0.25 * min(h['rayon'], g['rayon']):
+                doublon = True                         # meme trou vu d'une autre direction : les pourtours partagent leurs sommets
+                break
+        if not doublon:
             gardes.append(h)
     gardes = gardes[:TROUS_MAX]
     for h in gardes:
