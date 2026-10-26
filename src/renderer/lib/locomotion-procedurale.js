@@ -1160,6 +1160,11 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       }
     }
     p.neutre = N;
+    p.axeDeroule = null;
+    if (!debout && !bipede && globalThis.__deroulePiedLibre !== false) {
+      const ho = [p.piedOff[0], 0, p.piedOff[2]], hl = norm(ho);
+      if (hl > 0.2 * norm(p.piedOff) && hl > 1e-9) { const ax = cross([0, 1, 0], mulS(ho, 1 / hl)); p.axeDeroule = mulS(ax, 1 / (norm(ax) + 1e-12)); }
+    }
     const a_ = P0[p.ik[0]], b_ = P0[p.ik[p.ik.length - 1]];
     const u_ = mulS(sub(b_, a_), 1 / (norm(sub(b_, a_)) + 1e-12));
     let pole = [0, 0, 0], ecartMax = 0;
@@ -1559,7 +1564,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const Lik = longueurChaine(ch.map((k) => P0[k]));
     let u = 0;
     // portee en DOUCEUR (26/10, 2e passe) : voir plus bas. Passe 0 = mesure de la distance hanche-cible de chaque image, passe 1 = le calcul.
-    const doux = A.pas && quadrupede && globalThis.__porteeDouce !== false;
+    const doux = A.pas && !bipede && globalThis.__porteeDouce !== false;
     const nds = doux ? new Array(nT).fill(0) : null;
     let dc = null;
     for (let pass = 0; pass < (doux ? 2 : 1); pass++) {
@@ -1612,7 +1617,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         }
       }
       if (!A.pas) { const sp_ = pasPied(C, p); if (sp_ && sp_.pit) theta += cles(t[i] / T, sp_.pit) * kAct; }   // pied tourne autour du bout (pied replie, patte levee)
-      const F = mm(Rcap[i], Rx(theta));
+      // axe de deroule du pied : Rx tourne le pied « vers l'avant (+z) ». Une patte etalee dont le pied pointe vers l'ARRIERE ou de COTE (araignee, insecte, lezard) etait roulee a
+      // l'envers : la cheville s'enfoncait de 2 cm sous le sol (12 % de H sur une araignee). L'axe est donc perpendiculaire a la direction horizontale du pied.
+      const F = mm(Rcap[i], p.axeDeroule && theta ? rotvec(p.axeDeroule, theta) : Rx(theta));
       Fpied[i] = F;
       if (p.pivotOff && theta > 0) {
         const orteil = add(cible, mv(Rcap[i], p.pivotOff));
@@ -3578,7 +3585,16 @@ function aplatirSousSol(sq, c) {
   const { par, P0 } = sq, J = par.length, E = enfantsDe(par), racine = sq.racine;
   const H = Math.max(ptpAxe(P0, 1), 1e-6), sol = Math.min(...P0.map((p) => p[1])), tol = 0.004 * H;
   const det = detecterPattes(par, P0, racine);
-  const jambes = new Set(det.pattes.flatMap((p) => sousArbre(E, p.chaine[0])));
+  // pedipalpes (6 pattes ou plus, chaine < 0,65 x la mediane : meme regle que animerAllure) : ce ne sont pas des appuis, le calcul de marche ne les pose pas ; sur une
+  // araignee leur bout (a ras du sol au repos) passait 2 a 6 cm sous le sol (9 a 25 % de H) quand le corps penchait : ils sont corriges comme une queue (26/10, 2e passe).
+  let appuis = det.pattes;
+  if (globalThis.__palpesSousSol !== false && appuis.length >= 6) {
+    const lg = appuis.map((q) => longueurChaine(q.chaine.map((k) => P0[k]))), med = median(lg);
+    appuis = appuis.filter((_, i) => lg[i] >= 0.65 * med);
+  }
+  // seules les os des CHAINES d'appui sont intouchables ; une branche greffee sur une patte (griffe, doigt, mandibule : modal_20 en avait 2 qui passaient a 1,5 cm sous le
+  // sol, 5 % de H) n'est pas posee par le calcul de marche et se corrige comme une queue. Le pivot d'une correction n'est jamais un os d'appui (pas de pied souleve).
+  const jambes = new Set(globalThis.__branchesSousSol !== false ? appuis.flatMap((p) => p.chaine) : appuis.flatMap((p) => sousArbre(E, p.chaine[0])));
   const ordre = [], vu = new Set();
   const visite = (j) => { if (vu.has(j)) return; if (par[j] >= 0) visite(par[j]); vu.add(j); ordre.push(j); };
   for (let j = 0; j < J; j++) visite(j);
@@ -3590,7 +3606,7 @@ function aplatirSousSol(sq, c) {
       if (q < 0) { D[j] = Rn[j]; P[j] = j === racine ? c.racineMonde[i].slice() : null; continue; }
       if (!P[q]) { D[j] = mm(D[q], Rn[j]); P[j] = null; continue; }
       P[j] = add(P[q], mv(D[q], sub(P0[j], P0[q])));
-      if (!jambes.has(j) && E[q].length === 1 && P[j][1] < sol - tol && P[q][1] >= sol - tol) {
+      if (!jambes.has(j) && !jambes.has(q) && E[q].length === 1 && P[j][1] < sol - tol && P[q][1] >= sol - tol) {
         const v = sub(P[j], P[q]), L = norm(v), dy = Math.min(sol - P[q][1], 0.999 * L), hx = Math.hypot(v[0], v[2]);
         const hz = Math.sqrt(L * L - dy * dy), vN = hx > 1e-9 ? [v[0] * hz / hx, dy, v[2] * hz / hx] : [hz, dy, 0];
         const ax = cross(v, vN), ang = Math.atan2(norm(ax), dot(v, vN));

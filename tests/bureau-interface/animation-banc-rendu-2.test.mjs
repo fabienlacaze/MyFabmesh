@@ -107,3 +107,49 @@ test('a-coups d\'un quadrupede : la portee des jambes est bornee en douceur (pas
     assert.ok(apres.ss <= avant.ss + 0.1, `${allure} : sous le sol ${avant.ss} -> ${apres.ss} % de H`);
   }
 });
+
+// araignee synthetique : 8 pattes a 4 os + pied (les pieds arriere pointent vers l'ARRIERE, leur bout est a 3,5 cm du sol au repos) et deux pedipalpes de 3 os dont le bout est a ras du sol
+function araignee({ palpes }) {
+  const s = [['corps', -1, [0, 0.12, 0]]];
+  [0.3, 0.1, -0.1, -0.3].forEach((z, k) => {
+    for (const c of [-1, 1]) {
+      const dz = k >= 2 ? -0.08 : 0.08;
+      s.push(['h' + k + c, 0, [0.06 * c, 0.12, z * 0.3]]); let p = s.length - 1;
+      s.push(['g' + k + c, p, [0.22 * c, 0.24, z * 0.7]]); p = s.length - 1;
+      s.push(['a' + k + c, p, [0.36 * c, 0.09, z + dz * 0.5]]); p = s.length - 1;
+      s.push(['c' + k + c, p, [0.40 * c, 0.02, z + dz * 1.2]]); p = s.length - 1;
+      s.push(['t' + k + c, p, [0.41 * c, 0.035, z + dz * 1.8]]);
+    }
+  });
+  if (palpes) for (const c of [-1, 1]) {
+    s.push(['p1' + c, 0, [0.03 * c, 0.12, 0.2]]); s.push(['p2' + c, s.length - 1, [0.04 * c, 0.06, 0.3]]); s.push(['p3' + c, s.length - 1, [0.04 * c, 0.0, 0.42]]);
+  }
+  return s;
+}
+test('araignee : un pied qui pointe vers l\'arriere ne deroule plus a l\'envers (la cheville ne traverse plus le sol)', () => {
+  const sq = __interne.charger(squelette(araignee({ palpes: false })));
+  const mesure = (flag) => {
+    globalThis.__deroulePiedLibre = flag;
+    try { const c = __interne.animerAllureSure(sq, 'walk', 2, 30, 'normal', 'auto', 'araignee'); return { ss: c.infos.sous_sol_pct, gl: c.infos.glissement_appui_pct }; } finally { delete globalThis.__deroulePiedLibre; }
+  };
+  const avant = mesure(false), apres = mesure(undefined);
+  assert.ok(avant.ss > 5, `l'ancien calcul enfonce (${avant.ss} % de H)`);
+  assert.ok(apres.ss < 0.6 * avant.ss, `sous le sol ${avant.ss} -> ${apres.ss} % de H`);
+  assert.ok(apres.gl <= avant.gl, `glissement ${avant.gl} -> ${apres.gl} % de H`);
+});
+test('araignee : les pedipalpes (chaines courtes, hors appuis) sont releves quand leur bout passe sous le sol', () => {
+  const sq = __interne.charger(squelette(araignee({ palpes: true })));
+  const sol = Math.min(...sq.P0.map((p) => p[1])), H = Math.max(...sq.P0.map((p) => p[1])) - sol;
+  const bouts = ['p3-1', 'p31'].map((n) => indexDe(sq, n));
+  assert.ok(bouts.every((b) => b >= 0));
+  const pire = (flag) => {
+    globalThis.__palpesSousSol = flag;
+    try {
+      const c = __interne.animerAllureSure(sq, 'trot', 2, 30, 'normal', 'auto', 'araignee');
+      return Math.max(0, ...c.R.map((_, i) => { const P = positions(sq, c, i); return Math.max(...bouts.map((b) => sol - P[b][1])); })) / H;
+    } finally { delete globalThis.__palpesSousSol; }
+  };
+  const avant = pire(false), apres = pire(undefined);
+  assert.ok(avant > 0.02, `l'ancien calcul enfonce le bout du palpe de ${(100 * avant).toFixed(1)} % de H`);
+  assert.ok(apres < 0.25 * avant, `${(100 * avant).toFixed(1)} -> ${(100 * apres).toFixed(1)} % de H`);
+});
