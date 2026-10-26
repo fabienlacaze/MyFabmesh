@@ -350,10 +350,91 @@ class Couture(unittest.TestCase):
             produits += 1
             # trou = arete ouverte au sens du maillage SOUDE par position (les coutures UV dedoublent les sommets d'un vrai modele) ; jamais d'arete a plus de 2 faces PAR INDICES
             ouverts.append(S.defauts_soudes(V, F)[0])
-            self.assertLessEqual(ouverts[-1], 12, f'trou, essai {k}')   # fissure d'une a quelques aretes tout au plus (orientation incoherente locale d'une face de couture) : limite connue
-            self.assertLessEqual(aretes_de_bord(trimesh.Trimesh(vertices=V, faces=F, process=False))[1], 2, f'aretes a plus de 2 faces, essai {k}')
+            self.assertEqual(ouverts[-1], 0, f'trou, essai {k}')   # 27/10 : flux net + boucles simples, plus aucune fissure
+            # jamais plus d'aretes a plus de 2 faces (maillage SOUDE) que la copie et le maillage avant la couture
+            import unittest.mock as mock
+            with mock.patch.object(S, 'relier_trou_et_copie', lambda V, A, C: np.zeros((0, 3), dtype=np.int64)),                     mock.patch.object(S, 'retirer_ponts_non_manifold', lambda V, F, nc, W: F),                     mock.patch.object(S, 'fermer_trous_couture', lambda V, F, A, N, W, sw, rep: (V, F, A, N, 0, W, sw, rep)):
+                Vq, Fq = S.symetriser_tableaux(m.vertices, m.faces, None, None, (0.3, 0, 0), (1, 0, 0), 'pos', 'mask', st)[:2]
+            self.assertLessEqual(S.defauts_soudes(V, F)[1], S.defauts_soudes(Vq, Fq)[1], f'aretes a plus de 2 faces, essai {k}')
         self.assertGreater(produits, 30)
-        self.assertGreaterEqual(sum(1 for o in ouverts if o == 0), 0.7 * produits, 'au moins 70 % des resultats sans la moindre arete ouverte (mesure du 26/10 : 78 %, le reste a 12 aretes ou moins : limite connue)')
+        self.assertEqual(sum(1 for o in ouverts if o), 0)
+
+
+MOISSONNEUSE = 'C:/tmp/moissonneuse.glb'
+ZONES_MOISSONNEUSE = [[0.25, 0.05, -0.1, 0.18, 1], [0.28, -0.1, 0.2, 0.15, 1], [0.2, 0.2, -0.3, 0.12, 1]]
+
+
+def topologie_soudee(V, F):
+    """(aretes de bord, aretes a plus de 2 faces) du maillage SOUDE par position, calcule SANS le code teste."""
+    from scipy.spatial import cKDTree
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    V = np.asarray(V, float)
+    F = np.asarray(F)
+    diag = float(np.linalg.norm(V.max(0) - V.min(0)))
+    p = cKDTree(V).query_pairs(diag * 1e-6, output_type='ndarray')
+    n = len(V)
+    _, ids = connected_components(coo_matrix((np.ones(len(p), np.int8), (p[:, 0], p[:, 1])), shape=(n, n)), directed=False)
+    W = ids[F]
+    W = W[(W[:, 0] != W[:, 1]) & (W[:, 1] != W[:, 2]) & (W[:, 0] != W[:, 2])]
+    e = np.sort(np.concatenate([W[:, [0, 1]], W[:, [1, 2]], W[:, [2, 0]]]), axis=1)
+    _, c = np.unique(e, axis=0, return_counts=True)
+    return int((c == 1).sum()), int((c > 2).sum())
+
+
+@unittest.skipUnless(os.path.exists(MOISSONNEUSE), 'maillage de reference absent')
+class Moissonneuse(unittest.TestCase):
+    """Vrai modele texture (514 139 faces, sommets dedoubles aux coutures UV) : la couture ne doit laisser aucune arete de bord SOUDEE par position, et pas d'arete a plus de
+    2 faces de plus que le maillage avant couture. Cause mesuree le 27/10 : bord et boucles calcules par indices (chaines rompues aux coutures UV) et par « l'inverse existe »
+    (arete non manifold portee deux fois dans le meme sens, invisible) -> 44 aretes ouvertes."""
+
+    @classmethod
+    def setUpClass(cls):
+        g = next(iter(trimesh.load(MOISSONNEUSE, force='scene').geometry.values()))
+        cls.V, cls.F = np.asarray(g.vertices, float), np.asarray(g.faces)
+        cls.original = topologie_soudee(cls.V, cls.F)
+
+    def lancer(self):
+        V, F, A, N, st = S.symetriser_tableaux(self.V, self.F, None, None, (0, 0, 0), (1, 0, 0), 'pos', 'mask', ZONES_MOISSONNEUSE)
+        return V, F, st
+
+    def test_trois_zones_zero_arete_de_bord_soudee(self):
+        V, F, st = self.lancer()
+        self.assertEqual(self.original[0], 0)
+        bord, multi = topologie_soudee(V, F)
+        self.assertEqual(bord, 0)
+        self.assertEqual(st['ouvert'], 0)
+        self.assertEqual(S.defauts_soudes(V, F)[0], 0)
+
+    def test_pas_plus_d_aretes_non_manifold_qu_avant_la_couture(self):
+        import unittest.mock as mock
+        V, F, st = self.lancer()
+        with mock.patch.object(S, 'relier_trou_et_copie', lambda V, A, C: np.zeros((0, 3), dtype=np.int64)),                 mock.patch.object(S, 'retirer_ponts_non_manifold', lambda V, F, nc, W: F),                 mock.patch.object(S, 'fermer_trous_couture', lambda V, F, A, N, W, sw, rep: (V, F, A, N, 0, W, sw, rep)):
+            Vq, Fq, _ = self.lancer()
+        self.assertLessEqual(topologie_soudee(V, F)[1], topologie_soudee(Vq, Fq)[1])
+
+    def test_mutation_bord_par_indices_rouvre_la_couture(self):
+        # preuve que le test mord : avec l'ancien bord (l'inverse existe-t-il ?) le resultat garde des aretes ouvertes
+        import unittest.mock as mock
+
+        def ancien_dirige(F, M):
+            F = np.asarray(F, dtype=np.int64)
+            E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=0)
+            E = E[E[:, 0] != E[:, 1]]
+            return E[~S._dans(E[:, 1] * M + E[:, 0], np.sort(E[:, 0] * M + E[:, 1]))]
+
+        def ancien_sujet(F, W, sw):
+            nw = len(sw)
+            Fw = W[F]
+            Fw = Fw[sw[Fw].any(axis=1)]
+            E = np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]], axis=0)
+            E = E[E[:, 0] != E[:, 1]]
+            bord = E[~np.isin(E[:, 1] * nw + E[:, 0], E[:, 0] * nw + E[:, 1])]
+            return bord[sw[bord[:, 0]] & sw[bord[:, 1]]]
+
+        with mock.patch.object(S, '_bord_dirige', ancien_dirige), mock.patch.object(S, '_bord_sujet', ancien_sujet):
+            V, F, st = self.lancer()
+        self.assertGreater(topologie_soudee(V, F)[0], 0)
 
 
 class Vitesse(unittest.TestCase):
