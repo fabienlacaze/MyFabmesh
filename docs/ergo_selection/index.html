@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outil de sélection des faces : proposition d'ergonomie</title>
+<style>
+:root{
+  --bg-0:#0b0b14;--bg-1:#15151f;--bg-2:#1d1d2c;--bg-3:#24243a;--border:#2c2c44;--border-strong:#3c3c5a;
+  --text-0:#f5f5fa;--text-1:#c2c2d4;--text-2:#7c7c95;--text-3:#8888a8;
+  --accent:#a855f7;--accent-2:#e94560;--accent-grad:linear-gradient(135deg,#e94560,#a855f7);
+  --success:#4ade80;--warning:#fbbf24;--error:#f87171;--radius:12px;--radius-sm:6px;
+  --amber:#f59e0b;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg-0);color:var(--text-0);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5}
+a{color:#c4a1ff}
+nav.top{position:sticky;top:0;z-index:50;background:rgba(11,11,20,.94);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+nav.top b{margin-right:10px;color:var(--text-1)}
+nav.top a{text-decoration:none;color:var(--text-1);padding:4px 10px;border-radius:6px;font-size:13px}
+nav.top a:hover{background:var(--bg-3)}
+main{max-width:1320px;margin:0 auto;padding:24px}
+h1{font-size:26px;margin:8px 0 4px;background:var(--accent-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+h2{font-size:21px;margin:44px 0 6px;padding-top:10px;border-top:1px solid var(--border)}
+h3{font-size:16px;margin:22px 0 6px;color:#e5d4ff}
+p.lead{color:var(--text-1);max-width:980px}
+.muted{color:var(--text-2)}
+.note{background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);padding:10px 14px;border-radius:6px;color:var(--text-1);max-width:1100px}
+.warn{border-left-color:var(--error)}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin:10px 0}
+th,td{border:1px solid var(--border);padding:5px 8px;text-align:left;vertical-align:top}
+th{background:var(--bg-3);color:var(--text-0);font-weight:600}
+td{background:var(--bg-1)}
+tr.grp td{background:var(--bg-3);font-weight:700;color:#e5d4ff}
+.f-tf{color:#4ade80}.f-f{color:#a3e635}.f-r{color:#fbbf24}.f-d{color:#f87171;font-weight:600}
+code,kbd{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace}
+kbd{background:#0b0b14;border:1px solid var(--border-strong);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;color:var(--text-1)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:14px 0}
+.kpi{background:var(--bg-1);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.kpi b{display:block;font-size:24px;color:#fff}
+.kpi span{color:var(--text-2);font-size:12px}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;margin:12px 0}
+.shots figure{margin:0;background:var(--bg-1);border:1px solid var(--border);border-radius:8px;padding:8px}
+.shots img{width:100%;display:block;border-radius:4px}
+.shots figcaption{font-size:12px;color:var(--text-2);margin-top:6px}
+.scroller{overflow-x:auto;padding-bottom:8px}
+dl.card{display:grid;grid-template-columns:210px 1fr;gap:0;margin:14px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:13px;max-width:1240px}
+dl.card dt{background:var(--bg-3);padding:6px 10px;font-weight:600;border-bottom:1px solid var(--border)}
+dl.card dd{margin:0;background:var(--bg-1);padding:6px 12px;border-bottom:1px solid var(--border);color:var(--text-1)}
+
+/* ===================== Gabarit .modal-card.fen-3d (copie fidele des jetons) ===================== */
+.win{width:1240px;height:690px;background:var(--bg-1);border:1px solid var(--border-strong);border-radius:var(--radius);padding:20px 24px;display:flex;flex-direction:column;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden}
+.win .tete{display:flex;justify-content:space-between;align-items:center}
+.win h4{margin:0;font-size:20px;background:var(--accent-grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.win .sub{color:var(--text-2);font-size:13px;margin:2px 0 10px}
+.win .x{width:30px;height:30px;border-radius:50%;border:1px solid var(--text-2);display:grid;place-items:center;color:#fff}
+.win .corps{flex:1;min-height:0;display:grid;gap:14px}
+.win .pied{display:flex;gap:12px;margin-top:12px}
+.ghost{background:transparent;border:1px solid var(--border-strong);color:var(--text-0);border-radius:6px;padding:0 20px;height:40px;font:inherit;font-size:13px;font-weight:600}
+.primary{flex:1;height:40px;border:0;border-radius:6px;background:var(--accent-grad);color:#fff;font:inherit;font-weight:700;font-size:13px;box-shadow:0 4px 14px rgba(168,85,247,.25)}
+.vp{position:relative;border:2px solid var(--accent);border-radius:4px;background:#1a1a2e center/cover no-repeat;overflow:hidden;min-height:0}
+.vp.bg1{background-image:url(shots/viewer_sel_c.png)}
+.vp.bg0{background-image:url(shots/viewer_vide_c.png)}
+.vbar{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:2px;align-items:center;background:rgba(15,15,25,.92);border:1px solid var(--border-strong);border-radius:8px;padding:5px 8px;font-size:12px;font-weight:600;color:var(--text-1);white-space:nowrap}
+.vbar i{width:1px;height:16px;background:var(--border-strong);margin:0 6px}
+.vbar span{padding:2px 6px}
+/* boutons : .secondary-btn.tool-btn */
+.b{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:6px 8px;font:inherit;font-size:11.5px;line-height:1.15;color:var(--text-0);background:linear-gradient(#18254a,#121c38);border:1px solid #2a3a66;border-radius:6px;cursor:pointer;white-space:nowrap}
+.b:hover{border-color:#5a6fb0}
+.b.on{background:var(--amber);border-color:var(--amber);color:#000;font-weight:700;box-shadow:0 0 14px rgba(245,158,11,.65),inset 0 0 4px rgba(255,255,255,.3)}
+.b.danger{color:#ff8e8e;border-color:rgba(255,80,80,.55);background:linear-gradient(#3a1620,#2a1018)}
+.b.danger:hover{background:#4a1b27}
+.b.sm{min-height:26px;padding:3px 7px;font-size:11px}
+.b.ic{min-width:34px;padding:6px}
+.b[disabled],.b.dis{opacity:.4;pointer-events:none}
+.b kbd{margin-left:2px;font-size:10px;padding:0 4px;background:rgba(0,0,0,.35);border-color:rgba(255,255,255,.18);color:inherit;opacity:.85}
+.b.on kbd{border-color:rgba(0,0,0,.35);background:rgba(0,0,0,.15)}
+.lbl{font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px}
+.row{display:flex;gap:5px;align-items:center}
+.row>.b{flex:1}
+.seg{display:flex;gap:0;border:1px solid #2a3a66;border-radius:7px;overflow:hidden}
+.seg .b{border:0;border-radius:0;flex:1;background:#121c38}
+.seg .b.on{box-shadow:none;background:var(--amber)}
+.row>.b.ic{flex:none}
+.chip{white-space:nowrap}
+.rng{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-1)}
+.rng input{flex:1;accent-color:#a06bf0;min-width:60px}
+.rng b{color:#fff;min-width:34px;text-align:right;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:8px;background:rgba(15,15,25,.92);border:1px solid var(--border-strong);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--text-1)}
+.chip b{color:#fff}
+.chip .amb{color:var(--amber);font-weight:700}
+.glass{background:rgba(15,15,25,.92);border:1px solid var(--border-strong);border-radius:10px;backdrop-filter:blur(4px)}
+.tip{position:absolute;background:#0b0b14;border:1px solid var(--border-strong);border-radius:6px;padding:6px 9px;font-size:11.5px;color:var(--text-1);white-space:nowrap;z-index:5;box-shadow:0 6px 18px rgba(0,0,0,.6)}
+.tip b{color:#fff}
+.toast{position:absolute;left:50%;transform:translateX(-50%);background:#242446;border:1px solid #4a4a86;color:#fff;border-radius:8px;padding:8px 14px;font-size:12.5px;display:flex;gap:12px;align-items:center;z-index:6;box-shadow:0 6px 18px rgba(0,0,0,.6)}
+.toast u{color:#ffd37a;text-decoration:none;font-weight:700;cursor:pointer}
+.sep{width:1px;align-self:stretch;background:var(--border-strong);margin:0 4px}
+.zone{border:1px solid rgba(255,80,80,.45);border-radius:8px;padding:8px;background:rgba(255,80,80,.05)}
+.cnt{font-size:22px;font-weight:700;color:#fff;line-height:1.1}
+.cnt small{font-size:12px;color:var(--text-2);font-weight:400}
+.nosel .needsel{opacity:.35;pointer-events:none}
+
+/* ---- A : palette + barre flottante ---- */
+.A .corps{grid-template-columns:1fr}
+.A .pal{position:absolute;left:10px;top:10px;padding:6px;display:flex;flex-direction:column;gap:4px;width:52px;z-index:3}
+.A .pal .b{min-height:38px;padding:4px;font-size:16px;flex-direction:column;gap:0;position:relative}
+.A .pal .b small{font-size:8.5px;opacity:.75;line-height:1}
+.A .pal .sepH{height:1px;background:var(--border-strong);margin:3px 4px}
+.A .hud{position:absolute;left:76px;top:10px;display:flex;gap:8px;align-items:center;z-index:3}
+.A .topr{position:absolute;right:10px;top:10px;display:flex;gap:6px;z-index:3}
+.A .float{position:absolute;left:50%;transform:translateX(-50%);bottom:54px;padding:7px 8px;display:flex;gap:5px;align-items:center;z-index:3}
+.A .pop{position:absolute;z-index:4;padding:6px;display:flex;flex-direction:column;gap:4px;width:210px}
+
+/* ---- B : colonne a en-tete fixe + onglets ---- */
+.B .corps{grid-template-columns:1fr 380px}
+.B .col{display:flex;flex-direction:column;gap:8px;min-height:0}
+.B .head{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-2)}
+.B .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border)}
+.B .tabs button{flex:1;background:none;border:0;border-bottom:2px solid transparent;color:var(--text-2);font:inherit;font-size:12px;font-weight:600;padding:7px 2px;cursor:pointer}
+.B .tabs button.on{color:var(--amber);border-bottom-color:var(--amber)}
+.B .pan{flex:1;min-height:0;display:none;flex-direction:column;gap:8px;padding:2px 0;overflow:auto}
+.B .pan.on{display:flex}
+.B .quick{display:flex;gap:6px;padding:8px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-2)}
+.B .quick .b{flex:1;min-height:36px;font-size:12px}
+.B .tg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+
+/* ---- C : barre du bas 2 rangees + menu contextuel ---- */
+.C .corps{grid-template-rows:1fr auto;gap:10px}
+.C .bar{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-2)}
+.C .bar .r{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.C .bar .rl{width:78px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-2);flex:none}
+.C .ctx{position:absolute;z-index:4;width:250px;padding:5px;display:flex;flex-direction:column;gap:1px;font-size:12.5px}
+.C .ctx div{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:5px;color:var(--text-0);cursor:pointer}
+.C .ctx div:hover{background:#2a3a66}
+.C .ctx div kbd{opacity:.8}
+.C .ctx hr{border:0;border-top:1px solid var(--border-strong);margin:3px 0;width:100%}
+.C .ctx .dg{color:#ff8e8e}
+
+/* ---- ajustements filaires etroit ---- */
+.wires{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0}
+.wire{width:300px;height:420px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-1);padding:8px;display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text-1);position:relative}
+.wire .v{height:150px;border:2px solid var(--accent);border-radius:4px;background:url(shots/viewer_sel_c.png) center/cover}
+.wire .blk{border:1px dashed var(--border-strong);border-radius:6px;padding:4px 6px;background:var(--bg-2)}
+.wire .blk.hot{border-color:var(--amber);color:#ffd37a}
+.wire .blk.red{border-color:rgba(255,80,80,.6);color:#ff9d9d}
+.wire h5{margin:0 0 4px;font-size:12px;color:#e5d4ff}
+.reco{border:1px solid var(--accent);border-radius:10px;padding:14px 18px;background:rgba(168,85,247,.07);max-width:1100px}
+ol.plan li{margin:6px 0}
+ol.plan code{color:#ffd37a}
+.tagr{display:inline-block;background:var(--accent);color:#fff;border-radius:4px;padding:0 8px;font-size:11px;font-weight:700;margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<nav class="top">
+  <b>Sélection des faces : ergonomie</b>
+  <a href="#actuel">État actuel</a><a href="#inventaire">Inventaire</a><a href="#diag">Diagnostic chiffré</a>
+  <a href="#varA">Variante A</a><a href="#varB">Variante B</a><a href="#varC">Variante C</a>
+  <a href="#etroit">Fenêtre étroite</a><a href="#compar">Comparatif</a><a href="#reco">Recommandation</a><a href="#plan">Plan</a>
+</nav>
+<main>
+<h1>Outil « Sélectionner des faces » : trois dispositions proposées</h1>
+<p class="lead">Proposition, <b>sans toucher au code livré</b>. Toutes les maquettes ci-dessous reprennent les jetons de <code>cloud/public/app/styles/index2.css</code> (couleurs, rayons, police, bouton ambré <code>.tool-active</code>), le gabarit <code>.modal-card.fen-3d</code> et une vraie capture de la moissonneuse du harnais de test. Les chiffres de faces affichés (18 240 faces, 4,4 %) sont <b>factices</b> : l'application n'a aujourd'hui aucun compteur. Les boutons de chaque maquette sont cliquables (outil actif, onglets, effacer la sélection) mais ne font rien d'autre.</p>
+
+<!-- ============================ ETAT ACTUEL ============================ -->
+<h2 id="actuel">0. État actuel (mesuré dans le navigateur, build 1.0.69)</h2>
+<div class="shots">
+  <figure><img src="shots/actuel_sel.png" alt="état actuel 1700x960"><figcaption>1700 × 960, outil Baguette : la colonne s'arrête sur « Move (gizmo) » ; Supprimer, Rayon et Intensité sont hors écran. Aucun compteur de faces.</figcaption></figure>
+  <figure><img src="shots/actuel_gizmo.png" alt="gizmo ouvert"><figcaption>Après une sélection au pinceau puis « Move (gizmo) » : trois boutons de plus, « Duplicate » est déjà rogné en bas.</figcaption></figure>
+  <figure><img src="shots/actuel_860.png" alt="860 px"><figcaption>Fenêtre étroite (860 × 900) : la colonne passe sous le viewer ; seuls « Mode » et « Symmetry mirror » sont visibles, les outils de sélection sont sous le pli, et le modèle n'est plus visible quand on les atteint.</figcaption></figure>
+</div>
+
+<h2 id="inventaire">1. Inventaire des contrôles (mode Select)</h2>
+<p class="muted">Fréquence supposée : <span class="f-tf">très fréquent</span> · <span class="f-f">fréquent</span> · <span class="f-r">rare</span> · <span class="f-d">destructif</span>. Source : <code>cloud/public/app/index.html</code> (blocs <code>me-*</code>), <code>index2.js</code> (<code>_meSetSelTool</code>, <code>_meStartMove</code>, gestionnaires <code>me-sel-*</code>). « y » = position dans la colonne à 1700 × 960 (hauteur visible 693 px, contenu 939 px).</p>
+<div class="scroller"><table id="inv"></table></div>
+<h3>Raccourcis existants (tous minuscules ou invisibles)</h3>
+<table>
+<tr><th>Raccourci</th><th>Effet</th><th>Où c'est indiqué</th></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Annuler (<code>_meUndo</code>)</td><td>Infobulle du bouton ↶ seulement. Pas de Rétablir au clavier.</td></tr>
+<tr><td><kbd>Suppr</kbd> / <kbd>Retour arrière</kbd></td><td>Supprimer la sélection, sans confirmation (annulable)</td><td>Ligne de 9 px « Ctrl = add · Del = delete »</td></tr>
+<tr><td><kbd>Ctrl</kbd> / <kbd>Maj</kbd> + clic</td><td>Ajouter à la sélection (baguette, lasso)</td><td>Même ligne de 9 px + infobulles</td></tr>
+<tr><td><kbd>T</kbd> <kbd>R</kbd> <kbd>Y</kbd></td><td>Déplacer / Rotation / Échelle (gizmo ouvert seulement)</td><td>Infobulles + bandeau temporaire « Gizmo: T=move… »</td></tr>
+<tr><td><kbd>Échap</kbd></td><td><b>Ferme toute la fenêtre</b> (<code>_closeMeshEdit</code>) sans confirmation, donc perd les modifications non enregistrées</td><td>Nulle part. Risque réel d'erreur.</td></tr>
+<tr><td>Molette / glisser</td><td>Caméra (barre Iso / Front / Back… dans le viewer)</td><td>Barre de vues</td></tr>
+</table>
+
+<h2 id="diag">2. Diagnostic ergonomique chiffré</h2>
+<div class="kpis">
+  <div class="kpi"><b>939 px</b><span>hauteur de la colonne (outil Ajouter, gizmo fermé). 973 px gizmo ouvert, 979 avec la baguette (curseur d'angle)</span></div>
+  <div class="kpi"><b>693 px</b><span>partie visible à 1700 × 960 : 246 px cachés (26 %). À 1366 × 768 : 513 px visibles, 45 % cachés</span></div>
+  <div class="kpi"><b>2 défilements</b><span>pour atteindre Supprimer (bas à 855 px) puis Rayon (897 px). Même à 1920 × 1080 (791 px visibles), ils restent hors écran</span></div>
+  <div class="kpi"><b>0</b><span>indication de l'état courant : ni nombre de faces, ni « 3 composantes », ni % du modèle</span></div>
+  <div class="kpi"><b>33</b><span>contrôles en mode Select, sur 7 blocs séparés par des filets, dont 24 boutons de même poids visuel</span></div>
+  <div class="kpi"><b>9 px</b><span>taille de la ligne des raccourcis. Échap ferme tout sans demander</span></div>
+</div>
+<h3>Hauteur visible de la colonne selon l'écran (mesuré)</h3>
+<table>
+<tr><th>Fenêtre</th><th>Viewer (h)</th><th>Colonne visible</th><th>Contenu</th><th>Dupliquer (bas)</th><th>Supprimer (bas)</th><th>Rayon (bas)</th></tr>
+<tr><td>1920 × 1080</td><td>714</td><td>791</td><td>939</td><td class="f-tf">674 visible</td><td class="f-d">855 caché</td><td class="f-d">897 caché</td></tr>
+<tr><td>1700 × 960</td><td>616</td><td>693</td><td>939</td><td class="f-tf">674 visible</td><td class="f-d">855 caché</td><td class="f-d">897 caché</td></tr>
+<tr><td>1440 × 900</td><td>560</td><td>637</td><td>939</td><td class="f-r">674 caché</td><td class="f-d">caché</td><td class="f-d">caché</td></tr>
+<tr><td>1366 × 768</td><td>436</td><td>513</td><td>939</td><td class="f-d">caché</td><td class="f-d">caché</td><td class="f-d">caché</td></tr>
+<tr><td>1280 × 720</td><td>391</td><td>468</td><td>939</td><td class="f-d">caché</td><td class="f-d">caché</td><td class="f-d">caché</td></tr>
+</table>
+<h3>Distance souris pour les enchaînements courants (1700 × 960, centre du viewer ≈ 650, 445)</h3>
+<table>
+<tr><th>Enchaînement</th><th>Actuellement</th><th>Cause</th></tr>
+<tr><td>Sélectionner (pinceau) → <b>Dupliquer</b> → déplacer</td><td>≈ 880 px jusqu'à Duplicate ; 1 clic. Le gizmo s'ouvre tout seul sur la copie, mais ses 3 boutons poussent Duplicate sous le pli</td><td>Tout est à l'extrême droite, le viewer à l'extrême gauche</td></tr>
+<tr><td>Sélectionner → <b>Supprimer</b></td><td>≈ 1 050 px + 1 défilement (ou la touche Suppr, que rien n'annonce)</td><td>Supprimer est l'avant-dernier contrôle de la colonne</td></tr>
+<tr><td><b>Baguette → Étendre → Isoler</b></td><td>3 clics, ≈ 710 + 150 + 190 px. L'apparition du curseur d'angle (+40 px) décale tous les boutons du dessous : les clics suivants partent sur le mauvais bouton</td><td>Mise en page non stable</td></tr>
+<tr><td>Changer le <b>rayon</b> en cours de sélection</td><td>défilement + glissement à 1 000 px et retour, soit ≈ 2 000 px d'aller-retour, à chaque réglage</td><td>Curseur tout en bas, alors qu'on s'en sert en permanence</td></tr>
+</table>
+<h3>Contrôles sans retour d'état</h3>
+<p>Compteur de faces (inexistant), rayon (valeur 0.05 en texte de 10 px, sans unité), Isoler / Masquer (bascules sans témoin hors du viewer), Garder le reste (case lointaine de Rogner), symétrie X/Y/Z (visible en Select mais sans indication qu'elle s'applique à la sélection), « Move (gizmo) » (reste ambré, mais les 3 sous-boutons ne disent pas lequel est le mode courant sans regarder le jaune), curseur d'Intensité visible en Select où il ne sert vraisemblablement qu'à Sculpt/Paint (à confirmer avant de le masquer).</p>
+<p class="note warn"><b>Autres défauts relevés.</b> Le bouton Rogner (destructif) est collé à une case à cocher et à « Inverser les normales » ; Supprimer et Rogner ne se distinguent que par un rouge pâle. Le commentaire du HTML mentionne encore « 130 px » de colonne alors qu'elle en fait 381. En fenêtre étroite (&lt; 900 px), le défilement est celui du corps entier : on ne voit plus le modèle quand on atteint le bouton.</p>
+
+<!-- ============================ VARIANTE A ============================ -->
+<h2 id="varA">Variante A : palette d'outils à gauche + barre d'actions flottante <span class="tagr">immersive</span></h2>
+<p class="lead">Le viewer prend toute la largeur. Les <b>outils</b> (qui ne changent pas souvent) sont dans une palette verticale d'icônes à gauche, avec infobulle et lettre de raccourci. Les <b>actions sur la sélection</b> apparaissent dans une barre flottante au-dessus de la barre de vues dès qu'il y a au moins une face sélectionnée, à 200 px du centre du viewer. Une puce « état » en haut à gauche donne l'outil, le compteur et le rayon. Plus de colonne de droite.</p>
+<div class="scroller">
+<div class="win A" id="mockA">
+  <div class="tete"><h4>Select Faces</h4><div class="x">✕</div></div>
+  <div class="sub">Sculpt, paint or select faces on the model, then save the result as a new version.</div>
+  <div class="corps">
+    <div class="vp bg1" id="vpA">
+      <div class="glass pal">
+        <button class="b on" data-ex="toolA" title="Brush add"><span>✎</span><small>Add B</small></button>
+        <button class="b" data-ex="toolA"><span>🧹</span><small>Erase E</small></button>
+        <button class="b" data-ex="toolA"><span>✨</span><small>Wand W</small></button>
+        <button class="b" data-ex="toolA"><span>❂</span><small>Lasso L</small></button>
+        <div class="sepH"></div>
+        <button class="b" data-tg><span>X</span><small>Sym</small></button>
+        <button class="b" data-tg><span>Y</span><small>Sym</small></button>
+        <button class="b" data-tg><span>Z</span><small>Sym</small></button>
+        <div class="sepH"></div>
+        <button class="b" data-tg title="Loupe"><span>🔍</span><small>Loupe</small></button>
+      </div>
+      <div class="tip" style="left:70px;top:158px"><b>Wand</b> <kbd>W</kbd> : clic sur une face = toute la zone plane connectée (angle réglé dans la puce). <kbd>Ctrl</kbd> = ajouter.</div>
+      <div class="hud">
+        <div class="chip"><span class="amb" id="aTool">✎ Add</span><span>|</span><b id="aCnt">18 240 faces</b><span class="muted">4,4 %</span><button class="b sm" id="aClear" title="Deselect (Esc)">✕</button><button class="b sm">Tout <kbd>Ctrl+A</kbd></button></div>
+        <div class="chip"><span>Rayon</span><span class="rng" style="width:150px"><input type="range" min="1" max="100" value="25"><b>0.05</b></span><kbd>[</kbd><kbd>]</kbd></div>
+      </div>
+      <div class="topr">
+        <div class="seg glass" style="width:230px"><button class="b sm">✍ Sculpt</button><button class="b sm">🎨 Paint</button><button class="b sm on">▢ Select</button></div>
+        <div class="glass row" style="padding:3px"><button class="b sm ic">↶</button><button class="b sm ic dis">↷</button></div>
+      </div>
+      <div class="glass float needsel" id="floatA">
+        <span class="chip" style="border:0;background:none"><b>18 240</b> faces</span><span class="sep"></span>
+        <button class="b">➕ Grow</button><button class="b">➖ Shrink</button><button class="b">↺ Invert <kbd>Ctrl+I</kbd></button><span class="sep"></span>
+        <button class="b">◉ Isolate</button><button class="b">👁 Hide</button><span class="sep"></span>
+        <button class="b">✥ Move <kbd>T</kbd></button><button class="b">⧉ Duplicate <kbd>Ctrl+D</kbd></button><button class="b" data-pop="popA">⋯ More ▾</button><span class="sep"></span>
+        <button class="b danger">🗑 Delete <kbd>Del</kbd></button>
+      </div>
+      <div class="glass pop needsel" id="popA" style="left:640px;bottom:98px">
+        <button class="b" style="justify-content:flex-start">✂ Crop to selection</button>
+        <label class="row" style="font-size:12px;padding:0 6px"><input type="checkbox"> Keep the rest instead</label>
+        <button class="b" style="justify-content:flex-start">⇄ Flip normals</button>
+        <button class="b" style="justify-content:flex-start">∿ Smooth selection</button>
+      </div>
+      <div class="vbar"><span>⟳</span><i></i><span>Iso</span><span>Front</span><span>Back</span><span>Left</span><span>Right</span><span>Top</span><span>Bottom</span><i></i><span>+</span><span>−</span><span>Fit</span></div>
+      <div class="toast" style="top:52px;left:auto;right:12px;transform:none">✔ 3 120 faces supprimées <u>Annuler (Ctrl+Z)</u></div>
+    </div>
+  </div>
+  <div class="pied"><button class="ghost">Cancel</button><button class="primary">Save as new version</button></div>
+</div>
+</div>
+<dl class="card">
+<dt>Où vont les 33 contrôles</dt><dd>Palette (7 + 1) : Ajouter, Effacer, Baguette, Lasso, X, Y, Z, Loupe. Puce d'état : compteur, Aucune (✕), Tout, Rayon, Angle (apparaît avec la Baguette). Coin haut droit : Mode, Annuler, Rétablir. Barre flottante : Étendre, Rétrécir, Inverser, Isoler, Masquer, Déplacer, Dupliquer, Supprimer. Menu « Plus ▾ » : Rogner + Garder le reste, Inverser les normales, Lisser. Intensité : dans la puce, seulement en Sculpt / Paint.</dd>
+<dt>Toujours visible</dt><dd>Palette, puce (outil + compteur + rayon), Mode, Annuler / Rétablir. La barre flottante n'existe que si la sélection n'est pas vide (grisée sinon, pour garder le repère).</dd>
+<dt>Replié</dt><dd>« Plus ▾ » (4 actions rares ou lourdes) et l'angle de la baguette (affiché seulement avec elle).</dd>
+<dt>Enchaînement</dt><dd>Sélectionner au pinceau → la barre apparaît à 200 px sous le curseur → Dupliquer (le gizmo s'ouvre sur la copie, comme aujourd'hui) → la barre devient <i>Déplacer · Rot. · Échelle · Terminé</i>. Aucun déplacement de la souris vers le bord de l'écran.</dd>
+<dt>Raccourcis affichés</dt><dd>Lettre sur chaque icône de la palette (B E W L), <kbd>Ctrl+D</kbd>, <kbd>Ctrl+I</kbd>, <kbd>Ctrl+A</kbd>, <kbd>Suppr</kbd>, <kbd>[</kbd> <kbd>]</kbd> pour le rayon, <kbd>Échap</kbd> = désélectionner. Infobulle riche (nom + touche + description) au survol, déjà ouverte sur la maquette.</dd>
+<dt>Gizmo et Dupliquer</dt><dd>Déplacer / Rot. / Échelle sont des états de la barre flottante (le bouton « Déplacer » se déplie en 3 modes + « Terminé »). Dupliquer est à gauche de « Plus ».</dd>
+<dt>Destructif / erreur</dt><dd>Supprimer isolé à droite par un séparateur, rouge ; Rogner relégué dans « Plus ». Pas de fenêtre de confirmation : un <b>toast « 3 120 faces supprimées · Annuler »</b> (6 s, Ctrl+Z toujours valable). Échap désélectionne d'abord ; fermer la fenêtre avec des modifications non enregistrées demande confirmation.</dd>
+<dt>Fenêtre &lt; 900 px</dt><dd>La palette devient une rangée horizontale sous le viewer (icônes seules), la barre flottante reste posée sur le viewer et passe sur deux lignes ; la puce d'état se réduit à « 18 240 faces ».</dd>
+<dt>Parité bureau / site</dt><dd>Mêmes ids, mêmes gestionnaires. Le HTML est à refaire dans <code>index.html</code> et <code>index2.html</code>, le CSS dans les deux <code>index2.css</code>. Les couches ajoutées sur le canvas doivent laisser passer les événements souris (le lasso utilise déjà une couche à z-index 900).</dd>
+</dl>
+
+<!-- ============================ VARIANTE B ============================ -->
+<h2 id="varB">Variante B : colonne de droite à en-tête fixe + onglets <span class="tagr">évolutive</span></h2>
+<p class="lead">On garde la colonne de droite (même largeur, même gabarit <code>.fen-3d</code>) mais elle est réorganisée : un <b>en-tête fixe</b> (mode, outil actif, compteur de faces, rayon) et une <b>rangée d'actions rapides</b> toujours visibles (Dupliquer, Déplacer, Supprimer), puis <b>quatre onglets</b> : Sélection, Transformer, Visibilité, Réglages. Aucun défilement : chaque onglet tient dans la hauteur du viewer.</p>
+<div class="scroller">
+<div class="win B" id="mockB">
+  <div class="tete"><h4>Select Faces</h4><div class="x">✕</div></div>
+  <div class="sub">Sculpt, paint or select faces on the model, then save the result as a new version.</div>
+  <div class="corps">
+    <div class="vp bg1"><div class="vbar"><span>⟳</span><i></i><span>Iso</span><span>Front</span><span>Back</span><span>Left</span><span>Right</span><span>Top</span><span>Bottom</span><i></i><span>+</span><span>−</span><span>Fit</span></div>
+      <div class="toast" style="top:12px">✔ 3 120 faces supprimées <u>Annuler (Ctrl+Z)</u></div>
+    </div>
+    <div class="col">
+      <div class="head">
+        <div class="row"><div class="seg" style="flex:1 1 200px;min-width:200px"><button class="b sm">✍ Sculpt</button><button class="b sm">🎨 Paint</button><button class="b sm on">▢ Select</button></div><button class="b sm ic">🔍</button><button class="b sm ic">↶</button><button class="b sm ic dis">↷</button></div>
+        <div class="row" style="justify-content:space-between"><div><div class="cnt"><span id="bCnt">18 240</span> <small>faces sélectionnées · 4,4 %</small></div><div class="lbl" style="margin-top:2px">Outil : <span class="amb" style="color:var(--amber)">✎ Add</span> &nbsp;·&nbsp; <kbd>Esc</kbd> désélectionne</div></div><button class="b sm" id="bClear" title="Esc">✕ Aucune</button></div>
+        <div class="rng"><span class="lbl" style="width:52px">Rayon</span><input type="range" min="1" max="100" value="25"><b>0.05</b><kbd>[</kbd><kbd>]</kbd></div>
+      </div>
+      <div class="quick needsel" id="bQuick"><button class="b">⧉ Duplicate <kbd>Ctrl+D</kbd></button><button class="b">✥ Move <kbd>T</kbd></button><button class="b danger">🗑 Delete <kbd>Del</kbd></button></div>
+      <div class="tabs" id="bTabs"><button class="on" data-t="p1">Sélection</button><button data-t="p2">Transformer</button><button data-t="p3">Visibilité</button><button data-t="p4">Réglages</button></div>
+      <div class="pan on" id="p1">
+        <span class="lbl">Outil de sélection</span>
+        <div class="tg">
+          <button class="b on" data-ex="toolB">✎ Add <kbd>B</kbd></button><button class="b" data-ex="toolB">🧹 Erase <kbd>E</kbd></button>
+          <button class="b" data-ex="toolB">✨ Wand <kbd>W</kbd></button><button class="b" data-ex="toolB">❂ Lasso <kbd>L</kbd></button>
+        </div>
+        <div class="rng"><span class="lbl" style="width:52px">Angle</span><input type="range" min="1" max="80" value="20"><b>20°</b><span class="muted">(baguette)</span></div>
+        <span class="lbl" style="margin-top:4px">Modifier la sélection</span>
+        <div class="row"><button class="b">➕ Grow</button><button class="b">➖ Shrink</button></div>
+        <div class="row"><button class="b">▣ Select all <kbd>Ctrl+A</kbd></button><button class="b">↺ Invert <kbd>Ctrl+I</kbd></button></div>
+        <div class="note" style="font-size:11.5px;padding:6px 10px"><kbd>Ctrl</kbd> / <kbd>Maj</kbd> + clic = ajouter</div>
+      </div>
+      <div class="pan" id="p2">
+        <span class="lbl">Gizmo</span>
+        <div class="seg"><button class="b on">✥ Move <kbd>T</kbd></button><button class="b">↻ Rot. <kbd>R</kbd></button><button class="b">⇲ Scale <kbd>Y</kbd></button></div>
+        <div class="row"><button class="b">⧉ Duplicate <kbd>Ctrl+D</kbd></button><button class="b">∿ Smooth</button></div>
+        <button class="b">⇄ Flip normals</button>
+        <div class="zone" style="display:flex;flex-direction:column;gap:6px"><span class="lbl" style="color:#ff9d9d">Zone sensible</span>
+          <div class="row"><button class="b danger">✂ Crop to selection</button></div>
+          <label class="row" style="font-size:12px"><input type="checkbox"> Keep the rest instead</label>
+        </div>
+      </div>
+      <div class="pan" id="p3">
+        <span class="lbl">Vue</span>
+        <div class="row"><button class="b">◉ Isolate</button><button class="b">👁 Hide</button></div>
+        <button class="b">Tout afficher</button>
+        <p class="muted" style="font-size:11.5px;margin:2px">Isoler / Masquer sont des bascules : le bouton reste ambré tant qu'elles sont actives et un témoin « ◉ Isolé » apparaît dans l'en-tête.</p>
+      </div>
+      <div class="pan" id="p4">
+        <span class="lbl">Symétrie (miroir)</span>
+        <div class="row"><button class="b" data-tg>X</button><button class="b" data-tg>Y</button><button class="b" data-tg>Z</button></div>
+        <div class="rng"><span class="lbl" style="width:62px">Intensité</span><input type="range" min="1" max="100" value="50"><b>0.5</b></div>
+        <p class="muted" style="font-size:11.5px;margin:2px">Intensité : masquée en mode Sélection si elle n'y sert à rien (à vérifier avant).</p>
+        <button class="b" data-tg>🔍 Loupe</button>
+      </div>
+    </div>
+  </div>
+  <div class="pied"><button class="ghost">Cancel</button><button class="primary">Save as new version</button></div>
+</div>
+</div>
+<dl class="card">
+<dt>Où vont les 33 contrôles</dt><dd>En-tête fixe : Mode (3), Loupe, Annuler, Rétablir, compteur, Aucune, Rayon. Actions rapides fixes : Dupliquer, Déplacer, Supprimer. Onglet Sélection : 4 outils, Angle, Étendre, Rétrécir, Tout, Inverser. Onglet Transformer : Déplacer / Rot. / Échelle, Lisser, Inverser les normales, <i>zone sensible</i> (Rogner + Garder le reste). Onglet Visibilité : Isoler, Masquer, Tout afficher. Onglet Réglages : Symétrie X Y Z, Intensité, Loupe.</dd>
+<dt>Toujours visible</dt><dd>Mode, compteur, outil actif, rayon, Annuler / Rétablir, et les trois actions les plus employées. Hauteur totale ≈ 600 px : pas de défilement même à 1366 × 768 avec la barre de pied (à valider en navigateur).</dd>
+<dt>Replié</dt><dd>Tout ce qui n'est pas de l'enchaînement courant : symétrie, intensité, visibilité, lissage, normales, rognage.</dd>
+<dt>Enchaînement</dt><dd>Onglet Sélection (par défaut, à l'ouverture) : outil → viewer ; puis, sans changer d'onglet, Dupliquer / Déplacer / Supprimer dans la rangée fixe. L'onglet Transformer s'ouvre seul quand le gizmo démarre.</dd>
+<dt>Raccourcis affichés</dt><dd>Étiquette <kbd>x</kbd> dans chaque bouton (B E W L, Ctrl+A, Ctrl+I, Ctrl+D, T R Y, Suppr), rappel <kbd>Esc</kbd> sous le compteur.</dd>
+<dt>Gizmo et Dupliquer</dt><dd>Déplacer est dans la rangée fixe (bascule) ; ses trois modes se trouvent en tête de l'onglet Transformer, ouvert automatiquement. Dupliquer : rangée fixe, et de nouveau dans Transformer.</dd>
+<dt>Destructif / erreur</dt><dd>Supprimer : rouge, dernière position de la rangée fixe (séparée de Dupliquer), toast « Annuler ». Rogner : dans un cadre « Zone sensible » à bordure rouge, au fond de l'onglet Transformer, jamais sur la même ligne qu'une action courante. Échap : désélectionne, puis (second appui) propose de fermer.</dd>
+<dt>Fenêtre &lt; 900 px</dt><dd>La colonne passe sous le viewer, <b>en-tête et rangée rapide en <code>position: sticky</code></b> : on garde compteur et Supprimer à l'écran tout en voyant le modèle.</dd>
+<dt>Parité bureau / site</dt><dd>Les ids sont conservés : la logique JS ne change pas. Même HTML à reporter dans les deux fichiers, même CSS (<code>.fen-form</code> inchangé).</dd>
+</dl>
+
+<!-- ============================ VARIANTE C ============================ -->
+<h2 id="varC">Variante C : barre du bas sur deux rangées + menu contextuel <span class="tagr">clavier / souris</span></h2>
+<p class="lead">Plus de colonne : le viewer prend toute la largeur. Sous lui, <b>une barre à deux rangées</b> : <i>Outils</i> (mode, outil, rayon, symétrie, annuler) et <i>Sélection</i> (compteur + actions). Le <b>clic droit sur le modèle</b> ouvre un menu contextuel avec les actions sur la sélection, claviers affichés. La barre occupe la zone libre aujourd'hui sous le viewer (≈ 108 px à 1700 × 960).</p>
+<div class="scroller">
+<div class="win C" id="mockC">
+  <div class="tete"><h4>Select Faces</h4><div class="x">✕</div></div>
+  <div class="sub">Sculpt, paint or select faces on the model, then save the result as a new version.</div>
+  <div class="corps">
+    <div class="vp bg1" style="height:100%">
+      <div class="vbar"><span>⟳</span><i></i><span>Iso</span><span>Front</span><span>Back</span><span>Left</span><span>Right</span><span>Top</span><span>Bottom</span><i></i><span>+</span><span>−</span><span>Fit</span></div>
+      <div class="glass ctx" style="left:700px;top:90px">
+        <div><span>⧉ Duplicate</span><kbd>Ctrl+D</kbd></div>
+        <div><span>✥ Move / Rotate / Scale</span><kbd>T</kbd></div>
+        <div><span>◉ Isolate selection</span><kbd>I</kbd></div>
+        <div><span>👁 Hide selection</span><kbd>H</kbd></div>
+        <hr>
+        <div><span>➕ Grow</span><kbd>+</kbd></div>
+        <div><span>↺ Invert</span><kbd>Ctrl+I</kbd></div>
+        <div><span>⇄ Flip normals</span></div>
+        <hr>
+        <div class="dg"><span>✂ Crop to selection…</span></div>
+        <div class="dg"><span>🗑 Delete 18 240 faces</span><kbd>Del</kbd></div>
+      </div>
+      <div class="toast" style="top:12px;left:auto;right:12px;transform:none">✔ 3 120 faces supprimées <u>Annuler (Ctrl+Z)</u></div>
+    </div>
+    <div class="bar">
+      <div class="r"><span class="rl">Outils</span>
+        <div class="seg" style="width:240px"><button class="b sm">✍ Sculpt</button><button class="b sm">🎨 Paint</button><button class="b sm on">▢ Select</button></div><span class="sep"></span>
+        <button class="b sm on" data-ex="toolC">✎ Add <kbd>B</kbd></button><button class="b sm" data-ex="toolC">🧹 Erase <kbd>E</kbd></button><button class="b sm" data-ex="toolC">✨ Wand <kbd>W</kbd></button><button class="b sm" data-ex="toolC">❂ Lasso <kbd>L</kbd></button><span class="sep"></span>
+        <div class="rng" style="width:230px"><span class="lbl">Rayon</span><input type="range" min="1" max="100" value="25"><b>0.05</b></div><span class="sep"></span>
+        <button class="b sm" data-tg>X</button><button class="b sm" data-tg>Y</button><button class="b sm" data-tg>Z</button><span class="sep"></span>
+        <button class="b sm ic">🔍</button><button class="b sm ic">↶</button><button class="b sm ic dis">↷</button>
+      </div>
+      <div class="r"><span class="rl" style="color:var(--amber)">Sélection</span>
+        <span class="chip"><b>18 240</b> faces <span class="muted">4,4 %</span></span>
+        <button class="b sm">➕ Grow</button><button class="b sm">➖ Shrink</button><button class="b sm">↺ Invert</button><button class="b sm">▣ All</button><button class="b sm">✕ None <kbd>Esc</kbd></button><span class="sep"></span>
+        <button class="b sm">◉ Isolate</button><button class="b sm">👁 Hide</button><span class="sep"></span>
+        <button class="b sm">✥ Move <kbd>T</kbd></button><button class="b sm">⧉ Duplicate</button><button class="b sm">⋯ More ▾</button><span style="flex:1"></span>
+        <button class="b sm danger">🗑 Delete <kbd>Del</kbd></button>
+      </div>
+    </div>
+  </div>
+  <div class="pied"><button class="ghost">Cancel</button><button class="primary">Save as new version</button></div>
+</div>
+</div>
+<dl class="card">
+<dt>Où vont les 33 contrôles</dt><dd>Rangée 1 « Outils » : Mode (3), 4 outils, Rayon, X Y Z, Loupe, Annuler, Rétablir (+ Angle de la baguette qui remplace la symétrie quand la baguette est active, + Intensité en Sculpt / Paint). Rangée 2 « Sélection » : compteur, Étendre, Rétrécir, Inverser, Tout, Aucune, Isoler, Masquer, Déplacer, Dupliquer, « Plus ▾ » (Rogner + Garder le reste, Inverser les normales, Lisser), Supprimer. Menu contextuel : Dupliquer, Déplacer, Isoler, Masquer, Étendre, Inverser, Inverser les normales, Rogner…, Supprimer.</dd>
+<dt>Toujours visible</dt><dd>Les deux rangées, en permanence ; viewer plus large (jusqu'à 1 200 px de large au lieu de 800 dans B).</dd>
+<dt>Replié</dt><dd>« Plus ▾ » ; l'angle et l'intensité apparaissent selon l'outil.</dd>
+<dt>Enchaînement</dt><dd>Sélectionner → clic droit sur le modèle → Dupliquer (zéro déplacement de la souris), ou rangée 2 juste sous le viewer (≈ 350 px au plus).</dd>
+<dt>Raccourcis affichés</dt><dd>Dans le menu contextuel et sur les boutons de la barre ; bandeau de premier lancement « Astuce : clic droit sur la sélection ».</dd>
+<dt>Gizmo et Dupliquer</dt><dd>« Déplacer » ouvre une mini-barre en surimpression du viewer (Déplacer · Rot. · Échelle · Terminé) comme dans A. Dupliquer : rangée 2 + menu.</dd>
+<dt>Destructif / erreur</dt><dd>Supprimer et Rogner en rouge, en fin de rangée / de menu, séparés par un filet. Le libellé du menu <b>annonce le nombre</b> (« Supprimer 18 240 faces »). Toast « Annuler » identique à A et B.</dd>
+<dt>Fenêtre &lt; 900 px</dt><dd>La barre passe sur 4 rangées sous le viewer (la rangée Sélection se replie en défilement horizontal). Le clic droit est remplacé par un appui long (tactile).</dd>
+<dt>Parité bureau / site</dt><dd>Mêmes ids ; deux fichiers HTML + CSS. <b>Risque</b> : le clic droit de la caméra (panoramique par défaut des contrôles orbitaux, à vérifier dans le code du viewer) entre en conflit avec le menu ; il faudrait distinguer un clic bref d'un glissement, et le menu n'est pas découvrable sans l'astuce.</dd>
+</dl>
+
+<h2 id="etroit">Fenêtre étroite (&lt; 900 px) : schémas</h2>
+<div class="wires">
+  <div class="wire"><h5>Actuel</h5><div class="v"></div><div class="blk">Mode · Symétrie</div><div class="blk">Outil de sélection (hors écran)</div><div class="blk">Modifier · Vue · Éditer…</div><div class="blk red">Supprimer, Rayon : 1 écran plus bas</div><span class="muted" style="margin-top:auto">Le corps défile : le modèle sort de l'écran avant d'atteindre les boutons.</span></div>
+  <div class="wire"><h5>A</h5><div class="v"></div><div class="blk hot">Barre flottante sur le viewer (2 lignes)</div><div class="blk">Palette : rangée horizontale d'icônes</div><div class="blk">Puce « 18 240 faces »</div><span class="muted" style="margin-top:auto">Tout reste à l'écran sans défiler.</span></div>
+  <div class="wire"><h5>B</h5><div class="v"></div><div class="blk hot">En-tête sticky : compteur · rayon</div><div class="blk hot">Rangée sticky : Dupliquer · Déplacer · Supprimer</div><div class="blk">Onglets (contenu défile)</div><span class="muted" style="margin-top:auto">Compteur et actions courantes toujours visibles.</span></div>
+  <div class="wire"><h5>C</h5><div class="v"></div><div class="blk">Outils (rangée 1)</div><div class="blk hot">Sélection (rangée 2, défilement horizontal)</div><div class="blk red">Supprimer : fin de rangée, épinglé à droite</div><span class="muted" style="margin-top:auto">Appui long = menu contextuel.</span></div>
+</div>
+
+<!-- ============================ COMPARATIF ============================ -->
+<h2 id="compar">4. Tableau comparatif</h2>
+<p class="muted">Scénarios chiffrés « clics + défilements (≈ px souris depuis le centre du viewer) », à 1700 × 960, estimés d'après la géométrie des maquettes et des mesures ci-dessus (sélection elle-même non comptée). « B+ » = B plus la barre flottante contextuelle de A (voir recommandation).</p>
+<div class="scroller"><table>
+<tr><th>Critère</th><th>Actuel</th><th>A : palette + barre flottante</th><th>B : en-tête fixe + onglets</th><th>C : barre du bas + clic droit</th><th>B+ (recommandée)</th></tr>
+<tr><td>S1 Sélectionner → Dupliquer → déplacer</td><td>1 clic, 0 déf. (≈ 880 px) ; gizmo ouvert : Dupliquer rogné</td><td>1 clic, 0 déf. (≈ 220 px)</td><td>1 clic, 0 déf. (≈ 760 px), onglet Transformer s'ouvre seul</td><td>1 clic droit + 1 clic (≈ 0 à 350 px)</td><td>1 clic (≈ 220 px)</td></tr>
+<tr><td>S2 Sélectionner → Supprimer</td><td>1 clic + 1 déf. (≈ 1 050 px) ou touche cachée</td><td>1 clic (≈ 300 px) ou <kbd>Suppr</kbd> annoncée</td><td>1 clic, 0 déf. (≈ 800 px)</td><td>1 clic (≈ 350 px) ou menu</td><td>1 clic (≈ 300 px) ou <kbd>Suppr</kbd></td></tr>
+<tr><td>S3 Baguette → Étendre → Isoler</td><td>3 clics, mise en page qui saute (+40 px) (≈ 1 050 px cumulés)</td><td>1 touche <kbd>W</kbd> + 2 clics (≈ 450 px)</td><td>3 clics, 0 saut (≈ 800 px)</td><td>3 clics (≈ 700 px)</td><td><kbd>W</kbd> + 2 clics sur la barre (≈ 450 px)</td></tr>
+<tr><td>S4 Ajuster le rayon en cours de travail</td><td>1 défilement + 1 glissement, ≈ 2 000 px aller-retour</td><td>0 déf. ; glisser dans la puce (≈ 250 px) ou <kbd>[</kbd> <kbd>]</kbd></td><td>1 glissement, 0 déf. (≈ 750 px) ou <kbd>[</kbd> <kbd>]</kbd></td><td>1 glissement (≈ 450 px)</td><td>1 glissement ou <kbd>[</kbd> <kbd>]</kbd></td></tr>
+<tr><td>S5 Rogner en gardant le reste</td><td>1 défilement + 2 clics</td><td>3 clics (Plus, case, Rogner)</td><td>3 clics (onglet, case, Rogner) dans la zone sensible</td><td>3 clics (Plus, case, Rogner)</td><td>3 clics</td></tr>
+<tr><td>Retour d'état (outil, compteur, rayon)</td><td>aucun / rayon en 10 px</td><td>puce dans le viewer</td><td>en-tête permanent</td><td>compteur dans la barre</td><td>en-tête + puce</td></tr>
+<tr><td>Lisibilité (densité)</td><td>faible : 24 boutons identiques</td><td>élevée (icônes + groupes), mais icônes à apprendre</td><td>élevée, libellés complets</td><td>moyenne : ≈ 30 boutons sur 2 lignes très serrées</td><td>élevée</td></tr>
+<tr><td>Effort d'implémentation</td><td>:</td><td>6 à 8 jours</td><td>2 à 3 jours</td><td>5 à 6 jours</td><td>4 jours (B 2,5 + barre 1,5)</td></tr>
+<tr><td>Risque de régression</td><td>:</td><td>élevé : couches sur le canvas (lasso, curseur-pinceau, loupe), événements souris, tous les modes Sculpt / Paint à refaire</td><td>faible : ids et gestionnaires intacts, regroupement HTML + CSS</td><td>moyen à élevé : clic droit déjà pris par la caméra, barre à placer dans le gabarit</td><td>faible à moyen : la barre ne fait que <code>.click()</code> sur les boutons existants</td></tr>
+<tr><td>Compat. gabarit <code>.fen-3d</code> et autres fenêtres 3D</td><td>oui</td><td>non : deux colonnes supprimées, nouveau modificateur <code>.fen-immersif</code>, incohérent avec Sculpt, Paint, Lissage… qui gardent la colonne</td><td>oui : même grille, même largeur (<code>--vz-w-corps</code> inchangé), cohérent avec les autres fenêtres</td><td>partielle : le viewer s'élargit, rompt la règle commune « mêmes dimensions de visualiseur » du 25/10</td><td>oui</td></tr>
+<tr><td>Traductions à refaire</td><td>:</td><td>≈ 15 chaînes (infobulles, « faces », menu Plus)</td><td>≈ 8 (onglets, compteur, zone sensible, Tout afficher)</td><td>≈ 12 (rangées, menu contextuel, astuce)</td><td>≈ 12</td></tr>
+<tr><td>Fenêtre &lt; 900 px</td><td>mauvais : le modèle sort de l'écran</td><td>bon</td><td>bon (en-tête sticky)</td><td>moyen (barre sur 4 rangées)</td><td>bon</td></tr>
+</table></div>
+
+<h2 id="reco">5. Recommandation</h2>
+<div class="reco">
+<p><b>B, puis la barre flottante de A : « B+ ».</b> Commencer par B (colonne à en-tête fixe, quatre onglets, trois actions rapides toujours visibles, compteur de faces, rayon en haut). C'est la seule variante qui règle à elle seule les défauts mesurés : plus aucun défilement (Supprimer et Rayon n'étaient jamais visibles même à 1920 × 1080), plus de saut de mise en page quand l'angle de la baguette apparaît, un retour d'état permanent, et les raccourcis sur les boutons. Elle garde le gabarit <code>.fen-3d</code> et la règle commune du 25/10 (visualiseur de la même taille dans tous les outils), garde tous les ids et tous les gestionnaires, et coûte 2 à 3 jours.</p>
+<p>B ne réduit toutefois pas la distance souris (la colonne reste à droite). On y ajoute donc, en deuxième étape (1,5 jour), la <b>barre flottante</b> de A, limitée à Dupliquer / Déplacer / Inverser / Supprimer au-dessus de la barre de vues : elle ne fait que déclencher les boutons existants, donc sans nouvelle logique. A en entier est écartée (refonte des trois modes, 6 à 8 jours, rupture avec les autres fenêtres) ; C est écartée à cause du conflit du clic droit avec la caméra et de la découvrabilité faible.</p>
+<p><b>Trois décisions à valider avec toi avant de coder</b> : (1) Échap ferme-t-il encore la fenêtre ? Proposé : il désélectionne d'abord, et demande confirmation s'il reste des modifications ; (2) Supprimer sans fenêtre de confirmation mais avec toast « Annuler » ? Proposé : oui ; (3) raccourcis lettres B E W L [ ] : OK dans une fenêtre où T R Y existent déjà ?</p>
+</div>
+
+<h2 id="plan">6. Plan d'implémentation de B+ (non commencé)</h2>
+<ol class="plan">
+<li><b>Garde-fou préalable.</b> Écrire d'abord <code>tests/bureau-interface/selection-ergonomie.test.mjs</code> : (a) la liste des 33 ids <code>me-*</code> du mode Select existe exactement une fois dans <code>cloud/public/app/index.html</code> et <code>src/renderer/index2.html</code> ; (b) les deux fichiers ont le même ensemble d'ids. Il passe sur l'état actuel : c'est la base de non-régression.</li>
+<li><b>Compteur.</b> <code>index2.js</code> (les deux) : fonction <code>_meSelCount()</code> (parcours de COLOR_0 : la sélection est stockée dans la couleur orange du sommet, <code>_meSelHas()</code> existe déjà) et <code>_meRefreshHud()</code> appelée à la fin de chaque écriture : pinceau, baguette, lasso, étendre, rétrécir, tout, inverser, effacer, supprimer, undo / redo. Limiter le coût (rafraîchir au <code>pointerup</code> pendant un coup de pinceau). Test : sélection simulée, le texte du compteur suit.</li>
+<li><b>HTML.</b> <code>cloud/public/app/index.html</code> et <code>src/renderer/index2.html</code>, bloc <code>#me-panel</code> : ajouter <code>#me-head</code> (mode, undo / redo / loupe déplacés, compteur, rayon), <code>#me-quick</code>, <code>#me-tabs</code> + quatre <code>.me-pan</code> ; <b>déplacer</b> les boutons existants sans changer leurs ids. Retirer le commentaire périmé « 130 px ».</li>
+<li><b>CSS.</b> <code>cloud/public/app/styles/index2.css</code> et <code>src/renderer/styles/index2.css</code> : classes <code>.me-head</code>, <code>.me-tabs</code>, <code>.me-pan</code>, <code>.me-quick</code>, <code>.me-zone</code>, sticky sous 900 px ; réutiliser les jetons existants (<code>.tool-btn</code>, <code>.tool-active</code>, <code>.fen-label</code>). Ne rien changer à <code>--vz-w-corps</code> ni <code>.fen-form</code>.</li>
+<li><b>Onglets et état.</b> JS court : changement d'onglet, mémorisation de l'onglet par <code>localStorage</code> (try / catch, convenance seulement), ouverture automatique de « Transformer » quand le gizmo démarre (<code>_meStartMove</code>), curseur d'angle déplacé dans l'onglet (plus de saut de page). Masquer l'Intensité en mode Select après vérification de son usage.</li>
+<li><b>Raccourcis et Échap.</b> Étendre le gestionnaire existant (<code>keydown</code> près de <code>_closeMeshEdit</code>) : <kbd>B</kbd> <kbd>E</kbd> <kbd>W</kbd> <kbd>L</kbd>, <kbd>[</kbd> <kbd>]</kbd>, <kbd>Ctrl+A</kbd> <kbd>Ctrl+I</kbd> <kbd>Ctrl+D</kbd>, <kbd>Ctrl+Maj+Z</kbd>, Échap en deux temps (après décision de l'utilisateur). Toujours ignorés dans un champ de saisie.</li>
+<li><b>Toast « Annuler ».</b> Après Supprimer / Rogner : bandeau 6 s qui appelle <code>_meUndo</code>. Texte + clé de traduction.</li>
+<li><b>Barre flottante (phase 2).</b> <code>#me-float</code> posée dans <code>#me-viewport</code> (pointer-events limités à la barre, sous le lasso à z-index 900), 4 boutons qui font <code>document.getElementById('me-sel-…').click()</code>. Affichée seulement si <code>_meSelCount() &gt; 0</code>.</li>
+<li><b>Traductions.</b> Nouvelles chaînes dans <code>cloud/public/app/lang/_additions.js</code> (et le pendant du bureau) : fr, es, zh, hi, ar ; <code>garde-traduction.js</code> doit passer. Ne pas citer de nom de moteur.</li>
+<li><b>Vérifications.</b> <code>node build/check-js-syntax.mjs</code>, <code>node build/check-fonctions-portees.mjs</code>, <code>cd cloud && npm test</code> et les tests <code>tests/bureau-interface/*</code> (dont <code>editeur-et-reglages.test.mjs</code>, déjà modifié sur la branche principale), puis le harnais navigateur à 1920 × 1080, 1700 × 960, 1366 × 768 et 860 × 900 : Supprimer et Rayon visibles sans défiler, aucun débordement, captures avant / après (<code>git diff --stat</code> avant commit).</li>
+<li><b>Livraison.</b> Un commit par étape (1 → 2 → 3-5 → 6-7 → 8 → 9), entrée dans <code>AGENT_LOG.md</code>, bureau (restart inutile : renderer seulement, Ctrl+R) puis site (<code>npm run build</code> puis <code>npm run deploy</code>, sur accord).</li>
+</ol>
+<p class="muted">Fichiers à toucher au total : <code>cloud/public/app/index.html</code>, <code>src/renderer/index2.html</code>, <code>cloud/public/app/index2.js</code>, <code>src/renderer/index2.js</code>, les deux <code>styles/index2.css</code>, les fichiers de langue, plus le nouveau test. Aucun fichier de <code>main/</code>, de Modal ni du worker.</p>
+</main>
+
+<script>
+const INV = [
+ ['Barre du haut','',''],
+ ['me-loupe-toggle','Loupe (🔍)','rare','Affiche une loupe sous le curseur','indépendant',''],
+ ['me-undo','Annuler (↶)','très fréquent','Annule la dernière opération','désactivé si historique vide','Ctrl+Z'],
+ ['me-redo','Rétablir (↷)','fréquent','Rétablit','désactivé si rien à rétablir','aucun'],
+ ['Mode',''],
+ ['me-tool-sculpt','Sculpt','fréquent','Passe en sculpture (affiche Push / Pull / Smooth / Flatten / Grab / Inflate)','change tout le contenu de la colonne',''],
+ ['me-tool-paint','Paint','fréquent','Passe en peinture de sommets','idem',''],
+ ['me-tool-select','Select','fréquent','Passe en sélection de faces','prérequis de tout le reste',''],
+ ['Symétrie',''],
+ ['me-sym-x / y / z','X · Y · Z','rare','Miroir des opérations sur l\'axe','visible en 3 modes','aucun'],
+ ['Outil de sélection (y 251 → 285)',''],
+ ['me-sel-add','Add','très fréquent','Pinceau : peint les faces à sélectionner','outil par défaut ; rayon actif','Ctrl = ajouter'],
+ ['me-sel-erase','Erase','fréquent','Pinceau : désélectionne','rayon actif',''],
+ ['me-sel-wand','Wand','très fréquent','Sélectionne la zone plane connectée','affiche me-sel-wand-angle (+40 px, tout se décale)','Ctrl / Maj = ajouter'],
+ ['me-sel-lasso','Lasso','fréquent','Boucle à main levée','couche 2D z-index 900','Ctrl / Maj = ajouter'],
+ ['me-sel-wand-angle','Angle (1-80°)','fréquent (baguette)','Tolérance de la baguette','visible seulement avec la baguette',''],
+ ['Modifier la sélection (y 370 → 472)',''],
+ ['me-sel-grow','Grow','fréquent','Étend aux faces voisines','sélection non vide',''],
+ ['me-sel-shrink','Shrink','fréquent','Rétrécit depuis les bords','sélection non vide',''],
+ ['me-sel-all','Select all','fréquent','Tout sélectionner','','aucun'],
+ ['me-sel-invert','Invert','fréquent','Inverse la sélection','','aucun'],
+ ['me-sel-clear','Clear','très fréquent','Tout désélectionner','','aucun (Échap ferme la fenêtre !)'],
+ ['Vue (y 541)',''],
+ ['me-sel-isolate','Isolate','fréquent','Bascule : n\'affiche que la sélection','bascule, sans témoin hors du bouton','aucun'],
+ ['me-sel-hide','Hide','fréquent','Bascule : cache la sélection','idem','aucun'],
+ ['Éditer (y 610 → 855)',''],
+ ['me-sel-move','Move (gizmo)','fréquent','Ouvre le gizmo sur la sélection ; reclic = terminer','affiche me-move-mode-row (+34 px) ; démarre aussi après Duplicate','T R Y'],
+ ['me-move-translate / rotate / scale','Move · Rot. · Scale','fréquent','Mode du gizmo','gizmo ouvert seulement','T / R / Y'],
+ ['me-sel-duplicate','Duplicate','fréquent','Copie les faces ; le gizmo s\'ouvre sur la copie ; l\'original est désélectionné','sélection non vide','aucun'],
+ ['me-sel-crop','Crop','destructif','Ne garde que la sélection (ou le reste)','lié à me-sel-crop-keeprest','aucun'],
+ ['me-sel-crop-keeprest','Keep the rest','rare','Case : inverse le sens de Crop','séparée de Crop de 50 px','aucun'],
+ ['me-sel-flip','Flip normals','rare','Inverse les normales des faces','','aucun'],
+ ['me-sel-smooth','Smooth','rare','Lisse les sommets sélectionnés','même libellé que Smooth de Sculpt et Paint','aucun'],
+ ['me-sel-delete','Delete','destructif / très fréquent','Supprime les faces (annulable, sans confirmation)','sélection non vide','Suppr / Retour arrière'],
+ ['Curseurs (y 881 → 923)',''],
+ ['me-brush-size','Radius','très fréquent','Rayon du pinceau (Add, Erase, Sculpt, Paint)','sans effet sur baguette et lasso','aucun'],
+ ['me-strength','Strength','rare en Select','Intensité du pinceau','vraisemblablement Sculpt / Paint seulement','aucun'],
+];
+(function(){
+  const t=document.getElementById('inv');
+  let h='<tr><th>Id</th><th>Libellé</th><th>Fréquence</th><th>Ce qu\'il fait</th><th>Dépendances d\'état</th><th>Raccourci</th></tr>';
+  for(const r of INV){
+    if(r.length<=3 && !r[2]){h+='<tr class="grp"><td colspan="6">'+r[0]+'</td></tr>';continue;}
+    const f=r[2];const c=/destructif/.test(f)?'f-d':f.startsWith('très')?'f-tf':f==='fréquent'||/fréquent \(/.test(f)?'f-f':'f-r';
+    h+='<tr><td><code>'+r[0]+'</code></td><td>'+r[1]+'</td><td class="'+c+'">'+f+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td><td>'+(r[5]||'')+'</td></tr>';
+  }
+  t.innerHTML=h;
+})();
+/* maquettes : interactions statiques */
+document.querySelectorAll('[data-ex]').forEach(b=>b.addEventListener('click',()=>{
+  const g=b.dataset.ex;document.querySelectorAll('[data-ex="'+g+'"]').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  const lab=document.getElementById('aTool'); if(g==='toolA'&&lab) lab.textContent=b.querySelector('span').textContent+' '+b.querySelector('small').textContent.split(' ')[0];
+}));
+document.querySelectorAll('[data-tg]').forEach(b=>b.addEventListener('click',()=>b.classList.toggle('on')));
+document.querySelectorAll('#bTabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#bTabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  document.querySelectorAll('#mockB .pan').forEach(p=>p.classList.toggle('on',p.id===b.dataset.t));
+}));
+function clr(btn,win,cnt,txt){const el=document.getElementById(btn);if(!el)return;el.addEventListener('click',()=>{
+  const w=document.getElementById(win);const none=!w.classList.contains('nosel');w.classList.toggle('nosel',none);
+  const c=document.getElementById(cnt);if(c)c.textContent=none?'0':txt;});}
+clr('aClear','mockA','aCnt','18 240');clr('bClear','mockB','bCnt','18 240');
+document.getElementById('aCnt').textContent='18 240 faces';
+document.getElementById('aClear').addEventListener('click',()=>{document.getElementById('aCnt').textContent=document.getElementById('mockA').classList.contains('nosel')?'0 face':'18 240 faces';});
+document.querySelectorAll('[data-pop]').forEach(b=>b.addEventListener('click',()=>{const p=document.getElementById(b.dataset.pop);p.style.display=p.style.display==='none'?'flex':'none';}));
+</script>
+</body>
+</html>
