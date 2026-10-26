@@ -20148,7 +20148,8 @@ document.getElementById('me-sel-delete')?.addEventListener('click', () => {
     geom._posGroups = null; geom._posKeyByIndex = null;
     any = true;
   });
-  showToast(any ? 'Selected faces deleted' : 'Nothing selected', any ? 'success' : 'info', 1500);
+  const _pm = (typeof _meAsst !== 'undefined' && _meAsst.pendingMsg) || '';   // message « N faces deleted » annonce par l'assistant (index2.js, ASSISTANT SELECTION)
+  showToast(any ? (_pm || 'Selected faces deleted') : 'Nothing selected', any ? 'success' : 'info', any && _pm ? 6000 : 1500);
 });
 document.getElementById('me-sel-invert')?.addEventListener('click', () => {
   _mePushUndo();   // la selection fait partie de l'historique (Ctrl+Z)
@@ -20318,7 +20319,8 @@ document.getElementById('me-sel-crop')?.addEventListener('click', () => {
     any = true;
   });
   _meUpdateSelButtons();
-  showToast(any ? (keepRest ? 'Kept the rest (selection removed)' : 'Cropped to selection') : 'Nothing selected', any ? 'success' : 'info', 1600);
+  const _pm = (typeof _meAsst !== 'undefined' && _meAsst.pendingMsg) || '';   // message « N faces deleted » annonce par l'assistant (index2.js, ASSISTANT SELECTION)
+  showToast(any ? (_pm || (keepRest ? 'Kept the rest (selection removed)' : 'Cropped to selection')) : 'Nothing selected', any ? 'success' : 'info', any && _pm ? 6000 : 1600);
 });
 
 // --- Flip normals: reverse the winding of every selected face so an
@@ -20541,11 +20543,207 @@ document.getElementById('me-paint-smooth')?.addEventListener('click', () => {
   });
   showToast('Colours smoothed', 'success', 1200);
 });
+
+// ═══ ASSISTANT SELECTION : DEBUT (26/10, decision du user : « l'assistant en 3 temps, menus a droite, verticalement ») ═══
+// Le mode Select se pilote par un menu vertical a 3 etapes (1 Choisir la zone, 2 Que veux-tu en faire ?, 3 Ajuster et finir) dans la colonne de droite.
+// AUCUN controle propre : chaque bouton du menu declenche un controle me-* existant (.click()), les curseurs sont des miroirs de me-brush-size / me-sel-wand-angle.
+// « Mode expert » (memorise : localStorage fab_me_expert) rend la colonne complete d'avant. Sculpt / Paint ne sont pas touches.
+// Meme bloc cote site et cote bureau, SAUF _meAsstCount (la selection n'est pas stockee pareil).
+const _meAsst = { pendingMsg: '', step: 1, expert: false, timer: 0, n: 0, total: 0, lastAction: '', gizmoSeen: false };
+try { _meAsst.expert = localStorage.getItem('fab_me_expert') === '1'; } catch (_) { /* navigation privee : assistant par defaut */ }
+const _meAsstEl = (id) => document.getElementById(id);
+function _meAsstClick(id) { const b = _meAsstEl(id); if (b && !b.disabled) b.click(); }
+// Faces concernees = triangles dont AU MOINS un sommet est selectionne (meme regle que Supprimer / Rogner / Dupliquer). Bureau : selection = geometry._selSaved (Map de sommets).
+function _meAsstCount() {
+  let sel = 0, total = 0;
+  meState.mesh?.traverse(c => {
+    if (!c.isMesh || !c.geometry || !c.geometry.attributes.position) return;
+    const g = c.geometry, idx = g.index, pos = g.attributes.position, ss = g._selSaved;
+    const nTri = idx ? Math.floor(idx.count / 3) : Math.floor(pos.count / 3);
+    total += nTri;
+    if (!ss || !ss.size) return;
+    for (let t = 0; t < nTri; t++) {
+      const a = idx ? idx.getX(3 * t) : 3 * t, b = idx ? idx.getX(3 * t + 1) : 3 * t + 1, d = idx ? idx.getX(3 * t + 2) : 3 * t + 2;
+      if (ss.has(a) || ss.has(b) || ss.has(d)) sel++;
+    }
+  });
+  return { sel, total };
+}
+function _meAsstFmt(n) { try { return Number(n).toLocaleString(typeof _locale === 'function' ? _locale() : undefined); } catch (_) { return String(n); } }
+function _meAsstSchedule() {
+  if (_meAsst.timer) return;
+  _meAsst.timer = setTimeout(() => { _meAsst.timer = 0; _meAsstRender(); }, 90);
+}
+function _meAsstGo(step) {
+  if (step > 1 && _meAsst.n === 0) { showToast(_i18nT('Choose an area first'), 'info', 1600); return; }
+  _meAsst.step = step;
+  _meAsstRender();
+}
+function _meAsstApply() {
+  const modal = _meAsstEl('modal-mesh-edit'); if (!modal) return;
+  const sel = meState.mode === 'select';
+  modal.classList.toggle('me-select-mode', sel);
+  modal.classList.toggle('me-simple', sel && !_meAsst.expert);
+  const back = _meAsstEl('me-w-back'); if (back) back.style.display = (sel && _meAsst.expert) ? 'block' : 'none';
+  // Intensite : sans effet sur la selection (seuls Sculpt et Paint la lisent) -> masquee en mode Select.
+  const st = _meAsstEl('me-strength')?.parentElement; if (st) st.style.display = sel ? 'none' : '';
+  if (sel) _meAsstRender();
+}
+function _meAsstSetExpert(on) {
+  _meAsst.expert = !!on;
+  try { localStorage.setItem('fab_me_expert', on ? '1' : '0'); } catch (_) { /* convenance seulement */ }
+  _meAsstApply();
+}
+function _meAsstRender() {
+  const modal = _meAsstEl('modal-mesh-edit'); if (!modal || modal.classList.contains('hidden') || meState.mode !== 'select') return;
+  const c = _meAsstCount(); _meAsst.n = c.sel; _meAsst.total = c.total;
+  const n = c.sel;
+  _meAsstEl('me-w-count-n').textContent = _meAsstFmt(n);
+  const pct = c.total ? (100 * n / c.total) : 0;
+  _meAsstEl('me-w-count-pct').textContent = n ? _i18nTf('{x} % of the model', pct < 1 ? pct.toFixed(1) : String(Math.round(pct))) : '';
+  const chip = _meAsstEl('me-w-chip');
+  if (chip) { chip.querySelector('b').textContent = _meAsstFmt(n); }
+  if (n === 0 && _meAsst.step > 1) _meAsst.step = 1;
+  const gizmo = !!meState.moveActive;
+  if (gizmo && _meAsst.step < 3 && !_meAsst.gizmoSeen) { /* gizmo ouvert hors assistant (touche, mode expert) : on ne force rien */ }
+  for (let i = 1; i <= 3; i++) {
+    const el = _meAsstEl('me-w-step-' + i); if (!el) continue;
+    el.classList.toggle('on', i === _meAsst.step);
+    el.classList.toggle('done', i < _meAsst.step);
+    el.classList.toggle('locked', i > 1 && n === 0);
+    el.querySelector('.me-w-head i').textContent = i < _meAsst.step ? '✔' : String(i);
+  }
+  _meAsstEl('me-w-sum-1').textContent = n ? _i18nTf('{x} faces chosen', _meAsstFmt(n)) : _i18nT('Nothing chosen yet');
+  _meAsstEl('me-w-sum-2').textContent = _meAsst.lastAction ? _i18nT(_meAsst.lastAction) : _i18nT('Pick an action');
+  _meAsstEl('me-w-sum-3').textContent = gizmo ? _i18nT('Placing the area') : _i18nT('Place the area');
+  // outil actif (miroir des boutons me-sel-*), curseurs, etat des cartes
+  const sync = (mine, src) => { const s = _meAsstEl(src), m = _meAsstEl(mine); if (s && m) m.classList.toggle('tool-active', s.classList.contains('tool-active')); };
+  sync('me-w-add', 'me-sel-add'); sync('me-w-erase', 'me-sel-erase'); sync('me-w-wand', 'me-sel-wand'); sync('me-w-lasso', 'me-sel-lasso');
+  const wand = _meAsstEl('me-sel-wand')?.classList.contains('tool-active');
+  _meAsstEl('me-w-angle-row').style.display = wand ? 'flex' : 'none';
+  _meAsstEl('me-w-radius-row').style.display = wand || _meAsstEl('me-sel-lasso')?.classList.contains('tool-active') ? 'none' : 'flex';
+  const rs = _meAsstEl('me-brush-size'), wr = _meAsstEl('me-w-radius');
+  if (rs && wr && wr.value !== rs.value) wr.value = rs.value;
+  const rv = _meAsstEl('me-brush-val'); if (rv) _meAsstEl('me-w-radius-val').textContent = rv.textContent;
+  const as = _meAsstEl('me-sel-wand-angle'), wa = _meAsstEl('me-w-angle');
+  if (as && wa && wa.value !== as.value) wa.value = as.value;
+  if (as) _meAsstEl('me-w-angle-val').textContent = as.value + '°';
+  for (const id of ['me-w-c-duplicate', 'me-w-c-move', 'me-w-c-isolate', 'me-w-c-hide', 'me-w-c-smooth', 'me-w-c-flip', 'me-w-c-crop', 'me-w-c-delete', 'me-w-next1', 'me-w-grow', 'me-w-shrink', 'me-w-clear']) {
+    const b = _meAsstEl(id); if (b) b.disabled = n === 0;
+  }
+  const act = (mine, src) => { const s = _meAsstEl(src), m = _meAsstEl(mine); if (s && m) m.classList.toggle('on', s.classList.contains('tool-active')); };
+  act('me-w-c-isolate', 'me-sel-isolate'); act('me-w-c-hide', 'me-sel-hide');
+  for (const [mine, src] of [['me-w-translate', 'me-move-translate'], ['me-w-rotate', 'me-move-rotate'], ['me-w-scale', 'me-move-scale']]) {
+    const s = _meAsstEl(src), m = _meAsstEl(mine); if (m) { m.disabled = !gizmo; m.classList.toggle('tool-active', !!(gizmo && s && s.classList.contains('tool-active'))); }
+  }
+  const g = _meAsstEl('me-w-gizmo'); if (g) { g.textContent = gizmo ? _i18nT('Finish placing') : _i18nT('Start placing'); g.disabled = n === 0; }
+}
+// Cartes d'action : (carte, controle declenche, texte retenu en resume, passer a l'etape 3 ?)
+const _ME_ASST_CARTES = [
+  ['me-w-c-duplicate', 'me-sel-duplicate', 'Duplicated', 3], ['me-w-c-move', 'me-sel-move', 'Moving the area', 3],
+  ['me-w-c-isolate', 'me-sel-isolate', 'Isolated', 0], ['me-w-c-hide', 'me-sel-hide', 'Hidden', 0],
+  ['me-w-c-smooth', 'me-sel-smooth', 'Softened', 0], ['me-w-c-flip', 'me-sel-flip', 'Flipped', 0],
+  ['me-w-c-crop', 'me-sel-crop', 'Kept only the area', 0], ['me-w-c-delete', 'me-sel-delete', 'Deleted', 0],
+];
+for (const [carte, src, resume, suite] of _ME_ASST_CARTES) {
+  _meAsstEl(carte)?.addEventListener('click', () => {
+    if (_meAsst.n === 0) return;
+    if (carte === 'me-w-c-crop') { const k = _meAsstEl('me-sel-crop-keeprest'); if (k) k.checked = false; }   // « garder seulement la zone » = jamais « garder le reste »
+    if (carte === 'me-w-c-move' && meState.moveActive) { _meAsst.step = 3; _meAsstRender(); return; }
+    _meAsstClick(src);
+    _meAsst.lastAction = resume;
+    // le geste suit ce clic (le gizmo de Dupliquer s'ouvre dans son gestionnaire) : on relit l'etat juste apres
+    setTimeout(() => { if (suite && _meAsst.n > 0) _meAsst.step = suite; _meAsstRender(); }, 0);
+  });
+}
+// Boutons de l'etape 1 / 3 : relais vers les controles existants
+for (const [mine, src] of [['me-w-add', 'me-sel-add'], ['me-w-erase', 'me-sel-erase'], ['me-w-wand', 'me-sel-wand'], ['me-w-lasso', 'me-sel-lasso'],
+  ['me-w-grow', 'me-sel-grow'], ['me-w-shrink', 'me-sel-shrink'], ['me-w-all', 'me-sel-all'], ['me-w-invert', 'me-sel-invert'], ['me-w-clear', 'me-sel-clear'],
+  ['me-w-translate', 'me-move-translate'], ['me-w-rotate', 'me-move-rotate'], ['me-w-scale', 'me-move-scale']]) {
+  _meAsstEl(mine)?.addEventListener('click', () => { _meAsstClick(src); _meAsstSchedule(); setTimeout(_meAsstRender, 0); });
+}
+_meAsstEl('me-w-gizmo')?.addEventListener('click', () => { _meAsstClick('me-sel-move'); setTimeout(_meAsstRender, 0); });
+_meAsstEl('me-w-next1')?.addEventListener('click', () => _meAsstGo(2));
+_meAsstEl('me-w-back1')?.addEventListener('click', () => _meAsstGo(1));
+_meAsstEl('me-w-back2')?.addEventListener('click', () => { if (meState.moveActive) _meAsstClick('me-sel-move'); _meAsst.step = 2; setTimeout(_meAsstRender, 0); });
+for (let i = 1; i <= 3; i++) _meAsstEl('me-w-head-' + i)?.addEventListener('click', () => _meAsstGo(i));
+_meAsstEl('me-w-expert')?.addEventListener('click', () => _meAsstSetExpert(true));
+_meAsstEl('me-w-back')?.addEventListener('click', () => _meAsstSetExpert(false));
+// Curseurs miroirs (dans les deux sens)
+function _meAsstMiroir(mine, src) {
+  const m = _meAsstEl(mine), s = _meAsstEl(src); if (!m || !s) return;
+  m.addEventListener('input', () => { s.value = m.value; s.dispatchEvent(new Event('input', { bubbles: true })); _meAsstSchedule(); });
+  s.addEventListener('input', () => { if (m.value !== s.value) m.value = s.value; _meAsstSchedule(); });
+}
+_meAsstMiroir('me-w-radius', 'me-brush-size');
+_meAsstMiroir('me-w-angle', 'me-sel-wand-angle');
+// « N faces deleted — Undo (Ctrl+Z) » : le compte est pris AVANT le gestionnaire d'origine (capture)
+_meAsstEl('me-sel-delete')?.addEventListener('click', () => {
+  const n = _meAsstCount().sel;
+  _meAsst.pendingMsg = n > 0 ? _i18nTf('{x} faces deleted — Undo (Ctrl+Z)', _meAsstFmt(n)) : '';
+  setTimeout(() => { _meAsst.pendingMsg = ''; }, 0);
+}, true);
+_meAsstEl('me-sel-crop')?.addEventListener('click', () => {
+  const c = _meAsstCount();
+  const keepRest = !!_meAsstEl('me-sel-crop-keeprest')?.checked;
+  const n = keepRest ? c.sel : (c.total - c.sel);
+  _meAsst.pendingMsg = (c.sel > 0 && n > 0) ? _i18nTf('{x} faces deleted — Undo (Ctrl+Z)', _meAsstFmt(n)) : '';
+  setTimeout(() => { _meAsst.pendingMsg = ''; }, 0);
+}, true);
+// Le compteur suit TOUT changement de selection : fin de geste, clic dans la fenetre, touche, annuler / refaire
+{
+  const modal = _meAsstEl('modal-mesh-edit');
+  if (modal) {
+    modal.addEventListener('pointerup', _meAsstSchedule);
+    modal.addEventListener('pointermove', (e) => { if (e.buttons) _meAsstSchedule(); });
+    modal.addEventListener('click', _meAsstSchedule);
+    modal.addEventListener('keyup', _meAsstSchedule);
+    let etaitCachee = modal.classList.contains('hidden');
+    new MutationObserver(() => {
+      const cachee = modal.classList.contains('hidden');
+      if (etaitCachee && !cachee) { _meAsst.step = 1; _meAsst.lastAction = ''; _meAsstApply(); setTimeout(_meAsstRender, 400); }
+      etaitCachee = cachee;
+    }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  }
+  for (const m of ['sculpt', 'paint', 'select']) _meAsstEl('me-tool-' + m)?.addEventListener('click', () => { _meAsst.step = 1; _meAsstApply(); });
+}
+// Echap : desselectionne d'abord (et ferme le gizmo), puis demande confirmation s'il reste des modifications non enregistrees, puis ferme.
+async function _meOnEscape() {
+  const conf = _meAsstEl('modal-confirm');
+  if (conf && !conf.classList.contains('hidden')) return;   // Echap appartient alors a la fenetre de confirmation
+  if (meState.moveActive) { _meEndMove(); _meAsstSchedule(); return; }
+  if (meState.mode === 'select' && _meAsstCount().sel > 0) { _meAsstClick('me-sel-clear'); _meAsstSchedule(); return; }
+  if (meState.undoStack && meState.undoStack.length > 0) {
+    const ok = await customConfirm(_i18nT('Close without saving? Your changes to the model will be lost.'), _i18nT('Close the editor'), _i18nT('Close'));
+    if (!ok) return;
+  }
+  _closeMeshEdit();
+}
+// Raccourcis du mode Select : B pinceau, E gomme, W baguette, L lasso, [ ] rayon. (T R Y : gizmo, Suppr : supprimer, existants.) Jamais dans un champ de texte.
+document.addEventListener('keydown', (e) => {
+  const modal = _meAsstEl('modal-mesh-edit');
+  if (!modal || modal.classList.contains('hidden') || meState.mode !== 'select') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const el = document.activeElement;
+  if (el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !/^(range|checkbox|button)$/.test(el.type)))) return;
+  const k = e.key.toLowerCase();
+  const outils = { b: 'me-sel-add', e: 'me-sel-erase', w: 'me-sel-wand', l: 'me-sel-lasso' };
+  if (outils[k]) { e.preventDefault(); _meAsstClick(outils[k]); _meAsstSchedule(); return; }
+  if (e.key === '[' || e.key === ']') {
+    const s = _meAsstEl('me-brush-size'); if (!s) return;
+    e.preventDefault();
+    s.value = String(Math.max(1, Math.min(100, parseInt(s.value, 10) + (e.key === ']' ? 5 : -5))));
+    s.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+});
+window.__meAsst = { state: _meAsst, count: _meAsstCount, go: _meAsstGo, render: _meAsstRender, apply: _meAsstApply };
+// ═══ ASSISTANT SELECTION : FIN ═══
+
 // Keyboard
 document.addEventListener('keydown', (e) => {
   const modal = document.getElementById('modal-mesh-edit');
   if (!modal || modal.classList.contains('hidden')) return;
-  if (e.key === 'Escape') _closeMeshEdit();
+  if (e.key === 'Escape') { _meOnEscape(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); _meUndo(); }
   if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) { e.preventDefault(); _meRedo(); }
 });
