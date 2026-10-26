@@ -93,3 +93,17 @@ test('saut d\'un quadrupede : le corps monte d\'au moins 0,3 H et les pieds le s
   assert.ok(apres.montee >= 0.15, `montee ${(100 * apres.montee).toFixed(0)} % de H`);
   assert.ok(apres.pieds >= apres.montee + 0.05, `les pieds montent plus haut que le corps (pliés) : pieds ${(100 * apres.pieds).toFixed(0)} % contre corps ${(100 * apres.montee).toFixed(0)} %`);
 });
+
+test('a-coups d\'un quadrupede : la portee des jambes est bornee en douceur (pas de jambe gelee puis relachee) sans glissement de plus', () => {
+  const sq = __interne.charger(squelette(quadrupede()));
+  for (const allure of ['walk', 'trot']) {
+    const mesure = (flag) => {
+      globalThis.__porteeDouce = flag;
+      try { const c = __interne.animerAllureSure(sq, allure, 2, 60, 'normal', 'auto', 'equide'); return { ac: c.infos.acoups_max_deg, gl: c.infos.glissement_appui_pct, ss: c.infos.sous_sol_pct }; } finally { delete globalThis.__porteeDouce; }
+    };
+    const avant = mesure(false), apres = mesure(undefined);
+    assert.ok(apres.ac <= 0.85 * avant.ac, `${allure} : a-coups ${avant.ac} -> ${apres.ac} deg`);
+    assert.ok(apres.gl <= avant.gl + 0.02, `${allure} : glissement ${avant.gl} -> ${apres.gl} % de H`);
+    assert.ok(apres.ss <= avant.ss + 0.1, `${allure} : sous le sol ${avant.ss} -> ${apres.ss} % de H`);
+  }
+});

@@ -1449,6 +1449,15 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       sautQ = out_;
     }
     for (let i = 0; i < nT; i++) tangage[i] = sautQ[i];
+    // la montee du corps change de vitesse d'un coup au decollage (sinusoide de creche -> sinusoide de vol, 2,3 fois plus rapide avec SAUT_Q = 0,5) : la queue, entrainee par
+    // l'acceleration du pivot, claquait (a-coup de 19,6 -> 33,5 deg). Moyenne glissante circulaire de 12 % du cycle, 2 passes : la vitesse monte en rampe sur ~0,1 s.
+    if (globalThis.__sautQuadrupede !== false) {
+      const lb_ = Math.max(3, (Math.round(0.12 * Lc_) | 1)), db_ = (lb_ - 1) / 2;
+      for (let pass = 0; pass < 2; pass++) {
+        const src_ = bob.slice();
+        for (let i = 0; i < nT; i++) { let sm_ = 0; for (let k = -db_; k <= db_; k++) sm_ += src_[(((i + k) % nT) + nT) % nT]; bob[i] = sm_ / lb_; }
+      }
+    }
   }
   // --- actions (pieds plantes) : corps, tete et bras suivent les courbes ; V.ampleur les amplifie
   const avance = new Array(nT).fill(0), teteT = new Array(nT).fill(0), brasT = new Array(nT).fill(0);
@@ -1549,6 +1558,12 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const porte = porteur(ch[0]);                           // os de la colonne qui porte cette patte
     const Lik = longueurChaine(ch.map((k) => P0[k]));
     let u = 0;
+    // portee en DOUCEUR (26/10, 2e passe) : voir plus bas. Passe 0 = mesure de la distance hanche-cible de chaque image, passe 1 = le calcul.
+    const doux = A.pas && quadrupede && globalThis.__porteeDouce !== false;
+    const nds = doux ? new Array(nT).fill(0) : null;
+    let dc = null;
+    for (let pass = 0; pass < (doux ? 2 : 1); pass++) {
+    u = 0;
     for (let i = 0; i < nT; i++) {
       let cible, phi = 0, b_ = p.beta;
       if (!A.pas) {
@@ -1611,7 +1626,27 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         : monde(i, P0[ch[0]]);
       let cib = sub(cible, mv(F, p.piedOff));                // cible de la cheville
       const dd = sub(cib, hanche_i);
-      if (norm(dd) > PORTEE_MAX * Lik) cib = add(hanche_i, mulS(dd, PORTEE_MAX * Lik / norm(dd)));   // portée bornée
+      // Portee bornee EN DOUCEUR (26/10, 2e passe ; a-coups du galop de la mule). En fin de balancier la cible du pied etait a 1,08 fois la longueur de la jambe (le pied devance
+      // le tronc puis rentre avant de se poser) : la cheville collait a la sphere de portee (jambe gelee, tendue, ~6 images a 60 i/s) et la quittait d'un coup, d'ou une rotation
+      // de la jambe de 15 -> 34 -> 2 deg par image (planche C:/tmp/anim_realisme2). Seulement pour une patte dont la cible depasse REELLEMENT la portee : la distance plafonnee est
+      // lissee dans le temps (2 passes de [1 2 1]/4) et rendue a la distance exacte sur la fin du balancier, si bien que le pied se pose ou le calcul de foulee l'a prevu (aucun
+      // glissement en appui) ; une patte qui reste dans sa portee n'est pas touchee.
+      if (doux) {
+        if (pass === 0) { nds[i] = norm(dd); continue; }
+        if (dc === null) {
+          dc = false;
+          if (Math.max(...nds) > PORTEE_MAX * Lik) {
+            dc = nds.map((x) => Math.min(x, PORTEE_MAX * Lik));
+            for (let rep_ = 0; rep_ < 2; rep_++) dc = dc.map((_, k) => 0.25 * dc[(k + nT - 1) % nT] + 0.5 * dc[k] + 0.25 * dc[(k + 1) % nT]);
+          }
+        }
+        if (dc && phi >= b_ && norm(dd) > 1e-9) {
+          const x_ = clip((u - 0.8) / 0.2, 0, 1), lam = 1 - x_ * x_ * (3 - 2 * x_), n0 = norm(dd);
+          const cible_d = Math.min(n0, PORTEE_MAX * Lik), voulu = cible_d + lam * (dc[i] - cible_d);
+          cib = add(hanche_i, mulS(dd, voulu / n0));
+        }
+      }
+      if (norm(sub(cib, hanche_i)) > PORTEE_MAX * Lik) cib = add(hanche_i, mulS(sub(cib, hanche_i), PORTEE_MAX * Lik / norm(sub(cib, hanche_i))));   // portée bornée
       let Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK));
       // 25/10 (2e tour) : patte en Z (grenouille : cuisse en avant, jambe en arriere, tarse a plat) qui se replie sous le corps : la
       // cheville passait 9 cm SOUS le sol a chaque poussee (44 % de la hauteur). On fait tourner le plan de la patte autour de l'axe
@@ -1622,6 +1657,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         const repos = mv(Rb[i], sub(P0[ch[a + 1]], P0[ch[a]]));
         Dch[a][i] = mm(aligner(repos, sub(Q[a + 1], Q[a])), Rb[i]);
       }
+    }
     }
     ch.slice(0, -1).forEach((k, a) => fixes.set(k, Dch[a]));
     fixes.set(ch[ch.length - 1], Fpied);                    // pied rigide (cap + déroulé)
