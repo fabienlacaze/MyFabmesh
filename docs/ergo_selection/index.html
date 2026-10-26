@@ -137,6 +137,64 @@ dl.card dd{margin:0;background:var(--bg-1);padding:6px 12px;border-bottom:1px so
 .C .ctx hr{border:0;border-top:1px solid var(--border-strong);margin:3px 0;width:100%}
 .C .ctx .dg{color:#ff8e8e}
 
+
+/* ---- D : barre d'options contextuelle facon Photoshop ---- */
+.D .corps{grid-template-columns:48px 1fr 236px;gap:10px}
+.D .pal{display:flex;flex-direction:column;gap:4px;padding:5px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-2);align-self:start}
+.D .pal .b{min-height:36px;padding:3px;font-size:16px;flex-direction:column;gap:0}
+.D .pal .b small{font-size:8.5px;opacity:.75;line-height:1}
+.D .pal .sepH{height:1px;background:var(--border-strong);margin:3px 3px}
+.D .mid{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0}
+.D .opts{display:flex;gap:7px;align-items:center;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg-2);min-height:44px;white-space:nowrap}
+.D .opts .tl{font-weight:700;color:var(--amber);font-size:12px;padding-right:8px;border-right:1px solid var(--border-strong)}
+.D .status{display:flex;gap:14px;align-items:center;padding:5px 10px;border-radius:6px;background:#0f0f1a;border:1px solid var(--border);font-size:11.5px;color:var(--text-1);white-space:nowrap}
+.D .status b{color:#fff}
+.D .stack{display:flex;flex-direction:column;gap:6px;min-height:0;overflow:hidden}
+.D .acc{border:1px solid var(--border-strong);border-radius:8px;background:var(--bg-2);overflow:hidden}
+.D .acc>h6{margin:0;display:flex;justify-content:space-between;padding:7px 10px;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-1);cursor:pointer;background:var(--bg-3)}
+.D .acc>div{padding:8px;display:flex;flex-direction:column;gap:5px}
+.D .acc.closed>div{display:none}
+.D .hist{font-size:11.5px;color:var(--text-1);display:flex;flex-direction:column;gap:2px}
+.D .hist div{padding:3px 6px;border-radius:4px}
+.D .hist .cur{background:rgba(245,158,11,.18);color:#ffd37a}
+.D .hist .fut{opacity:.4}
+.D .menu{position:absolute;z-index:5;width:210px;padding:5px;display:flex;flex-direction:column;gap:1px;font-size:12.5px}
+.D .menu div{display:flex;justify-content:space-between;padding:6px 10px;border-radius:5px}
+.D .menu div:hover{background:#2a3a66}
+.D .menu hr{border:0;border-top:1px solid var(--border-strong);margin:3px 0}
+.D .menu .dg{color:#ff8e8e}
+.strips{display:flex;flex-direction:column;gap:6px;margin:12px 0;max-width:1240px}
+.strip{display:flex;gap:7px;align-items:center;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg-2);font-size:11.5px;color:var(--text-1);flex-wrap:wrap}
+.strip .tl{font-weight:700;color:var(--amber);width:150px;flex:none}
+
+/* ---- E : assistant en 3 temps ---- */
+.E .corps{grid-template-columns:1fr 410px}
+.E .steps{display:flex;gap:10px;margin:2px 0 10px}
+.E .step{flex:1;display:flex;align-items:center;gap:10px;padding:8px 14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-2);color:var(--text-1);font:inherit;cursor:pointer;text-align:left}
+.E .step i{font-style:normal;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--bg-3);font-weight:700;color:var(--text-1);flex:none}
+.E .step span{font-size:13px;font-weight:600}
+.E .step small{display:block;font-size:11px;color:var(--text-2);font-weight:400}
+.E .step.on{border-color:var(--amber);background:rgba(245,158,11,.1);color:#fff}
+.E .step.on i{background:var(--amber);color:#000}
+.E .step.done i{background:var(--success);color:#000}
+.E .col{display:flex;flex-direction:column;gap:10px;min-height:0}
+.E .pan{display:none;flex-direction:column;gap:10px;flex:1;min-height:0}
+.E .pan.on{display:flex}
+.E .big{display:flex;align-items:center;gap:12px;padding:10px 14px;min-height:54px;text-align:left;justify-content:flex-start;font-size:14px;font-weight:600}
+.E .big em{font-size:22px;font-style:normal;width:30px;text-align:center}
+.E .big small{display:block;font-size:11.5px;font-weight:400;opacity:.8;margin-top:1px}
+.E .big.on small{opacity:.85}
+.E .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.E .card2{display:flex;flex-direction:column;gap:3px;padding:9px 11px;border:1px solid #2a3a66;border-radius:9px;background:linear-gradient(#18254a,#121c38);color:var(--text-0);font:inherit;text-align:left;cursor:pointer}
+.E .card2:hover{border-color:#5a6fb0}
+.E .card2 b{font-size:13.5px}
+.E .card2 b em{font-style:normal;margin-right:6px}
+.E .card2 span{font-size:11.5px;color:var(--text-1);line-height:1.3}
+.E .card2.red{border-color:rgba(255,80,80,.55);background:linear-gradient(#3a1620,#2a1018)}
+.E .card2.red b{color:#ff9d9d}
+.E .nav2{display:flex;justify-content:space-between;align-items:center;margin-top:auto;gap:8px}
+.E .expert{color:#c4a1ff;font-size:12px;text-decoration:underline;cursor:pointer}
+
 /* ---- ajustements filaires etroit ---- */
 .wires{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0}
 .wire{width:300px;height:420px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-1);padding:8px;display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text-1);position:relative}
@@ -155,11 +213,11 @@ ol.plan code{color:#ffd37a}
 <nav class="top">
   <b>Sélection des faces : ergonomie</b>
   <a href="#actuel">État actuel</a><a href="#inventaire">Inventaire</a><a href="#diag">Diagnostic chiffré</a>
-  <a href="#varA">Variante A</a><a href="#varB">Variante B</a><a href="#varC">Variante C</a>
+  <a href="#varA">Variante A</a><a href="#varB">Variante B</a><a href="#varC">Variante C</a><a href="#varD">Variante D</a><a href="#varE">Variante E</a>
   <a href="#etroit">Fenêtre étroite</a><a href="#compar">Comparatif</a><a href="#reco">Recommandation</a><a href="#plan">Plan</a>
 </nav>
 <main>
-<h1>Outil « Sélectionner des faces » : trois dispositions proposées</h1>
+<h1>Outil « Sélectionner des faces » : cinq dispositions proposées</h1>
 <p class="lead">Proposition, <b>sans toucher au code livré</b>. Toutes les maquettes ci-dessous reprennent les jetons de <code>cloud/public/app/styles/index2.css</code> (couleurs, rayons, police, bouton ambré <code>.tool-active</code>), le gabarit <code>.modal-card.fen-3d</code> et une vraie capture de la moissonneuse du harnais de test. Les chiffres de faces affichés (18 240 faces, 4,4 %) sont <b>factices</b> : l'application n'a aujourd'hui aucun compteur. Les boutons de chaque maquette sont cliquables (outil actif, onglets, effacer la sélection) mais ne font rien d'autre.</p>
 
 <!-- ============================ ETAT ACTUEL ============================ -->
@@ -404,38 +462,196 @@ ol.plan code{color:#ffd37a}
 <dt>Parité bureau / site</dt><dd>Mêmes ids ; deux fichiers HTML + CSS. <b>Risque</b> : le clic droit de la caméra (panoramique par défaut des contrôles orbitaux, à vérifier dans le code du viewer) entre en conflit avec le menu ; il faudrait distinguer un clic bref d'un glissement, et le menu n'est pas découvrable sans l'astuce.</dd>
 </dl>
 
+
+<!-- ============================ VARIANTE D ============================ -->
+<h2 id="varD">Variante D : barre d'options contextuelle façon Photoshop <span class="tagr">modèle « outil + options »</span></h2>
+<p class="lead">Principe différent de A, B et C : <b>on choisit un outil</b> dans une palette étroite (y compris le gizmo : Déplacer, Rotation, Échelle sont des <i>outils</i>), et la <b>barre d'options</b> juste au-dessus du viewer <b>change selon l'outil actif</b>. Une <b>barre d'état</b> en bas dit toujours l'outil, le nombre de faces et les raccourcis utiles <i>pour cet outil</i>. La colonne de droite est réduite à des panneaux repliables (Historique, Visibilité, Symétrie). Étendre, Rétrécir, Inverser et les deux actions principales restent à droite de la barre d'options, quel que soit l'outil.</p>
+<div class="scroller">
+<div class="win D" id="mockD">
+  <div class="tete"><h4>Select Faces</h4><div class="x">✕</div></div>
+  <div class="sub">Sculpt, paint or select faces on the model, then save the result as a new version.</div>
+  <div class="corps">
+    <div class="pal">
+      <button class="b" title="Sculpt"><span>✍</span><small>Sculpt</small></button>
+      <button class="b" title="Paint"><span>🎨</span><small>Paint</small></button>
+      <div class="sepH"></div>
+      <button class="b on" data-ex="toolD"><span>✎</span><small>Add</small></button>
+      <button class="b" data-ex="toolD"><span>🧹</span><small>Erase</small></button>
+      <button class="b" data-ex="toolD"><span>✨</span><small>Wand</small></button>
+      <button class="b" data-ex="toolD"><span>❂</span><small>Lasso</small></button>
+      <div class="sepH"></div>
+      <button class="b" data-ex="toolD"><span>✥</span><small>Move</small></button>
+      <button class="b" data-ex="toolD"><span>↻</span><small>Rotate</small></button>
+      <button class="b" data-ex="toolD"><span>⇲</span><small>Scale</small></button>
+      <div class="sepH"></div>
+      <button class="b" data-tg title="Loupe"><span>🔍</span><small>Loupe</small></button>
+    </div>
+    <div class="mid">
+      <div class="opts">
+        <span class="tl">✎ Add</span>
+        <div class="rng" style="width:230px"><span class="lbl">Rayon</span><input type="range" min="1" max="100" value="25"><b>0.05</b></div>
+        
+        <span style="flex:1"></span>
+        <button class="b sm">➕ Grow</button><button class="b sm">➖ Shrink</button><button class="b sm">↺ Invert</button>
+        <span class="sep"></span>
+        <button class="b sm" data-pop="menuD1">Sélection ▾</button><button class="b sm" data-pop="menuD2">Édition ▾</button>
+        <span class="sep"></span>
+        <button class="b sm">⧉ Duplicate</button><button class="b sm danger">🗑 Delete</button>
+      </div>
+      <div class="vp bg1" style="flex:1;height:auto">
+        <div class="glass menu" id="menuD2" style="right:8px;top:6px">
+          <div><span>✂ Crop to selection</span></div>
+          <div><span>☐ …and keep the rest</span></div>
+          <hr>
+          <div><span>⇄ Flip normals</span></div>
+          <div><span>∿ Smooth selection</span></div>
+        </div>
+        <div class="glass menu" id="menuD1" style="display:none;right:100px;top:6px">
+          <div><span>▣ Select all</span><kbd>Ctrl+A</kbd></div>
+          <div><span>↺ Invert</span><kbd>Ctrl+I</kbd></div>
+          <div><span>✕ Select none</span><kbd>Esc</kbd></div>
+        </div>
+        <div class="vbar"><span>⟳</span><i></i><span>Iso</span><span>Front</span><span>Back</span><span>Left</span><span>Right</span><span>Top</span><span>Bottom</span><i></i><span>+</span><span>−</span><span>Fit</span></div>
+        <div class="toast" style="top:12px;left:12px;transform:none">✔ 3 120 faces supprimées <u>Annuler (Ctrl+Z)</u></div>
+      </div>
+      <div class="status"><span><b>✎ Add</b></span><span>|</span><span><b>18 240</b> faces sélectionnées (4,4 %)</span><span>|</span><span class="muted">Peindre = ajouter · <kbd>Ctrl</kbd> + clic = ajouter · <kbd>Suppr</kbd> supprime · <kbd>Ctrl+Z</kbd> annule</span></div>
+    </div>
+    <div class="stack">
+      <div class="acc" id="accH"><h6 onclick="this.parentNode.classList.toggle('closed')">Historique <span>▾</span></h6><div class="hist"><div>Ouverture</div><div>Sélection (pinceau)</div><div>Étendre</div><div>Supprimer 3 120 faces</div><div class="cur">Sélection (pinceau)</div><div class="fut">Dupliquer</div></div></div>
+      <div class="acc"><h6 onclick="this.parentNode.classList.toggle('closed')">Visibilité <span>▾</span></h6><div><div class="row"><button class="b sm">◉ Isolate</button><button class="b sm">👁 Hide</button></div><button class="b sm">Tout afficher</button></div></div>
+      <div class="acc"><h6 onclick="this.parentNode.classList.toggle('closed')">Symétrie <span>▾</span></h6><div><div class="row"><button class="b sm" data-tg>X</button><button class="b sm" data-tg>Y</button><button class="b sm" data-tg>Z</button></div></div></div>
+      <div class="acc closed"><h6 onclick="this.parentNode.classList.toggle('closed')">Intensité (Sculpt / Paint) <span>▸</span></h6><div><div class="rng"><input type="range" min="1" max="100" value="50"><b>0.5</b></div></div></div>
+    </div>
+  </div>
+  <div class="pied"><button class="ghost">Cancel</button><button class="primary">Save as new version</button></div>
+</div>
+</div>
+<h3>La barre d'options selon l'outil (D)</h3>
+<div class="strips">
+  <div class="strip"><span class="tl">✎ Add / 🧹 Erase</span><span class="rng" style="width:230px"><span class="lbl">Rayon</span><input type="range" value="25"><b>0.05</b></span><span class="muted">cercle jaune dans la vue</span><span style="flex:1"></span><span class="muted">+ à droite, toujours : Étendre · Rétrécir · Inverser · Sélection ▾ · Édition ▾ · Dupliquer · Supprimer</span></div>
+  <div class="strip"><span class="tl">✨ Wand</span><span class="rng" style="width:230px"><span class="lbl">Angle</span><input type="range" value="20"><b>20°</b></span><span class="muted">pas de rayon : le curseur de rayon disparaît (il ne servait à rien)</span></div>
+  <div class="strip"><span class="tl">❂ Lasso</span><span class="muted">Dessinez une boucle autour de la zone · <kbd>Ctrl</kbd> / <kbd>Maj</kbd> = ajouter</span></div>
+  <div class="strip"><span class="tl">✥ Move / ↻ / ⇲</span><div class="seg" style="width:300px"><button class="b sm on">✥ Move <kbd>T</kbd></button><button class="b sm">↻ Rot. <kbd>R</kbd></button><button class="b sm">⇲ Scale <kbd>Y</kbd></button></div><button class="b sm on">✔ Terminer</button><span class="muted">le gizmo s'ouvre tout seul après Dupliquer (comportement actuel)</span></div>
+</div>
+<dl class="card">
+<dt>Où vont les 33 contrôles</dt><dd>Palette (12) : Sculpt, Paint, Add, Erase, Wand, Lasso, Move, Rotate, Scale, Loupe (le mode « Select » devient implicite quand on prend un outil de sélection). Barre d'options : Rayon ou Angle selon l'outil, Étendre, Rétrécir, Inverser, menus <i>Sélection ▾</i> (Tout, Inverser, Aucune) et <i>Édition ▾</i> (Rogner + Garder le reste, Normales, Lisser), Dupliquer, Supprimer. Panneaux : Historique (Annuler / Rétablir par clic sur une ligne), Visibilité (Isoler, Masquer), Symétrie X Y Z, Intensité (Sculpt / Paint).</dd>
+<dt>Toujours visible</dt><dd>Palette, barre d'options, barre d'état (outil, compteur, raccourcis), panneaux Historique / Visibilité / Symétrie (repliables, état mémorisé).</dd>
+<dt>Replié</dt><dd>Les menus Sélection ▾ et Édition ▾ ; les panneaux au choix de l'utilisateur.</dd>
+<dt>Enchaînement</dt><dd>Outil → viewer ; l'action suit dans la barre d'options, à 300 – 500 px. Le changement d'outil change la barre sans déplacer les boutons de droite (zone fixe) : plus de « saut ».</dd>
+<dt>Raccourcis affichés</dt><dd>Dans la barre d'état, <b>adaptés à l'outil actif</b> (pinceau : [ ] rayon ; baguette : Ctrl ajoute ; gizmo : T R Y) ; lettre sous chaque icône, infobulle riche.</dd>
+<dt>Gizmo et Dupliquer</dt><dd>Gizmo = trois outils de la palette (donc « Move (gizmo) » + ligne de trois boutons disparaissent) ; Dupliquer reste dans la barre d'options et bascule automatiquement sur Déplacer.</dd>
+<dt>Destructif / erreur</dt><dd>Supprimer rouge au bord droit de la barre, Rogner dans un menu. L'Historique donne un retour en arrière visuel (clic sur une ligne) en plus du toast « Annuler » ; Échap désélectionne.</dd>
+<dt>Fenêtre &lt; 900 px</dt><dd>Palette horizontale sous la barre d'options, panneaux repliés par défaut sous le viewer ; barre d'options sur deux lignes ; barre d'état masquée (raccourcis inutiles).</dd>
+<dt>Parité bureau / site</dt><dd>Ids conservés, mais <b>la logique d'état change</b> : la palette doit piloter <code>_meSetSelTool</code> et le gizmo, et la barre d'options montrer / cacher des blocs selon l'outil (même code des deux côtés, HTML et CSS en double). L'historique visuel est une fonction nouvelle (la pile d'annulation existe déjà).</dd>
+</dl>
+
+<!-- ============================ VARIANTE E ============================ -->
+<h2 id="varE">Variante E : assistant en 3 temps pour les non-initiés <span class="tagr">guidée</span></h2>
+<p class="lead">Pour quelqu'un qui ne connaît ni « normales » ni « gizmo ». Un bandeau de <b>trois étapes cliquables</b> (1 Choisir la zone, 2 Que veux-tu en faire ?, 3 Ajuster et valider) ; la colonne de droite ne montre <b>que l'étape en cours</b>, avec de gros boutons à un mot clair, une icône et une phrase. L'étape 2 est un jeu de <b>cartes d'actions</b> expliquées. Le lien « Mode expert » rouvre l'ancienne colonne complète. Clique sur les étapes ci-dessous pour voir les trois écrans.</p>
+<div class="scroller">
+<div class="win E" id="mockE">
+  <div class="tete"><h4>Select Faces</h4><div class="x">✕</div></div>
+  <div class="steps" id="eSteps">
+    <button class="step done" data-e="e1"><i>✔</i><span>Choisir la zone<small>18 240 faces choisies</small></span></button>
+    <button class="step on" data-e="e2"><i>2</i><span>Que veux-tu en faire ?<small>copier, déplacer, supprimer…</small></span></button>
+    <button class="step" data-e="e3"><i>3</i><span>Ajuster et valider<small>placer la zone, puis enregistrer</small></span></button>
+  </div>
+  <div class="corps">
+    <div class="vp bg1"><div class="vbar"><span>⟳</span><i></i><span>Iso</span><span>Front</span><span>Back</span><span>Left</span><span>Right</span><span>Top</span><span>Bottom</span><i></i><span>+</span><span>−</span><span>Fit</span></div>
+      <div class="chip" style="position:absolute;left:12px;top:12px"><span class="amb">▣ Zone choisie</span><b>18 240 faces</b><span class="muted">4,4 % du modèle</span></div>
+      <div class="toast" style="top:12px;left:auto;right:12px;transform:none">✔ 3 120 faces supprimées <u>Annuler</u></div>
+    </div>
+    <div class="col">
+      <div class="pan" id="e1">
+        <div><b style="font-size:16px">1 · Choisis la zone à modifier</b><div class="muted" style="font-size:12px">Peins sur le modèle avec la souris. Tu peux corriger ensuite.</div></div>
+        <div class="g2">
+          <button class="b big on" data-ex="toolE"><em>✎</em><span>Peindre<small>passe la souris sur la zone</small></span></button>
+          <button class="b big" data-ex="toolE"><em>🧹</em><span>Gommer<small>retire une partie du choix</small></span></button>
+          <button class="b big" data-ex="toolE"><em>✨</em><span>Surface<small>un clic = toute la surface plane</small></span></button>
+          <button class="b big" data-ex="toolE"><em>❂</em><span>Entourer<small>dessine une boucle</small></span></button>
+        </div>
+        <div class="rng"><span class="lbl" style="width:90px">Taille du pinceau</span><input type="range" value="25"><b>0.05</b></div>
+        <div class="g2"><button class="b">➕ Agrandir le choix</button><button class="b">➖ Réduire le choix</button><button class="b">▣ Tout choisir</button><button class="b">↺ Choisir le reste</button></div>
+        <div class="nav2"><button class="b sm">✕ Recommencer</button><button class="b on" style="min-width:150px;min-height:38px">Suivant : que faire ? ›</button></div>
+      </div>
+      <div class="pan on" id="e2">
+        <div><b style="font-size:16px">2 · Que veux-tu en faire ?</b><div class="muted" style="font-size:12px">18 240 faces choisies. Rien n'est définitif : tu peux annuler.</div></div>
+        <div class="g2">
+          <button class="card2"><b><em>⧉</em>Dupliquer</b><span>Fait une copie de la zone et te laisse la placer.</span></button>
+          <button class="card2"><b><em>✥</em>Déplacer</b><span>Bouge, tourne ou agrandit la zone dans l'espace.</span></button>
+          <button class="card2"><b><em>◉</em>Isoler</b><span>N'affiche que la zone pour travailler tranquille.</span></button>
+          <button class="card2"><b><em>👁</em>Cacher</b><span>Masque la zone sans la supprimer.</span></button>
+          <button class="card2"><b><em>∿</em>Adoucir</b><span>Lisse la surface pour effacer les angles vifs.</span></button>
+          <button class="card2"><b><em>⇄</em>Retourner</b><span>Inverse le côté visible des faces (si elles paraissent vides).</span></button>
+          <button class="card2 red"><b><em>✂</em>Garder seulement la zone</b><span>Supprime tout le reste du modèle.</span></button>
+          <button class="card2 red"><b><em>🗑</em>Supprimer la zone</b><span>Retire ces faces du modèle.</span></button>
+        </div>
+        <div class="nav2"><button class="b sm">‹ Changer la zone</button><span class="expert">Mode expert : toutes les options ›</span></div>
+      </div>
+      <div class="pan" id="e3">
+        <div><b style="font-size:16px">3 · Ajuste, puis valide</b><div class="muted" style="font-size:12px">Tire les flèches dans la vue 3D pour placer la zone.</div></div>
+        <div class="g2" style="grid-template-columns:1fr 1fr 1fr">
+          <button class="b big on" style="flex-direction:column;gap:2px;text-align:center"><em>✥</em><span>Déplacer</span></button>
+          <button class="b big" style="flex-direction:column;gap:2px;text-align:center"><em>↻</em><span>Tourner</span></button>
+          <button class="b big" style="flex-direction:column;gap:2px;text-align:center"><em>⇲</em><span>Agrandir</span></button>
+        </div>
+        <div class="note" style="font-size:12px">Astuce : touches <kbd>T</kbd> déplacer · <kbd>R</kbd> tourner · <kbd>Y</kbd> agrandir.</div>
+        <button class="b big on" style="justify-content:center">✔ Terminer le placement</button>
+        <div class="nav2"><button class="b sm">‹ Autre action</button><button class="b sm">↶ Annuler</button></div>
+        <div class="muted" style="font-size:12px">Quand tout te convient : bouton <b>Save as new version</b> en bas. Rien n'est enregistré avant.</div>
+      </div>
+    </div>
+  </div>
+  <div class="pied"><button class="ghost">Cancel</button><button class="primary">Save as new version</button></div>
+</div>
+</div>
+<dl class="card">
+<dt>Où vont les 33 contrôles</dt><dd>Étape 1 : 4 outils de sélection (en mots simples), taille du pinceau, Agrandir, Réduire, Tout, Reste, Recommencer. Étape 2 : 8 cartes (Dupliquer, Déplacer, Isoler, Cacher, Adoucir, Retourner, Garder seulement la zone, Supprimer). Étape 3 : Déplacer / Tourner / Agrandir, Terminer, Annuler. <b>Mode expert</b> : l'ancienne colonne actuelle (ou B) pour tout le reste (symétrie, loupe, angle de la baguette, Intensité, mode Sculpt / Paint).</dd>
+<dt>Toujours visible</dt><dd>Le bandeau des trois étapes avec le compteur de la zone, la puce « Zone choisie » dans le viewer, le panneau de l'étape en cours (sans défilement), Annuler / Save.</dd>
+<dt>Replié</dt><dd>Tout ce qui n'est pas dans l'étape courante. Le mode expert est un lien.</dd>
+<dt>Enchaînement</dt><dd>Étape 1 → « Suivant » → carte d'action → (gizmo : étape 3) → Save. Le chemin est écrit à l'écran : pas de vocabulaire à connaître.</dd>
+<dt>Raccourcis affichés</dt><dd>Peu : une astuce par étape ; les raccourcis sont réservés au mode expert.</dd>
+<dt>Gizmo et Dupliquer</dt><dd>Dupliquer = carte de l'étape 2 qui enchaîne vers l'étape 3 (gizmo en gros boutons « Déplacer / Tourner / Agrandir »).</dd>
+<dt>Destructif / erreur</dt><dd>Cartes rouges en fin de grille, phrase qui dit l'effet (« Supprime tout le reste du modèle »), toast « Annuler ». Les noms techniques (normales, gizmo, isoler) sont remplacés par des mots simples.</dd>
+<dt>Fenêtre &lt; 900 px</dt><dd>Le bandeau devient une rangée de trois pastilles numérotées ; le panneau d'étape passe sous le viewer et tient en un écran (c'est le plus à l'aise des cinq).</dd>
+<dt>Parité bureau / site</dt><dd>Même HTML dans les deux fichiers ; les cartes ne font que <code>.click()</code> sur les boutons existants, qui restent présents (cachés en mode simple, visibles en mode expert). Le <b>danger</b> : deux interfaces à maintenir et à tester.</dd>
+</dl>
+
 <h2 id="etroit">Fenêtre étroite (&lt; 900 px) : schémas</h2>
 <div class="wires">
   <div class="wire"><h5>Actuel</h5><div class="v"></div><div class="blk">Mode · Symétrie</div><div class="blk">Outil de sélection (hors écran)</div><div class="blk">Modifier · Vue · Éditer…</div><div class="blk red">Supprimer, Rayon : 1 écran plus bas</div><span class="muted" style="margin-top:auto">Le corps défile : le modèle sort de l'écran avant d'atteindre les boutons.</span></div>
   <div class="wire"><h5>A</h5><div class="v"></div><div class="blk hot">Barre flottante sur le viewer (2 lignes)</div><div class="blk">Palette : rangée horizontale d'icônes</div><div class="blk">Puce « 18 240 faces »</div><span class="muted" style="margin-top:auto">Tout reste à l'écran sans défiler.</span></div>
   <div class="wire"><h5>B</h5><div class="v"></div><div class="blk hot">En-tête sticky : compteur · rayon</div><div class="blk hot">Rangée sticky : Dupliquer · Déplacer · Supprimer</div><div class="blk">Onglets (contenu défile)</div><span class="muted" style="margin-top:auto">Compteur et actions courantes toujours visibles.</span></div>
   <div class="wire"><h5>C</h5><div class="v"></div><div class="blk">Outils (rangée 1)</div><div class="blk hot">Sélection (rangée 2, défilement horizontal)</div><div class="blk red">Supprimer : fin de rangée, épinglé à droite</div><span class="muted" style="margin-top:auto">Appui long = menu contextuel.</span></div>
+  <div class="wire"><h5>D</h5><div class="v"></div><div class="blk hot">Barre d'options sur 2 lignes</div><div class="blk">Palette horizontale d'icônes</div><div class="blk">Panneaux repliés (Historique, Visibilité, Symétrie)</div><span class="muted" style="margin-top:auto">Barre d'état masquée.</span></div>
+  <div class="wire"><h5>E</h5><div class="v"></div><div class="blk hot">Étapes 1 · 2 · 3 (pastilles)</div><div class="blk">Panneau de l'étape en cours (un écran)</div><div class="blk red">Suivant / Terminer : pied du panneau</div><span class="muted" style="margin-top:auto">Aucun défilement.</span></div>
 </div>
 
 <!-- ============================ COMPARATIF ============================ -->
-<h2 id="compar">4. Tableau comparatif</h2>
+<h2 id="compar">4. Tableau comparatif (5 variantes)</h2>
 <p class="muted">Scénarios chiffrés « clics + défilements (≈ px souris depuis le centre du viewer) », à 1700 × 960, estimés d'après la géométrie des maquettes et des mesures ci-dessus (sélection elle-même non comptée). « B+ » = B plus la barre flottante contextuelle de A (voir recommandation).</p>
 <div class="scroller"><table>
-<tr><th>Critère</th><th>Actuel</th><th>A : palette + barre flottante</th><th>B : en-tête fixe + onglets</th><th>C : barre du bas + clic droit</th><th>B+ (recommandée)</th></tr>
-<tr><td>S1 Sélectionner → Dupliquer → déplacer</td><td>1 clic, 0 déf. (≈ 880 px) ; gizmo ouvert : Dupliquer rogné</td><td>1 clic, 0 déf. (≈ 220 px)</td><td>1 clic, 0 déf. (≈ 760 px), onglet Transformer s'ouvre seul</td><td>1 clic droit + 1 clic (≈ 0 à 350 px)</td><td>1 clic (≈ 220 px)</td></tr>
-<tr><td>S2 Sélectionner → Supprimer</td><td>1 clic + 1 déf. (≈ 1 050 px) ou touche cachée</td><td>1 clic (≈ 300 px) ou <kbd>Suppr</kbd> annoncée</td><td>1 clic, 0 déf. (≈ 800 px)</td><td>1 clic (≈ 350 px) ou menu</td><td>1 clic (≈ 300 px) ou <kbd>Suppr</kbd></td></tr>
-<tr><td>S3 Baguette → Étendre → Isoler</td><td>3 clics, mise en page qui saute (+40 px) (≈ 1 050 px cumulés)</td><td>1 touche <kbd>W</kbd> + 2 clics (≈ 450 px)</td><td>3 clics, 0 saut (≈ 800 px)</td><td>3 clics (≈ 700 px)</td><td><kbd>W</kbd> + 2 clics sur la barre (≈ 450 px)</td></tr>
-<tr><td>S4 Ajuster le rayon en cours de travail</td><td>1 défilement + 1 glissement, ≈ 2 000 px aller-retour</td><td>0 déf. ; glisser dans la puce (≈ 250 px) ou <kbd>[</kbd> <kbd>]</kbd></td><td>1 glissement, 0 déf. (≈ 750 px) ou <kbd>[</kbd> <kbd>]</kbd></td><td>1 glissement (≈ 450 px)</td><td>1 glissement ou <kbd>[</kbd> <kbd>]</kbd></td></tr>
-<tr><td>S5 Rogner en gardant le reste</td><td>1 défilement + 2 clics</td><td>3 clics (Plus, case, Rogner)</td><td>3 clics (onglet, case, Rogner) dans la zone sensible</td><td>3 clics (Plus, case, Rogner)</td><td>3 clics</td></tr>
-<tr><td>Retour d'état (outil, compteur, rayon)</td><td>aucun / rayon en 10 px</td><td>puce dans le viewer</td><td>en-tête permanent</td><td>compteur dans la barre</td><td>en-tête + puce</td></tr>
-<tr><td>Lisibilité (densité)</td><td>faible : 24 boutons identiques</td><td>élevée (icônes + groupes), mais icônes à apprendre</td><td>élevée, libellés complets</td><td>moyenne : ≈ 30 boutons sur 2 lignes très serrées</td><td>élevée</td></tr>
-<tr><td>Effort d'implémentation</td><td>:</td><td>6 à 8 jours</td><td>2 à 3 jours</td><td>5 à 6 jours</td><td>4 jours (B 2,5 + barre 1,5)</td></tr>
-<tr><td>Risque de régression</td><td>:</td><td>élevé : couches sur le canvas (lasso, curseur-pinceau, loupe), événements souris, tous les modes Sculpt / Paint à refaire</td><td>faible : ids et gestionnaires intacts, regroupement HTML + CSS</td><td>moyen à élevé : clic droit déjà pris par la caméra, barre à placer dans le gabarit</td><td>faible à moyen : la barre ne fait que <code>.click()</code> sur les boutons existants</td></tr>
-<tr><td>Compat. gabarit <code>.fen-3d</code> et autres fenêtres 3D</td><td>oui</td><td>non : deux colonnes supprimées, nouveau modificateur <code>.fen-immersif</code>, incohérent avec Sculpt, Paint, Lissage… qui gardent la colonne</td><td>oui : même grille, même largeur (<code>--vz-w-corps</code> inchangé), cohérent avec les autres fenêtres</td><td>partielle : le viewer s'élargit, rompt la règle commune « mêmes dimensions de visualiseur » du 25/10</td><td>oui</td></tr>
-<tr><td>Traductions à refaire</td><td>:</td><td>≈ 15 chaînes (infobulles, « faces », menu Plus)</td><td>≈ 8 (onglets, compteur, zone sensible, Tout afficher)</td><td>≈ 12 (rangées, menu contextuel, astuce)</td><td>≈ 12</td></tr>
-<tr><td>Fenêtre &lt; 900 px</td><td>mauvais : le modèle sort de l'écran</td><td>bon</td><td>bon (en-tête sticky)</td><td>moyen (barre sur 4 rangées)</td><td>bon</td></tr>
+<tr><th>Critère</th><th>Actuel</th><th>A : palette + barre flottante</th><th>B : en-tête fixe + onglets</th><th>C : barre du bas + clic droit</th><th>D : barre d'options contextuelle</th><th>E : assistant en 3 temps</th><th>B+ (recommandée)</th></tr>
+<tr><td>S1 Sélectionner → Dupliquer → déplacer</td><td>1 clic, 0 déf. (≈ 880 px) ; gizmo ouvert : Dupliquer rogné</td><td>1 clic (≈ 220 px)</td><td>1 clic (≈ 760 px)</td><td>1 clic droit + 1 clic (≈ 0 – 350 px)</td><td>1 clic (≈ 450 px) ; le gizmo-outil s'active seul</td><td>3 clics (Suivant, Dupliquer, Terminer) (≈ 1 100 px)</td><td>1 clic (≈ 220 px)</td></tr>
+<tr><td>S2 Sélectionner → Supprimer</td><td>1 clic + 1 déf. (≈ 1 050 px) ou touche cachée</td><td>1 clic (≈ 300 px) ou <kbd>Suppr</kbd></td><td>1 clic (≈ 800 px)</td><td>1 clic (≈ 350 px)</td><td>1 clic (≈ 500 px) ou <kbd>Suppr</kbd> (rappelée dans la barre d'état)</td><td>2 clics (Suivant, Supprimer) (≈ 900 px)</td><td>1 clic (≈ 300 px)</td></tr>
+<tr><td>S3 Baguette → Étendre → Isoler</td><td>3 clics, mise en page qui saute (≈ 1 050 px)</td><td><kbd>W</kbd> + 2 clics (≈ 450 px)</td><td>3 clics (≈ 800 px)</td><td>3 clics (≈ 700 px)</td><td><kbd>W</kbd> + Étendre + Isoler (panneau) : 3 clics (≈ 600 px)</td><td>4 clics (Surface, Agrandir, Suivant, Isoler) (≈ 1 100 px)</td><td><kbd>W</kbd> + 2 clics (≈ 450 px)</td></tr>
+<tr><td>S4 Ajuster le rayon en cours de travail</td><td>1 déf. + 1 glissement (≈ 2 000 px aller-retour)</td><td>glissement dans la puce (≈ 250 px) ou <kbd>[</kbd><kbd>]</kbd></td><td>1 glissement (≈ 750 px)</td><td>1 glissement (≈ 450 px)</td><td>glissement dans la barre d'options (≈ 250 px)</td><td>étape 1 puis glissement : 2 clics (≈ 900 px)</td><td>glissement ou <kbd>[</kbd><kbd>]</kbd></td></tr>
+<tr><td>S5 Rogner en gardant le reste</td><td>1 déf. + 2 clics</td><td>3 clics</td><td>3 clics (zone sensible)</td><td>3 clics</td><td>3 clics (Édition ▾, case, Rogner)</td><td>3 clics (Suivant, carte, choix « le reste »)</td><td>3 clics</td></tr>
+<tr><td>Retour d'état (outil, compteur, rayon)</td><td>aucun</td><td>puce dans le viewer</td><td>en-tête permanent</td><td>compteur dans la barre</td><td>barre d'état + barre d'options + historique visuel</td><td>bandeau d'étapes + puce</td><td>en-tête + puce</td></tr>
+<tr><td>Lisibilité / public visé</td><td>faible, vocabulaire 3D</td><td>élevée, icônes à apprendre</td><td>élevée, libellés complets</td><td>moyenne, 30 boutons sur 2 lignes</td><td>élevée pour qui connaît Photoshop / Blender</td><td>très élevée pour un débutant ; lente pour un habitué (+1 à +2 clics)</td><td>élevée</td></tr>
+<tr><td>Effort d'implémentation</td><td>:</td><td>6 à 8 jours</td><td>2 à 3 jours</td><td>5 à 6 jours</td><td>5 à 6 jours</td><td>6 à 8 jours (+ mode expert à garder)</td><td>4 jours</td></tr>
+<tr><td>Risque de régression</td><td>:</td><td>élevé (couches sur le canvas)</td><td>faible</td><td>moyen à élevé (clic droit pris par la caméra)</td><td>moyen à élevé : logique d'outil actif à reprendre (<code>_meSetSelTool</code>, gizmo comme outils, bascules Sculpt / Paint)</td><td>moyen : deux interfaces, mais les cartes ne font que cliquer les boutons existants</td><td>faible à moyen</td></tr>
+<tr><td>Compat. gabarit <code>.fen-3d</code> / autres fenêtres 3D</td><td>oui</td><td>non (colonne supprimée)</td><td>oui</td><td>partielle (viewer élargi)</td><td>partielle : 3 colonnes, viewer plus large de ≈ 100 px, barre d'options à ajouter au gabarit</td><td>oui (même grille 2 colonnes, colonne de 410 px) ; bandeau d'étapes à ajouter en tête</td><td>oui</td></tr>
+<tr><td>Traductions à refaire</td><td>:</td><td>≈ 15 chaînes</td><td>≈ 8</td><td>≈ 12</td><td>≈ 14</td><td>≈ 40 (phrases d'explication en 5 langues, noms simplifiés à valider)</td><td>≈ 12</td></tr>
+<tr><td>Fenêtre &lt; 900 px</td><td>mauvais</td><td>bon</td><td>bon (sticky)</td><td>moyen</td><td>bon</td><td>très bon</td><td>bon</td></tr>
+<tr><td>Parité bureau / site</td><td>:</td><td>HTML + CSS ×2</td><td>HTML + CSS ×2, ids inchangés</td><td>HTML + CSS ×2</td><td>HTML + CSS + logique d'outil ×2</td><td>HTML + CSS ×2 ; boutons existants gardés cachés</td><td>HTML + CSS ×2</td></tr>
 </table></div>
 
 <h2 id="reco">5. Recommandation</h2>
 <div class="reco">
-<p><b>B, puis la barre flottante de A : « B+ ».</b> Commencer par B (colonne à en-tête fixe, quatre onglets, trois actions rapides toujours visibles, compteur de faces, rayon en haut). C'est la seule variante qui règle à elle seule les défauts mesurés : plus aucun défilement (Supprimer et Rayon n'étaient jamais visibles même à 1920 × 1080), plus de saut de mise en page quand l'angle de la baguette apparaît, un retour d'état permanent, et les raccourcis sur les boutons. Elle garde le gabarit <code>.fen-3d</code> et la règle commune du 25/10 (visualiseur de la même taille dans tous les outils), garde tous les ids et tous les gestionnaires, et coûte 2 à 3 jours.</p>
-<p>B ne réduit toutefois pas la distance souris (la colonne reste à droite). On y ajoute donc, en deuxième étape (1,5 jour), la <b>barre flottante</b> de A, limitée à Dupliquer / Déplacer / Inverser / Supprimer au-dessus de la barre de vues : elle ne fait que déclencher les boutons existants, donc sans nouvelle logique. A en entier est écartée (refonte des trois modes, 6 à 8 jours, rupture avec les autres fenêtres) ; C est écartée à cause du conflit du clic droit avec la caméra et de la découvrabilité faible.</p>
-<p><b>Trois décisions à valider avec toi avant de coder</b> : (1) Échap ferme-t-il encore la fenêtre ? Proposé : il désélectionne d'abord, et demande confirmation s'il reste des modifications ; (2) Supprimer sans fenêtre de confirmation mais avec toast « Annuler » ? Proposé : oui ; (3) raccourcis lettres B E W L [ ] : OK dans une fenêtre où T R Y existent déjà ?</p>
+<p><b>Recommandation mise à jour (5 variantes) : toujours B+ comme ossature, avec deux emprunts.</b> B règle seule les défauts mesurés (plus de défilement, compteur, rayon et trois actions toujours visibles) pour 2 à 3 jours sans toucher à la logique ; on lui ajoute la barre flottante de A (1,5 jour), puis, de D, <b>l'idée la plus rentable à bas coût : une barre d'état qui rappelle les raccourcis de l'outil actif</b> et un rayon / angle qui n'apparaît qu'avec l'outil concerné (le curseur d'angle ne fait plus sauter la page).</p>
+<p>D en entier est écartée pour l'instant (5 à 6 jours, logique d'outil à refondre dans les deux plateformes, gabarit à 3 colonnes). E n'est pas à écarter, mais c'est un autre produit : à ne faire que si ton public est composé de débutants, et alors <b>par-dessus B+</b>, comme « mode simple » par défaut avec un lien « mode expert » qui ouvre B+ (les cartes de l'étape 2 ne font que cliquer les boutons existants). Je te conseille de livrer B+ d'abord, puis de juger sur l'usage réel si E vaut ses 6 à 8 jours et ses ≈ 40 chaînes à traduire.</p>
+<p>Détail et fondement de B+ : B et A, comparés ci-dessus ; A en entier (6 à 8 jours, rupture avec les autres fenêtres) et C (clic droit pris par la caméra) restent écartées. <b>Décisions à valider avant de coder</b> : (1) Échap désélectionne d'abord, puis confirme avant de fermer ; (2) Supprimer sans confirmation mais avec toast « Annuler » ; (3) raccourcis B E W L [ ] à côté de T R Y ; (4) Intensité masquée en mode Select ; (5) public visé : experts (B+) ou débutants (B+ puis E).</p>
 </div>
 
 <h2 id="plan">6. Plan d'implémentation de B+ (non commencé)</h2>
@@ -514,6 +730,11 @@ document.querySelectorAll('[data-tg]').forEach(b=>b.addEventListener('click',()=
 document.querySelectorAll('#bTabs button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('#bTabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
   document.querySelectorAll('#mockB .pan').forEach(p=>p.classList.toggle('on',p.id===b.dataset.t));
+}));
+document.querySelectorAll('#eSteps .step').forEach(b=>b.addEventListener('click',()=>{
+  const order=['e1','e2','e3'];const k=order.indexOf(b.dataset.e);
+  document.querySelectorAll('#eSteps .step').forEach((x,i)=>{x.classList.toggle('on',i===k);x.classList.toggle('done',i<k);x.querySelector('i').textContent=i<k?'✔':String(i+1);});
+  document.querySelectorAll('#mockE .pan').forEach(p=>p.classList.toggle('on',p.id===b.dataset.e));
 }));
 function clr(btn,win,cnt,txt){const el=document.getElementById(btn);if(!el)return;el.addEventListener('click',()=>{
   const w=document.getElementById(win);const none=!w.classList.contains('nosel');w.classList.toggle('nosel',none);

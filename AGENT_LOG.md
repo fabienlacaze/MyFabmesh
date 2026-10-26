@@ -26341,3 +26341,6 @@ Dans les 7 cas : 0 arete de bord restante apres soudure (restantes = 0), faces /
 
 ## 2026-10-26 - Proposition d ergonomie de l outil Selectionner des faces (maquettes, aucun code livre)
 Branche ergo-selection-2610. Mesure dans le navigateur (build 1.0.69) : colonne de droite 939 px de contenu pour 693 px visibles a 1700x960 (513 a 1366x768) ; Supprimer et Rayon restent hors ecran meme a 1920x1080 ; aucun compteur de faces ; Echap ferme la fenetre sans confirmation. Trois dispositions maquettees (A palette + barre flottante, B en-tete fixe + onglets, C barre du bas + clic droit) dans docs/ergo_selection/index.html (aussi C:/tmp/ergo_selection/index.html). Recommandation : B puis barre flottante de A (B+). Le code de l appli n est pas modifie.
+
+## 2026-10-26 - Ergonomie selection des faces : variantes D (barre d options contextuelle) et E (assistant en 3 temps)
+Ajout de deux maquettes au viewer docs/ergo_selection/index.html (tableau comparatif a 5 variantes, recommandation mise a jour : B+ comme ossature, E seulement en mode simple par-dessus si public debutant). Aucun code de l appli modifie.
