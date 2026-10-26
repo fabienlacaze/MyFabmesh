@@ -64,8 +64,8 @@ test('Select > Duplicate : POSITION, UV, NORMAL et COLOR ont le meme nombre de s
   g._selSaved = sel;
   const ensureColor = (c) => c.geometry.attributes.color;
   let gizmoOuvert = 0;
-  new Function('document', 'meState', 'THREE', '_meRestoreView', '_mePushUndo', '_meHasSelection', '_meEnsureColor', '_meUpdateSelButtons', 'showToast', '_meStartMove', '_meEndMove', code)(
-    e.document, e.meState, THREE, () => {}, () => {}, () => true, ensureColor, () => {}, e.showToast, () => { gizmoOuvert++; }, () => {});
+  new Function('document', 'meState', 'THREE', '_meRestoreView', '_mePushUndo', '_meHasSelection', '_meEnsureColor', '_meUpdateSelButtons', 'showToast', '_meStartMove', '_meEndMove', '_meGarderGrosMorceaux', code)(
+    e.document, e.meState, THREE, () => {}, () => {}, () => true, ensureColor, () => {}, e.showToast, () => { gizmoOuvert++; }, () => {}, (geom, tris) => tris);
   e.clics['me-sel-duplicate']();
   assert.equal(gizmoOuvert, 1, 'le gizmo doit s ouvrir sur la copie des que Dupliquer est clique (demande du user, 26/10)');
   const n = g.attributes.position.count;

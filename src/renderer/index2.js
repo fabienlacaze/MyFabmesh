@@ -19507,6 +19507,28 @@ function _meSelMap(geom) {
   if (!geom._selSaved) geom._selSaved = new Map();
   return geom._selSaved;
 }
+/** DUPLIQUER : ne garde, parmi les triangles a copier (liste d'indices a plat), que les GROS MORCEAUX CONNEXES (26/10, capture du user : « toujours eclate »). Un pinceau ou un lasso
+ *  selectionne des SOMMETS dans l'espace : il ramasse au passage des fragments d'autres pieces (tiges, feuilles jumelles, interieur de la tole) qui, copies puis deplacees, ressemblent
+ *  a des debris. La connexite est jugee par POSITIONS SOUDEES (les coutures UV dedoublent les sommets). Un morceau est garde s'il a au moins max(24 triangles, 8 % du plus gros). */
+function _meGarderGrosMorceaux(geom, tris) {
+  if (tris.length < 3 * 40) return tris;
+  _meBuildPosAdj(geom);
+  const keyOf = geom._posKeyByIndex, parent = new Map();
+  const find = (k) => { let r = k; while (parent.get(r) !== r) r = parent.get(r); while (parent.get(k) !== r) { const n = parent.get(k); parent.set(k, r); k = n; } return r; };
+  const joindre = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(rb, ra); };
+  for (let t = 0; t < tris.length; t += 3) {
+    const a = keyOf[tris[t]], b = keyOf[tris[t + 1]], d = keyOf[tris[t + 2]];
+    if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); if (!parent.has(d)) parent.set(d, d);
+    joindre(a, b); joindre(a, d);
+  }
+  const taille = new Map();
+  for (let t = 0; t < tris.length; t += 3) { const r = find(keyOf[tris[t]]); taille.set(r, (taille.get(r) || 0) + 1); }
+  let max = 0; for (const n of taille.values()) if (n > max) max = n;
+  const seuil = Math.max(24, Math.ceil(0.08 * max));
+  const out = [];
+  for (let t = 0; t < tris.length; t += 3) { if (taille.get(find(keyOf[tris[t]])) >= seuil) out.push(tris[t], tris[t + 1], tris[t + 2]); }
+  return out.length ? out : tris;
+}
 function _meHasSelection() {
   let has = false;
   meState.mesh?.traverse(c => { if (c.isMesh && c.geometry?._selSaved && c.geometry._selSaved.size > 0) has = true; });
@@ -20392,6 +20414,7 @@ document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
       if (sel.has(idx[i]) || sel.has(idx[i + 1]) || sel.has(idx[i + 2])) tris.push(idx[i], idx[i + 1], idx[i + 2]);
     }
     if (!tris.length) return;
+    { const garde = _meGarderGrosMorceaux(geom, tris); if (garde !== tris) { tris.length = 0; for (const v of garde) tris.push(v); } }   // fragments d'autres pieces ramasses par le pinceau : ecartes
     // Restore the source faces' real colours first so both copies show paint,
     // not the cyan highlight.
     for (const [i, o] of sel) col.setXYZ(i, o[0], o[1], o[2]);
