@@ -1086,6 +1086,38 @@
           if (arg.base64.length > 16e6) {
             const bin = atob(arg.base64), oct = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) oct[i] = bin.charCodeAt(i);
+            // Plus de ~90 Mo : Cloudflare refuse tout corps > 100 Mo (HTTP 413, moissonneuse) -> morceaux de 32 Mio assembles par le serveur
+            if (oct.byteLength > 90e6) {
+              const projet2 = _projetAuLancement(arg.projectName);
+              const post = async (qs, corps, json) => {
+                const r0 = await fetch('/api/mesh-op/client-multi?' + new URLSearchParams(qs).toString(), {
+                  method: 'POST', credentials: 'include',
+                  headers: { 'content-type': json ? 'application/json' : 'application/octet-stream' },
+                  body: json ? JSON.stringify(json) : corps });
+                const d = await r0.json().catch(() => ({}));
+                if (!r0.ok || d?.success === false) throw new Error(d?.error || `HTTP ${r0.status}`);
+                return d;
+              };
+              const init = await post({ action: 'init', kind: 'mesh', project: projet2 || '', source: filename.replace(/\.glb$/i, '') });
+              const taille = init.partSize || 32 * 1024 * 1024, parts = [];
+              try {
+                for (let i = 0; i * taille < oct.byteLength; i++) {
+                  const morceau = oct.subarray(i * taille, Math.min(oct.byteLength, (i + 1) * taille));
+                  let derniere = null;
+                  for (let essai = 0; essai < 3; essai++) {
+                    try { parts.push(await post({ action: 'part', key: init.key, uploadId: init.uploadId, n: String(i + 1) }, morceau)); derniere = null; break; }
+                    catch (e) { derniere = e; }
+                  }
+                  if (derniere) throw derniere;
+                }
+                const fin = await post({ action: 'complete' }, null, { key: init.key, uploadId: init.uploadId, project: projet2 || '', parts: parts.map(p => ({ partNumber: p.partNumber, etag: p.etag })) });
+                if (typeof window.__cloudCreditsRefresh === 'function') window.__cloudCreditsRefresh();
+                return { success: true, ok: true, path: init.key, url: fin.path || fin.mesh_url };
+              } catch (e) {
+                try { await post({ action: 'abort' }, null, { key: init.key, uploadId: init.uploadId }); } catch (_) {}
+                return { success: false, error: String(e?.message || e) };
+              }
+            }
             const q = new URLSearchParams({ filename, kind: 'mesh' });
             const projet = _projetAuLancement(arg.projectName);
             if (projet) q.set('projectName', projet);

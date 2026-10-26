@@ -15460,7 +15460,10 @@ async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response
   if (!env.MESHES || !env.R2_PUBLIC_URL) return err(500, 'R2 binding required');
   const q = new URL(req.url).searchParams;
   const action = q.get('action') || '';
-  const cleOk = (k: string) => k.startsWith(`${user.id}/rigged/`) && /_rigged_(skinpaint|skinlight)_\d+\.glb$/.test(k) && !k.includes('..');
+  const cleOk = (k: string) => k.startsWith(`${user.id}/rigged/`) && /_rigged_(skinpaint|skinlight)_\d+\.glb$/.test(k) && !k.includes('..')
+  // kind=mesh (27/10) : maillage edite (Select faces, Sculpt...) de plus de ~90 Mo, meme envoi par morceaux, range comme /api/upload-mesh
+  const cleMeshOk = (k: string) => (k.startsWith(`${user.id}/mesh-op/`) || k.startsWith(`${user.id}/edited/`)) && /\.glb$/.test(k) && !k.includes('..');
+  const cleValide = (k: string) => cleOk(k) || cleMeshOk(k);
 
   if (action === 'init') {
     const restants = await checkAndIncrementUserCalls(env, user.id);
@@ -15469,13 +15472,16 @@ async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response
       .replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 160);
     if (!source) return err(400, 'source required');
     const moteurPeau = q.get('light') === '1' ? 'skinlight' : 'skinpaint';
-    const key = `${user.id}/rigged/${source}_rigged_${moteurPeau}_${Date.now()}.glb`;
+    const slugProjet = String(q.get('project') || '').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+    const key = q.get('kind') === 'mesh'
+      ? (slugProjet ? `${user.id}/mesh-op/${slugProjet}/${source}_${Date.now()}.glb` : `${user.id}/edited/${source}_${Date.now()}.glb`)
+      : `${user.id}/rigged/${source}_rigged_${moteurPeau}_${Date.now()}.glb`;
     const mp = await env.MESHES.createMultipartUpload(key, { httpMetadata: { contentType: 'model/gltf-binary' } });
     return json({ ok: true, success: true, key, uploadId: mp.uploadId, partSize: MULTI_PART_OCTETS });
   }
   if (action === 'part') {
     const key = q.get('key') || '', uploadId = q.get('uploadId') || '', n = parseInt(q.get('n') || '0', 10);
-    if (!cleOk(key) || !uploadId || !(n >= 1 && n <= 10000)) return err(400, 'bad part request');
+    if (!cleValide(key) || !uploadId || !(n >= 1 && n <= 10000)) return err(400, 'bad part request');
     const annonce = Number(req.headers.get('content-length') ?? '0');
     if (annonce > MULTI_PART_OCTETS + 1024) return err(413, 'part too large');
     const corps = await req.arrayBuffer();
@@ -15485,7 +15491,7 @@ async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response
   }
   const b = await req.json().catch(() => ({})) as { key?: string; uploadId?: string; parts?: { partNumber: number; etag: string }[]; project?: string };
   const key = String(b.key || ''), uploadId = String(b.uploadId || '');
-  if (!cleOk(key) || !uploadId) return err(400, 'bad request');
+  if (!cleValide(key) || !uploadId) return err(400, 'bad request');
   if (action === 'abort') {
     try { await env.MESHES.resumeMultipartUpload(key, uploadId).abort(); } catch { /* deja termine */ }
     return json({ ok: true, success: true });
@@ -15512,7 +15518,7 @@ async function handleMeshOpClientMulti(req: Request, env: Env): Promise<Response
     }
     const url = await signedR2Url(env, key, 'mesh');
     await logOperation(env, user.id, 'mesh-op-client', prix, opStart, Date.now(), 'succeeded',
-                       { req, projectName: b.project, op_type: 'skin_paint', client_side: true, multipart: true });
+                       { req, projectName: b.project, op_type: cleMeshOk(key) ? 'manual_mesh' : 'skin_paint', client_side: true, multipart: true });
     return json({ ok: true, success: true, path: url, newPath: url, mesh_url: url });
   }
   return err(400, 'unknown action');

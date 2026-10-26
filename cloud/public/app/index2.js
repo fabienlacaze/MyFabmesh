@@ -26219,7 +26219,8 @@ async function refreshJobDetailsModal(id) {
     if (j.status === 'error' && j.errorMessage) {
       errBox.textContent = j.errorMessage;
       errBox.classList.remove('hidden');
-      _boutonCopierErreur(errBox, j.errorMessage, 'jd-error-copy');
+      // 27/10 (user : « ca dit aller a la generation au lieu de me dire de copier le code erreur ») : en echec, COPIER L'ERREUR est l'action principale
+      { const _cb = _boutonCopierErreur(errBox, j.errorMessage, 'jd-error-copy'); _cb.className = 'primary-btn'; _cb.style.cssText = 'margin-top:10px;width:100%;padding:12px;font-size:15px;'; }
       // Content-filter block → offer a direct Unlock shortcut.
       const isContentFilter = /content filter|parental control|unrestricted mode/i.test(j.errorMessage);
       if (unlockBtn) unlockBtn.style.display = isContentFilter ? '' : 'none';
@@ -26242,6 +26243,8 @@ async function refreshJobDetailsModal(id) {
       // On success point at the RESULT; while running/error point at the
       // generation step. Unified label (ported from desktop).
       gotoBtn.textContent = j.status === 'done' ? '→ Go to generated item' : '→ Go to generation';
+      gotoBtn.classList.toggle('ghost-btn', j.status === 'error'); gotoBtn.classList.toggle('primary-btn', j.status !== 'error');
+      gotoBtn.style.background = j.status === 'error' ? '' : 'linear-gradient(135deg,#7c3aed,#a855f7)';
     }
   }
 }

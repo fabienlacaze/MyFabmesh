@@ -15,3 +15,14 @@ test('la route en flux ne suffixe pas un maillage en rig', () => {
 test('le message d\'echec donne le code HTTP', () => {
   assert.match(api, /upload failed \(HTTP \$\{resp\.status\}\)/);
 });
+test('au-dela de 90 Mo : envoi par morceaux (HTTP 413 sur la moissonneuse), cle de maillage acceptee par le worker', () => {
+  assert.match(api, /oct\.byteLength > 90e6/);
+  assert.match(api, /action: 'init', kind: 'mesh'/);
+  assert.match(worker, /const cleValide = \(k: string\) => cleOk\(k\) \|\| cleMeshOk\(k\)/);
+  assert.match(worker, /q\.get\('kind'\) === 'mesh'/);
+});
+test('fenetre d\'echec : « Copy error » est le bouton principal', () => {
+  const idx = readFileSync(new URL('../public/app/index2.js', import.meta.url), 'utf8');
+  assert.match(idx, /_cb\.className = 'primary-btn'/);
+  assert.match(idx, /gotoBtn\.classList\.toggle\('ghost-btn', j\.status === 'error'\)/);
+});
