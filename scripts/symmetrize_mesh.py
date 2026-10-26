@@ -219,15 +219,39 @@ def _couper_demi_espace(V, F, A, N, point, nn, eps):
             sur[utilise], np.zeros((0, 3), dtype=np.int64))
 
 
+def _signees(E, M):
+    """Aretes dirigees (k, 2) -> (cle de l'arete non dirigee min * M + max, signe +1 si a < b, -1 sinon)."""
+    import numpy as np
+    lo, hi = np.minimum(E[:, 0], E[:, 1]), np.maximum(E[:, 0], E[:, 1])
+    return lo * M + hi, np.where(E[:, 0] < E[:, 1], 1, -1)
+
+
+def _emettre(cles, net, M):
+    """Flux net par arete non dirigee -> aretes dirigees, repetees autant de fois que le flux : net > 0 donne lo -> hi, net < 0 donne hi -> lo."""
+    import numpy as np
+    net = np.rint(net).astype(np.int64)
+    ok = net != 0
+    cles, net = cles[ok], net[ok]
+    lo, hi = cles // M, cles % M
+    a = np.where(net > 0, lo, hi)
+    b = np.where(net > 0, hi, lo)
+    n = np.abs(net)
+    return np.stack([np.repeat(a, n), np.repeat(b, n)], axis=1).astype(np.int64)
+
+
 def _bord_dirige(F, M):
-    """Aretes dirigees (a -> b) qui n'ont pas de voisine inverse (b -> a) : le bord du maillage, dans le sens des faces."""
+    """Bord du maillage dans le sens des faces, en FLUX NET (26/10) : pour chaque arete, (faces qui la portent a -> b) moins (faces qui la portent b -> a). Une arete portee par
+    deux faces de meme sens avec une seule inverse (arete non manifold coupee par la zone) a un flux net de 1 : c'est un vrai bord, invisible a un simple test « l'inverse
+    existe ». Le flux net d'un ensemble de faces est toujours un cycle (equilibre en chaque sommet) : les chaines ne sont jamais rompues. Aretes repetees selon le flux."""
     import numpy as np
     if not len(F):
         return np.zeros((0, 2), dtype=np.int64)
     F = np.asarray(F, dtype=np.int64)
     E = np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]], axis=0)
-    cles = E[:, 0] * M + E[:, 1]
-    return E[~_dans(E[:, 1] * M + E[:, 0], np.sort(cles))]
+    E = E[E[:, 0] != E[:, 1]]                         # arete degeneree (sommets soudes confondus) : ignoree
+    cles, sg = _signees(E, M)
+    u, inv = np.unique(cles, return_inverse=True)
+    return _emettre(u, np.bincount(inv.reshape(-1), weights=sg, minlength=len(u)), M)
 
 
 def _defauts_bord(F, M):
@@ -330,7 +354,17 @@ def _bord_trou(F, retire, M):
         return np.zeros((0, 2), dtype=np.int64)
     ER = np.concatenate([R[:, [0, 1]], R[:, [1, 2]], R[:, [2, 0]]], axis=0)
     EK = np.concatenate([K[:, [0, 1]], K[:, [1, 2]], K[:, [2, 0]]], axis=0)
-    return EK[_dans(EK[:, 1] * M + EK[:, 0], np.sort(ER[:, 0] * M + ER[:, 1]))]
+    ER, EK = ER[ER[:, 0] != ER[:, 1]], EK[EK[:, 0] != EK[:, 1]]      # aretes degenerees (indices soudes confondus)
+    # Flux net (voir _bord_dirige) : une arete est au bord du trou si les faces gardees ont un flux net non nul et que les faces retirees le compensent exactement (le total
+    # est nul : une arete ouverte dans le maillage d'origine, ou vue d'un seul cote, n'en fait pas partie). Les aretes d'une face gardee dont la voisine ne touche pas le
+    # trou ont un flux gardé incomplet, jamais compense : elles sont ecartees.
+    kk, ks = _signees(EK, M)
+    u, inv = np.unique(kk, return_inverse=True)
+    nk = np.bincount(inv.reshape(-1), weights=ks, minlength=len(u))
+    rk, rs = _signees(ER, M)
+    dedans = _dans(rk, u)
+    nr = np.bincount(np.searchsorted(u, rk[dedans]), weights=rs[dedans], minlength=len(u))
+    return _emettre(u, np.where((nk != 0) & (nk + nr == 0), nk, 0), M)
 
 
 def _boucles(E):
@@ -648,10 +682,12 @@ def _bord_sujet(F, W, sw):
     Fw = Fw[sw[Fw].any(axis=1)]
     E = np.concatenate([Fw[:, [0, 1]], Fw[:, [1, 2]], Fw[:, [2, 0]]], axis=0)
     E = E[E[:, 0] != E[:, 1]]
-    cle = E[:, 0] * nw + E[:, 1]
-    inv = E[:, 1] * nw + E[:, 0]
-    bord = E[~np.isin(inv, cle)]
-    return bord[sw[bord[:, 0]] & sw[bord[:, 1]]]
+    E = E[sw[E[:, 0]] & sw[E[:, 1]]]
+    if not len(E):
+        return np.zeros((0, 2), dtype=np.int64)
+    cles, sg = _signees(E, nw)
+    u, inv = np.unique(cles, return_inverse=True)
+    return _emettre(u, np.bincount(inv.reshape(-1), weights=sg, minlength=len(u)), nw)
 
 
 def fermer_trous_couture(V, F, A, N, W, sw, rep):
@@ -754,17 +790,22 @@ def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0),
     C = V[F].mean(axis=1)
     dC = (C - point) @ nn
     grille = grille_centres(C, stamps)
-    sel = combler_ilots(F, region_faces(C, stamps, None, grille) & (dC > 0), len(V), dC > 0)
+    # Topologie SOUDEE par position (26/10) : un maillage texture dedouble ses sommets le long des coutures UV, donc un bord calcule par indices est coupe en chaines
+    # rompues a chaque couture UV (boucles abandonnees -> aretes ouvertes apres la couture). Tout ce qui suit raisonne sur les identifiants soudes.
+    W0, rep0 = _ids_soudes(V)
+    n0 = len(rep0)
+    Fw0 = W0[F]
+    sel = combler_ilots(Fw0, region_faces(C, stamps, None, grille) & (dC > 0), n0, dC > 0)
     if not sel.any():
         raise ValueError('Paint the area to mirror first.')
-    retire = combler_ilots(F, region_faces(C, stamps, (point, nn), grille) & (dC < 0), len(V), dC < 0)
+    retire = combler_ilots(Fw0, region_faces(C, stamps, (point, nn), grille) & (dC < 0), n0, dC < 0)
     Vc, Fc, Ac, Nc, sur, plats = _couper_demi_espace(V, F[sel], A, N, point, nn, eps)
     if not len(Fc):
         raise ValueError('Nothing to mirror: the painted area is not on the kept side of the plane.')
     _, Fm, Am, Nm, Vm, _ = _miroir(Vc, Fc, Ac, Nc, sur, np.zeros((0, 3), dtype=np.int64), point, nn, False)
     Fb = F[~retire]
     # Bord du trou laisse par les faces retirees (hors bords deja presents dans le maillage d'origine), en indices d'origine.
-    Eh = _bord_trou(F, retire, len(V))
+    Eh = _bord_trou(Fw0, retire, n0)                                # identifiants soudes
     ub = np.zeros(len(V), dtype=bool)
     ub[Fb.ravel()] = True
     rb = -np.ones(len(V), dtype=np.int64)
@@ -778,7 +819,13 @@ def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0),
     ponts = np.zeros((0, 3), dtype=np.int64)
     if len(Eh):
         Vo_ = np.concatenate([Vb, Vm])
-        ponts = relier_trou_et_copie(Vo_, _boucles(rb[Eh]), _boucles(_bord_dirige(Fm, len(Vo_))))
+        idx_b = np.nonzero(ub)[0]
+        repb = np.full(n0, -1, dtype=np.int64)
+        repb[W0[idx_b][::-1]] = rb[idx_b][::-1]                     # un indice de Vb par identifiant soude (le plus petit)
+        Wm, repm = _ids_soudes(Vm)
+        bord_copie = _bord_dirige(Wm[Fm - nb], len(repm))
+        ponts = relier_trou_et_copie(Vo_, [[int(repb[x]) for x in b] for b in _boucles(Eh)],
+                                     [[int(repm[x]) + nb for x in b] for b in _boucles(bord_copie)])
     corps, ponts = resorber_colineaires(np.concatenate([Vb, Vm]), np.concatenate([Fb, Fm]).astype(np.int64), ponts)
     Fo = np.concatenate([corps, ponts]).astype(np.int64)
     Ao = None if Ab is None else np.concatenate([Ab, Am])
@@ -790,7 +837,7 @@ def symetriser_tableaux(V, F, A=None, N=None, point=(0, 0, 0), normal=(1, 0, 0),
     sw = np.zeros(len(rep), dtype=bool)
     sw[W[nb:]] = True                                  # sommets de la copie miroir
     if len(Eh):
-        sw[W[rb[Eh].ravel()]] = True                   # bord du trou
+        sw[W[repb[Eh.ravel()]]] = True                 # bord du trou
     sw[Wt[len(Vo):]] = True                            # sommets des faces retirees
     Fo = retirer_ponts_non_manifold(Vo, Fo, len(corps), W)   # arete portee par plus de faces qu'elle n'en portait sans la couture : on retire la face de couture en exces
     bouchees = 0
