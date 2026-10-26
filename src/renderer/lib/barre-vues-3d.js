@@ -78,7 +78,7 @@ export function cadrer3D(viewer, cible) {
 /**
  * @param {HTMLElement} conteneur  element positionne (relative) qui recoit la barre
  * @param {object|function} viewer {camera, controls, model?} ou fonction qui le rend (il peut naitre apres)
- * @param {object} [options] {vues:true, zoom:true, plein_ecran:false, cible:()=>Object3D, classe:'fen'}
+ * @param {object} [options] {vues:true, zoom:true, plein_ecran:false, cible:()=>Object3D, classe:'fen', cadre:(act, vue)=>boolean}
  * @returns {HTMLElement|null} la barre (deja presente : rendue telle quelle, jamais en double)
  */
 export function creerBarreVues3D(conteneur, viewer, options) {
@@ -116,6 +116,8 @@ export function creerBarreVues3D(conteneur, viewer, options) {
     if (!b) return;
     e.stopPropagation();
     const act = b.getAttribute('data-act');
+    // Cadrage propre a la fenetre (ex. Symmetrize mesh : modele a ~70 % de la hauteur) : `cadre(act, vue)` rend vrai s'il a traite le clic.
+    if ((act === 'view' || act === 'reset' || act === 'fit') && typeof o.cadre === 'function' && o.cadre(act, b.getAttribute('data-view'))) return;
     if (act === 'view') placerVue3D(viewer, b.getAttribute('data-view'), o.cible);
     else if (act === 'reset') {
       // Retour a la vue Iso cadree sur le modele (le reset() d'origine ramene a la pose de depart, avant chargement).

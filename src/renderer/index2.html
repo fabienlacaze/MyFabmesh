@@ -2203,7 +2203,7 @@
         <div class="fen-corps">
           <div id="sm3-viewport" class="fen-apercu">
             <canvas id="sm3-canvas" style="width:100%; height:100%; display:block;"></canvas>
-            <div id="sm3-hint" class="fen-apercu-etat">Drag the gizmo to move or rotate the plane · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
+            <div id="sm3-hint" class="fen-apercu-etat">Drag the plane to move it · Shift+drag: tilt it (Ctrl: 5° steps) · or use the gizmo · right-drag: pan · middle-drag: rotate · wheel: zoom</div>
           </div>
           <div class="fen-form">
             <div class="fen-champ">
@@ -2225,6 +2225,13 @@
             <div class="fen-champ">
               <div class="fen-champ-tete"><span class="fen-label">Tilt B (°)</span><input type="number" id="sm3-tilt-b-num" class="fen-valeur" min="-90" max="90" step="1" value="0" /></div>
               <input type="range" id="sm3-tilt-b" min="-90" max="90" step="1" value="0" />
+            </div>
+            <div class="fen-champ">
+              <div class="fen-champ-tete"><span class="fen-label">Find the plane:</span></div>
+              <div class="fen-groupe-btn">
+                <button id="sm3-auto" class="secondary-btn" title="Detect the best symmetry plane of this mesh and place the plane on it">Auto</button>
+                <button id="sm3-face-view" class="secondary-btn" title="The plane passes through the viewing direction: it appears as the vertical line at the centre of the screen">Plane to view</button>
+              </div>
             </div>
             <div class="fen-champ">
               <div class="fen-champ-tete"><span class="fen-label">Gizmo:</span></div>
