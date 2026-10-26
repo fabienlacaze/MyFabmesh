@@ -890,6 +890,8 @@ async function _opMaillageSync({ meshPath, endpoint, champs = {}, outPath, proje
   if (!(r.status >= 200 && r.status < 300) || j.success === false || j.ok === false) {
     return { success: false, error: _httpErr(r.status, j) };
   }
+  // Detection seule des trous de peau (Fill holes, apercu) : un JSON, pas de maillage a telecharger, jamais debite.
+  if (j.detect) return { success: true, detect: j.detect };
   const resultUrl = j.mesh_url || j.newPath || j.path || j.url;
   if (!resultUrl) return { success: false, error: 'no result url in worker response' };
   const dl = await _downloadTo(resultUrl, outPath, 500);

@@ -10,7 +10,8 @@ Operations:
     decimate <input> <output> [target_faces=5000]
     subdivide <input> <output> [levels=1]
     fix_normals <input> <output>
-    fill_holes <input> <output> [min_hole_size=3] [max_hole_size=2000]   (aretes du pourtour ; AJOUTE des faces, ne retire rien)
+    fill_holes <input> <output> [min_hole_size=3] [max_hole_size=2000] [skin_repair=0]   (aretes du pourtour ; AJOUTE des faces, ne retire rien ; skin_repair=1 : trous de peau aussi)
+    detect_skin <input> <output.json> [min_hole_size=3] [max_hole_size=2000]   (detection seule des trous de peau, JSON, rien n'est modifie)
     center <input> <output>
     retexture <input> <output> <source_image> [tex_res=2048]
 """
@@ -318,8 +319,11 @@ class Refus(Exception):
     """Refus EXPLIQUE d'une operation (rien a faire) : le bureau l'affiche tel quel, aucun fichier n'est ecrit."""
 
 
-def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000):
+def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000, skin_repair=0):
     """Bouche les trous dont le pourtour a entre `min_hole_size` et `max_hole_size` ARETES.
+
+    OPTION skin_repair (0 / 1, defaut 0 : rien ne change pour un maillage sain) : cherche aussi les trous de la PEAU exterieure (scripts/bouchage_peau.py) quand
+    le maillage n'a aucun trou ouvert (coque percee sans bord, ex. un bateau TRELLIS) ; plus long (environ une minute sur 500 000 faces).
 
     BOUCHON LISSE (refonte du 2026-10-26, noyau scripts/bouchage_lisse.py = modal_app/bouchage_lisse.py) : la detection est celle du noyau partage
     bouchage_trous.py (MEME logique que les apercus du bureau et du site) ; la rustine, elle, suit la courbure du voisinage (sommets interieurs lisses,
@@ -335,7 +339,8 @@ def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000):
     scene = trimesh.load(input_path, process=False)
     if not hasattr(scene, 'geometry'):
         scene = trimesh.Scene(scene)
-    res = boucher_scene(scene, min_e, max_e, journal=log)
+    reparer_peau = str(skin_repair).strip().lower() in ('1', 'true', 'yes', 'oui', 'on')
+    res = boucher_scene(scene, min_e, max_e, journal=log, peau=reparer_peau)
     if res['refus']:
         raise Refus(res['refus'][1])
     geoms = list(scene.geometry.values())
@@ -345,6 +350,25 @@ def fill_holes(input_path, output_path, min_hole_size=3, max_hole_size=2000):
     print('[mesh_tools] BILAN: ' + json.dumps({'holes_filled': st['holes_filled'], 'holes_remaining': st['holes_remaining'],
                                               'holes_filled_delta_faces': st['holes_filled_delta_faces'], 'verdict': st['verdict'],
                                               'skin_holes_filled': st.get('skin_holes_filled', 0)}), flush=True)
+
+
+def detect_skin(input_path, output_json, min_hole_size=3, max_hole_size=2000):
+    """DETECTION SEULE des trous de peau : ecrit un JSON {nombre, trous: [{n, centre, normale, rayon, points}], duree} ; le maillage n'est pas modifie.
+    Aucun credit : c'est le meme noyau que fill_holes (skin_repair=1) sans boucher, pour l'apercu de la fenetre Fill holes."""
+    import trimesh
+    from bouchage_lisse import detecter_peau_scene
+    try:
+        min_e = max(3, int(min_hole_size))
+        max_e = max(min_e, int(max_hole_size))
+    except (TypeError, ValueError):
+        min_e, max_e = 3, 2000
+    scene = trimesh.load(input_path, process=False)
+    if not hasattr(scene, 'geometry'):
+        scene = trimesh.Scene(scene)
+    res = detecter_peau_scene(scene, min_e, max_e, journal=log)
+    with open(output_json, 'w', encoding='utf-8') as f:
+        json.dump(res, f)
+    print('[mesh_tools] DETECT: ' + json.dumps({'nombre': res['nombre'], 'duree': res['duree']}), flush=True)
 
 
 def center(input_path, output_path):
@@ -852,6 +876,7 @@ if __name__ == '__main__':
         'subdivide': lambda: subdivide_mesh(inp, out, *params),
         'fix_normals': lambda: fix_normals(inp, out),
         'fill_holes': lambda: fill_holes(inp, out, *params),
+        'detect_skin': lambda: detect_skin(inp, out, *params),
         'center': lambda: center(inp, out),
         'set_pivot': lambda: set_pivot(inp, out, *params),
         'watertight': lambda: watertight(inp, out, *params),
@@ -863,6 +888,16 @@ if __name__ == '__main__':
     if op not in ops:
         print(f'Unknown operation: {op}. Available: {", ".join(ops.keys())}')
         sys.exit(1)
+
+    if op == 'detect_skin':
+        try:
+            detect_skin(inp, out, *params)
+        except Exception as e:
+            log(f'ERROR: {type(e).__name__}: {e}')
+            import traceback
+            traceback.print_exc()
+            sys.exit(2)
+        sys.exit(0)
 
     try:
         t0 = time.time()

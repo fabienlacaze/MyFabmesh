@@ -227,6 +227,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   getFileInfo: (filePath) => ipcRenderer.invoke('get-file-info', filePath),
   importMesh: () => ipcRenderer.invoke('import-mesh'),
   meshTool: (opts) => ipcRenderer.invoke('mesh-tool', opts),
+  detectSkinHoles: (opts) => ipcRenderer.invoke('detect-skin-holes', opts),
   meshSegment: (opts) => ipcRenderer.invoke('mesh-segment', opts),
   nameParts: (opts) => ipcRenderer.invoke('name-parts', opts),
   getLineageMeta: (filePath) => ipcRenderer.invoke('get-lineage-meta', { filePath }),

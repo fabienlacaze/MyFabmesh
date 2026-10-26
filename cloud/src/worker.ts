@@ -1469,6 +1469,7 @@ const REFUS_CONNUS: ReadonlyArray<readonly [RegExp, string, ((m: RegExpMatchArra
     // et le bureau). Le generique « Nothing to fill: the mesh has no open hole. » doit rester apres les cas precis qui continuent par « , but ... ».
     [/^No hole between (\d+) and (\d+) edges\b/i, 'fill_holes_range', (m) => ({ min: Number(m[1]), max: Number(m[2]) })],
     [/^Nothing to fill: the mesh has no open hole, but (\d+) faces point the wrong way\b/i, 'fill_holes_closed_flipped', (m) => ({ n: Number(m[1]) })],
+    [/^Nothing to fill: the mesh has no open hole, but (\d+) edges are shared by more than two faces \(double skin or glued parts\)\. No hole in the outer skin\b/i, 'fill_holes_closed_nonmanifold_skin', (m) => ({ n: Number(m[1]) })],
     [/^Nothing to fill: the mesh has no open hole, but (\d+) edges are shared by more than two faces\b/i, 'fill_holes_closed_nonmanifold', (m) => ({ n: Number(m[1]) })],
     [/^Nothing to fill: the mesh has no open hole, but (\d+) small loose pieces\b/i, 'fill_holes_closed_debris', (m) => ({ n: Number(m[1]) })],
     [/^Nothing to fill: the mesh has no open hole\./i, 'fill_holes_closed', null],
@@ -14234,11 +14235,12 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
   if (!user) return err(401, 'unauthorized');
   if (!env.MODAL_MESH_START_URL) return err(503, 'mesh-op backend unavailable');
 
-  const { meshUrl, meshId, opType, params, projectName } = await req.json() as {
+  const { meshUrl, meshId, opType, params: paramsEntree, projectName } = await req.json() as {
     meshUrl?: string; meshId?: string; opType?: string;
     params?: Record<string, unknown>;
     projectName?: string;
   };
+  let params = paramsEntree;
   // Sanitize the project slug so it's safe as an R2 key segment AND
   // round-trips back to the same name on listing. Allowed: ASCII
   // letters, digits, -, _, dot. Everything else becomes _. Empty
@@ -14338,6 +14340,17 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     }
   }
 
+  // Fill holes (26/10) : liste BLANCHE des parametres. `skin_repair` (case « Reparer aussi les trous de la peau exterieure », faux par defaut) et
+  // `detect_only` (apercu : detection des trous de peau SANS rien boucher, jamais debitee) sont des booleens ; rien d'autre ne part vers Modal.
+  let detectOnly = false;
+  if (op === 'fill_holes') {
+    const pr = (params ?? {}) as Record<string, unknown>;
+    const borne = (x: unknown, defaut: number) => { const n = Math.trunc(Number(x)); return Number.isFinite(n) && n >= 3 ? Math.min(n, 1_000_000) : defaut; };
+    detectOnly = pr.detect_only === true;
+    params = { min_hole_size: borne(pr.min_hole_size, 3), max_hole_size: borne(pr.max_hole_size, 1_000_000),
+      skin_repair: pr.skin_repair === true, detect_only: detectOnly };
+  }
+
   // Cheap op (CPU, ~$0.001 Modal) — defaults to 1 credit, admin-tunable.
   // WATERTIGHT : PRIX SELON LA RESOLUTION (2026-09-27, user : « la resolution
   // change la duree ? si oui il faut faire evoluer le prix »). La grille de
@@ -14357,7 +14370,8 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     await refundModalSpend(env, estimatedTotal, user.id);
     return json({ ok: false, success: false, error: 'user limit reached.' }, { status: 429 });
   }
-  const remaining = await spendCredits(env, user.id, COST_PER);
+  // La detection seule (apercu) n'est JAMAIS debitee : elle ne produit aucun maillage. Elle compte pourtant dans le budget GPU et les appels par compte.
+  const remaining = detectOnly ? 0 : await spendCredits(env, user.id, COST_PER);
   if (remaining == null) {
     await refundModalSpend(env, estimatedTotal, user.id);
     return json({ ok: false, success: false,
@@ -14369,7 +14383,7 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
     // 25/10 : Modal televerse le GLB DIRECTEMENT dans R2 (URL PUT pre-signee pour cette seule cle) : un GLB de 60-90 Mo en base64 dans du JSON
     // faisait exploser la memoire (128 Mo) et le temps CPU du worker : « Worker exceeded resource limits », HTTP 503 (voir _rendre_glb, app.py).
     const cleSortie = `${user.id}/mesh-op/${projectSlug}/${Date.now()}_${op}.glb`;
-    const urlPut = await _urlPutR2Signee(env, cleSortie, 1800).catch(() => null);
+    const urlPut = detectOnly ? null : await _urlPutR2Signee(env, cleSortie, 1800).catch(() => null);
     const r = await fetch(env.MODAL_MESH_START_URL!, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -14391,6 +14405,11 @@ async function handleMeshOp(req: Request, env: Env): Promise<Response> {
       throw e;
     }
     if (!r.ok) throw new Error(`Service mesh_op HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    if (detectOnly) {
+      // Apercu des trous de peau : on rend le JSON de Modal tel quel (nombre + pourtours), sans fichier, sans credit.
+      const d = await r.json() as { detect?: { nombre?: number; trous?: unknown[] } };
+      return json({ ok: true, success: true, detect: d.detect ?? { nombre: 0, trous: [] }, charged: 0 });
+    }
     const data = await r.json() as { glb_base64?: string; uploaded?: boolean; stats?: Record<string, unknown> };
     if (!env.MESHES || !env.R2_PUBLIC_URL) throw new Error('R2 binding required');
     const key = cleSortie;

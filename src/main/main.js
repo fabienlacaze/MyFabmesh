@@ -13360,6 +13360,34 @@ ipcMain.handle('mesh:reshape-region', async (_e, { meshPath, frontPath, maskData
   }
 });
 
+// Fill holes : APERCU des trous de la PEAU exterieure (2026-10-26). DETECTION SEULE, rien n'est ecrit a cote du maillage et rien n'est facture :
+// en local c'est mesh_tools.py detect_skin (meme noyau que fill_holes skin_repair=1), en mode Cloud la route /api/mesh-op avec detect_only (jamais debitee).
+// Rend { success, detect: { nombre, trous: [{ n, centre, normale, rayon, points }], duree } }.
+ipcMain.handle('detect-skin-holes', async (_event, { meshPath, min, max } = {}) => {
+  if (!meshPath || !isPathAllowed(meshPath)) return { success: false, error: 'Mesh path not allowed' };
+  const lo = Math.max(3, parseInt(min, 10) || 3);
+  const hi = Math.max(lo, parseInt(max, 10) || 5000);
+  if (isCloudMode()) {
+    try {
+      const r = await cloudFallback.meshOp({ meshPath, opType: 'fill_holes', params: { min_hole_size: lo, max_hole_size: hi, detect_only: true }, outPath: null, projectName: null });
+      return r.success ? { success: true, detect: r.detect } : { success: false, error: r.error || 'cloud detection failed', ...(r.needsCloudLogin ? { needsCloudLogin: true } : {}) };
+    } catch (e) { return { success: false, error: e.message || String(e) }; }
+  }
+  if (!_localPyLibsUsable()) return { success: false, cloudUnavailable: true, error: _localEngineMsg('Skin-hole search') };
+  const sortie = path.join(os.tmpdir(), `fabmesh_skin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.json`);
+  const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
+  return new Promise((resolve) => {
+    execFile(_aiPython(), [path.join(SCRIPTS_DIR, 'mesh_tools.py'), 'detect_skin', meshPath, sortie, String(lo), String(hi)],
+      { timeout: 600000, maxBuffer: 10 * 1024 * 1024, env }, (error, stdout, stderr) => {
+        try {
+          if (error || !fs.existsSync(sortie)) { resolve({ success: false, error: (error && error.message) || 'detection produced no result', stderr }); return; }
+          resolve({ success: true, detect: JSON.parse(fs.readFileSync(sortie, 'utf-8')) });
+        } catch (e) { resolve({ success: false, error: e.message || String(e) }); }
+        finally { try { fs.rmSync(sortie, { force: true }); } catch (_) {} }
+      });
+  });
+});
+
 ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedParams, langueVerifiee }) => {
   // 2026-10-03 (constat D-05) : meme controle que mesh-segment et les autres outils de maillage ; l'operation
   // ecrit un nouveau fichier a cote du maillage, il doit donc etre dans un dossier gere par l'appli.
@@ -13441,7 +13469,7 @@ ipcMain.handle('mesh-tool', async (_event, { operation, meshPath, params, namedP
         case 'watertight':  opParams = { resolution: Number(p[0]) || 192, mode: p[1] ? String(p[1]) : 'seal' }; break;
         // Fill holes : les curseurs Min / Max (en ARETES du pourtour) sont TRANSMIS, comme le fait le site (meshyAPI-cloud.js). Avant, ils etaient
         // jetes (« ignorés par Modal ») alors que l'apercu coloriait les trous selon eux : le bouchage ne correspondait pas a ce qui etait montre.
-        case 'fill_holes':  opParams = { min_hole_size: Math.max(3, parseInt(p[0], 10) || 3), max_hole_size: Math.max(3, parseInt(p[1], 10) || 2000) }; break;
+        case 'fill_holes':  opParams = { min_hole_size: Math.max(3, parseInt(p[0], 10) || 3), max_hole_size: Math.max(3, parseInt(p[1], 10) || 2000), skin_repair: p[2] === '1' }; break;
         case 'center':
         case 'fix_normals': opParams = {}; break;
         case 'retexture': {

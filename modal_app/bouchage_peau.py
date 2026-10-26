@@ -614,6 +614,24 @@ def _sommets_a_pli(prep):
     return flag
 
 
+def _fils():
+    """Pool de fils pour les vues (independantes) : le rendu numba et scipy lachent le GIL. Variable FABMESH_PEAU_FILS pour en imposer le nombre."""
+    import os
+    from concurrent.futures import ThreadPoolExecutor
+    try:
+        n = int(os.environ.get('FABMESH_PEAU_FILS', '0'))
+    except ValueError:
+        n = 0
+    if n <= 0:
+        n = max(1, min(4, os.cpu_count() or 1))
+    if _AVEC_NUMBA:
+        try:                                           # compile le noyau AVANT de lancer les fils
+            zbuffer(np.zeros((3, 3)), np.array([[0, 1, 2]]), np.array([0.0, 0.0, 1.0]), 8)
+        except Exception:
+            pass
+    return ThreadPoolExecutor(max_workers=n)
+
+
 def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RESOLUTION_BALAYAGE, journal=None, budget_s=None, debug=None):
     """Trous de peau du maillage. Rend (liste de trous, rapport). Un trou : {'debut': sommets du pourtour (ordre du pourtour), 'n', 'centre', 'rayon',
     'voisins_ok': groupes de la peau exterieure voisine, 'vue': indice, 'aire_px'}. Ne modifie rien.
@@ -633,16 +651,20 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
     centre = (lo + hi) / 2.0
     arete = float(prep.get('arete_moyenne') or 0.0)
     delta = DELTA * diag
-    cands = []
-    for iv, d in enumerate(dirs):
+    pool = _fils()
+
+    def balayer(iv):
         if budget_s is not None and time.time() - t0 > budget_s:
-            break
-        fid, zb, proj = zbuffer(V, F, d, resolution, centre, diag)
+            return []
+        fid, zb, proj = zbuffer(V, F, dirs[iv], resolution, centre, diag)
         res, _ = taches_enfoncees(zb, fid >= 0, delta, int((TAILLE_MAX * diag * proj[4]) ** 2))
+        sortie = []
         for t in res:
             c3, r = _centre_trou(t, proj, resolution)
             frontal = 1.0 / math.sqrt(1.0 + (t['pente'][0] * proj[4]) ** 2 + (t['pente'][1] * proj[4]) ** 2)       # 1 = la peau est de face, 0 = rasante
-            cands.append({'c': c3, 'r': r, 'iv': iv, 'aire': t['aire'] * frontal, 'rg': math.sqrt(t['aire'] / math.pi) / proj[4]})
+            sortie.append({'c': c3, 'r': r, 'iv': iv, 'aire': t['aire'] * frontal, 'rg': math.sqrt(t['aire'] / math.pi) / proj[4]})
+        return sortie
+    cands = [c for liste in pool.map(balayer, range(len(dirs))) for c in liste]        # les vues sont independantes : en parallele, resultat dans l'ordre des vues
     # regroupement : les plus grands (les plus de face) d'abord
     n_cands = len(cands)
     cands = [h for h in cands if h['rg'] >= RAYON_MIN_ARETES * arete or h['r'] >= 4.0 * arete]        # les grains de la carte ne valent pas une reprise
@@ -719,12 +741,14 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         return {'debut': ordre_rustine[::-1], 'n': n, 'centre': ctr, 'rayon': rayon, 'faces_vues': faces_vues, 'vue': g['iv'], 'aire_px': meilleur['aire'],
                 'fenetre': (d, g['c'], demi, meilleur)}
 
-    for membres in groupes:
+    def reprendre(membres):
         for g in membres[:ESSAIS_PAR_TROU]:             # la meilleure vue d'abord ; si la reprise echoue, la suivante
             h = essayer(g)
             if h is not None:
-                trouves.append(h)
-                break
+                return h
+        return None
+    trouves = [h for h in pool.map(reprendre, groupes) if h is not None]
+    pool.shutdown()
     # deux groupes qui retombent sur le meme trou
     trouves.sort(key=lambda h: -h['rayon'])
     gardes = []

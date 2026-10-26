@@ -3667,6 +3667,8 @@ def mesh_router():
                 # (fill_holes : « aucun trou », « aurait supprime X % des faces ») leve RuntimeError.
                 # Sans ce 422, FastAPI rendait un 500 muet et l'utilisateur ne lisait qu'un echec generique.
                 raise HTTPException(status_code=422, detail=str(e))
+            if isinstance(stats, dict) and stats.get('detect_only'):
+                return {"success": True, "detect": {k: v for k, v in stats.items() if k != 'detect_only'}}     # detection seule : pas de GLB
             resp = _rendre_glb(out, payload, op_type=op_type)
             if stats is not None:
                 resp["stats"] = stats

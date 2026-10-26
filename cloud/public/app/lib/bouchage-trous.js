@@ -619,7 +619,7 @@ export function agreger(analyses, diagnostics) {
   return [somme, diag];
 }
 
-export function message_refus(analyse, diagnostic, min_aretes, max_aretes) {
+export function message_refus(analyse, diagnostic, min_aretes, max_aretes, peau_cherchee = false) {
   if (analyse.trop_petites + analyse.trop_grandes > 0 && analyse.a_boucher === 0) {
     return ['fill_holes_range',
       'No hole between ' + Math.max(3, Math.trunc(min_aretes)) + ' and ' + Math.trunc(max_aretes) + ' edges: the mesh has '
@@ -638,9 +638,14 @@ export function message_refus(analyse, diagnostic, min_aretes, max_aretes) {
       + 'Use Fix normals instead. The mesh was left unchanged.'];
   }
   if (cause === 'non_manifold') {
+    if (peau_cherchee) {
+      return ['fill_holes_closed_nonmanifold_skin',
+        'Nothing to fill: the mesh has no open hole, but ' + d.aretes_non_manifold + ' edges are shared by more than two faces (double skin or glued parts). '
+        + 'No hole in the outer skin was found either. The mesh was left unchanged.'];
+    }
     return ['fill_holes_closed_nonmanifold',
       'Nothing to fill: the mesh has no open hole, but ' + d.aretes_non_manifold + ' edges are shared by more than two faces (double skin or glued parts). '
-      + 'No hole in the outer skin was found either. The mesh was left unchanged.'];
+      + 'If the hull looks pierced, tick "Also repair holes in the outer skin" and try again. The mesh was left unchanged.'];
   }
   if (cause === 'miettes') {
     return ['fill_holes_closed_debris',
