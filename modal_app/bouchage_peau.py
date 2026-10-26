@@ -592,6 +592,44 @@ def _router_par_aretes(ring, groupe, rep, adj, permis, arete):
     return [v for _, v in _cycle_simple(sortie)]
 
 
+def _ramener_sur_peau(ring, groupe, rep, adj, permis):
+    """Le pourtour lu sur la carte saute parfois d'une feuille a sa jumelle (deux feuilles a 0,03 % de la diagonale : le z-buffer hesite entre elles) ; les
+    sommets de la feuille minoritaire n'ont aucun chemin d'aretes vers les autres, donc le bouchon laisse une fente. On garde la composante connexe de la
+    peau (parmi les sommets permis) qui porte le plus de sommets du pourtour, et chaque sommet d'une autre composante est remplace par le plus proche
+    sommet de celle-ci. Rend le nouveau pourtour (sommets d'origine)."""
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+    indptr, indices, pos = adj
+    noeuds = np.fromiter(permis, dtype=np.int64)
+    if len(noeuds) < 3:
+        return ring
+    local = -np.ones(len(indptr) - 1, dtype=np.int64)
+    local[noeuds] = np.arange(len(noeuds))
+    from scipy.sparse import csr_matrix
+    ligne = np.repeat(np.arange(len(indptr) - 1), np.diff(indptr))
+    ok = (local[ligne] >= 0) & (local[indices] >= 0)
+    m = csr_matrix((np.ones(int(ok.sum()), dtype=np.int8), (local[ligne[ok]], local[indices[ok]])), shape=(len(noeuds), len(noeuds)))
+    _, lab = connected_components(m, directed=False)
+    gr = np.array([int(groupe[v]) for v in ring])
+    dans = local[gr] >= 0
+    if not dans.any():
+        return ring
+    comp = lab[local[gr[dans]]]
+    principale = int(np.bincount(comp).argmax())
+    if int((comp == principale).sum()) == int(dans.sum()) and bool(dans.all()):
+        return ring
+    membres = noeuds[lab == principale]
+    arbre = cKDTree(pos[membres])
+    sortie = []
+    for v, g, d in zip(ring, gr, dans):
+        if d and lab[local[g]] == principale:
+            sortie.append(v)
+        else:
+            _, k = arbre.query(pos[g])
+            sortie.append(int(rep[membres[k]]))
+    return sortie
+
+
 def _sommets_a_pli(prep):
     """Pour chaque groupe de sommets soudes : vrai s'il touche une arete REPLIEE (deux faces de normales presque opposees, le pourtour d'une feuille sans
     epaisseur) ou une arete a plus de deux faces (feuilles collees). C'est la signature d'un trou dans une peau TRELLIS : le bord d'un trou est un
@@ -748,7 +786,9 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         garde = dc <= 2.5 * np.median(dc) + 2.0 * arete + 1e-12          # un sommet loin des autres (grand triangle voisin) deformerait tout le bouchon
         ring = [v for v, k in zip(ring, garde) if k]
         if len(ring) >= 3:
-            ring = _router_par_aretes(ring, groupe, rep, adj, set(int(x) for x in np.unique(groupe[F[faces_vues].reshape(-1)])), arete)
+            permis = set(int(x) for x in np.unique(groupe[F[faces_vues].reshape(-1)]))
+            ring = _ramener_sur_peau(ring, groupe, rep, adj, permis)
+            ring = _router_par_aretes(ring, groupe, rep, adj, permis, arete)
         n = len(ring)
         if n < max(3, int(min_aretes)) or n > int(max_aretes):
             if debug is not None:

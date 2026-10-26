@@ -171,6 +171,27 @@ class Synthetiques(unittest.TestCase):
         self.assertEqual(avec, 1)
         self.assertEqual(sans, 0)
 
+    def test_peau_discontinue_pas_un_trou(self):
+        """Filtre de COHERENCE (2026-10-26) : meme trou rond, mais la peau autour est un relief heurte (rambarde, mobilier) qu'aucune surface lisse n'ajuste :
+        ce n'est pas un trou de peau. Le trou du plan lisse reste detecte (test_trou_rond_detecte_et_bouche)."""
+        haut = grille(60, 1.0, 0.0, relief=lambda X, Y: 0.04 * np.sin(60 * X) * np.sin(60 * Y), trou=(0.0, 0.0, 0.15))
+        V, F = assembler(haut, grille(48, 1.6, -0.15))
+        debug = []
+        trous, _ = PE.detecter(V, F, B.preparer(V, F), debug=debug)
+        self.assertEqual(len(trous), 0)
+
+    def test_coherence_mesures(self):
+        zb = np.zeros((64, 64))
+        hit = np.ones((64, 64), dtype=bool)
+        m = np.zeros((64, 64), dtype=bool)
+        m[28:36, 28:36] = True
+        ecart, largeur = PE._coherence(zb, hit, m, 100.0, 1.0)
+        self.assertEqual(ecart, 0.0)
+        self.assertAlmostEqual(largeur, 2.0 * 4.0 / 100.0, delta=0.01)
+        rng = np.random.RandomState(1)
+        ecart2, _ = PE._coherence(rng.uniform(-0.05, 0.05, (64, 64)), hit, m, 100.0, 1.0)
+        self.assertGreater(ecart2, PE.CONTINUITE_MAX)
+
     def test_mesure_du_pli(self):
         # deux triangles replies l'un sur l'autre (feuille sans epaisseur) : les sommets de l'arete commune sont a pli ; un plan : aucun
         V = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=float)
@@ -243,7 +264,7 @@ class Bateau(unittest.TestCase):
     def test_trous_de_peau_bouches(self):
         n = self.res['stats']['skin_holes_filled']
         MESURES['bateau']['trous'] = n
-        self.assertTrue(30 <= n <= 90, 'une cinquantaine de trous de peau attendus, %d trouves' % n)
+        self.assertTrue(20 <= n <= 60, 'une trentaine de trous de peau attendus (49 avant le filtre de coherence), %d trouves' % n)
 
     def test_ajout_borne(self):
         ajoutees = self.apres['faces'] - self.avant['faces']
@@ -314,7 +335,7 @@ class SansLOption(unittest.TestCase):
         d = BL.detecter_peau_scene(sc, 3, 5000, journal=lambda m: None)
         duree = time.time() - t
         MESURES.setdefault('detection_seule', {})['bateau'] = {'trous': d['nombre'], 'duree_s': round(duree, 1)}
-        self.assertTrue(30 <= d['nombre'] <= 90)
+        self.assertTrue(20 <= d['nombre'] <= 60)
         self.assertEqual(d['nombre'], len(d['trous']))
         h = d['trous'][0]
         for cle in ('n', 'centre', 'normale', 'rayon', 'points', 'maillage'):
