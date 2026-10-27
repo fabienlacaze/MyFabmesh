@@ -42,6 +42,11 @@ POINTS_CAVITE = 22               # points de sondage par axe
 RAYONS_SONDAGE = 64              # rayons par point de sondage
 FUITE_MIN = 0.02                 # sous cette part de fuite : cavite fermee (aucune ouverture), ou piece pleine
 FUITE_MAX = 0.30                 # au-dela : l'espace ouvert voisin du maillage, pas une cavite
+CENTRES_PAR_CAVITE = 40          # centres de sondage par cavite (echantillonnage du plus eloigne)
+RECUL_SONDE_MIN = 0.7            # distance minimale sonde -> pourtour, en rayons du pourtour, pour un centre supplementaire
+BUDGET_CENTRES_S = 30.0          # temps total au-dela duquel on n'essaie plus de centres supplementaires (plafond 100 s de Cloudflare)
+PART_ENFERMEE = 60               # centres pris parmi les 60 % de points les plus enfermes de la cavite
+ECART_CENTRES = 0.03             # ecart minimal entre deux centres (fraction de la diagonale)
 CAVITES_MAX = 3                  # composantes de cavite essayees (les plus grandes)
 CAVITE_MIN_POINTS = 4            # une composante de moins de 4 points de sondage est une alcove, pas une cavite
 SPHERE_H = 150                   # rayons en latitude
@@ -222,8 +227,9 @@ def _fibonacci(n):
 # --------------------------------------------------------------------------------------------------------------------------------------------
 # 1. Cavite
 # --------------------------------------------------------------------------------------------------------------------------------------------
-def centres_cavite(gr, lo, hi, journal=None):
-    """Centres des cavites a fuite partielle. Rend (liste de points, carte de fuite (N, N, N))."""
+def centres_cavite(gr, lo, hi, journal=None, extras=None):
+    """Centres des cavites a fuite partielle. Rend (liste de points, carte de fuite (N, N, N)). `extras` : si c'est une liste, les centres SUPPLEMENTAIRES
+    (echantillonnes dans la cavite) y sont ajoutes ; sinon on ne rend que le centre principal de chaque cavite (comportement d'origine)."""
     from scipy import ndimage as ndi
     N = POINTS_CAVITE
     ax = [np.linspace(lo[k], hi[k], N + 2)[1:-1] for k in range(3)]
@@ -252,6 +258,19 @@ def centres_cavite(gr, lo, hi, journal=None):
         proches = ecart <= np.percentile(ecart, 50)
         k = int(np.argmin(np.where(proches, Fc, 9.0)))
         out.append(Pc[k].copy())
+        # AUTRES CENTRES (2026-10-27) : une cavite a deux ouvertures voit la seconde sous un angle minuscule depuis un centre unique (Pikachu : ventre
+        # trouve, bas du dos non). Points suivants par echantillonnage du plus eloigne (le premier est le centre ci-dessus), dans la cavite entiere.
+        if extras is not None and CENTRES_PAR_CAVITE > 1 and len(Pc) > 1:
+            choisis = [Pc[k]]
+            dmin = np.linalg.norm(Pc - Pc[k], axis=1)
+            dmin = np.where(Fc <= np.percentile(Fc, PART_ENFERMEE), dmin, 0.0)
+            while len(choisis) < CENTRES_PAR_CAVITE:
+                j = int(np.argmax(dmin))
+                if dmin[j] < ECART_CENTRES * float(np.linalg.norm(hi - lo)):
+                    break
+                choisis.append(Pc[j])
+                dmin = np.minimum(dmin, np.linalg.norm(Pc - Pc[j], axis=1))
+            extras.extend(p.copy() for p in choisis[1:])
     return out, fuite
 
 
@@ -461,14 +480,28 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, max_relatif=MAX_TROU_REL
     if diag <= 0:
         return [], rapport
     gr = grille(V, F)
-    centres, _ = centres_cavite(gr, lo, hi)
+    extras = []
+    centres, _ = centres_cavite(gr, lo, hi, extras=extras)
     rapport['cavites'] = len(centres)
+    rapport['centres_supplementaires'] = len(extras)
     groupe = prep['groupe']
     trouves = []
-    for c in centres:
+    for num, c in enumerate(centres + extras):
+        supplementaire = num >= len(centres)
+        if supplementaire and time.time() - t0 > BUDGET_CENTRES_S:
+            break
         liste, taux = ouvertures_depuis(gr, c, diag, groupe, max_relatif, max_aretes, min_aretes, debug)
-        rapport['fuite'].append(round(taux, 3))
+        if not supplementaire:
+            rapport['fuite'].append(round(taux, 3))
         for h in liste:
+            if supplementaire:
+                # un centre supplementaire n'est cru que s'il regarde l'ouverture DE LOIN : aucun point du pourtour pres de lui (sinon c'est un creux ou
+                # un puits peu profond : cockpit, fenetre, joint entre deux pieces, pas l'ouverture d'une cavite)
+                dmin = float(np.linalg.norm(V[np.asarray(h['debut'])] - c, axis=1).min())
+                if dmin < RECUL_SONDE_MIN * h['rayon']:
+                    if debug is not None:
+                        debug.append(('recul', dmin / h['rayon']))
+                    continue
             ens = set(int(groupe[v]) for v in h['debut'])
             doublon = False
             for g in trouves:

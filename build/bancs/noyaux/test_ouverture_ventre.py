@@ -11,7 +11,8 @@ Trois familles.
     sans la case (`ouverture=False`) rien n'est cherche.
  2. PIKACHU (saute si absent ; FILL_OUVERTURE_PIKACHU, defaut C:/tmp/pikachu.glb ; jamais dans le depot, qui est public) : l'ouverture du ventre est
     detectee (boucle fermee de sommets reels), bouchee, plus aucun rayon ne s'echappe dans le cone du ventre, prefixe des faces et sommets intact, moins
-    de 60 s. LIMITE DOCUMENTEE : une seconde ouverture (le bas du dos, au pied de la queue) reste : son pourtour saute d'une piece a l'autre, refusee.
+    de 60 s. Depuis le 2026-10-27 la SECONDE ouverture (le bas du dos, bol du bassin au pied de la queue) l'est aussi : plusieurs centres de sondage dans la
+    cavite, un centre supplementaire n'etant cru que s'il regarde l'ouverture de loin (RECUL_SONDE_MIN).
  3. NON-REGRESSION (sautee si absente) : le bateau (FILL_PEAU_BATEAU) ne donne AUCUNE ouverture et ses 30 trous de peau restent bouches ; la
     moissonneuse (FILL_OUVERTURE_MOISSON, defaut C:/tmp/benchy/moiss_avant.glb) ne recoit aucun voile diagonal (pourtours a sauts refuses).
 
@@ -65,6 +66,27 @@ def coque_double(angle_calotte_deg=None, rayon=1.0, epaisseur=0.03, sub=4):
             bande.append([a, b + n, a + n])
     F = np.vstack([F, np.array(bande, dtype=np.int64)])
     return V, F
+
+
+def coque_deux_calottes(angle_deg, rayon=1.0, epaisseur=0.03, sub=4):
+    """Comme coque_double, avec DEUX calottes opposees (+z et -z) retirees : deux ouvertures dans la meme cavite."""
+    ext = trimesh.creation.icosphere(subdivisions=sub, radius=rayon)
+    V = np.vstack([ext.vertices, ext.vertices * (rayon - epaisseur) / rayon])
+    n = len(ext.vertices)
+    F = np.vstack([ext.faces, ext.faces[:, ::-1] + n])
+    cen = V[F].mean(axis=1)
+    cen /= np.linalg.norm(cen, axis=1, keepdims=True)
+    F = F[np.abs(cen[:, 2]) < np.cos(np.radians(angle_deg))]
+    e = np.vstack([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]])
+    cle = np.sort(e, axis=1)
+    u, inv, cnt = np.unique(cle, axis=0, return_inverse=True, return_counts=True)
+    bord = e[cnt[inv.reshape(-1)] == 1]
+    bande = []
+    for a, b in bord:
+        if a < n and b < n:
+            bande.append([a, b, b + n])
+            bande.append([a, b + n, a + n])
+    return V, np.vstack([F, np.array(bande, dtype=np.int64)])
 
 
 def fuite(V, F, c, nb=8000):
@@ -129,6 +151,21 @@ class TestSynthetique(unittest.TestCase):
         self.assertIsNotNone(res['refus'])
         self.assertEqual(len(list(scene.geometry.values())[0].faces), len(self.F))
 
+    def test_deux_ouvertures_dans_une_meme_cavite(self):
+        V, F = coque_deux_calottes(25.0)
+        prep = B.preparer(V, F)
+        self.assertEqual(int((prep['cnt'] == 1).sum()), 0)
+        trous, rap = OU.detecter(V, F, prep, 3, 5000)
+        self.assertEqual(len(trous), 2, rap)
+        self.assertLess(float(trous[0]['direction'][2] * trous[1]['direction'][2]), -0.3, "un cone vers +z, l'autre vers -z")
+        scene = trimesh.Scene(trimesh.Trimesh(V.copy(), F.copy(), process=False))
+        res = BL.boucher_scene(scene, 3, 5000, journal=lambda m: None, ouverture=True)
+        self.assertEqual(res['stats']['large_openings_filled'], 2)
+        g = list(scene.geometry.values())[0]
+        self.assertTrue(np.array_equal(np.asarray(g.faces)[:len(F)], F))
+        apres, _ = fuite(np.asarray(g.vertices), np.asarray(g.faces), np.zeros(3))
+        self.assertLess(apres, 0.01)
+
     def test_coque_fermee_aucune_ouverture(self):
         V, F = coque_double(None)
         trous, rap = OU.detecter(V, F, B.preparer(V, F), 3, 5000)
@@ -162,8 +199,8 @@ class TestPikachu(unittest.TestCase):
         prep = B.preparer(V0, F0)
         self.assertEqual(int((prep['cnt'] == 1).sum()), 0, 'aucune arete de bord apres soudure (le cas de depart)')
         trous, rap = OU.detecter(V0, F0, prep, 3, 5000)
-        self.assertEqual(len(trous), 1, rap)
-        h = trous[0]
+        self.assertEqual(len(trous), 2, rap)
+        h = max(trous, key=lambda t: float(t['direction'][2]))       # le ventre regarde vers l'avant (+z) ; le dos est l'autre
         ring = np.asarray(h['debut'])
         P = V0[ring]
         self.assertGreaterEqual(h['n'], 100)
@@ -176,7 +213,7 @@ class TestPikachu(unittest.TestCase):
         res = BL.boucher_scene(scene, 3, 2000, journal=lambda m: None, ouverture=True)
         duree = time.time() - t0
         self.assertIsNone(res['refus'])
-        self.assertEqual(res['stats']['large_openings_filled'], 1)
+        self.assertEqual(res['stats']['large_openings_filled'], 2)
         g1 = list(scene.geometry.values())[0]
         V1, F1 = np.asarray(g1.vertices), np.asarray(g1.faces)
         self.assertTrue(np.array_equal(F1[:len(F0)], F0), 'prefixe des faces intact')
@@ -194,6 +231,17 @@ class TestPikachu(unittest.TestCase):
         # pas de pic : le bouchon reste dans la boite de l'original
         neuf = V1[len(V0):]
         self.assertTrue(np.all(neuf > V0.min(0) - 0.02 * diag) and np.all(neuf < V0.max(0) + 0.02 * diag))
+        # SECONDE ouverture : le bas du dos (bol du bassin), vue du fond de la cavite, bouchee elle aussi
+        dos = min(trous, key=lambda t: float(t['direction'][2]))
+        self.assertLess(float(dos['direction'][2]), -0.2, "le cone du dos regarde vers l'arriere (-z)")
+        self.assertTrue(0.2 < dos['etendue'] < 0.45, dos['etendue'])
+        self.assertLess(float(np.linalg.norm(V0[dos['debut']].mean(0) - np.array([-0.127, -0.232, -0.016]))), 0.1 * diag)
+        for c in (np.array([0.13, -0.34, 0.12]), np.array([0.075, -0.275, 0.025])):
+            dans = D @ dos['direction'] > np.cos(np.radians(25))
+            e0 = (OU.lancer(gr0, np.tile(c, (len(D), 1)), D)[1] < 0) & dans
+            e1 = (OU.lancer(gr1, np.tile(c, (len(D), 1)), D)[1] < 0) & dans
+            self.assertGreater(int(e0.sum()), 300)
+            self.assertLess(int(e1.sum()), 0.02 * int(e0.sum()), 'le cone du dos est ferme (%d -> %d rayons)' % (e0.sum(), e1.sum()))
 
 
 @unittest.skipUnless(os.path.exists(BATEAU), 'bateau absent')
