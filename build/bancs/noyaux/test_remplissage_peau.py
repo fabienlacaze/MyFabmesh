@@ -155,6 +155,29 @@ class Synthetiques(unittest.TestCase):
         a = PE.analyse_peau(V, F, B.preparer(V, F))
         self.assertEqual(a['a_boucher'], 0)
 
+    def test_cuvette_lisse_vue_par_le_residu(self):
+        """Seconde graine (2026-10-27) : une CUVETTE a parois lisses (profondeur continue, aucune marche de plus de delta entre deux pixels, aucun pli)
+        est invisible aux plages continues, mais son residu de profondeur sous la peau lissee la trahit. Profonde de 2,5 % de la diagonale : detectee ;
+        de 0,6 % : non (sous PROF_MIN, c'est un creux de la forme, pas un trou) ; avec RESIDU = False : non (l'ancienne methode ne la voit pas)."""
+        def cuvette(profondeur):
+            return assembler(grille(120, 1.0, 0.0, relief=lambda X, Y: -profondeur * np.clip(1.0 - (np.hypot(X, Y) / 0.05) ** 2, 0.0, None)),
+                             grille(10, 1.0, -0.3))
+        V, F = cuvette(0.03)
+        self.assertEqual(PE.analyse_peau(V, F, B.preparer(V, F))['a_boucher'], 1)
+        V2, F2 = cuvette(0.008)
+        self.assertEqual(PE.analyse_peau(V2, F2, B.preparer(V2, F2))['a_boucher'], 0)
+        PE.RESIDU = False
+        try:
+            self.assertEqual(PE.analyse_peau(V, F, B.preparer(V, F))['a_boucher'], 0)
+        finally:
+            PE.RESIDU = True
+
+    def test_residu_plan_plein_et_peau_continue(self):
+        """Le residu n'invente rien : plan plein, plan incline et dome lisse (aucun creux) ne donnent aucun trou."""
+        for relief in (lambda X, Y: 0.0 * X, lambda X, Y: 0.2 * X + 0.1 * Y, lambda X, Y: 0.15 * np.cos(2.0 * np.hypot(X, Y))):
+            V, F = assembler(grille(120, 1.0, 0.0, relief=relief), grille(10, 1.0, -0.4))
+            self.assertEqual(PE.analyse_peau(V, F, B.preparer(V, F))['a_boucher'], 0)
+
     def test_sphere_fermee(self):
         m = trimesh.creation.icosphere(subdivisions=4)
         a = PE.analyse_peau(np.asarray(m.vertices), np.asarray(m.faces), B.preparer(np.asarray(m.vertices), np.asarray(m.faces)))

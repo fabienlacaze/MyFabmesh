@@ -21,11 +21,17 @@ la tache montre une surface BEAUCOUP plus profonde, entierement entouree par une
   5. Le bouchon est celui de bouchage_lisse.py (plan / Liepa / ellipse, couleurs du voisinage). Le collier (voisins qui tiennent la tangente) est
      restreint a la peau EXTERIEURE autour du trou : sinon les voisins du fond du puits tireraient le bouchon vers l'interieur.
 
+SECONDE GRAINE (2026-10-27, `taches_residu`) : la segmentation en plages continues ne voit pas un creux a parois LISSES (cuvette, entonnoir : aucune marche
+de plus de `delta` entre deux pixels voisins), alors qu'il est bien plus profond que la peau qui l'entoure. Une seconde graine cherche donc le RESIDU de
+profondeur par rapport a la peau lissee (ouverture en niveaux de gris, quatre fenetres). Elle ne fait qu'AJOUTER des trous a ceux des plages continues et
+ne s'en sert pas du critere du pli (une cuvette lisse n'a pas de pli) : elle exige a la place une profondeur d'au moins `PROF_MIN` (1 % de la diagonale),
+une peau continue autour (`INL_MIN`) et au moins `VOTES_MIN` directions d'observation. `RESIDU = False` la desactive.
+
 NON DESTRUCTIF : meme garantie que le bouchon lisse (aucune face retiree, aucun sommet deplace, aucune UV reecrite). Derriere le bouchon, la feuille
 du dessous reste en place : on ne supprime pas de matiere.
 
 LIMITES (dites a l'utilisateur) : un trou ne se detecte que s'il est visible de l'exterieur depuis une des 26 directions ; un trou plus large que
-`TAILLE_MAX` (12 % de la diagonale) n'est pas pris pour un trou ; un creux a bords francs (narine, oeil) est un trou pour ce detecteur : la plage de
+`TAILLE_MAX` (12 % de la diagonale) n'est pas pris pour un trou ; un creux a bords francs (narine, oeil) est un trou pour ce detecteur (la seconde graine, sans critere du pli, y est plus exposee : un creux lisse de plus de 1 % de la diagonale, bien entoure et vu sous deux directions, est bouche) : la plage de
 tailles du pourtour (min / max aretes) reste le garde-fou de l'utilisateur.
 
 Dependances : numpy, scipy.
@@ -54,6 +60,18 @@ CONTINUITE_ECART = 0.006     # un pixel de la couronne s'ecarte de la peau lisse
 CONTINUITE_MAX = 0.30        # part maximale de ces pixels : au-dela, le trou n'est pas entoure d'UNE peau continue (rambardes, poupe, mobilier)
 LARGEUR_MIN = 0.0030         # largeur (diametre du plus grand disque inscrit, fraction de la diagonale) sous laquelle une tache est un filet (pied de rambarde), pas un trou
 PAS_ECHANTILLON = 0.7        # espacement des echantillons de surface (pixels) : aucun pixel d'un triangle ne reste vide
+REPRISE_FACT = 3.0           # demi-largeur de la fenetre de reprise, en rayons du candidat
+REPRISE_FACT_RESIDU = 5.0     # idem pour les taches par residu (un entonnoir large a besoin d'une fenetre qui garde sa peau autour)
+CAND_RG_RESIDU = 1.0          # rayon minimal (aretes moyennes) d'un candidat par residu
+RESIDU = True                # AJOUTE aux taches par plages continues une seconde graine : le RESIDU de profondeur (ouverture en niveaux de gris)
+RESIDU_ECHELLES = (9, 21, 45, 95)      # fenetres (pixels) de l'ouverture : une tache plus etroite que la fenetre est un creux, pas la peau
+RESIDU_EXT_MAX = 0.75        # etendue maximale d'une tache / fenetre de l'echelle qui la trouve
+RESIDU_K = 1.0               # seuil du residu, en DELTA
+RESIDU_ANNEAU = 0.8          # part minimale de l'anneau de la tache qui est de la surface vue (sinon : bord de silhouette)
+RESIDU_COURONNE = 0.6        # part minimale de la couronne qui s'ajuste a un plan (peau continue)
+PROF_MIN = 0.01              # profondeur mediane minimale (fraction de la diagonale) du trou sous la peau
+INL_MIN = 0.97               # part minimale de la couronne dans la tolerance du plan
+VOTES_MIN = 2               # nombre minimal de directions ou le trou est vu
 TROUS_MAX = 400              # garde-fou : au-dela, les plus grands seulement
 ECHANTILLONS_MAX = 40_000_000
 K_RESEAU_MAX = 64             # au-dela, un triangle est rendu par test de couverture de sa boite englobante
@@ -388,6 +406,106 @@ def taches_enfoncees(zb, hit, delta, aire_max, aire_min=AIRE_MIN_PX, fraction=FR
     return res, lab
 
 
+def taches_residu(zb, hit, delta, aire_max, aire_min=AIRE_MIN_PX, fraction=FRACTION_PROCHE, rejets=None):
+    """Taches enfoncees par RESIDU de profondeur (seconde graine, 2026-10-27). Meme contrat que taches_enfoncees.
+    Pourquoi : la segmentation en plages continues fond dans la peau voisine un creux a parois LISSES (cuvette, entonnoir : la profondeur varie sans
+    marche de plus de `delta` entre deux pixels) ; elle ne le voit pas, alors qu'il est bien plus profond que la peau qui l'entoure.
+    Methode : pour plusieurs fenetres w, la peau est estimee par l'OUVERTURE en niveaux de gris de la carte de profondeur (erosion puis dilatation :
+    elle efface les creux plus etroits que w) ; le residu `profondeur - ouverture` > delta est une tache candidate (etendue <= 75 % de w, hors bord de
+    l'image et hors fond exterieur). Chaque candidate est confirmee par un plan ajuste de facon robuste sur sa couronne (la peau est continue autour,
+    la tache est enfoncee sous ce plan, son anneau est de la surface vue). 'proche' = [1] : la carte d'etiquettes rendue vaut 1 sur toute la surface vue."""
+    from scipy import ndimage as ndi
+    R = zb.shape[0]
+    zmax = float(zb[hit].max()) if hit.any() else 0.0
+    zfull = np.where(hit, zb, zmax + 100.0 * delta)
+    lab_bg, nbg = ndi.label(~hit)
+    ext = np.zeros(nbg + 1, bool)
+    for e in (lab_bg[0], lab_bg[-1], lab_bg[:, 0], lab_bg[:, -1]):
+        ext[np.unique(e)] = True
+    ext[0] = False
+    bgext = ext[lab_bg] & ~hit
+    cand = []
+    for w in RESIDU_ECHELLES:
+        if w * 1.0 > R // 2:
+            continue
+        env = ndi.grey_opening(zfull, size=(w, w))
+        M = ((zfull - env) > RESIDU_K * delta) & ~bgext
+        M = ndi.binary_opening(M, structure=np.ones((2, 2))) if aire_min > 4 else M
+        L, n = ndi.label(M)
+        if n == 0:
+            continue
+        objs = ndi.find_objects(L)
+        aires = np.bincount(L.ravel(), minlength=n + 1)
+        for k in range(1, n + 1):
+            sl = objs[k - 1]
+            h, wd = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+            if aires[k] < aire_min or aires[k] > aire_max or max(h, wd) > RESIDU_EXT_MAX * w:
+                continue
+            if sl[0].start == 0 or sl[1].start == 0 or sl[0].stop == R or sl[1].stop == R:
+                continue
+            cand.append((int(aires[k]), w, sl, L, k))
+    cand.sort(key=lambda t: -t[0])
+    res = []
+    pris = np.zeros((R, R), bool)
+    Sbg = ndi.generate_binary_structure(2, 1)
+    for aire, w, sl, L, k in cand:
+        y0 = max(sl[0].start - 14, 0); y1 = min(sl[0].stop + 14, R)
+        x0 = max(sl[1].start - 14, 0); x1 = min(sl[1].stop + 14, R)
+        reg = L[y0:y1, x0:x1] == k
+        reg = ndi.binary_fill_holes(reg)
+        if pris[y0:y1, x0:x1][reg].mean() > 0.3:
+            continue
+        if reg[0].any() or reg[-1].any() or reg[:, 0].any() or reg[:, -1].any():
+            continue
+        sub_hit = hit[y0:y1, x0:x1]
+        ring = ndi.binary_dilation(reg, structure=Sbg) & ~reg
+        # le trou ne borde pas l'exterieur
+        if bgext[y0:y1, x0:x1][ndi.binary_dilation(reg, iterations=2)].any():
+            if rejets is not None: rejets.append(('fond', (y0, x0), aire))
+            continue
+        # plan de la peau : couronne large, ajustement robuste
+        cr = ndi.binary_dilation(reg, iterations=max(8, int(0.5 * w))) & ~ndi.binary_dilation(reg, iterations=1) & sub_hit
+        ys, xs = np.nonzero(cr)
+        if len(ys) < 20:
+            continue
+        zz = zfull[y0:y1, x0:x1]
+        A = np.c_[xs, ys, np.ones(len(xs))].astype(float)
+        zt = zz[ys, xs]
+        keep = np.ones(len(zt), bool)
+        for _ in range(3):
+            coef, *_ = np.linalg.lstsq(A[keep], zt[keep], rcond=None)
+            r = zt - A @ coef
+            s = max(float(np.std(r[keep])), 0.25 * delta)
+            keep = np.abs(r) < max(2.0 * s, delta)
+            if keep.sum() < 20:
+                break
+        res_c = np.abs(zt - A @ coef)
+        inl = float((res_c <= delta).mean())
+        yy, xx = np.mgrid[0:y1 - y0, 0:x1 - x0]
+        plan = coef[0] * (xx + 0.5) + coef[1] * (yy + 0.5) + coef[2]
+        prof = float(((zz - plan) > 0.5 * delta)[reg].mean())
+        if inl < RESIDU_COURONNE or prof < 0.8:
+            if rejets is not None: rejets.append(('couronne', (y0, x0), aire, inl, prof))
+            continue
+        ring_hit = float(sub_hit[ring].mean()) if ring.any() else 0.0
+        if ring_hit < RESIDU_ANNEAU:
+            if rejets is not None: rejets.append(('anneau', (y0, x0), aire, ring_hit))
+            continue
+        pris[y0:y1, x0:x1] |= reg
+        ry, rx = np.nonzero(reg)
+        cyl, cxl = float(ry.mean()), float(rx.mean())
+        res.append({'y0': y0, 'x0': x0, 'masque': reg, 'proche': [1], 'aire': int(reg.sum()), 'cy': y0 + cyl, 'cx': x0 + cxl,
+                    'etendue': 0.5 * math.hypot(float(np.ptp(ry)) + 1.0, float(np.ptp(rx)) + 1.0), 'pente': (float(coef[0]), float(coef[1])),
+                    'zc': float(coef[0] * (cxl + 0.5) + coef[1] * (cyl + 0.5) + coef[2]), 'echelle': w, 'inl': inl, 'prof': prof})
+    lab = hit.astype(np.int64)          # 1 = surface vue : les pixels de la tache sont exclus par _pourtour_de_tache (not tache)
+    return res, lab
+
+
+def _extracteurs():
+    """Les graines de taches : plages continues (toujours) et, si RESIDU, residu de profondeur."""
+    return [('plages', taches_enfoncees)] + ([('residu', taches_residu)] if RESIDU else [])
+
+
 # --------------------------------------------------------------------------------------------------------------------------------------------
 # Contour d'une tache -> pourtour en sommets du maillage
 # --------------------------------------------------------------------------------------------------------------------------------------------
@@ -717,17 +835,18 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         if budget_s is not None and time.time() - t0 > budget_s:
             return []
         fid, zb, proj = zbuffer(V, F, dirs[iv], resolution, centre, diag)
-        res, _ = taches_enfoncees(zb, fid >= 0, delta, int((TAILLE_MAX * diag * proj[4]) ** 2))
         sortie = []
-        for t in res:
-            c3, r = _centre_trou(t, proj, resolution)
-            frontal = 1.0 / math.sqrt(1.0 + (t['pente'][0] * proj[4]) ** 2 + (t['pente'][1] * proj[4]) ** 2)       # 1 = la peau est de face, 0 = rasante
-            sortie.append({'c': c3, 'r': r, 'iv': iv, 'aire': t['aire'] * frontal, 'rg': math.sqrt(t['aire'] / math.pi) / proj[4]})
+        for src, extraire in _extracteurs():
+            res, _ = extraire(zb, fid >= 0, delta, int((TAILLE_MAX * diag * proj[4]) ** 2))
+            for t in res:
+                c3, r = _centre_trou(t, proj, resolution)
+                frontal = 1.0 / math.sqrt(1.0 + (t['pente'][0] * proj[4]) ** 2 + (t['pente'][1] * proj[4]) ** 2)       # 1 = la peau est de face, 0 = rasante
+                sortie.append({'c': c3, 'r': r, 'iv': iv, 'aire': t['aire'] * frontal, 'rg': math.sqrt(t['aire'] / math.pi) / proj[4], 'src': src})
         return sortie
     cands = [c for liste in pool.map(balayer, range(len(dirs))) for c in liste]        # les vues sont independantes : en parallele, resultat dans l'ordre des vues
     # regroupement : les plus grands (les plus de face) d'abord
     n_cands = len(cands)
-    cands = [h for h in cands if h['rg'] >= RAYON_MIN_ARETES * arete or h['r'] >= 4.0 * arete]        # les grains de la carte ne valent pas une reprise
+    cands = [h for h in cands if h['rg'] >= (CAND_RG_RESIDU if h['src'] == 'residu' else RAYON_MIN_ARETES) * arete or h['r'] >= 4.0 * arete]        # les grains de la carte ne valent pas une reprise
     cands.sort(key=lambda h: -h['aire'])
     a_pli = _sommets_a_pli(prep)
     adj = _adjacence_groupes(prep)
@@ -739,7 +858,7 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
     for h in cands:
         for membres in groupes:
             g = membres[0]
-            if np.linalg.norm(h['c'] - g['c']) < 0.9 * max(h['rg'], g['rg']) + 0.5 * arete:
+            if g['src'] == h['src'] and np.linalg.norm(h['c'] - g['c']) < 0.9 * max(h['rg'], g['rg']) + 0.5 * arete:
                 membres.append(h)
                 break
         else:
@@ -748,7 +867,8 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
 
     def essayer(g):
         d = dirs[g['iv']]
-        demi = max(3.0 * g['r'], 8.0 * arete, 0.01 * diag)
+        residu = g['src'] == 'residu'
+        demi = max((REPRISE_FACT_RESIDU if residu else REPRISE_FACT) * g['r'], 8.0 * arete, 0.01 * diag)
         a_, b_ = _base(d / np.linalg.norm(d))
         px_, py_ = (cF - g['c']) @ a_, (cF - g['c']) @ b_
         sel = np.nonzero((np.abs(px_) < demi + rF) & (np.abs(py_) < demi + rF))[0]
@@ -756,7 +876,7 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         fid, zb, proj = zbuffer(V, fsel, d, RESOLUTION_REPRISE, g['c'], 2.0 * demi / 1.02)
         fid = np.where(fid >= 0, sel[np.maximum(fid, 0)], -1).astype(np.int32)
         s = proj[4]
-        res, lab = taches_enfoncees(zb, fid >= 0, delta, int((TAILLE_MAX * diag * s) ** 2))
+        res, lab = (taches_residu if residu else taches_enfoncees)(zb, fid >= 0, delta, int((TAILLE_MAX * diag * s) ** 2))
         meilleur = None
         for t in res:
             dist = math.hypot(t['cx'] - RESOLUTION_REPRISE / 2.0, t['cy'] - RESOLUTION_REPRISE / 2.0)
@@ -771,6 +891,10 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
         grand[meilleur['y0']:meilleur['y0'] + meilleur['masque'].shape[0], meilleur['x0']:meilleur['x0'] + meilleur['masque'].shape[1]] = meilleur['masque']
         from scipy import ndimage as _ndi
         ecart, largeur = _coherence(zb, fid >= 0, _ndi.binary_fill_holes(grand), s, diag)
+        _yy, _xx = np.nonzero(grand)
+        _plan = meilleur['zc'] + meilleur['pente'][0] * (_xx - meilleur['cx']) + meilleur['pente'][1] * (_yy - meilleur['cy'])
+        _dz = zb[_yy, _xx] - _plan
+        _prof = float(np.median(_dz)) / diag
         if ecart > CONTINUITE_MAX or largeur < LARGEUR_MIN:
             if debug is not None:
                 debug.append(('coherence', g['c'], g['r'], ecart, largeur))
@@ -802,29 +926,37 @@ def detecter(V, F, prep, min_aretes=3, max_aretes=2000, vues=None, resolution=RE
                 debug.append(('rayon', g['c'], g['r'], rayon))
             return None                                  # trop petit pour etre autre chose qu'un grain de la carte
         pli = float(a_pli[groupe[np.asarray(ring)]].mean())
-        if pli < PLI_MIN:
+        if residu and (_prof < PROF_MIN or meilleur.get('inl', 1.0) < INL_MIN):
+            if debug is not None:
+                debug.append(('residu', g['c'], g['r'], _prof, meilleur.get('inl', 1.0)))
+            return None
+        if pli < PLI_MIN and not residu:
             if debug is not None:
                 debug.append(('pli', g['c'], g['r'], pli))
             return None                               # creux a parois epaisses ou ajoure : pas un trou de peau
         ordre_rustine = list(ring)
         if float(_normale_newell(P) @ proj[2]) > 0:     # le bouchon regarde l'observateur
             ordre_rustine = ordre_rustine[::-1]
-        return {'debut': ordre_rustine[::-1], 'n': n, 'centre': ctr, 'rayon': rayon, 'faces_vues': faces_vues, 'vue': g['iv'], 'aire_px': meilleur['aire'],
+        return {'src': g['src'], 'debut': ordre_rustine[::-1], 'n': n, 'centre': ctr, 'rayon': rayon, 'faces_vues': faces_vues, 'vue': g['iv'], 'aire_px': meilleur['aire'],
                 'fenetre': (d, g['c'], demi, meilleur)}
 
     def reprendre(membres):
+        if membres[0]['src'] == 'residu' and len(set(m['iv'] for m in membres)) < VOTES_MIN:
+            return None                                   # sans assez de directions, le trou serait refuse plus bas : inutile de le reprendre
         for g in membres[:ESSAIS_PAR_TROU]:             # la meilleure vue d'abord ; si la reprise echoue, la suivante
             h = essayer(g)
             if h == 'structure':
                 return None
             if h is not None:
                 h['votes'] = len(set(m['iv'] for m in membres))
+                if membres[0]['src'] == 'residu' and h['votes'] < VOTES_MIN:
+                    return None
                 return h
         return None
     trouves = [h for h in pool.map(reprendre, groupes) if h is not None]
     pool.shutdown()
     # deux groupes qui retombent sur le meme trou
-    trouves.sort(key=lambda h: -h['rayon'])
+    trouves.sort(key=lambda h: (h['src'] == 'residu', -h['rayon']))        # les trous des plages continues d'abord : la graine par residu ne fait qu'AJOUTER
     gardes = []
     for h in trouves:
         ens = set(int(groupe[v]) for v in h['debut'])
