@@ -48,6 +48,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 VERSION = 1
+COULEURS_ROBUSTES = True          # palette : couleurs aberrantes du pourtour ecartees (voir _dedoubler_constante)
+COULEUR_SEUIL = 45.0             # ecart (sur 255, norme RVB) a la mediane circulaire au-dela duquel une couleur du pourtour est aberrante
 
 FACES_MAX_PAR_TROU = 6000      # au-dela, l'espacement du semis grossit (un grand trou est bouche plus grossierement, jamais refuse)
 MARGE_SEMIS = 0.75             # les points du semis restent a 0,75 espacement du pourtour (pas de triangle sliver contre le pourtour)
@@ -773,10 +775,26 @@ def _dedoubler_constante(r, UVr, R, couleurs_ring=None):
     sommet le plus proche. Les sommets sont dedoubles par triangle (UV constante par triangle)."""
     from scipy.spatial import cKDTree
     X, tri, Nn, n, q = r['X'], r['tri'], r['normales'], r['n'], r['q']
+    ok_ring = np.ones(n, dtype=bool)
+    if couleurs_ring is not None and len(couleurs_ring) == n and COULEURS_ROBUSTES and n >= 8:
+        # Un pourtour de trou de PEAU touche aussi la feuille interieure : certains sommets ont l'UV d'un texel sombre / etranger (tache grise ou noire dans
+        # le bouchon). On remplace ces couleurs aberrantes par la mediane circulaire de leurs voisines et on ne les propose pas comme couleur de palette.
+        c = np.asarray(couleurs_ring, dtype=np.float64)
+        w = min(4, n // 2 - 1)
+        idx = (np.arange(n)[:, None] + np.arange(-w, w + 1)[None, :]) % n
+        med = np.median(c[idx], axis=1)                                    # (n, c) mediane circulaire
+        ecart = np.linalg.norm(c - med, axis=1)
+        seuil = max(COULEUR_SEUIL, 3.0 * float(np.median(ecart)))
+        ok_ring = ecart <= seuil
+        if ok_ring.sum() >= 3:
+            couleurs_ring = np.where(ok_ring[:, None], c, med)
+        else:
+            ok_ring = np.ones(n, dtype=bool)
     if couleurs_ring is not None and len(couleurs_ring) == n:
         cs = np.vstack([couleurs_ring, _harmonique(tri, n, couleurs_ring, q)]) if q else couleurs_ring
         ct = cs[tri].mean(axis=1)                                          # couleur voulue par triangle
         d = ((ct[:, None, :] - couleurs_ring[None, :, :]) ** 2).sum(axis=2)   # (m, n)
+        d[:, ~ok_ring] += 1e18          # un sommet aberrant n'est jamais choisi (ok_ring a au moins 3 vrais)
         # a couleur egale, le sommet du pourtour le plus proche
         centres = X[tri].mean(axis=1)
         dist = np.linalg.norm(centres[:, None, :] - R[None, :, :], axis=2)
