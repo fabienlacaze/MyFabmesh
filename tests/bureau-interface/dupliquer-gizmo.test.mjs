@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 const R = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const lire = (f) => readFileSync(join(R, f), 'utf8').replace(/\r\n/g, '\n');
 function gestionnaire(src) {
-  const i = src.indexOf("document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {");
+  let i = src.indexOf("document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {");
+  if (i < 0) i = src.indexOf("document.getElementById('me-sel-duplicate')?.addEventListener('click', async () => {");   // site : debit (27/10)
   assert.ok(i > 0);
   return src.slice(i, src.indexOf('\n});\n', i) + 4);
 }

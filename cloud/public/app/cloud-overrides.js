@@ -908,6 +908,8 @@ window.__optionsMortesCloud = new Set(['ws-trellis2-refine', 'ws-trellis2-face-f
     'ws-mesh-clone3d-btn':      'manual_tool',
     'ws-mesh-paint-mesh-btn':   'manual_tool',
     'pm-save':                  'manual_tool',        // enregistrement de Paint Mesh / Decals
+    'me-sel-duplicate':         'manual_tool',        // Dupliquer (Select faces) : debite a chaque duplication (/api/tool-charge, 27/10)
+    'me-w-c-duplicate':         'manual_tool',        // meme action depuis l'assistant
     'me-save':                  'manual_tool',        // pied de la fenetre Sculpt / Paint / Select faces : le prix est debite a l'enregistrement (/api/upload-mesh), il doit s'y VOIR (26/10)
     'pp-save':                  'manual_tool',        // editeur de poids de peau (bouton cree a l'ouverture)
     'ws-lm-manual':             'manual_tool',        // Skeleton points

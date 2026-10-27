@@ -2470,10 +2470,20 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
   const vOnde = lambda / T;
   const v = pas ? (mode !== 'reptation' ? 0.35 * L / T : chenille ? 0.2 * L / T : nage ? 0.7 * vOnde : vOnde) * (V.foulee || 1) : 0;
   const w = pas ? (B.lacet || 0) * (V.lacet || 1) : 0;
+  // CAP DU CORPS AU REPOS (27/10, user : « le serpent marche en travers ») : la marche partait toujours vers +z ; un serpent couche le long de X (queue -> tete) avancait donc a 90 degres de son corps
+  // (meme defaut que la frappe, corrige le 26/10). On tourne la trajectoire pour que « devant » = la direction queue -> tete (au tiers de la colonne). Interrupteur : __marcheAxeCorps = false.
+  let fx = 0, fz = 1;
+  if (globalThis.__marcheAxeCorps !== false && !AC && chemin.length >= 3) {
+    const m = Math.min(chemin.length - 1, Math.max(1, Math.round(0.3 * (chemin.length - 1))));
+    const hx = P0[chemin[0]][0] - P0[chemin[m]][0], hz = P0[chemin[0]][2] - P0[chemin[m]][2], hn = Math.hypot(hx, hz);
+    if (hn > 1e-6) { fx = hx / hn; fz = hz / hn; }
+  }
+  const versCap = (x, z) => [x * fz + z * fx, -x * fx + z * fz];   // (x, z) dans le repere « devant = +z » -> repere du corps (devant = (fx, fz))
   const cheminCorps = (tt) => {
     const cap = w * tt;
-    const c = Math.abs(w) < 1e-9 ? [0, 0, v * tt] : [(v / w) * (1 - Math.cos(cap)), 0, (v / w) * Math.sin(cap)];
-    return { c, cap };
+    const c0 = Math.abs(w) < 1e-9 ? [0, 0, v * tt] : [(v / w) * (1 - Math.cos(cap)), 0, (v / w) * Math.sin(cap)];
+    const [cx, cz] = versCap(c0[0], c0[2]);
+    return { c: [cx, c0[1], cz], cap };
   };
   const D = Array.from({ length: nT }, () => new Array(J));
   const positions = new Map();                                // joint -> positions imposées (colonne)
@@ -2499,7 +2509,8 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
       const g0 = en(Ltot);
       for (let i = 0; i < nT; i++) for (let k = 0; k < chemin.length; k++) {
         const q = en(Ltot + v * t[i] - s[k]);
-        X[k][i] = [P0[chemin[0]][0] + q[0] - g0[0], P0[chemin[k]][1], P0[chemin[0]][2] + q[1] - g0[1]];
+        const [qx, qz] = versCap(q[0] - g0[0], q[1] - g0[1]);
+        X[k][i] = [P0[chemin[0]][0] + qx, P0[chemin[k]][1], P0[chemin[0]][2] + qz];
       }
     }
     for (let i = 0; i < nT && !suivi; i++) {

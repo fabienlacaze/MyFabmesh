@@ -20005,8 +20005,14 @@ document.getElementById('me-sel-smooth')?.addEventListener('click', () => {
   });
   showToast('Smoothed selection', 'success', 1400);
 });
-document.getElementById('me-sel-duplicate')?.addEventListener('click', () => {
+document.getElementById('me-sel-duplicate')?.addEventListener('click', async () => {
   if (!meState.mesh || !_meSelHas()) return;
+  // 27/10 (decision du user) : Dupliquer est facture (manual_tool, 1 credit), en plus de l'enregistrement ; debit AVANT la copie
+  if (typeof API.chargeTool === 'function') {
+    const c = await API.chargeTool({ tool: 'sel_duplicate' });
+    if (!c.success) { showToast(c.error || 'Not enough credits', 'error', 5000); return; }
+  }
+  if (!meState.mesh || !_meSelHas()) return;   // la selection a pu changer pendant l'attente du debit
   if (meState.moveActive) _meEndMove();   // un gizmo deja ouvert : on le ferme, un nouveau s'ouvre sur la COPIE
   _meRestoreView(); _mePushUndo();
   meState.mesh.traverse(c => {
