@@ -78,7 +78,7 @@ test('effacer la personne entiere AVEC une consigne de Modify jointe est refuse 
 });
 
 test('parite : worker.ts et main.js rendent la meme decision ; le module client ne route aucune de ces consignes', () => {
-  const noms = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE', '_RM_PERSONNE_SEULE'];
+  const noms = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE', '_RM_PERSONNE_SEULE', '_RM_AMBIGUS_NON_ANGLAIS', '_RM_RE_MINEUR_NON_ANGLAIS', '_rmNonAnglais'];
   assert.ok(lireSource().includes('\nfunction refusRetraitMineur('), 'refusRetraitMineur absent de worker.ts');
   const w = chargerFonctions(noms);
   const entrees = [

@@ -13572,10 +13572,27 @@ const _RM_MINEURS = ['child', 'children', 'childs', 'childlike', 'kid', 'kids', 
   'pupils', 'loli', 'lolis', 'lolita', 'lolitas', 'shota', 'shotas', 'cub', 'cubs', 'kinder',
   // consigne tapee en francais ou en espagnol (accents deja retires)
   'enfant', 'enfants', 'fillette', 'fillettes', 'fille', 'filles', 'garcon', 'garcons', 'garconnet', 'bebe', 'bebes', 'ado', 'ados',
-  'adolescent', 'adolescente', 'adolescents', 'adolescentes', 'gamin', 'gamine', 'gamins', 'gamines', 'mineur', 'mineure', 'mineurs', 'mineures',
+  'fils', 'adolescent', 'adolescente', 'adolescents', 'adolescentes', 'gamin', 'gamine', 'gamins', 'gamines', 'mineur', 'mineure', 'mineurs', 'mineures',
   'ecolier', 'ecoliere', 'ecoliers', 'ecolieres', 'collegien', 'collegienne', 'collegiens', 'collegiennes', 'nino', 'nina', 'ninos', 'ninas',
   'nene', 'nena', 'chico', 'chica', 'chicos', 'chicas', 'menor', 'menores', 'colegiala', 'colegialas', 'colegial', 'muchacha', 'muchacho'];
 const _RM_RE_MINEUR = new RegExp('(?:^| )(?:' + _RM_MINEURS.join('|') + ')(?: s)?(?= |$)');
+// FAUX REFUS DES LANGUES NON ANGLAISES (2026-10-28) : « son » (anglais : fils) est aussi le possessif francais « his / her » (« retire son chapeau »)
+// et « are » en espagnol (« los sombreros que son rojos ») ; « sons » = « sounds » en francais. Ces mots ne sont retires de la liste que pour un
+// TEXTE que la detection de langue commune (lib/langue-texte.js) range dans une langue RECONNUE autre que l'anglais (meme peu sure : elle exige
+// deja que l'etranger domine l'anglais) ET en ecriture latine. Texte anglais, sans
+// langue reconnue ou en doute : « son » reste un mineur (« remove son hat » est refuse). Le francais « fils » (fils = son) est ajoute a la liste
+// pour que « le chapeau de son fils » reste refuse quand « son » ne l'est plus. Seuls ces mots sont concernes : tout autre terme de mineur
+// (enfant, nino, kinder, bebe, menor...) est refuse dans toutes les langues, comme avant.
+const _RM_AMBIGUS_NON_ANGLAIS = ['son', 'sons'];
+const _RM_RE_MINEUR_NON_ANGLAIS = new RegExp('(?:^| )(?:' + _RM_MINEURS.filter((m) => !_RM_AMBIGUS_NON_ANGLAIS.includes(m)).join('|') + ')(?: s)?(?= |$)');
+/** Vrai si le texte brut est dans une langue reconnue non anglaise a ecriture latine (detection commune aux deux interfaces). Toute erreur = faux. */
+function _rmNonAnglais(brut: unknown): boolean {
+  try {
+    if (typeof brut !== 'string' || !brut.trim()) return false;
+    const d = LangueTexte.detecterLangue(brut);
+    return !!d && !!d.langue && d.langue !== 'en' && d.ecriture === 'latin';
+  } catch (_) { return false; }
+}
 const _RM_NB = '(?:[0-9]|1[0-7]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)';
 const _RM_RE_AGE = new RegExp('(?:^| )' + _RM_NB + ' ?(?:yo|y o|yrs?|years?|year olds?|years? olds?|yr olds?|ans|anos)(?= |$)'
   + '|(?:^| )(?:aged?|age of) ' + _RM_NB + '(?= |$)');
@@ -13598,8 +13615,14 @@ function _rmPlier(x: unknown): string {
 /** Raison du refus (texte), ou null si le retrait peut partir. consignes : consigne de Modify traduite et tapee ([] pour l'outil Auto Inpaint). */
 function refusRetraitMineur(cible: unknown, remplacement: unknown, consignes: unknown[]): string | null {
   const autres = (Array.isArray(consignes) ? consignes : []).map(_rmPlier).filter(Boolean);
-  const plies = [_rmPlier(cible), _rmPlier(remplacement), ...autres].filter(Boolean);
-  if (!plies.some((t) => _RM_RE_MINEUR.test(t) || _RM_RE_AGE.test(t))) return null;
+  // Chaque texte est juge SEUL avec la liste qui convient a SA langue (voir _RM_AMBIGUS_NON_ANGLAIS) ; la consigne tapee reste en langue d'origine.
+  const brutes = [cible, remplacement, ...(Array.isArray(consignes) ? consignes : [])];
+  const nomme = brutes.some((b) => {
+    const t = _rmPlier(b);
+    if (!t) return false;
+    return (_rmNonAnglais(b) ? _RM_RE_MINEUR_NON_ANGLAIS : _RM_RE_MINEUR).test(t) || _RM_RE_AGE.test(t);
+  });
+  if (!nomme) return null;
   const motsCible = _rmPlier(cible).split(' ').filter((w) => w && !_RM_PERSONNE_SEULE.has(w));
   const personneSeule = !autres.length && !_rmPlier(remplacement) && motsCible.length > 0 && motsCible.every((w) => _RM_RE_MINEUR.test(w));
   return personneSeule ? null : 'This edit is not available when the instruction mentions a child or a young person.';

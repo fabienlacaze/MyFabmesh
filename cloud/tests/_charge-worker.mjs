@@ -61,7 +61,7 @@ export function chargerDepuisSource(src, noms, doublures = {}) {
   // handleAutoInpaint depend du refus « personne mineure nommee » (2026-10-22) : ses declarations sont ajoutees d'office quand elles existent
   // (un WORKER_SRC plus ancien n'en a pas), sauf si le test les a deja nommees ou les double lui-meme.
   if (noms.includes('handleAutoInpaint')) {
-    const dep = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE', '_RM_PERSONNE_SEULE']
+    const dep = ['refusRetraitMineur', '_rmPlier', '_RM_CONFUSABLES', '_RM_MINEURS', '_RM_RE_MINEUR', '_RM_NB', '_RM_RE_AGE', '_RM_PERSONNE_SEULE', '_RM_AMBIGUS_NON_ANGLAIS', '_RM_RE_MINEUR_NON_ANGLAIS', '_rmNonAnglais']
       .filter((n) => index.has(n) && !noms.includes(n) && !Object.prototype.hasOwnProperty.call(doublures, n));
     noms = [...noms, ...dep];
   }
