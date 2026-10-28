@@ -945,12 +945,15 @@ function chaineLocale(F, k) {
   }
   return C;
 }
-function resoudreForme(F, base, cible, poleMonde) {
+function resoudreForme(F, base, cible, poleMonde, plieMax = 0.9) {
   const d = norm(sub(cible, base));
   // pas d'autre plafond que 0,9 pi sur la plus forte pliure : une jambe DROITE au repos (pliure
   // conventionnelle de 0,08) plafonnait à k = 8, genou à 73° ; accroupie (« crawl ») elle ne
   // pouvait plus se replier et enfonçait le pied de 4 % sous le sol (28/09)
-  let kmax = 0.9 * Math.PI / Math.max(Math.max(...F.phi.map(Math.abs)), 1e-3);
+  // 28/10 (defaut cheval-jump-torsion) : en locomotion (A.pas, hors patte etalee) l'appelant passe plieMax = 0,6 (108 deg) au lieu de 0,9 pi (162 deg) ; accroupi / couche : 0,9. Une jambe presque droite au repos (mule) a un phi
+  // minuscule : k montait si haut que la pliure d'une seule articulation atteignait 146 deg (chevilles repliees sur elles-memes) quand le pied remonte vers la hanche
+  // au saut ; la torsion mesuree montait a 173 deg et les a-coups a 147 deg. Une articulation d'animal ne se plie guere au-dela de ~110 deg.
+  let kmax = plieMax * Math.PI / Math.max(Math.max(...F.phi.map(Math.abs)), 1e-3);
   const longueur = (k) => { const C = chaineLocale(F, k); return norm(C[C.length - 1]); };
   // au-delà d'un certain repli la patte se RALLONGE : recherche arrêtée au minimum de longueur
   let kmin = 0, lmin = Infinity;
@@ -999,6 +1002,9 @@ function relevePlan(Q, ymin) {
   }
   for (let k = 1; k < Q.length - 1; k++) Q[k] = meilleur[k];
 }
+// fin de balancier (bipede, 28/10) : le pied approchait du sol bien avant d'arriver (la levee retombe a 62 % du balancier alors que 32 % de la foulee reste a parcourir) et RASAIT le sol sur ~un tiers de pas.
+// Un terme proportionnel a la distance restante (1 - e) garde le pied decolle jusqu'a ce qu'il soit presque pose ; il s'etablit entre 45 % et 65 % du balancier.
+const lisseFin = (u) => { const x = Math.min(Math.max((u - 0.45) / 0.2, 0), 1); return x * x * (3 - 2 * x); };
 function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'generique', ampleurMax = 1) {
   const { joints, par, P0 } = sq;
   const det = detecterPattes(par, P0, sq.racine);
@@ -1601,7 +1607,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
           // quadrupede qui saute : les pieds suivent la MONTEE du corps (sinon ils ne s'elevent que de h pendant que le tronc monte de SAUT_Q * hanche : jambes tendues en echasses,
           // aucune phase aerienne lisible) puis se replient de h par-dessus (planche avant / apres : C:/tmp/anim_realisme2)
           if (SAUT && quadrupede && famMammifere && Object.keys(Pr).length && ALLURES[allure].saut && globalThis.__sautQuadrupede !== false) cible[1] += SAUT_Q * hanche * (V.h || 1) * Math.sin(Math.PI * u);
-          cible[1] += A.levee && !(B.recul && droit) ? h / 1.06 * (Math.sin(Math.PI * Math.min(u / 0.62, 1)) ** 2 + 0.06 * Math.sin(Math.PI * u) ** 2) : h * Math.sin(Math.PI * (A.leve ? Math.pow(u, A.leve) : u)) ** 2;   // leve < 1 : le pied monte tot (quadrupedes, galop)
+          cible[1] += A.levee && !(B.recul && droit) ? h / 1.06 * (Math.sin(Math.PI * Math.min(u / 0.62, 1)) ** 2 + 0.06 * Math.sin(Math.PI * u) ** 2 + (globalThis.__finBalancierLeve === false ? 0 : 1.2 * (1 - e) * lisseFin(u))) : h * Math.sin(Math.PI * (A.leve ? Math.pow(u, A.leve) : u)) ** 2;   // leve < 1 : le pied monte tot (quadrupedes, galop)
         }
       }
       let theta = 0;                                          // déroulé : talon qui se lève en fin d'appui
@@ -1654,7 +1660,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         }
       }
       if (norm(sub(cib, hanche_i)) > PORTEE_MAX * Lik) cib = add(hanche_i, mulS(sub(cib, hanche_i), PORTEE_MAX * Lik / norm(sub(cib, hanche_i))));   // portée bornée
-      let Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK));
+      let Q = resoudreForme(p.forme, hanche_i, cib, mv(porte >= 0 ? colRot[i].get(porte) : Rb[i], p.poleIK), A.pas && !Pr.releveGenou ? (globalThis.__plieMarche ?? 0.6) : 0.9);
       // 25/10 (2e tour) : patte en Z (grenouille : cuisse en avant, jambe en arriere, tarse a plat) qui se replie sous le corps : la
       // cheville passait 9 cm SOUS le sol a chaque poussee (44 % de la hauteur). On fait tourner le plan de la patte autour de l'axe
       // hanche-pied (les deux extremites ne bougent pas) jusqu'a ce que tous les os intermediaires soient hors du sol.
@@ -2182,7 +2188,7 @@ function animerChute(sq, det, fps, variante) {
         }
         let bas2 = Infinity;                                 // os restant sous le sol (parent a plusieurs enfants : non repliable) : le corps remonte de ce retard, au plus 6 % de H
         for (let j = 0; j < J; j++) bas2 = Math.min(bas2, P[j][1]);
-        monte += gg * Math.min(Math.max(0, sol - monte - bas2), 0.06 * H);
+        monte += (globalThis.__mortSansPenetration === false ? gg : 1) * Math.min(Math.max(0, sol - monte - bas2), 0.06 * H);   // 28/10 : la correction n'etait ponderee par gg que pour la mort a plat ; en debut de chute (gg petit) un pied passait 2 % de H sous le sol
       }
     }
     R.push(Ri);
@@ -2299,15 +2305,15 @@ function actionSansPattes(allure, nage, T0, fps, Ltot, V) {
   const decroit = (k, a) => Math.max(0, 1 - k / a);
   if (allure === 'attack' && !nage) {
     // 0-0,22 ramassement en S + tete levee, 0,22-0,34 detente, tenue puis retour progressif
-    const ram = (u) => cles(u, [[0, 0], [0.22, 1], [0.27, 1], [0.34, 0], [0.5, 0], [1, 0]]);
-    const dresse = (u) => cles(u, [[0, 0], [0.2, 1], [0.27, 0.75], [0.34, -0.1], [0.46, -0.08], [0.75, 0.05], [1, 0]]);   // la frappe finit tete a hauteur du sol (une tete pointee vers le bas souleverait tout l'arriere du corps)
+    const ram = (u) => cles(u, [[0, 0], [0.22, 1], [0.27, 1], [0.38, 0], [0.5, 0], [1, 0]]);
+    const dresse = (u) => cles(u, [[0, 0], [0.2, 1], [0.28, 0.75], [0.38, -0.1], [0.5, -0.08], [0.75, 0.05], [1, 0]]);   // la frappe finit tete a hauteur du sol (une tete pointee vers le bas souleverait tout l'arriere du corps)
     AC.onde = (i) => 1 - cles(U(i), [[0, 0], [0.1, 0.8], [0.3, 0.9], [0.8, 0.4], [1, 0]]);
     AC.lacet = (i, k) => amplitude * ram(U(i)) * 1.25 * S(k * 0.9, 1) * decroit(k, 0.95);
     AC.pitch = (i, k) => amplitude * dresse(U(i)) * 0.95 * decroit(k, 0.5);
     // frappe d'un serpent (Young 1991 ; Penning et al. 2016 : la frappe dure 50-150 ms, la tete parcourt ~0,3-0,5 L, precedee d'un ramassement du cou en S) :
     // ramassement plus net (-0,10 L) puis coup en 0,10 s (0,22 -> 0,29 de 1,4 s) jusqu'a +0,22 L, tenue, retour lent
     AC.avance = (i) => amplitude * (globalThis.__frappeSerpent !== false
-      ? cles(U(i), [[0, 0], [0.22, -0.1], [0.29, 0.22], [0.42, 0.18], [0.8, 0.03], [1, 0]])
+      ? cles(U(i), [[0, 0], [0.22, -0.1], [0.32, 0.22], [0.44, 0.18], [0.8, 0.03], [1, 0]])
       : cles(U(i), [[0, 0], [0.22, -0.06], [0.3, 0.16], [0.42, 0.14], [0.8, 0.03], [1, 0]]));
     AC.roulis = (i) => 0.12 * amplitude * env(U(i), 0.2, 0.55);
     AC.ancre = 0.75;
@@ -2361,9 +2367,9 @@ function actionSansPattes(allure, nage, T0, fps, Ltot, V) {
   } else if (allure === 'jump') {
     const arc = (u) => 4 * u * (1 - u);
     AC.onde = (i) => (nage ? 0.5 + 0.5 * env(U(i), 0.2, 0.8) : 0.15);
-    AC.lacet = (i, k) => (nage ? 0.1 : amplitude * 1.1 * cles(U(i), [[0, 0], [0.25, 1], [0.32, 0], [1, 0]]) * S(k * 0.9, 1) * decroit(k, 0.95));
-    AC.pitch = (i, k) => amplitude * cles(U(i), [[0, 0], [0.25, 0.4], [0.35, 0.9], [0.55, 0.1], [0.8, -0.9], [0.9, -0.2], [1, 0]]) * decroit(k, 0.7);
-    AC.lift = (i) => (nage ? 0.38 : 0.3) * Ltot * amplitude * (U(i) > 0.3 && U(i) < 0.88 ? arc((U(i) - 0.3) / 0.58) : 0);
+    AC.lacet = (i, k) => (nage ? 0.1 : amplitude * 1.1 * cles(U(i), globalThis.__bondSerpent === false ? [[0, 0], [0.25, 1], [0.32, 0], [1, 0]] : [[0, 0], [0.25, 1], [0.42, 0], [1, 0]]) * S(k * 0.9, 1) * decroit(k, 0.95));
+    AC.pitch = (i, k) => amplitude * (nage || globalThis.__bondSerpent === false ? 1 : 0.45) * cles(U(i), [[0, 0], [0.25, 0.4], [0.35, 0.9], [0.55, 0.1], [0.8, -0.9], [0.9, -0.2], [1, 0]]) * decroit(k, 0.7);
+    AC.lift = (i) => (nage ? 0.38 : globalThis.__bondSerpent !== false ? 0.1 : 0.3) * Ltot * amplitude * (U(i) > 0.3 && U(i) < 0.88 ? arc((U(i) - 0.3) / 0.58) ** 2 : 0);   // serpent : bond BAS (28/10, le corps ne se dressait pas : lift 0,3 L et tangage 0,9 rad = piquet vertical)
     AC.avance = (i) => amplitude * (nage ? 0.8 : 0.55) * lisse(U(i), 0.3, 0.88) + (nage ? 0 : -0.05 * env(U(i), 0.05, 0.3));
     AC.ancre = 0.9;
   } else {
@@ -2469,7 +2475,12 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
   // (la trace est alors periodique en un cycle, la boucle se ferme) ; chenille : 0,2 L par cycle
   const vOnde = lambda / T;
   const v = pas ? (mode !== 'reptation' ? 0.35 * L / T : chenille ? 0.2 * L / T : nage ? 0.7 * vOnde : vOnde) * (V.foulee || 1) : 0;
-  const w = pas ? (B.lacet || 0) * (V.lacet || 1) : 0;
+  let w = pas ? (B.lacet || 0) * (V.lacet || 1) : 0;
+  // COURBURE DE VIRAGE BORNEE (28/10) : un serpent tourne en arc large (rayon >= ~2 L). Avec un lacet impose en rad/s, la courbure w/v = 1/L : le corps entier s'enroulait sur un
+  // cercle (axe du corps a 30 deg de la direction d'avance, racine retournee de plus de 150 deg, derive laterale x3). On borne la courbure a kappaMax = 0,5 / L (sans effet sur les autres modes).
+  if (pas && mode === 'reptation' && !nage && !vertical && v > 1e-9 && globalThis.__virageBorne !== false) {
+    const wMax = (globalThis.__kappaVirage || 0.3) / L * v; if (Math.abs(w) > wMax) w = Math.sign(w) * wMax;
+  }
   // CAP DU CORPS AU REPOS (27/10, user : « le serpent marche en travers ») : la marche partait toujours vers +z ; un serpent couche le long de X (queue -> tete) avancait donc a 90 degres de son corps
   // (meme defaut que la frappe, corrige le 26/10). On tourne la trajectoire pour que « devant » = la direction queue -> tete (au tiers de la colonne). Interrupteur : __marcheAxeCorps = false.
   let fx = 0, fz = 1;
@@ -2502,7 +2513,7 @@ function animerSansPattes(sq, allure, cycles, fps, variante, det, raison = 'rept
       const ds = Ltot / 300, sMax = Ltot + v * t[nT - 1] + 2 * ds, nS = Math.ceil(sMax / ds) + 2, kO = 2 * Math.PI / lambda;
       const tx = new Float64Array(nS), tz = new Float64Array(nS);
       for (let n = 1; n < nS; n++) {
-        const sg = (n - 0.5) * ds, th = kappa * sg + Math.atan(amp * kO * Math.cos(kO * sg));
+        const sg = (n - 0.5) * ds, th = kappa * (sg - 0.5 * Ltot) + Math.atan(amp * kO * Math.cos(kO * sg));
         tx[n] = tx[n - 1] + ds * Math.sin(th); tz[n] = tz[n - 1] + ds * Math.cos(th);
       }
       const en = (sg) => { const f = Math.max(0, sg) / ds, n0 = Math.min(Math.floor(f), nS - 2), r_ = f - n0; return [tx[n0] + r_ * (tx[n0 + 1] - tx[n0]), tz[n0] + r_ * (tz[n0 + 1] - tz[n0])]; };
@@ -2797,14 +2808,38 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
   const pris = new Set([...pattes].flatMap((q) => sousArbre(E, q.chaine[0])));
   [...tetes, ...queues].forEach((c) => c.forEach((k) => pris.add(k)));
   const ailes = [];
-  for (let f = 0; f < J; f++) {
-    if (E[f].length || pris.has(f) || Math.abs(P0[f][0] - xMid) < 0.12 * ext) continue;
+  // 28/10 (defaut vol-lowpoly-ailes-asymetriques) : une aile dont le bout est FOURCHU (deux phalanges au bout d'un meme os) etait coupee a la fourche :
+  // seule la phalange la plus profonde battait (2 os sur 6), l'autre aile battait sur toute sa chaine -> amplitude du simple au triple. On remonte maintenant a travers
+  // un os dont les AUTRES enfants ne sont que des fragments (sous-arbre <= 2 os, sans lateralite propre), et on part des feuilles les plus profondes pour que
+  // la chaine principale soit prise en premier ; les feuilles deja couvertes sont ignorees.
+  const profondeur = new Array(J).fill(0);
+  for (let j = 0; j < J; j++) { let k = j, d = 0; while (par[k] >= 0) { k = par[k]; d++; } profondeur[j] = d; }
+  const taille = (j) => 1 + E[j].reduce((s_, e_) => s_ + taille(e_), 0);
+  const feuilles = [];
+  for (let f = 0; f < J; f++) if (!E[f].length && !pris.has(f) && Math.abs(P0[f][0] - xMid) >= 0.12 * ext) feuilles.push(f);
+  feuilles.sort((a, b) => profondeur[b] - profondeur[a] || a - b);
+  const couverts = new Set();
+  for (const f of feuilles) {
+    if (couverts.has(f)) continue;
     const c = [f];
     let k = f;
-    while (par[k] >= 0 && E[par[k]].length === 1 && !pris.has(par[k])) { k = par[k]; c.push(k); }
+    while (par[k] >= 0 && !pris.has(par[k]) && (E[par[k]].length === 1 || E[par[k]].filter((e_) => e_ !== k).every((e_) => taille(e_) <= 2 && !c.includes(e_)))) { k = par[k]; c.push(k); }
     c.reverse();
-    if (c.length < 2 || par[c[0]] < 0) continue;
+    if (c.length < 2 || par[c[0]] < 0 || c.some((x_) => couverts.has(x_))) continue;
+    c.forEach((x_) => couverts.add(x_));
+    for (const x_ of c) for (const e_ of E[x_]) if (taille(e_) <= 2) couverts.add(e_);
     ailes.push({ chaine: c, cote: P0[f][0] > xMid ? 1 : -1 });
+  }
+  // 28/10 (defaut vol-lowpoly-pattes-ailes-confondues) : une patte avant attachee au thorax, a l'ecart du plan median, passait pour une AILE (4 ailes pour un dragon a 2 ailes
+  // + 2 pattes avant non detectees) et battait avec elles. Sur un meme cote, une chaine nettement plus COURTE (< 60 % de la plus longue : une paire d'ailes d'insecte,
+  // elle, a des longueurs voisines) n'est pas une aile : elle est traitee comme une patte (repliee).
+  const longueurChaine = (c) => { let L_ = 0; for (let q = 1; q < c.length; q++) L_ += Math.hypot(...sub(P0[c[q]], P0[c[q - 1]])); return L_; };
+  const pattesExtra = [];
+  for (const cote_ of [-1, 1]) {
+    const cand = ailes.filter((a) => a.cote === cote_);
+    if (cand.length < 2) continue;
+    const Lmax = Math.max(...cand.map((a) => longueurChaine(a.chaine)));
+    for (const a of cand) if (longueurChaine(a.chaine) < 0.6 * Lmax) { pattesExtra.push({ chaine: a.chaine }); ailes.splice(ailes.indexOf(a), 1); }
   }
   const balance = new Map();                                   // joint -> rotations locales (par rapport au parent), une par image
   const ampAile = PV.amp * (V.h || 1);
@@ -2815,30 +2850,56 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
     // amplitude TOTALE du bout de l'aile (somme des rotations de la chaine) fixee, quelle que soit la longueur de la chaine : avant, une aile a
     // 4 articulations balayait ~170 deg crete a crete (bout d'aile du sol au-dessus de la verticale). Course des oiseaux : 80-120 deg crete a crete
     // (Tobalske & Dial 1996 ; Hedrick et al. 2002), vol stationnaire un peu plus.
+    // 28/10 (defaut vol-3, ailes qui se croisent au-dessus du corps) : le battement est centre sur l'ELEVATION DE REPOS de l'aile. Un rig dont les ailes sont dressees au repos
+    // (dragon : ~55 deg au-dessus de l'horizontale) battait de ~10 a ~77 deg : l'aile passait la verticale et croisait sa jumelle. On abaisse le centre du battement vers
+    // l'horizontale (facteur 0,8 de l'elevation de repos, bornee a +-70 deg) : le battement se fait de part et d'autre du plan des epaules.
+    const elRepos = Math.atan2(P0[a.chaine[a.chaine.length - 1]][1] - P0[a.chaine[0]][1], Math.abs(P0[a.chaine[a.chaine.length - 1]][0] - P0[a.chaine[0]][0]) + 1e-9);
+    const centrage = globalThis.__ailesCentrees === false ? 0 : (globalThis.__centrageVol ?? 0.8) * Math.max(-1.22, Math.min(1.22, elRepos));
     const nArt = a.chaine.length - 1, somme = Array.from({ length: nArt }, (_, k) => Math.pow(0.72, k)).reduce((x, y) => x + y, 0);
     a.chaine.slice(0, -1).forEach((j, k) => {
       const amp = (PV.total ? PV.total * (V.h || 1) / somme : ampAile) * FACTEUR_AILE * Math.pow(0.72, k), retard = 0.55 * k;     // l'extremite suit avec retard et moins d'amplitude
       const repli = k >= 1 ? (PV.fold ?? 0) * (V.repli_aile ?? 1) * (k === 1 ? 1 : 0.6) : 0;     // coude / poignet flechis a la remontee, aile qui balaie vers l'arriere
       balance.set(j, t.map((tt) => {
         const u_ = uu(tt), ka = (AV ? AV.amp(u_) : 1) * gl(tt), fo = AV ? AV.fold(u_) : 0, ha = AV ? AV.haut(u_) * Math.pow(0.5, k) : 0;
-        return mm(Ry(a.cote * (repli * remontee(phi(tt) - retard) * ka + (k >= 1 ? 1.4 * fo : 0))), Rz(a.cote * (amp * ka * onde(phi(tt) - retard) + (k === 0 ? 0.12 * ampAile - 1.3 * fo : 0) + ha)));
+        return mm(Ry(a.cote * (repli * remontee(phi(tt) - retard) * ka + (k >= 1 ? 1.4 * fo : 0))), Rz(a.cote * (amp * ka * onde(phi(tt) - retard) + (k === 0 ? 0.12 * ampAile - 1.3 * fo - centrage * (1 - Math.min(1, fo)) : 0) + ha)));
       }));
     });
   }
   // --- queue : ondulation douce, en retard sur le battement ; tete : contre-tangage
   const tangage = t.map((tt) => PV.tangage + 0.035 * Math.sin(phi(tt) + 0.6) + (AV ? AV.tang(uu(tt)) : 0));
+  // 28/10 (defaut vol-1, dragon cabre : queue qui traine, cou dresse) : le repos d'un rig est souvent une posture DEBOUT (queue qui pend vers le sol, cou vertical). En vol le corps
+  // est horizontal : chaque segment de queue / de cou est ramene vers l'horizontale (sa composante verticale est reduite d'un facteur), par la rotation MINIMALE qui amene le segment
+  // sur la direction aplatie, cumulee le long de la chaine. Queue : tres aplatie (elle suit le corps) ; cou : a moitie (la tete garde son port naturel).
+  const FLAT_QUEUE = globalThis.__aplatirVol === false ? 0 : 0.85, FLAT_COU = globalThis.__aplatirVol === false ? 0 : 0.5;
+  const rotEntre = (a, b) => { const ax = cross(a, b), s_ = norm(ax), c_ = dot(a, b); return s_ < 1e-9 ? I3() : rotvec(ax, Math.atan2(s_, c_)); };
+  const aplatir = (chaine, alpha) => {                         // rotation locale (par os) qui aplatit chaque segment ; rotation identite si alpha = 0
+    const out = [];
+    let C = I3();
+    for (let k = 0; k < chaine.length - 1; k++) {
+      const s_ = sub(P0[chaine[k + 1]], P0[chaine[k]]), n_ = norm(s_);
+      if (alpha <= 0 || n_ < 1e-9) { out.push(I3()); continue; }
+      const tg = [s_[0], s_[1] * (1 - alpha), s_[2]], tn = norm(tg);
+      if (tn < 1e-9) { out.push(I3()); continue; }
+      const u_ = mv(tr(C), mulS(tg, n_ / tn));
+      const B = rotEntre(s_, u_);
+      out.push(B); C = mm(C, B);
+    }
+    return out;
+  };
   for (const cq of queues) {
+    const fl = aplatir(cq, FLAT_QUEUE);
     cq.slice(0, -1).forEach((j, a) => {
-      balance.set(j, t.map((tt) => mm(Ry(0.14 * (a + 1) / cq.length * Math.sin(phi(tt) * 0.5 - 0.5 * a)), Rx(-0.10 * Math.sin(phi(tt) - 0.8 - 0.4 * a)))));
+      balance.set(j, t.map((tt) => mm(mm(Ry(0.14 * (a + 1) / cq.length * Math.sin(phi(tt) * 0.5 - 0.5 * a)), Rx(-0.10 * Math.sin(phi(tt) - 0.8 - 0.4 * a))), fl[a])));
     });
   }
   for (const ct of tetes) {
+    const fl = aplatir(ct, FLAT_COU);
     ct.slice(0, -1).forEach((j, a) => {
-      balance.set(j, t.map((tt, i) => Rx((a === 0 ? -tangage[i] * (AV ? AV.teteStab : 0.8) : 0) + 0.03 * Math.sin(phi(tt) + 0.9))));
+      balance.set(j, t.map((tt, i) => mm(Rx((a === 0 ? -tangage[i] * (AV ? AV.teteStab : 0.8) : 0) + 0.03 * Math.sin(phi(tt) + 0.9)), fl[a])));
     });
   }
   // --- pattes : repliees vers l'arriere (hanche, puis chaque articulation) avec un leger balancement
-  for (const p of pattes) {
+  for (const p of [...pattes, ...pattesExtra]) {
     p.chaine.slice(0, -1).forEach((j, k) => {
       const repli = (k === 0 ? 0.55 : 0.75) * (V.repli ?? 1);
       balance.set(j, t.map((tt) => Rx(repli * (AV ? AV.pattes(uu(tt)) : 1) + 0.07 * Math.sin(phi(tt) - 0.4 * k))));
@@ -2910,6 +2971,7 @@ function animerVol(sq, allure, cycles, fps, variante, det) {
     }
   }
   const infos = {
+    chainesAplaties: [...queues, ...tetes].flatMap((c_) => c_.slice(0, -1)).filter(() => (FLAT_QUEUE > 0 || FLAT_COU > 0)),
     mode: 'vol', ailes: ailes.length, pattes: pattes.length, queues: queues.length, tetes: tetes.length, colonne: 0,
     periode: T, foulee: +(v * T).toFixed(3), images: nT,
     sous_sol_pct: +(100 * sousSol / H).toFixed(1), pire_os: pireOs, glissement_appui_pct: 0, acoups_max_deg: +(acoups * 180 / Math.PI).toFixed(1),
@@ -3110,6 +3172,9 @@ function appliquerSecondaire(sq, c, allure, fps, amplitude = SECONDAIRE.amplitud
   const det = detecterPattes(par, P0, sq.racine);
   const sol = det.sol, H = Math.max(ptpAxe(P0, 1), 1e-6);
   const cls = classerSecondaire(sq, det, H);
+  // vol (28/10) : queue et cou y sont deja ramenes vers l'horizontale par animerVol (position de repos du ressort = posture debout du rig, pendante) : le ressort les tirait
+  // vers cette posture de repos et doublait les a-coups ; ils ne recoivent donc pas de mouvement secondaire de ressort (leur ondulation propre reste)
+  if (c.infos && c.infos.chainesAplaties) for (const j of c.infos.chainesAplaties) cls[j] = null;
   if (!cls.some(Boolean)) return c;
   const ordre = [], file = [sq.racine, ...sq.racines.filter((r) => r !== sq.racine)];
   while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
