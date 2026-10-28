@@ -1804,9 +1804,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       }
       // 28/10 (humain-course, 3D) : bras PORTEUR = bras dont la pose de repos garde l'avant-bras deja bien plie vers l'avant (coude > ~57 deg : il tient un objet,
       // baton, torche, bouclier). Le balancier + la flexion de course le ramenaient vers le bassin et faisaient pivoter l'objet de ~40 deg (le baton traversait le
-      // bassin). Le bras porteur garde sa pose de repos (forearm non redresse, pas de flexion de course) et ne balance qu'a 25 % ; interrupteur globalThis.__brasPorteur = false.
+      // bassin). Le bras porteur garde sa pose de repos (forearm non redresse, pas de flexion de course) et ne balance qu'a 25 % ; DESACTIVE PAR DEFAUT (28/10, decision du user : l'humain de reference tient un baton que les autres humains n'auront pas) ; activer : globalThis.__brasPorteur = true.
       let porte = false;
-      porte = globalThis.__brasPorteur !== false && droit && !enT && !C && !SAUT && A.pas && restCorr > 1.0;
+      porte = globalThis.__brasPorteur === true && droit && !enT && !C && !SAUT && A.pas && restCorr > 1.0;
       const avantE = porte ? avant.map((x) => 0.25 * x) : avant;
       balance.set(b.epaule, avantE.map((a) => (Rbaisse ? mm(rotvec([1, 0, 0], -a), Rbaisse) : rotvec(axe, a))));
       const dec = A.pas && droit && !SAUT && !C ? Math.round(0.07 * T * fps) : 0;
