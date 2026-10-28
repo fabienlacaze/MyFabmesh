@@ -10854,7 +10854,9 @@ async function showGenerationHistory(startPath) {
 
 async function renderMeshVersions(p) {
   const strip = document.getElementById('ws-mesh-versions');
-  strip.innerHTML = '';
+  // 28/10 : la bande etait videe AVANT les attentes reseau ci-dessous (statut parental, etiquettes NSFW) : deux rendus lances a la suite (deux symetries d'affilee)
+  // se chevauchaient et ajoutaient chacun toutes les vignettes (v2 v1 v0 v2 v1 v0). Un jeton ecarte les rendus perimes ; la bande est videe APRES les attentes.
+  const _rmvJeton = (window.__rmvJeton = (window.__rmvJeton || 0) + 1);
 
   // Filter NSFW meshes: check if the source image has a .nsfw tag
   let meshes = p.meshes;
@@ -10877,6 +10879,8 @@ async function renderMeshVersions(p) {
     } catch(_) {}
   }
 
+  if (_rmvJeton !== window.__rmvJeton) return;   // un rendu plus recent a pris la suite
+  strip.innerHTML = '';
   if (meshes.length > 0) {
     if (!p.previewMeshPath || !meshes.find(m => m.path === p.previewMeshPath)) {
       p.previewMeshPath = meshes[0].path;
