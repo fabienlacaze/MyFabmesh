@@ -118,6 +118,8 @@ export interface Env {
   MODAL_ETAT_URL?: string;
   /** Redacteur de la fenetre New project (application myfabmesh-redacteur, modal_app/redacteur_web.py). Par defaut deduite de MODAL_MESH_START_URL. */
   MODAL_REDACTEUR_URL?: string;
+  MODAL_REDACTEUR_GPU_URL?: string;   // 29/10 : route « decrire » de Qwen3.6 (GPU) ; vide = deduite de MODAL_REDACTEUR_URL ; REDACTEUR_GPU='0' la coupe
+  REDACTEUR_GPU?: string;
   MODAL_MESH_STATUS_URL?: string;
   MODAL_MESH_URL?: string;  // legacy sync url — kept so old deploys don't break
   // Puppeteer auto-rigging on uploaded GLB. Sync endpoint: takes a mesh
@@ -24965,6 +24967,11 @@ async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
     ?? env.MODAL_MESH_START_URL?.replace(/^(https:\/\/[^/]*?--)myfabmesh-cloud-mesh-router(\.modal\.run).*$/,
                                          '$1myfabmesh-redacteur-redacteur-decrire$2');
   if (!url || url === env.MODAL_MESH_START_URL) return json({ ok: false, raison: 'unavailable' });
+  // 29/10 (decision du user) : Qwen3.6 d'abord (GPU : 3,4 s a chaud, 20 s a froid, 46/50 types justes contre 40/50 pour le 4B), repli sur le 4B CPU
+  // (application myfabmesh-redacteur) si le GPU est coupe, lent (> 35 s : snapshot a recreer), absent ou ne rend pas de description.
+  const urlGpu = env.REDACTEUR_GPU === '0' ? null
+    : (env.MODAL_REDACTEUR_GPU_URL ?? url.replace('myfabmesh-redacteur-redacteur-decrire', 'myfabmesh-reglage-gpu-reglagegpu-decrire'));
+  const gpuActif = !!urlGpu && urlGpu !== url;
   const b = await req.json().catch(() => ({})) as { name?: unknown; notes?: unknown; lang?: unknown; type?: unknown; prechauffer?: unknown };
   const prechauffer = b.prechauffer === true;
   const nom = typeof b.name === 'string' ? b.name.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80) : '';
@@ -25007,16 +25014,28 @@ async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
     } catch { /* compteur au mieux : en cas de panne R2 on laisse passer */ }
   }
   try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(prechauffer ? { prechauffer: true, _auth: env.MODAL_SHARED_SECRET ?? '' }
-        : { name: nom, notes, lang, type, _auth: env.MODAL_SHARED_SECRET ?? '' }),
-      // prechauffage : on n'attend pas le demarrage (le conteneur demarre quand meme) ; redaction : 60 s max
-      signal: AbortSignal.timeout(prechauffer ? 4_000 : 60_000),
-    });
-    if (!r.ok) return json({ ok: false, raison: 'unavailable', status: r.status });
-    const d = await r.json() as { ok?: unknown; type?: unknown; description?: unknown; pret?: unknown };
+    type Rep = { ok?: unknown; type?: unknown; description?: unknown; pret?: unknown };
+    const corps = JSON.stringify(prechauffer ? { prechauffer: true, _auth: env.MODAL_SHARED_SECRET ?? '' }
+      : { name: nom, notes, lang, type, _auth: env.MODAL_SHARED_SECRET ?? '' });
+    const appeler = async (u: string, delaiMs: number): Promise<{ status: number; d: Rep | null }> => {
+      const r = await fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: corps, signal: AbortSignal.timeout(delaiMs) });
+      return { status: r.status, d: r.ok ? await r.json() as Rep : null };
+    };
+    // prechauffage : on ne reveille le GPU que pour la fenetre qui s'ouvre (au plus une fois par minute et par compte, garde ci-dessus) et on n'attend pas son demarrage
+    if (prechauffer && gpuActif) appeler(urlGpu as string, 4_000).catch(() => null);
+    let d: Rep | null = null;
+    if (!prechauffer && gpuActif) {
+      try {
+        const g = await appeler(urlGpu as string, 35_000);
+        if (g.d && g.d.ok && typeof g.d.description === 'string' && g.d.description) d = g.d;
+      } catch { d = null; }
+    }
+    if (!d) {
+      // prechauffage : 4 s ; redaction : 60 s max (4B CPU)
+      const c = await appeler(url, prechauffer ? 4_000 : 60_000);
+      if (!c.d) return json({ ok: false, raison: 'unavailable', status: c.status });
+      d = c.d;
+    }
     if (prechauffer) return json({ ok: true });
     const description = typeof d.description === 'string' ? d.description.slice(0, 300) : '';
     if (!d.ok || !description) return json({ ok: false, raison: 'no-answer' });
