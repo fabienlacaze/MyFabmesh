@@ -40,6 +40,67 @@ def _check_auth(payload: dict) -> None:
         raise HTTPException(status_code=401, detail="auth")
 
 
+# ---------------------------------------------------------------------------------------------------------------------------------
+# RELECTURE DES ANIMATIONS A CHAQUE GENERATION (29/10, decision du user : « Qwen3.6 doit faire le travail qu'on fait maintenant de
+# maniere automatique pour rendre realistes les animations », « a chaque generation »). L'appli calcule l'animation (moteur
+# procedural, dans le navigateur), dessine les squelettes et mesure ; le worker relaie ici. Deux modes :
+#  - « proposer » : Qwen3.6 regarde l'animation et propose des LEVIERS (multiplicateurs bornes du moteur) ;
+#  - « comparer » : il dit laquelle de deux versions (A, B) est la plus realiste et la plus conforme a l'intention de l'animation.
+# L'appli garde un candidat seulement s'il GAGNE la comparaison et respecte les garde-fous mesures (sol, glissement, a-coups).
+LEVIERS_RELECTURE = {
+    'deplacement': 'how far the body travels (forward lunge, step)',
+    'bascule': 'body pitch amplitude (rearing up / leaning into the strike)',
+    'rebond': 'vertical body motion (crouch, rise, landing)',
+    'rotation': 'yaw twist of hips and shoulders',
+    'roulis': 'sideways roll / shaking',
+    'tete': 'head motion',
+    'hauteurPattes': 'how high the legs / feet are lifted',
+    'ecart': 'how far the legs spread sideways',
+    'bras': 'arm swing / punch amplitude (humanoids)',
+    'crochets': 'fang opening (spiders)',
+    'vitesse': 'tempo: above 1 = faster and snappier, below 1 = slower',
+}
+INTENTIONS = {
+    'attack': 'an AGGRESSIVE, explosive attack: clear anticipation, weight shifted back then thrown forward, the body travels toward the target, fast strike, follow-through, recovery',
+    'hit': 'a creature hit by a blow: sharp recoil, then damped recovery',
+    'death': 'a creature dying: loses balance and collapses under its own weight',
+    'jump': 'a jump: crouch, explosive push, flight, landing that absorbs the impact',
+    'eat': 'eating: head down to the ground, chewing, looking up',
+}
+def _extraire_json(texte):
+    t = texte or ''
+    if '</think>' in t:
+        t = t.split('</think>', 1)[1]
+    t = re.sub(r'```(?:json)?', '', t)
+    i = t.find('{')
+    while i >= 0:
+        prof, dans, ech = 0, False, False
+        for k in range(i, len(t)):
+            ch = t[k]
+            if dans:
+                if ech: ech = False
+                elif ch == '\\': ech = True
+                elif ch == '"': dans = False
+                continue
+            if ch == '"': dans = True
+            elif ch == '{': prof += 1
+            elif ch == '}':
+                prof -= 1
+                if prof == 0:
+                    bloc = t[i:k + 1]
+                    for essai in (bloc, re.sub(r',\s*([}\]])', r'\1', bloc)):
+                        try:
+                            import json as _j
+                            r = _j.loads(essai)
+                            if isinstance(r, dict):
+                                return r
+                        except ValueError:
+                            pass
+                    break
+        i = t.find('{', i + 1)
+    return None
+
+
 # INSTANTANE GPU (demande du user : « lancer Qwen 3.6 le plus vite possible ») : le modele est charge sur la carte PENDANT la prise
 # d'instantane, puis RESTAURE au demarrage d'un conteneur froid, comme `MyFabmeshMesh` (modal_app/app.py). Meme regle que les autres classes :
 # un instantane est propre au type de machine (2-3 par type de GPU, crees aux premiers demarrages apres un deploiement).
@@ -148,4 +209,60 @@ class ReglageGpu:
                     if type_indice in red.TYPES:
                         r["type"] = type_indice
                     return {"ok": True, **r}
+        return {"ok": False, "error": "no valid answer"}
+
+    @modal.fastapi_endpoint(method="POST")
+    def relire(self, payload: dict):
+        """Relecture d'une animation (voir LEVIERS_RELECTURE). payload : mode (proposer | comparer), allure, espece, leviers {nom: valeur},
+        mesures {...}, refus [texte], images [JPEG base64] (proposer : 1 a 4 ; comparer : 2 de A puis 2 de B). Reponse :
+        proposer -> {ok, analyse, changements {levier: valeur}} ; comparer -> {ok, meilleur: 'A' | 'B', raison}."""
+        import json
+        _check_auth(payload)
+        if payload.get("prechauffer"):
+            return {"ok": True, "pret": True}
+        mode = payload.get("mode")
+        allure = str(payload.get("allure") or "attack")[:40]
+        base = allure.split("__")[0]
+        espece = re.sub(r"[^a-z_]", "", str(payload.get("espece") or "creature").lower())[:30] or "creature"
+        intention = INTENTIONS.get(base, "a natural, believable " + base.replace("_", " ") + " motion")
+        images = [str(b) for b in (payload.get("images") or [])][:4]
+        mesures = json.dumps(payload.get("mesures") or {})[:2500]
+        systeme = "You are an expert creature animator and biomechanics specialist. Reply with ONE valid JSON object only, no markdown."
+        if mode == "comparer":
+            if len(images) != 4:
+                return {"ok": False, "error": "comparer needs 4 images"}
+            texte = (f"Two versions of the same procedural animation of a {espece}. Images 1-2 = version A, images 3-4 = version B "
+                     "(each image: frames of one cycle, rows in time order, left = side view, right = front view, camera fixed). "
+                     f"Goal: {intention}. Which version is MORE REALISTIC and closer to that goal (weight, timing, amplitude, believability)? "
+                     'Reply {"meilleur": "A" or "B", "raison": "<max 20 words>"}')
+            with self.verrou:
+                r = self._voir(texte, images, 120, systeme)
+            j = _extraire_json(r["texte"]) or {}
+            m = str(j.get("meilleur", "")).strip().upper()[:1]
+            return {"ok": m in ("A", "B"), "meilleur": m, "raison": str(j.get("raison", ""))[:200], "s": r["s_generation"]}
+        leviers = {k: float(v) for k, v in (payload.get("leviers") or {}).items() if k in LEVIERS_RELECTURE and isinstance(v, (int, float))}
+        table = {k: {"current": round(leviers.get(k, 1.0), 3), "meaning": s} for k, s in LEVIERS_RELECTURE.items()}
+        refus = "; ".join(str(x)[:160] for x in (payload.get("refus") or [])[-5:])
+        texte = (f"You review a procedural {base.replace('_', ' ')} animation of a {espece}. Goal: {intention}. "
+                 "The images show one cycle (rows in time order, left = side view, right = front view, camera fixed). "
+                 f"MEASUREMENTS (units: % of body height, degrees): {mesures}\n"
+                 f"ENGINE LEVERS (multipliers, 1 = default, allowed 0.3 to 3, change each by at most 0.35 per step): {json.dumps(table)}\n"
+                 + (f"ALREADY TRIED AND REJECTED (propose something different): {refus}\n" if refus else "")
+                 + "Say what is unrealistic or too weak, then change the levers that fix it (at most 4). "
+                 'Reply {"analyse": "<max 25 words>", "changements": {"<lever>": <new value>}}')
+        with self.verrou:
+            for essai in range(2):
+                r = self._voir(texte + ("" if essai == 0 else "\nYour previous reply was not valid JSON. Reply with the JSON object only."), images, 220, systeme)
+                j = _extraire_json(r["texte"])
+                if j and isinstance(j.get("changements"), dict):
+                    ch = {}
+                    for k, v in j["changements"].items():
+                        try:
+                            x = float(v)
+                        except (TypeError, ValueError):
+                            continue
+                        if k in LEVIERS_RELECTURE and x == x:
+                            a = leviers.get(k, 1.0)
+                            ch[k] = round(min(3.0, max(0.3, a + max(-0.35, min(0.35, x - a)))), 3)
+                    return {"ok": True, "analyse": str(j.get("analyse", ""))[:300], "changements": dict(list(ch.items())[:4]), "s": r["s_generation"]}
         return {"ok": False, "error": "no valid answer"}

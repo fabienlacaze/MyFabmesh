@@ -118,6 +118,8 @@ export interface Env {
   MODAL_ETAT_URL?: string;
   /** Redacteur de la fenetre New project (application myfabmesh-redacteur, modal_app/redacteur_web.py). Par defaut deduite de MODAL_MESH_START_URL. */
   MODAL_REDACTEUR_URL?: string;
+  MODAL_RELECTURE_URL?: string;   // 29/10 : route « relire » de Qwen3.6 (relecture des animations) ; vide = deduite de la route « decrire »
+  RELECTURE_ANIM?: string;        // '0' coupe la relecture des animations
   MODAL_REDACTEUR_GPU_URL?: string;   // 29/10 : route « decrire » de Qwen3.6 (GPU) ; vide = deduite de MODAL_REDACTEUR_URL ; REDACTEUR_GPU='0' la coupe
   REDACTEUR_GPU?: string;
   MODAL_MESH_STATUS_URL?: string;
@@ -2317,6 +2319,7 @@ const PRICING_DEFAULTS = {
   reskin:           6,          // peau seule, squelette impose (~135 s)
   mesh_segment:     15,         // decoupe en pieces 3D (A100)
   anim:             5,          // une animation (texte -> mouvement, ou retarget FBX)
+  anim_review:      2,          // 29/10 : relecture + correction du realisme d'UNE animation par Qwen3.6 (jusqu'a 8 appels GPU, ~0,03 $ a chaud)
   construction3d:   2,          // etapes de construction 3D (CPU) — etait 2 x mesh_op_simple
   // OUTILS MANUELS (2026-09-27, demande du user : « chaque outil doit couter
   // des credits, pas forcement beaucoup ») : Clone Stamp, Crop, Cut/Paste,
@@ -20805,6 +20808,16 @@ async function lirePagesSupabase<T>(
   return out.slice(0, max);
 }
 
+/** 29/10 (user : « rajoute par mois et par annee aussi ») : series du tableau de bord PAR MOIS (les 12 derniers, mois vides compris, « AAAA-MM »)
+ *  et PAR ANNEE (toutes les annees vues), memes champs que series_30d sauf les telechargements (comptes par jour, 30 j seulement). Pure. */
+type CumulPeriode = { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number };
+function _seriesMoisAnnees(parMois: Record<string, CumulPeriode>, parAn: Record<string, CumulPeriode>, now: number) {
+  const ligne = (cle: string, x?: CumulPeriode) => ({ periode: cle, ops: x?.ops ?? 0, users: x?.users.size ?? 0,
+    revenue_eur: +(x?.revenue_eur ?? 0).toFixed(2), cost_eur: +(x?.cost_eur ?? 0).toFixed(2), margin_eur: +(x?.margin_eur ?? 0).toFixed(2) });
+  const mois = Array.from({ length: 12 }, (_, i) => { const d = new Date(now); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - (11 - i)); const k = d.toISOString().slice(0, 7); return ligne(k, parMois[k]); });
+  const annees = Object.keys(parAn).sort().map((k) => ligne(k, parAn[k]));
+  return { mois, annees };
+}
 async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   const userOrResp = await _requireAdmin(req, env);
   if (userOrResp instanceof Response) return userOrResp;
@@ -20853,6 +20866,9 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
   let totalRevenueEur = 0, totalCostEur = 0;
   // Activity series (last 30 days, bucket by day).
   const seriesByDay: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
+  // 29/10 (user : « rajoute par mois et par annee aussi ») : memes cumuls PAR MOIS (« AAAA-MM ») et PAR ANNEE, sur tous les travaux lus
+  const seriesParMois: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
+  const seriesParAn: Record<string, { ops: number; users: Set<string>; revenue_eur: number; cost_eur: number; margin_eur: number }> = {};
   // Operations des 30 derniers jours, gardees une par une pour le tableau
   // « Par type » au COUT REEL (voir byType30 plus bas).
   const ops30: Array<{ day: string; op: string; cle: string; ok: boolean; credits: number; now: number; opt?: Record<string, number>; paye: number; mesure: number }> = [];
@@ -20902,6 +20918,10 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     bucket.margin_eur += marginEur;
 
     const t = new Date(j.created_at).getTime();
+    for (const [table, cle] of [[seriesParMois, j.created_at.slice(0, 7)], [seriesParAn, j.created_at.slice(0, 4)]] as const) {
+      const m = (table[cle] ??= { ops: 0, users: new Set(), revenue_eur: 0, cost_eur: 0, margin_eur: 0 });
+      m.ops += 1; m.users.add(j.user_id); m.revenue_eur += revenueEur; m.cost_eur += costEur; m.margin_eur += marginEur;
+    }
     if (now - t < 30 * DAY) {
       active30.add(j.user_id);
       if (now - t < 7 * DAY) active7.add(j.user_id);
@@ -21016,6 +21036,7 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
     });
   }
   const last7 = series30.slice(-7);
+  const { mois: seriesMois, annees: seriesAnnees } = _seriesMoisAnnees(seriesParMois, seriesParAn, now);
   const sum7 = (k: keyof typeof series30[number]) =>
     last7.reduce((a, b) => a + (typeof b[k] === 'number' ? (b[k] as number) : 0), 0);
 
@@ -21302,6 +21323,8 @@ async function handleAdminStats(req: Request, env: Env): Promise<Response> {
       margin_eur:  +sum7('margin_eur').toFixed(2),
     },
     series_30d: series30,
+    series_mois: seriesMois,
+    series_annees: seriesAnnees,
     desktop_downloads_total: desktopDownloads,
   });
 }
@@ -24960,6 +24983,103 @@ const PRECHAUFFE_REDACTEUR_FENETRE_MS = 60_000;
 function prechauffeRedacteurDue(dernierTs: number | null | undefined, maintenant: number): boolean {
   return !(typeof dernierTs === 'number' && Number.isFinite(dernierTs) && maintenant - dernierTs >= 0 && maintenant - dernierTs < PRECHAUFFE_REDACTEUR_FENETRE_MS);
 }
+/* RELECTURE DES ANIMATIONS PAR QWEN3.6 A CHAQUE GENERATION (29/10, decision du user). L'animation est calculee DANS la page (moteur
+ * procedural) ; la page mesure, dessine les squelettes, puis appelle cette route en boucle :
+ *  - { action:'debut', allure } : debite `anim_review` UNE fois, rend un jeton signe (10 min, 8 appels au plus) ;
+ *  - { action:'appel', jeton, mode:'proposer'|'comparer', allure, espece, leviers, mesures, refus, images } : relaye a Modal (route `relire`
+ *    de myfabmesh-reglage-gpu) ; chaque appel compte dans le budget GPU du jour et le compteur du jeton ;
+ *  - { action:'rembourser', jeton } : rembourse si AUCUN appel n'a abouti (Qwen injoignable) ; une seule fois.
+ * Coupure : RELECTURE_ANIM='0'. URL : MODAL_RELECTURE_URL, sinon deduite de la route « decrire » de Qwen3.6. */
+const RELECTURE_APPELS_MAX = 8, RELECTURE_DUREE_MS = 10 * 60_000, RELECTURE_USD_APPEL = 0.004;
+function _relectureUrl(env: Env): string | null {
+  if (env.RELECTURE_ANIM === '0') return null;
+  if (env.MODAL_RELECTURE_URL) return env.MODAL_RELECTURE_URL;
+  const base = env.MODAL_REDACTEUR_GPU_URL
+    ?? (env.MODAL_REDACTEUR_URL ?? env.MODAL_MESH_START_URL?.replace(/^(https:\/\/[^/]*?--)myfabmesh-cloud-mesh-router(\.modal\.run).*$/, '$1myfabmesh-redacteur-redacteur-decrire$2'))
+      ?.replace('myfabmesh-redacteur-redacteur-decrire', 'myfabmesh-reglage-gpu-reglagegpu-decrire');
+  if (!base || !base.includes('reglagegpu-decrire')) return null;
+  return base.replace('reglagegpu-decrire', 'reglagegpu-relire');
+}
+async function _jetonRelecture(env: Env, contenu: { u: string; a: string; e: number; j: string }): Promise<string> {
+  const corps = btoa(JSON.stringify(contenu)).replace(/=+$/, '');
+  return corps + '.' + await _hmacSign(env.R2_URL_SIGNING_SECRET ?? env.MODAL_SHARED_SECRET ?? '', 'relecture:' + corps);
+}
+async function _lireJetonRelecture(env: Env, jeton: unknown, userId: string): Promise<{ u: string; a: string; e: number; j: string } | null> {
+  if (typeof jeton !== 'string' || jeton.length > 600 || !jeton.includes('.')) return null;
+  const [corps, sig] = jeton.split('.', 2);
+  if (sig !== await _hmacSign(env.R2_URL_SIGNING_SECRET ?? env.MODAL_SHARED_SECRET ?? '', 'relecture:' + corps)) return null;
+  try {
+    const c = JSON.parse(atob(corps)) as { u: string; a: string; e: number; j: string };
+    return c.u === userId && typeof c.e === 'number' && c.e > Date.now() && /^[a-z0-9-]{8,40}$/.test(c.j) ? c : null;
+  } catch { return null; }
+}
+async function handleAnimReview(req: Request, env: Env): Promise<Response> {
+  const user = await getSessionUser(req, env);
+  if (!user) return err(401, 'unauthorized');
+  const url = _relectureUrl(env);
+  if (!url) return json({ ok: false, raison: 'unavailable' });
+  const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const action = b.action;
+  const allure = typeof b.allure === 'string' && /^[a-z_]{2,20}(__[a-z_]{2,20})?$/.test(b.allure) ? b.allure : null;
+  if (action === 'debut') {
+    if (!allure) return err(400, 'allure required');
+    const cost = await getPrice(env, 'anim_review');
+    const remaining = await spendCredits(env, user.id, cost);
+    if (remaining == null) return json({ ok: false, success: false, error: `insufficient credits — AI review costs ${cost} credits` }, { status: 402 });
+    const j = crypto.randomUUID();
+    return json({ ok: true, jeton: await _jetonRelecture(env, { u: user.id, a: allure, e: Date.now() + RELECTURE_DUREE_MS, j }), appels: RELECTURE_APPELS_MAX, cost, credits: remaining });
+  }
+  const jt = await _lireJetonRelecture(env, b.jeton, user.id);
+  if (!jt) return err(403, 'invalid or expired review token');
+  const cleCompteur = `_meta/anim_review/${jt.j}.json`;
+  const lireCompteur = async (): Promise<{ n: number; ok: number; rembourse?: boolean }> => {
+    try { const o = env.MESHES ? await env.MESHES.get(cleCompteur) : null; return o ? JSON.parse(await o.text()) : { n: 0, ok: 0 }; } catch { return { n: 0, ok: 0 }; }
+  };
+  const ecrireCompteur = async (c: { n: number; ok: number; rembourse?: boolean }) => { try { if (env.MESHES) await env.MESHES.put(cleCompteur, JSON.stringify(c)); } catch { /* au mieux */ } };
+  if (action === 'rembourser') {
+    const c = await lireCompteur();
+    if (c.ok > 0 || c.rembourse) return json({ ok: false, raison: 'not refundable' });
+    const cost = await getPrice(env, 'anim_review');
+    await addCredits(env, user.id, cost);
+    await ecrireCompteur({ ...c, rembourse: true });
+    return json({ ok: true, rembourse: cost });
+  }
+  if (action !== 'appel') return err(400, 'unknown action');
+  const mode = b.mode === 'comparer' ? 'comparer' : b.mode === 'proposer' ? 'proposer' : null;
+  if (!mode) return err(400, 'mode required');
+  const images = Array.isArray(b.images) ? b.images.filter((x): x is string => typeof x === 'string' && x.length < 400_000 && /^[A-Za-z0-9+/=]+$/.test(x)).slice(0, 4) : [];
+  if (!images.length) return err(400, 'images required');
+  const c = await lireCompteur();
+  if (c.n >= RELECTURE_APPELS_MAX) return json({ ok: false, raison: 'review call limit reached' }, { status: 429 });
+  if ((await checkAndIncrementModalSpend(env, RELECTURE_USD_APPEL, user.id)) == null) {
+    return json({ ok: false, success: false, error: await _spendRefusalMessage(env, user.id) }, { status: 429 });
+  }
+  await ecrireCompteur({ ...c, n: c.n + 1 });
+  const leviers: Record<string, number> = {};
+  if (b.leviers && typeof b.leviers === 'object') for (const [k, v] of Object.entries(b.leviers as Record<string, unknown>)) if (/^[a-zA-Z]{2,20}$/.test(k) && typeof v === 'number' && Number.isFinite(v)) leviers[k] = v;
+  const refus = Array.isArray(b.refus) ? b.refus.filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 160)).slice(-5) : [];
+  const corps = JSON.stringify({ _auth: env.MODAL_SHARED_SECRET ?? '', mode, allure: jt.a, espece: typeof b.espece === 'string' ? b.espece.slice(0, 30) : 'creature',
+    leviers, mesures: b.mesures && typeof b.mesures === 'object' ? b.mesures : {}, refus, images });
+  try {
+    const envoyer = () => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: corps });
+    // demarrage a froid (snapshot GPU : ~20 s) : Cloudflare coupe a 100 s (524), on rejoue
+    let r = await envoyer();
+    for (const attente of [20_000, 40_000]) {
+      if (r.status !== 524) break;
+      await new Promise((res) => setTimeout(res, attente));
+      r = await envoyer();
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json() as { ok?: boolean; analyse?: unknown; changements?: unknown; meilleur?: unknown; raison?: unknown };
+    if (d.ok) await ecrireCompteur({ n: c.n + 1, ok: c.ok + 1 });
+    return json({ ok: !!d.ok, analyse: typeof d.analyse === 'string' ? d.analyse : undefined, changements: d.changements && typeof d.changements === 'object' ? d.changements : undefined,
+      meilleur: d.meilleur === 'A' || d.meilleur === 'B' ? d.meilleur : undefined, raison: typeof d.raison === 'string' ? d.raison : undefined, appels_restants: RELECTURE_APPELS_MAX - c.n - 1 });
+  } catch (e) {
+    await refundModalSpend(env, RELECTURE_USD_APPEL, user.id);
+    return json({ ok: false, raison: 'unavailable', error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+  }
+}
+
 async function handleDescribeAsset(req: Request, env: Env): Promise<Response> {
   const user = await getSessionUser(req, env);
   if (!user) return err(401, 'unauthorized');
@@ -26424,6 +26544,7 @@ async function _routeur(req: Request, envBrut: Env, _ctx: unknown): Promise<Resp
         if (pathname === '/api/prewarm'               && method === 'POST') return await handlePrewarm(req, env, _ctx as { waitUntil?: (p: Promise<unknown>) => void });
         if (pathname === '/api/translate'             && method === 'POST') return await handleTranslate(req, env);
         if (pathname === '/api/describe-asset'        && method === 'POST') return await handleDescribeAsset(req, env);
+        if (pathname === '/api/anim-review'           && method === 'POST') return await handleAnimReview(req, env);
         if (pathname === '/api/lineage-meta'          && method === 'POST') return await handleLineageMeta(req, env);
         if (pathname === '/api/mesh-op'               && method === 'POST') return await handleMeshOp(req, env);
         if (pathname === '/api/mesh-convert'          && method === 'POST') return await handleMeshConvert(req, env);

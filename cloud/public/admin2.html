@@ -436,6 +436,8 @@ pre.texte-saisi{white-space:pre-wrap;word-break:break-word;font:12px var(--mono)
         <button type="button" data-per="24h" aria-pressed="false">24 h</button>
         <button type="button" data-per="7j" aria-pressed="true">7 jours</button>
         <button type="button" data-per="30j" aria-pressed="false">30 jours</button>
+        <button type="button" data-per="12m" aria-pressed="false" title="Les 12 derniers mois, courbes par mois">12 mois</button>
+        <button type="button" data-per="ans" aria-pressed="false" title="Depuis le début, courbes par année">Années</button>
       </div>
       <span class="note" id="per-note">s'applique à l'onglet ouvert</span>
     </div>
@@ -738,7 +740,7 @@ var S = {
   series: { rev: true, cost: true, marge: true }, tarifs: false, killConfirm: null, decoOuvert: false, revOuvert: false, msgForm: null,
   session: false
 };
-var PER_MIN = { now: 5, '1h': 60, '2h': 120, '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200 };
+var PER_MIN = { now: 5, '1h': 60, '2h': 120, '6h': 360, '24h': 1440, '7j': 10080, '30j': 43200, '12m': 525600, ans: 525600 };   // 12 mois / Annees : les routes a fenetre plafonnent a 365 j
 /* periodes COURTES : l'argent se lit alors sur /api/admin/argent-recent (heures entieres, 1 h au minimum), par tranches fines */
 var PER_H_COURT = { now: 1, '1h': 1, '2h': 2, '6h': 6, '24h': 24 };
 function periodeCourte() { return PER_H_COURT[S.per] != null; }
@@ -969,7 +971,21 @@ async function chargerAudience() {
 }
 S.lb = -1; S.usersActifs = false;
 function heuresPer() { return PER_MIN[S.per] ? Math.max(1, Math.round(PER_MIN[S.per] / 60)) : 168; }
-var LIB_PER = { now: '5 min', '1h': '1 h', '2h': '2 h', '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours' };
+var LIB_PER = { now: '5 min', '1h': '1 h', '2h': '2 h', '6h': '6 h', '24h': '24 h', '7j': '7 jours', '30j': '30 jours', '12m': '12 mois', ans: 'toutes les années' };
+/* 29/10 (user : « rajoute par mois et par annee aussi ») : serie a afficher pour la periode — par jour (7 / 30 j, series_30d), par mois (12 mois, series_mois)
+   ou par annee (series_annees, depuis le debut). Rend { s, lab, nb, sous, long } ou null si la serie manque. */
+function serieDePeriode(st) {
+  if (!st) return null;
+  if (S.per === '12m' || S.per === 'ans') {
+    var s = S.per === '12m' ? st.series_mois : st.series_annees;
+    if (!s) return null;
+    return { s: s, long: true, nb: s.length, lab: s.map(function (x) { return S.per === '12m' ? x.periode.slice(5, 7) + '/' + x.periode.slice(2, 4) : x.periode; }),
+      sous: S.per === '12m' ? 'par mois · 12 derniers mois' : 'par année · depuis le début' };
+  }
+  if (!st.series_30d) return null;
+  var nb = S.per === '30j' ? 30 : 7, sl = st.series_30d.slice(-nb);
+  return { s: sl, long: false, nb: nb, lab: sl.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); }), sous: 'par jour · ' + nb + ' derniers jours' };
+}
 /* ═════════════ CREATIONS PAR TYPE (2026-10-02, user : « il faut plusieurs onglets par type : projets, images, 3d... » et « a droite de la vue il faut les parametres utilises ») ═════════════
    Un onglet par type de creation ; chaque creation s'ouvre dans la visionneuse avec ses parametres a droite. Le texte SAISI (prompt, description) n'est jamais envoye avec la liste :
    un bouton le demande pour UNE creation, et la lecture est inscrite dans le journal d'audit. */
@@ -1447,22 +1463,22 @@ function renderArgent() {
   } else h += cellule('Coût GPU du mois', '—', chg('stats')) + cellule('Marge du mois', '—', '');
   majSiChange($('#kpis-argent'), h);
 
-  var ser = st && st.series_30d ? st.series_30d : null;
-  if (ser) {
-    var nb = S.per === '30j' ? 30 : 7, sl = ser.slice(-nb);
+  var SP_ = serieDePeriode(st);
+  if (SP_) {
+    var nb = SP_.nb, sl = SP_.s;
     var coutJ = sl.map(function (x) { return x.real_cost_eur != null ? x.real_cost_eur : x.cost_eur; });
     var revJ = sl.map(function (x) { return x.revenue_eur; });
     var marJ = sl.map(function (x, i) { return +(revJ[i] - coutJ[i]).toFixed(2); });
     var som = function (a) { return a.reduce(function (x, y) { return x + y; }, 0); };
-    S.resCourbe = 'valeur ' + eur(som(revJ)) + ' · coût ' + eur(som(coutJ)) + ' · marge ' + eur(som(marJ)) + ' (' + nb + ' j)';
-    var estimes = sl.filter(function (x) { return x.real_cost_eur == null; }).length;
-    var lab = sl.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
-    $('#sous-graphe').textContent = 'par jour · ' + nb + ' derniers jours';
+    S.resCourbe = 'valeur ' + eur(som(revJ)) + ' · coût ' + eur(som(coutJ)) + ' · marge ' + eur(som(marJ)) + ' (' + (SP_.long ? LIB_PER[S.per] : nb + ' j') + ')';
+    var estimes = SP_.long ? 0 : sl.filter(function (x) { return x.real_cost_eur == null; }).length;
+    var lab = SP_.lab;
+    $('#sous-graphe').textContent = SP_.sous;
     var def = [['rev', 'Valeur des crédits (comptes payants)', 'var(--revenue)', revJ, false], ['cost', 'Coût GPU', 'var(--cost)', coutJ, false], ['marge', 'Marge', 'var(--margin)', marJ, true]];
     $('#legende').innerHTML = def.map(function (d) { return '<button type="button" data-ser="' + d[0] + '" aria-pressed="' + S.series[d[0]] + '"><i style="background:' + d[2] + '"></i>' + d[1] + '</button>'; }).join('');
     courbes('g-argent', lab, def.map(function (d) { return { v: d[3], col: d[2], on: S.series[d[0]], aire: d[4], nom: d[1] }; }), { titre: 'Valeur des crédits, coût GPU et marge', h: 300, fmt: function (v) { return eur(v, Math.abs(v) < 10 ? 2 : 0); },
       lecture: function (k, l, se) { var el = $('#lecture'); if (k < 0) { el.textContent = ''; return; } el.innerHTML = '<b>' + esc(l) + '</b> · ' + se.map(function (s) { return s.on ? esc(s.nom) + ' ' + eur(s.v[k]) : ''; }).filter(Boolean).join(' · '); } });
-    $('#note-graphe').textContent = 'Le coût est celui de la facture Modal quand le relevé du jour existe' + (estimes ? ' (' + estimes + ' jour' + (estimes > 1 ? 's' : '') + ' sur ' + nb + ' encore estimé' + (estimes > 1 ? 's' : '') + ')' : '') + '. « Valeur des crédits » = crédits consommés par des comptes qui ont payé, au prix net ; ce n\'est pas de l\'argent encaissé.';
+    $('#note-graphe').textContent = SP_.long ? 'Par mois et par année, le coût GPU est ESTIMÉ travail par travail (la facture Modal réelle n\'est relevée que par jour, sur 30 jours). « Valeur des crédits » = crédits consommés par des comptes qui ont payé, au prix net ; ce n\'est pas de l\'argent encaissé.' : 'Le coût est celui de la facture Modal quand le relevé du jour existe' + (estimes ? ' (' + estimes + ' jour' + (estimes > 1 ? 's' : '') + ' sur ' + nb + ' encore estimé' + (estimes > 1 ? 's' : '') + ')' : '') + '. « Valeur des crédits » = crédits consommés par des comptes qui ont payé, au prix net ; ce n\'est pas de l\'argent encaissé.';
   } else { $('#g-argent').innerHTML = enAttente('stats'); $('#legende').innerHTML = ''; }
 
   var bt = st && st.by_type_30d;
@@ -1912,11 +1928,16 @@ function renderAudience() {
 }
 /* courbes « comptes actifs » et « travaux lances » par jour : dessinees dans Activite seulement (retirees de Maintenant a la demande du user) */
 function courbesParJour() {
-  var st = S.stats, court = periodeCourte(), nb = S.per === '30j' ? 30 : 7, sm = function (id, txt) { var e = $(id); if (e) e.textContent = txt; };
-  if (st && st.series_30d) {
-    var s = st.series_30d.slice(-nb), lab = s.map(function (x) { return x.day.slice(8, 10) + '/' + x.day.slice(5, 7); });
-    var jours = 'par jour · ' + nb + ' derniers jours';
-    if (!court) {
+  var st = S.stats, court = periodeCourte(), SP_ = serieDePeriode(st), sm = function (id, txt) { var e = $(id); if (e) e.textContent = txt; };
+  if (SP_) {
+    var s = SP_.s, lab = SP_.lab;
+    var jours = SP_.sous;
+    if (SP_.long) {                             // par mois / par annee : comptes actifs et travaux ; les telechargements ne sont comptes que par jour (30 j)
+      if ($('#g-act')) serieSimple('g-act', lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs');
+      if ($('#g-ops')) serieSimple('g-ops', lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés');
+      if ($('#g-dl')) $('#g-dl').innerHTML = '<div class="vide">Les téléchargements ne sont comptés que par jour, sur 30 jours : choisissez <b>7 jours</b> ou <b>30 jours</b>.</div>';
+      sm('#sous-act', 'distincts ' + jours); sm('#sous-ops', jours); sm('#sous-dl', 'par jour');
+    } else if (!court) {
       if ($('#g-act')) serieSimple('g-act', lab, s.map(function (x) { return x.users || 0; }), 'var(--ok)', 'Comptes actifs par jour');
       if ($('#g-ops')) serieSimple('g-ops', lab, s.map(function (x) { return x.ops || 0; }), 'var(--accent)', 'Travaux lancés par jour');
       if ($('#g-dl')) serieSimple('g-dl', lab, s.map(function (x) { return x.downloads || 0; }), 'var(--accent)', 'Téléchargements par jour');
