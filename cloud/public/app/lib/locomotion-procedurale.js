@@ -132,6 +132,30 @@ const COURBES_ACTIONS = {
       D: { av: [[0, 0], [0.28, -0.04], [0.5, -0.04], [0.88, 0], [1, 0]] },
     },
   },
+  // ARAIGNEE (29/10, user : « pour les araignees l'attaque est pas du tout credible ») : posture de MENACE puis frappe. Elle se cabre (cephalothorax releve,
+  // abdomen bas, elle recule un peu), leve haut et ecarte les deux premieres paires de pattes (la 1re plus haut), puis se jette en avant, rabat les pattes
+  // avant sur la proie, mord en secouant, et revient. Posture classique des mygales et des araignees-loups (reglage a l'oeil, pas de mesure publiee retenue).
+  // Interrupteur : globalThis.__attaqueAraignee = false (attaque generique).
+  attack_araignee: {
+    avance: [[0, 0], [0.28, -0.10], [0.42, 0.32], [0.60, 0.30], [0.82, 0.06], [1, 0]],
+    bob: [[0, 0], [0.28, 0.36], [0.36, 0.36], [0.42, -0.02], [0.60, -0.02], [0.85, 0], [1, 0]],          // monte en se cabrant, s'ecrase sur la proie
+    tangage: [[0, 0], [0.28, -0.65], [0.36, -0.60], [0.43, 0.06], [0.60, 0.04], [0.85, 0.01], [1, 0]],
+    tete: [[0, 0], [0.28, -0.20], [0.43, 0.30], [0.60, 0.20], [1, 0]],
+    roulis: [[0, 0], [0.46, 0], [0.50, 0.04], [0.54, -0.04], [0.58, 0.03], [0.62, 0], [1, 0]],   // secoue en mordant
+    palpes: [[0, 0], [0.26, 1], [0.44, 0.8], [0.62, 0.7], [0.86, 0], [1, 0]],                // pedipalpes leves (menace), redescendent apres la morsure
+    pieds: {
+      R0G: { av: [[0, 0], [0.10, 0], [0.28, 0.20], [0.43, 0.45], [0.62, 0.42], [0.86, 0], [1, 0]], lat: [[0, 0], [0.28, 0.22], [0.43, 0.05], [0.86, 0], [1, 0]],
+        lev: [[0, 0], [0.10, 0], [0.28, 1.45], [0.36, 1.5], [0.45, 0.45], [0.62, 0.40], [0.74, 0.35], [0.88, 0], [1, 0]] },
+      R0D: { av: [[0, 0], [0.10, 0], [0.28, 0.20], [0.43, 0.45], [0.62, 0.42], [0.86, 0], [1, 0]], lat: [[0, 0], [0.28, -0.22], [0.43, -0.05], [0.86, 0], [1, 0]],
+        lev: [[0, 0], [0.10, 0], [0.28, 1.45], [0.36, 1.5], [0.45, 0.45], [0.62, 0.40], [0.74, 0.35], [0.88, 0], [1, 0]] },
+      R1G: { av: [[0, 0], [0.16, 0], [0.30, 0.15], [0.45, 0.45], [0.62, 0.42], [0.88, 0], [1, 0]], lat: [[0, 0], [0.30, 0.15], [0.45, 0.03], [0.88, 0], [1, 0]],
+        lev: [[0, 0], [0.16, 0], [0.30, 0.8], [0.38, 0.75], [0.47, 0.25], [0.66, 0.22], [0.78, 0.22], [0.90, 0], [1, 0]] },
+      R1D: { av: [[0, 0], [0.16, 0], [0.30, 0.15], [0.45, 0.45], [0.62, 0.42], [0.88, 0], [1, 0]], lat: [[0, 0], [0.30, -0.15], [0.45, -0.03], [0.88, 0], [1, 0]],
+        lev: [[0, 0], [0.16, 0], [0.30, 0.8], [0.38, 0.75], [0.47, 0.25], [0.66, 0.22], [0.78, 0.22], [0.90, 0], [1, 0]] },
+      // petit pas pour suivre le corps, puis retour : le pied n'avance QUE quand il est leve (sinon il glissait de 4 % H)
+      P: { av: [[0, 0], [0.46, 0], [0.60, 0.14], [0.80, 0.14], [0.92, 0], [1, 0]], lev: [[0, 0], [0.44, 0], [0.53, 0.12], [0.62, 0], [0.78, 0], [0.86, 0.08], [0.94, 0], [1, 0]] },
+    },
+  },
   hit: {               // recul brusque, tete rejetee, puis oscillations amorties jusqu'au retour
     avance: [[0, 0], [0.07, -0.14], [0.2, -0.02], [0.32, -0.05], [0.5, 0.0], [0.7, -0.01], [1, 0]],
     bob: [[0, 0], [0.08, -0.05], [0.22, 0.01], [0.4, -0.015], [1, 0]],
@@ -207,8 +231,8 @@ function relever(Q, ymin) {
 function pasPied(C, p) {
   const T_ = C && C.pieds;
   if (!T_) return null;
-  const AP = p.rang === 0 ? 'A' : 'P', GD = p.cote === 1 ? 'G' : 'D';
-  return T_[AP + GD] || T_[AP] || T_[GD] || null;
+  const AP = p.rang === 0 ? 'A' : 'P', GD = p.cote === 1 ? 'G' : 'D', RG = 'R' + p.rang;
+  return T_[RG + GD] || T_[RG] || T_[AP + GD] || T_[AP] || T_[GD] || null;   // « R1 » : 2e paire (araignee : les DEUX premieres paires se levent)
 }
 /** Valeur d'une courbe par cles [[u, v], ...] (u croissant dans 0..1) : Hermite cubique monotone
  *  (tangentes de Fritsch-Carlson : moyenne harmonique des pentes voisines, nulle a un extremum). La vitesse
@@ -1473,7 +1497,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
   // --- actions (pieds plantes) : corps, tete et bras suivent les courbes ; V.ampleur les amplifie
   const avance = new Array(nT).fill(0), teteT = new Array(nT).fill(0), brasT = new Array(nT).fill(0);
   const torseL = new Array(nT).fill(0), torseP = new Array(nT).fill(0);       // torse (bipedes) : lacet et penche, en plus du bassin
-  const C = B.action ? (droit && COURBES_ACTIONS[B.action + '_bipede']) || (quadrupede && famille !== 'tortue' && (COURBES_ACTIONS[B.action + '_' + famille] || COURBES_ACTIONS[B.action + '_quad'])) || COURBES_ACTIONS[B.action] : null;
+  const C = B.action ? (droit && COURBES_ACTIONS[B.action + '_bipede']) || (quadrupede && famille !== 'tortue' && (COURBES_ACTIONS[B.action + '_' + famille] || COURBES_ACTIONS[B.action + '_quad']))
+    || (famille === 'araignee' && globalThis.__attaqueAraignee !== false && COURBES_ACTIONS[B.action + '_araignee']) || COURBES_ACTIONS[B.action] : null;
   const kAct = (V.ampleur || 1) * ampleurMax;
   if (sautQ) {                                                // saut de quadrupede : la tete suit le tangage du corps avec ~0,08 cycle de retard (overlap) au lieu de rester figee
     const Lc_ = Math.max(4, Math.round(T * fps)), d_ = Math.round(0.08 * Lc_);
@@ -1716,7 +1741,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const c = cp.chaine, vit = A.pas ? 1 : 0.5;
     // le premier os part du centre du corps (dans le corps) : on anime les suivants
     const o = c.length >= 4 ? 1 : 0;
-    balance.set(c[o], t.map((tt) => Rx(-0.07 * (0.5 + 0.5 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q)))));
+    // action avec courbe « palpes » (attaque d'araignee) : les pedipalpes se levent (menace) au lieu de piquer dans le sol quand le corps plonge
+    const leve = C && C.palpes ? t.map((tt) => -1 * 0.9 * cles(tt / T, C.palpes)) : null;
+    balance.set(c[o], t.map((tt, i) => Rx(-0.07 * (0.5 + 0.5 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q)) + (leve ? leve[i] : 0))));
     if (c.length > o + 2) balance.set(c[o + 1], t.map((tt) => Rx(-0.05 * Math.sin(2 * Math.PI * vit * tt / T + 1.7 * q + 0.8))));
   });
   let nbBras = 0;
