@@ -137,25 +137,35 @@ const COURBES_ACTIONS = {
   // avant sur la proie, mord en secouant, et revient. Posture classique des mygales et des araignees-loups (reglage a l'oeil, pas de mesure publiee retenue).
   // Interrupteur : globalThis.__attaqueAraignee = false (attaque generique).
   attack_araignee: {
-    avance: [[0, 0], [0.28, -0.10], [0.42, 0.32], [0.60, 0.30], [0.82, 0.06], [1, 0]],
-    bob: [[0, 0], [0.28, 0.36], [0.36, 0.36], [0.44, 0.20], [0.62, 0.14], [0.85, 0], [1, 0]],          // monte en se cabrant, s'ecrase sur la proie
-    tangage: [[0, 0], [0.28, -0.65], [0.36, -0.60], [0.44, -0.18], [0.62, -0.14], [0.85, -0.01], [1, 0]],
-    tete: [[0, 0], [0.28, -0.20], [0.44, 0.12], [0.62, 0.10], [1, 0]],
-    // crochets (cheliceres, detectes comme deux « tetes » symetriques) : ouverts pendant la menace, DEUX morsures (fermeture rapide), refermes
-    crochets: [[0, 0], [0.18, 0], [0.30, 0.55], [0.42, 0.60], [0.46, -0.08], [0.51, 0.45], [0.55, -0.08], [0.62, 0.20], [0.72, 0], [1, 0]],
-    roulis: [[0, 0], [0.46, 0], [0.50, 0.04], [0.54, -0.04], [0.58, 0.03], [0.62, 0], [1, 0]],   // secoue en mordant
-    palpes: [[0, 0], [0.26, 1], [0.44, 0.8], [0.62, 0.7], [0.86, 0], [1, 0]],                // pedipalpes leves (menace), redescendent apres la morsure
+    // v4 (29/10, user : « pas credible, ameliorer le mouvement des pattes, le transfert de poids »). Le corps PIVOTE SUR LES HANCHES ARRIERE (pivot: 'arriere'),
+    // au lieu de son centre (il fallait alors le soulever en entier : il levitait). 4 temps : PREPARATION (recule, s'abaisse, bascule en arriere sur les pattes IV,
+    // l'abdomen reste a niveau, les paires I et II se levent) ; FRAPPE (les pattes arriere poussent : le corps file en avant et redescend sur la proie, les pattes I
+    // la saisissent en se refermant) ; MORSURE (le poids passe sur l'avant : le devant s'abaisse, les pattes avant plient en tenant ; les paires III puis IV font
+    // un pas pour suivre le corps) ; RETOUR (recul, chaque paire refait un pas). Avance / bob en hauteur de hanche, angles en rad (tangage + = nez bas).
+    pivot: 'arriere',
+    avance: [[0, 0], [0.10, 0], [0.32, -0.08], [0.44, 0.40], [0.64, 0.40], [0.90, 0.02], [1, 0]],
+    bob: [[0, 0], [0.10, 0], [0.32, -0.06], [0.40, 0.03], [0.46, -0.02], [0.64, -0.05], [0.88, 0], [1, 0]],
+    tangage: [[0, 0], [0.10, -0.02], [0.32, -0.55], [0.44, -0.06], [0.52, 0.10], [0.64, 0.09], [0.88, 0.01], [1, 0]],
+    queue: [[0, 0], [0.10, 0.02], [0.32, 0.42], [0.44, 0.05], [0.52, -0.06], [0.64, -0.05], [0.88, 0], [1, 0]],   // abdomen : compense la bascule (reste a niveau)
+    tete: [[0, 0], [0.32, -0.10], [0.46, 0.12], [0.64, 0.10], [1, 0]],
+    roulis: [[0, 0], [0.48, 0], [0.52, 0.04], [0.56, -0.04], [0.60, 0.03], [0.64, 0], [1, 0]],                // secoue en mordant
+    palpes: [[0, 0], [0.26, 1], [0.44, 0.8], [0.62, 0.7], [0.86, 0.55], [0.97, 0], [1, 0]],   // leves jusqu'a la fin du recul (sinon ils trainaient au sol)                               // pedipalpes leves (menace), redescendent apres la morsure
+    crochets: [[0, 0], [0.18, 0], [0.30, 0.55], [0.42, 0.60], [0.47, -0.08], [0.52, 0.45], [0.56, -0.08], [0.62, 0.20], [0.72, 0], [1, 0]],
     pieds: {
-      R0G: { av: [[0, 0], [0.10, 0], [0.28, 0.20], [0.44, 0.50], [0.62, 0.46], [0.86, 0], [1, 0]], lat: [[0, 0], [0.28, 0.25], [0.44, -0.30], [0.62, -0.28], [0.86, 0], [1, 0]],
-        lev: [[0, 0], [0.10, 0], [0.28, 1.45], [0.36, 1.50], [0.44, 0.55], [0.62, 0.50], [0.76, 0.35], [0.90, 0], [1, 0]] },
-      R0D: { av: [[0, 0], [0.10, 0], [0.28, 0.20], [0.44, 0.50], [0.62, 0.46], [0.86, 0], [1, 0]], lat: [[0, 0], [0.28, -0.25], [0.44, 0.30], [0.62, 0.28], [0.86, 0], [1, 0]],
-        lev: [[0, 0], [0.10, 0], [0.28, 1.45], [0.36, 1.50], [0.44, 0.55], [0.62, 0.50], [0.76, 0.35], [0.90, 0], [1, 0]] },
-      R1G: { av: [[0, 0], [0.16, 0], [0.30, 0.15], [0.46, 0.38], [0.62, 0.35], [0.88, 0], [1, 0]], lat: [[0, 0], [0.30, 0.15], [0.46, -0.16], [0.62, -0.15], [0.88, 0], [1, 0]],
-        lev: [[0, 0], [0.16, 0], [0.30, 0.80], [0.38, 0.75], [0.47, 0.35], [0.66, 0.30], [0.78, 0.22], [0.90, 0], [1, 0]] },
-      R1D: { av: [[0, 0], [0.16, 0], [0.30, 0.15], [0.46, 0.38], [0.62, 0.35], [0.88, 0], [1, 0]], lat: [[0, 0], [0.30, -0.15], [0.46, 0.16], [0.62, 0.15], [0.88, 0], [1, 0]],
-        lev: [[0, 0], [0.16, 0], [0.30, 0.80], [0.38, 0.75], [0.47, 0.35], [0.66, 0.30], [0.78, 0.22], [0.90, 0], [1, 0]] },
-      // petit pas pour suivre le corps, puis retour : le pied n'avance QUE quand il est leve (sinon il glissait de 4 % H)
-      P: { av: [[0, 0], [0.46, 0], [0.60, 0.14], [0.80, 0.14], [0.92, 0], [1, 0]], lev: [[0, 0], [0.44, 0], [0.53, 0.12], [0.62, 0], [0.78, 0], [0.86, 0.08], [0.94, 0], [1, 0]] },
+      // paire I : levee et ecartee (menace), puis SAISIT (devant, vers l'interieur, a hauteur de proie), tient, revient par un pas
+      R0G: { av: [[0, 0], [0.10, 0], [0.32, 0.15], [0.44, 0.68], [0.64, 0.64], [0.78, 0], [1, 0]], lat: [[0, 0], [0.32, 0.25], [0.44, -0.25], [0.64, -0.22], [0.88, 0], [1, 0]],
+        lev: [[0, 0], [0.10, 0], [0.32, 1.30], [0.40, 0.90], [0.46, 0.25], [0.64, 0.20], [0.72, 0.70], [0.88, 0], [1, 0]] },
+      R0D: { av: [[0, 0], [0.10, 0], [0.32, 0.15], [0.44, 0.68], [0.64, 0.64], [0.78, 0], [1, 0]], lat: [[0, 0], [0.32, -0.25], [0.44, 0.25], [0.64, 0.22], [0.88, 0], [1, 0]],
+        lev: [[0, 0], [0.10, 0], [0.32, 1.30], [0.40, 0.90], [0.46, 0.25], [0.64, 0.20], [0.72, 0.70], [0.88, 0], [1, 0]] },
+      // paire II : meme geste, plus petit et un peu en retard
+      R1G: { av: [[0, 0], [0.16, 0], [0.34, 0.10], [0.46, 0.50], [0.64, 0.47], [0.84, 0], [1, 0]], lat: [[0, 0], [0.34, 0.15], [0.46, -0.12], [0.64, -0.10], [0.88, 0], [1, 0]],
+        lev: [[0, 0], [0.16, 0], [0.34, 0.65], [0.42, 0.45], [0.48, 0.20], [0.64, 0.20], [0.76, 0.50], [0.92, 0], [1, 0]] },
+      R1D: { av: [[0, 0], [0.16, 0], [0.34, 0.10], [0.46, 0.50], [0.64, 0.47], [0.84, 0], [1, 0]], lat: [[0, 0], [0.34, -0.15], [0.46, 0.12], [0.64, 0.10], [0.88, 0], [1, 0]],
+        lev: [[0, 0], [0.16, 0], [0.34, 0.65], [0.42, 0.45], [0.48, 0.20], [0.64, 0.20], [0.76, 0.50], [0.92, 0], [1, 0]] },
+      // paire III : plantee pendant la preparation et la poussee, un pas en avant juste apres la frappe, un pas en arriere au retour (le pied n'avance que leve)
+      R2: { av: [[0, 0], [0.42, 0], [0.51, 0.36], [0.70, 0.36], [0.79, 0], [1, 0]], lev: [[0, 0], [0.41, 0], [0.47, 0.90], [0.57, 0], [0.69, 0], [0.74, 0.70], [0.86, 0], [1, 0]] },
+      // paire IV : pousse (plantee pendant la frappe), puis suit d'un pas ; retour en dernier
+      R3: { av: [[0, 0], [0.48, 0], [0.57, 0.38], [0.76, 0.38], [0.84, 0], [1, 0]], lev: [[0, 0], [0.47, 0], [0.53, 0.80], [0.62, 0], [0.75, 0], [0.80, 0.70], [0.92, 0], [1, 0]] },
     },
   },
   hit: {               // recul brusque, tete rejetee, puis oscillations amorties jusqu'au retour
@@ -1551,10 +1561,15 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       }
     }
   }
+  const rangMax = Math.max(...pattes.map((p) => p.rang ?? 0));
+  const pivotArr = C && C.pivot === 'arriere' && pattes.length >= 4 ? (() => { const q = pattes.filter((p) => p.rang === rangMax); return mulS(q.reduce((s_, p) => add(s_, P0[p.chaine[0]]), [0, 0, 0]), 1 / q.length); })() : null;
   const Rb = [], decal = [];
   for (let i = 0; i < nT; i++) {
     Rb.push(mm(mm(mm(Rcap[i], Ry(lacetBassin[i])), Rx(tangage[i])), Rz(roulis[i])));
     decal.push(add(add(cc[i], [0, bob[i] - abaisse, 0]), mv(Rcap[i], [lateral[i], 0, avance[i]])));
+    // action qui pivote sur les hanches ARRIERE (attaque d'araignee, 29/10) : le point de pivot ne bouge que par bob / avance (le corps bascule sur l'arriere
+    // au lieu de tourner autour de son centre et de leviter)
+    if (pivotArr) { const d_ = sub(pivotArr, centre); decal[i] = add(decal[i], sub(d_, mv(Rb[i], d_))); }
   }
   const monde = (i, p) => add(add(centre, decal[i]), mv(Rb[i], sub(p, centre)));
   // colonne pliee : rotation locale de chaque os, puis position/rotation MONDE de chacun (pour que
