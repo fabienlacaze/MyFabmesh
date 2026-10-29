@@ -81,22 +81,26 @@ class ReglageGpu:
         return {"texte": texte, "jetons_entree": len(sortie.prompt_token_ids), "jetons_sortie": len(sortie.outputs[0].token_ids),
                 "s_generation": round(time.time() - t0, 1), "s_chargement_conteneur": self.s_chargement}
 
-    def _voir(self, utilisateur: str, images_b64: list, max_jetons: int = 900, systeme: str = None):
+    def _voir(self, utilisateur: str, images_b64: list, max_jetons: int = 900, systeme: str = None, reflexion: bool = False):
         """Le modele regarde des images (JPEG en base64) et repond a la question : juge visuel des planches d'animation."""
         from vllm import SamplingParams
         contenu = [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in images_b64[:4]]
         contenu.append({"type": "text", "text": utilisateur})
         messages = ([{"role": "system", "content": systeme}] if systeme else []) + [{"role": "user", "content": contenu}]
         t0 = time.time()
+        # reflexion=True : mode « thinking » de Qwen3.6 (le modele raisonne avant de repondre : plus lent, parfois plus juste) ; le texte de reflexion est retire de la reponse
         sortie = self.llm.chat(messages, SamplingParams(temperature=0.0, max_tokens=max_jetons),
-                               chat_template_kwargs={"enable_thinking": False})[0]
-        return {"texte": sortie.outputs[0].text, "jetons_entree": len(sortie.prompt_token_ids),
+                               chat_template_kwargs={"enable_thinking": bool(reflexion)})[0]
+        texte = sortie.outputs[0].text
+        if "</think>" in texte:
+            texte = texte.split("</think>", 1)[1]
+        return {"texte": texte.strip(), "jetons_entree": len(sortie.prompt_token_ids),
                 "jetons_sortie": len(sortie.outputs[0].token_ids), "s_generation": round(time.time() - t0, 1)}
 
     @modal.method()
-    def voir(self, utilisateur: str, images_b64: list, max_jetons: int = 900, systeme: str = None):
+    def voir(self, utilisateur: str, images_b64: list, max_jetons: int = 900, systeme: str = None, reflexion: bool = False):
         with self.verrou:
-            return self._voir(utilisateur, images_b64, max_jetons, systeme)
+            return self._voir(utilisateur, images_b64, max_jetons, systeme, reflexion)
 
     @modal.method()
     def regler(self, utilisateur: str, max_jetons: int = 1100, systeme: str = None):

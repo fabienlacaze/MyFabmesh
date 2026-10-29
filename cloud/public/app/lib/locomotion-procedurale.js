@@ -3871,17 +3871,27 @@ function angleOrientation(sq, mode = 'auto') {
 //    calcule pour que la paume reste neutre (face a face).
 // Aucune regle par maillage : tout est derive des chaines detectees (jambes, colonne, bras) et de la pose de repos. Quelques reglages, proportionnels a la hauteur,
 // sont lisibles et modifiables dans globalThis.__reglagesCourse ({ run: {...}, jog: {...}, sprint: {...} }). Desactivable : globalThis.__courseAnatomique = false.
+// TORSE SOUPLE (29/10, groupe « torse-souple ») : le user a juge « buste verrouille ». Leviers (valeurs en degres crete-a-crete sauf mention) :
+//  torseTorsion = torsion relative epaules-bassin (partagee : torsionBassin = part du bassin) ; torseOnde = retard (part de cycle) de l'onde du bassin vers les epaules ;
+//  bassinObliquite = roulis du bassin ; torseFlexionLaterale = flexion laterale RELATIVE bassin-epaules ; torseTangage = tangage du thorax (a chaque pas) ;
+//  teteSuivi / teteSuiviTangage = part du lacet-roulis / du tangage du thorax que la tete reprend (1 = la tete suit tout, 0 = fixe dans le monde) ; teteRetard = retard de la tete (part de cycle) ;
+//  clavicule = protraction des clavicules (deg, amplitude) avec le balancement du bras ; asymetrieBras = ecart relatif d'amplitude gauche/droite ; retardCoude = retard de l'avant-bras (part de cycle).
+//  Interrupteur : globalThis.__torseSouple = false (retour exact a l'etat precedent ; les anciens leviers bassinLacet / epaulesLacet / bassinRoulis ne servent alors que dans ce cas).
 const COURSE_DEFAUT = {
   //          vitesse H/s | cadence pas/s | appui (part du cycle d'un pied) | buste deg | coude flexion deg | ecart du coude deg | bras avant / arriere deg
   run: { vitesse: 1.95, cadence: 3.1, appui: 0.405, buste: 12, coude: 92, coudeVar: 10, ecartCoude: 20, mainsRentrees: 8, brasAvant: 40, brasArriere: 48,
-    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.40, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.40, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
+    torseTorsion: 24, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 6.5, torseFlexionLaterale: 4.5, torseTangage: 4, teteSuivi: 0.27, teteSuiviTangage: 0.7, teteRetard: 0.04, clavicule: 5, asymetrieBras: 0.07, retardCoude: 0.07 },
   jog: { vitesse: 1.4, cadence: 2.8, appui: 0.45, buste: 8, coude: 88, coudeVar: 8, ecartCoude: 18, mainsRentrees: 8, brasAvant: 28, brasArriere: 30,
-    talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.40, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+    talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.40, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
+    torseTorsion: 20, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 5.5, torseFlexionLaterale: 4, torseTangage: 3, teteSuivi: 0.3, teteSuiviTangage: 0.8, teteRetard: 0.04, clavicule: 4, asymetrieBras: 0.07, retardCoude: 0.07 },
   // marche (29/10) : double appui, jamais de vol ; rebond NEGATIF = bassin haut a mi-appui (le pas « enjambe »)
   walk: { vitesse: 0.80, cadence: 2.0, appui: 0.62, buste: 2, coude: 22, coudeVar: 8, ecartCoude: 10, mainsRentrees: 4, brasAvant: 16, brasArriere: 14,
-    talon: 14, poussee: 36, rebond: -0.007, compTete: 0.0, levee: 0.05, genou: 0.03, plat: 0.40, largeurPas: 0.3, bassinLacet: 4, epaulesLacet: 5, bassinRoulis: 1.5, deport: 0.008, teteTangage: 0, paume: 0, jambe: 1.008, zlin: 0.1 },
+    talon: 14, poussee: 36, rebond: -0.007, compTete: 0.0, levee: 0.05, genou: 0.03, plat: 0.40, largeurPas: 0.3, bassinLacet: 4, epaulesLacet: 5, bassinRoulis: 1.5, deport: 0.008, teteTangage: 0, paume: 0, jambe: 1.008, zlin: 0.1,
+    torseTorsion: 11, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 4, torseFlexionLaterale: 3, torseTangage: 1.5, teteSuivi: 0.6, teteSuiviTangage: 1.0, teteRetard: 0.05, clavicule: 3, asymetrieBras: 0.07, retardCoude: 0.07 },
   sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.31, buste: 22, coude: 105, coudeVar: 10, ecartCoude: 18, mainsRentrees: 8, brasAvant: 62, brasArriere: 48,
-    talon: 0, poussee: 45, rebond: 0.010, compTete: 0.0, levee: 0.42, genou: 0.30, plat: 0.40, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+    talon: 0, poussee: 45, rebond: 0.010, compTete: 0.0, levee: 0.42, genou: 0.30, plat: 0.40, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
+    torseTorsion: 28, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 7, torseFlexionLaterale: 5, torseTangage: 5, teteSuivi: 0.23, teteSuiviTangage: 0.6, teteRetard: 0.04, clavicule: 6, asymetrieBras: 0.07, retardCoude: 0.07 },
 };
 if (!globalThis.__reglagesCourse) globalThis.__reglagesCourse = JSON.parse(JSON.stringify(COURSE_DEFAUT));
 const _lisse3 = (x) => { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
@@ -4003,9 +4013,31 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
   let lean = 0;
   { let L = Pm.buste * _deg; for (let it = 0; it < 8; it++) { const v = vTronc(L), a = Math.atan2(v[2], v[1]), v2 = vTronc(L + 1e-3), a2 = Math.atan2(v2[2], v2[1]); const d = (a2 - a) / 1e-3; if (Math.abs(d) < 1e-6) break; L += (Pm.buste * _deg - a) / d; } lean = L; }
   const dyTronc = (L) => vTronc(L)[1];
+  const TS = globalThis.__torseSouple !== false;
   // --- tronc a l'instant t : orientations monde de la colonne, de la tete ; decalage hanche - racine
   function tronc(t) {
     const th = 2 * Math.PI * t / T, ph = th - Math.PI * df;
+    if (TS) {
+      const w2 = 2 * Math.PI, aT = Pm.torseTorsion * _deg / 2, aP = aT * Pm.torsionBassin, aS = aT * (1 - Pm.torsionBassin);
+      const oblA = Pm.bassinObliquite * _deg / 2, rollS = oblA - Pm.torseFlexionLaterale * _deg / 2;
+      const pitA = Pm.torseTangage * _deg / 2, sgn = Pm.rebond >= 0 ? 1 : -1, onde = Pm.torseOnde || 0, ret = Pm.teteRetard || 0;
+      const pit = (x) => -pitA * sgn * Math.cos(2 * x - w2 * df);      // tronc plus penche quand le bassin est haut : le tronc absorbe le rebond, la tete reste calme
+      const lean0 = lean + leanAdjDe(t);
+      const Dm = new Map();
+      for (let i = 0; i <= m; i++) {
+        const f = i / m;
+        const yaw = -aP * Math.cos(th) * (1 - f) + aS * Math.cos(th - w2 * onde * f) * f;
+        const rol = oblA * Math.cos(ph) * (1 - f) + rollS * Math.cos(ph - w2 * onde * f) * f;
+        Dm.set(voie[i], mm(mm(Ry(yaw), Rx(lean0 * (0.35 + 0.65 * f) + pit(th))), Rz(rol)));
+      }
+      const nTete = voie.length - 1 - m;
+      for (let i = m + 1; i < voie.length; i++) {
+        const w = (i - m) / nTete, lag = onde + ret * w, g = 1 - w * (1 - Pm.teteSuivi), gp = 1 - w * (1 - Pm.teteSuiviTangage);
+        const yaw = aS * Math.cos(th - w2 * lag) * g, rol = rollS * Math.cos(ph - w2 * lag) * g;
+        Dm.set(voie[i], mm(mm(Ry(yaw), Rx(Pm.teteTangage * _deg * w + lean0 * 0.5 * (1 - w) + pit(th - w2 * lag) * gp)), Rz(rol)));
+      }
+      return { Dm, sway: Pm.deport * H * Math.cos(ph) };
+    }
     const yawP = -Pm.bassinLacet * _deg * Math.cos(th), yawS = Pm.epaulesLacet * _deg * Math.cos(th), roulis = Pm.bassinRoulis * _deg * Math.cos(ph);
     const lean_ = lean + leanAdjDe(t) + 0.6 * _deg * Math.cos(2 * th + 0.5);
     const Dm = new Map();
@@ -4118,14 +4150,21 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
   // --- bras : directions cibles
   const brasT = (b, t) => {
     const u = _frac(t / T + decalPhase(b.cote));
-    const av = Pm.brasAvant * _deg, ar = Pm.brasArriere * _deg, mid = 0.5 * (av - ar), amp = 0.5 * (av + ar);
+    const asy = TS ? 1 + 0.5 * b.cote * Pm.asymetrieBras : 1;
+    const av = Pm.brasAvant * _deg * asy, ar = Pm.brasArriere * _deg * asy, mid = 0.5 * (av - ar), amp = 0.5 * (av + ar);
     const th = mid - amp * Math.cos(2 * Math.PI * (u + 0.03));
-    const phi = (Pm.coude + Pm.coudeVar * (th - mid) / Math.max(amp, 1e-6)) * _deg;
+    const thF = TS ? mid - amp * Math.cos(2 * Math.PI * (u + 0.03 - Pm.retardCoude)) : th;     // l'avant-bras plie et se deplie avec un retard
+    const phi = (Pm.coude + Pm.coudeVar * (thF - mid) / Math.max(amp, 1e-6)) * _deg;
     const alpha = Pm.ecartCoude * _deg, af = -Pm.mainsRentrees * _deg, be = th + phi;
     const du = add(mulS([0, -Math.cos(th), Math.sin(th)], Math.cos(alpha)), [b.cote * Math.sin(alpha), 0, 0]);
     const df_ = add(mulS([0, -Math.cos(be), Math.sin(be)], Math.cos(af)), [b.cote * Math.sin(af), 0, 0]);
-    return { du, df: df_, th, phi };
+    return { du, df: df_, th, phi, sw: -Math.cos(2 * Math.PI * (u + 0.03)) };
   };
+  for (const b of bras) {                                  // premier os entre le moyeu et l'epaule (clavicule) s'il existe
+    let k = b.epaule;
+    while (par[k] >= 0 && par[k] !== b.moyeu) k = par[k];
+    b.clav = par[k] === b.moyeu && k !== b.epaule ? k : -1;
+  }
   const reposBras = bras.map((b) => {
     const ru = sub(P0[b.coude], P0[b.epaule]), rf = sub(P0[b.poignet], P0[b.coude]);
     const ur = mulS(ru, 1 / norm(ru)), fr = mulS(rf, 1 / norm(rf));
@@ -4189,6 +4228,10 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
       const proj = (v) => { const w = sub(v, mulS(fa, dot(v, fa))); return mulS(w, 1 / (norm(w) + 1e-12)); };
       const nA = proj(n0), nB = proj([-b.cote, 0, 0]);
       const ang = Math.atan2(dot(cross(nA, nB), fa), dot(nA, nB)) + b.cote * Pm.paume * _deg;
+      if (TS && Pm.clavicule && b.clav >= 0 && Dm.has(b.moyeu)) {    // clavicule : suit le balancement du bras (protraction + legere elevation)
+        const a_ = -b.cote * Pm.clavicule * _deg * bt.sw, e_ = 0.3 * b.cote * Pm.clavicule * _deg * bt.sw;
+        Dm.set(b.clav, mm(Dm.get(b.moyeu), mm(Ry(a_), Rz(e_))));
+      }
       Dm.set(b.epaule, Du);
       Dm.set(b.coude, mm(rotvec(fa, ang), fm));
       if (i === 0 || true) infoBras[q] = { ang };
@@ -4200,7 +4243,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     racineMonde.push(rootPos);
     secs.forEach((r, k) => racinesSec[k].pos.push(D && add(rootPos, mv(D[racine], sub(P0[r], P0[racine])))));
   }
-  const clip = { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
+  const clip = { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote, clav: b.clav })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
   if (!R.every((Ri) => Ri.every((mt) => mt.every(Number.isFinite))) || !racineMonde.every((q) => q.every(Number.isFinite))) return null;
   const dc = _defautsClip(sq, clip, det);
   clip.infos.sous_sol_pct = +dc.sousSol.toFixed(2); clip.infos.glissement_appui_pct = +dc.glissement.toFixed(2); clip.infos.acoups_max_deg = +dc.acoups.toFixed(1);
