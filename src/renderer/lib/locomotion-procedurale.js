@@ -3879,18 +3879,18 @@ function angleOrientation(sq, mode = 'auto') {
 //  Interrupteur : globalThis.__torseSouple = false (retour exact a l'etat precedent ; les anciens leviers bassinLacet / epaulesLacet / bassinRoulis ne servent alors que dans ce cas).
 const COURSE_DEFAUT = {
   //          vitesse H/s | cadence pas/s | appui (part du cycle d'un pied) | buste deg | coude flexion deg | ecart du coude deg | bras avant / arriere deg
-  run: { vitesse: 1.95, cadence: 3.1, appui: 0.405, buste: 12, coude: 92, coudeVar: 10, ecartCoude: 20, mainsRentrees: 8, brasAvant: 40, brasArriere: 48,
-    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.40, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
+  run: { vitesse: 1.95, cadence: 3.1, appui: 0.385, buste: 12, coude: 92, coudeVar: 10, ecartCoude: 20, mainsRentrees: 8, brasAvant: 40, brasArriere: 48,
+    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.24, genou: 0.0, plat: 0.4, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0, jambe: 0.995,
     torseTorsion: 24, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 6.5, torseFlexionLaterale: 4.5, torseTangage: 4, teteSuivi: 0.27, teteSuiviTangage: 0.7, teteRetard: 0.04, clavicule: 5, asymetrieBras: 0.07, retardCoude: 0.07 },
   jog: { vitesse: 1.4, cadence: 2.8, appui: 0.45, buste: 8, coude: 88, coudeVar: 8, ecartCoude: 18, mainsRentrees: 8, brasAvant: 28, brasArriere: 30,
-    talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.40, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
+    talon: 9, poussee: 37, rebond: 0.007, compTete: 0.0, levee: 0.16, genou: 0.0, plat: 0.4, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0, jambe: 0.995,
     torseTorsion: 20, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 5.5, torseFlexionLaterale: 4, torseTangage: 3, teteSuivi: 0.3, teteSuiviTangage: 0.8, teteRetard: 0.04, clavicule: 4, asymetrieBras: 0.07, retardCoude: 0.07 },
   // marche (29/10) : double appui, jamais de vol ; rebond NEGATIF = bassin haut a mi-appui (le pas « enjambe »)
   walk: { vitesse: 0.80, cadence: 2.0, appui: 0.62, buste: 2, coude: 22, coudeVar: 8, ecartCoude: 10, mainsRentrees: 4, brasAvant: 16, brasArriere: 14,
     talon: 14, poussee: 36, rebond: -0.007, compTete: 0.0, levee: 0.05, genou: 0.03, plat: 0.40, largeurPas: 0.3, bassinLacet: 4, epaulesLacet: 5, bassinRoulis: 1.5, deport: 0.008, teteTangage: 0, paume: 0, jambe: 1.008, zlin: 0.1,
     torseTorsion: 11, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 4, torseFlexionLaterale: 3, torseTangage: 1.5, teteSuivi: 0.6, teteSuiviTangage: 1.0, teteRetard: 0.05, clavicule: 3, asymetrieBras: 0.07, retardCoude: 0.07 },
-  sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.31, buste: 22, coude: 105, coudeVar: 10, ecartCoude: 18, mainsRentrees: 8, brasAvant: 62, brasArriere: 48,
-    talon: 0, poussee: 45, rebond: 0.010, compTete: 0.0, levee: 0.42, genou: 0.30, plat: 0.40, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
+  sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.33, buste: 22, coude: 105, coudeVar: 10, ecartCoude: 18, mainsRentrees: 8, brasAvant: 62, brasArriere: 48,
+    talon: 3, poussee: 35, rebond: 0.010, compTete: 0.0, levee: 0.3, genou: 0.12, plat: 0.4, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0, jambe: 1.015,
     torseTorsion: 28, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 7, torseFlexionLaterale: 5, torseTangage: 5, teteSuivi: 0.23, teteSuiviTangage: 0.6, teteRetard: 0.04, clavicule: 6, asymetrieBras: 0.07, retardCoude: 0.07 },
 };
 if (!globalThis.__reglagesCourse) globalThis.__reglagesCourse = JSON.parse(JSON.stringify(COURSE_DEFAUT));
