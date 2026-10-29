@@ -256,6 +256,15 @@ function pasPied(C, p) {
 /** Valeur d'une courbe par cles [[u, v], ...] (u croissant dans 0..1) : Hermite cubique monotone
  *  (tangentes de Fritsch-Carlson : moyenne harmonique des pentes voisines, nulle a un extremum). La vitesse
  *  est continue, la courbe ne depasse jamais ses cles. */
+/** LEVIERS D'ACTION (29/10, relecture par Qwen3.6 a chaque generation) : multiplicateurs par animation, lus dans globalThis.__reglagesAnim
+ *  (cle « attack », « attack__kick »...), poses par animerGLB(options.reglages). Absents = 1 : le resultat est identique a l'octet. Bornes [0,3 ; 3]. */
+const LEVIERS_ACTION = ['deplacement', 'bascule', 'rebond', 'rotation', 'roulis', 'tete', 'hauteurPattes', 'ecart', 'bras', 'crochets', 'vitesse'];
+function _reglagesAnim(allure, variante) {
+  const t = globalThis.__reglagesAnim, r = (t && t[variante && variante !== 'normal' ? allure + '__' + variante : allure]) || {};
+  const o = {};
+  for (const k of LEVIERS_ACTION) { const v = +r[k]; o[k] = Number.isFinite(v) ? Math.min(3, Math.max(0.3, v)) : 1; }
+  return o;
+}
 function cles(u, k) {
   if (u <= k[0][0]) return k[0][1];
   const n = k.length;
@@ -1119,7 +1128,8 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     teteStab: Pr.teteStab || 0,
   };
   const nombreux = pattes.length >= 6, bipede = pattes.length <= 2;
-  let T = A.T[nombreux ? 1 : 0];
+  const RA_ = _reglagesAnim(allure, variante);
+  let T = A.T[nombreux ? 1 : 0] / RA_.vitesse;
   // periode = nombre ENTIER d'images (la derniere image enchaine sur la premiere) : bipedes, et profils marques « cycleEntier »
   if (bipede || Pr.cycleEntier) T = Math.max(2, Math.round(T * fps)) / fps;
   // quadrupede a profil d'espece : periode ARRONDIE a un nombre entier d'images, sinon la boucle (derniere -> premiere
@@ -1527,16 +1537,16 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
     const k = (V.ampleur || 1) * ampleurMax;
     for (let i = 0; i < nT; i++) {
       const u = t[i] / T;
-      if (C.bob) bob[i] = cles(u, C.bob) * hanche * k + 0.3 * bob[i];
-      if (C.avance) avance[i] = cles(u, C.avance) * hanche * k;
-      if (C.tangage) tangage[i] = cles(u, C.tangage) * k;
-      if (C.roulis) roulis[i] = cles(u, C.roulis) * k;
-      if (C.tete) teteT[i] = cles(u, C.tete) * k;
+      if (C.bob) bob[i] = cles(u, C.bob) * hanche * k * RA_.rebond + 0.3 * bob[i];
+      if (C.avance) avance[i] = cles(u, C.avance) * hanche * k * RA_.deplacement;
+      if (C.tangage) tangage[i] = cles(u, C.tangage) * k * RA_.bascule;
+      if (C.roulis) roulis[i] = cles(u, C.roulis) * k * RA_.roulis;
+      if (C.tete) teteT[i] = cles(u, C.tete) * k * RA_.tete;
       if (C.bras) brasT[i] = cles(u, C.bras) * k;
       if (C.torse && bipede) torseL[i] = cles(u, C.torse) * k;
       if (C.torseT && bipede) torseP[i] = cles(u, C.torseT) * k;
-      if (C.lacet && bipede) lacetBassin[i] = cles(u, C.lacet) * k;
-      if (C.lacetQ && quadrupede && globalThis.__corpsQuadrupede !== false) lacetBassin[i] = cles(u, C.lacetQ) * k;
+      if (C.lacet && bipede) lacetBassin[i] = cles(u, C.lacet) * k * RA_.rotation;
+      if (C.lacetQ && quadrupede && globalThis.__corpsQuadrupede !== false) lacetBassin[i] = cles(u, C.lacetQ) * k * RA_.rotation;
       // mastication : fenetres [debut, fin, cycles par cycle d'action, amplitude rad], enveloppe en sinus (pas de saut)
       if (C.machoire) for (const [u0, u1, fq, am] of (Array.isArray(C.machoire[0]) ? C.machoire : [C.machoire])) {
         if (u > u0 && u < u1) teteT[i] += am * Math.sin(Math.PI * (u - u0) / (u1 - u0)) ** 0.5 * Math.sin(2 * Math.PI * fq * (u - u0));
@@ -1633,9 +1643,9 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         const sp = pasPied(C, p);
         if (sp) {
           const uu = t[i] / T;
-          const dv = [sp.lat ? cles(uu, sp.lat) * hanche * kAct : 0, 0, sp.av ? cles(uu, sp.av) * hanche * kAct : 0];
+          const dv = [sp.lat ? cles(uu, sp.lat) * hanche * kAct * RA_.ecart : 0, 0, sp.av ? cles(uu, sp.av) * hanche * kAct * RA_.deplacement : 0];
           cible = add(cible, mv(Rcap[i], dv));
-          if (sp.lev) cible[1] += cles(uu, sp.lev) * hanche * kAct;
+          if (sp.lev) cible[1] += cles(uu, sp.lev) * hanche * kAct * RA_.hauteurPattes;
         }
       }
       else {
@@ -1758,7 +1768,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
       }
       else balance.set(j, t.map((tt) => Ry(ampQ * (a + 1) / cq.length * Math.sin(2 * Math.PI * tt / T * (A.pas ? 1 : 2) - 0.7 * a))));
       // action : la queue se releve / s'etale (C.queue, rad, + = vers l'arriere) : coucher, attaque (fouet)
-      if (C && C.queue && !A.abdomen) { const b0 = balance.get(j); balance.set(j, b0.map((m, i) => mm(Rx(cles(t[i] / T, C.queue) * kAct / Math.max(cq.length - 1, 1)), m))); }
+      if (C && C.queue && !A.abdomen) { const b0 = balance.get(j); balance.set(j, b0.map((m, i) => mm(Rx(cles(t[i] / T, C.queue) * kAct * RA_.bascule / Math.max(cq.length - 1, 1)), m))); }
     });
   }
   palpes.forEach((cp, q) => {
@@ -1943,7 +1953,7 @@ function animerAllure(sq, allure, cycles, fps, variante = 'normal', espece = 'ge
         // crochets d'araignee (29/10) : les deux « tetes » symetriques s'ecartent (ouverture) puis se referment (morsure), autour de l'axe avant
         if (C && C.crochets && a === 0 && tetesA.length === 2) {
           const xm = 0.5 * (P0[tetesA[0][0]][0] + P0[tetesA[1][0]][0]), cote_ = Math.sign(P0[ct[0]][0] - xm) || 1;   // Rz(+) pousse un os pendant vers +x
-          m = mm(Rz(cote_ * cles(tt / T, C.crochets)), m);
+          m = mm(Rz(cote_ * cles(tt / T, C.crochets) * RA_.crochets), m);
         }
         if (!A.pas && a === 0 && vivant) {
           const x_ = tt / T;
@@ -4100,23 +4110,33 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     const bF = bras.find((b) => b.cote < 0) || bras[0], c = bF.cote;
     const jAv = jambes.find((q) => q.cote !== c) || jambes[0], jAr = jambes.find((q) => q !== jAv) || jambes[1];
     const kV = variante === 'strong' ? 1.25 : 1;
-    const Tc = geste === 'kick' ? 1.5 : geste === 'spin' ? 1.6 : 1.4 * (variante === 'quick' ? 0.7 : variante === 'strong' ? 1.15 : 1);
-    const Tf_ = Math.max(12, Math.round(Tc * fps)), nT_ = cycles * Tf_ + 1;
+    const Tc = geste === 'kick' ? 1.6 : geste === 'spin' ? 1.3 : 1.5 * (variante === 'quick' ? 0.7 : variante === 'strong' ? 1.15 : 1);
+    const RA_ = _reglagesAnim('attack', variante);
+    const Tf_ = Math.max(12, Math.round(Tc / RA_.vitesse * fps)), nT_ = cycles * Tf_ + 1;
+    const LEV_ = { avance: RA_.deplacement, pasAv: RA_.deplacement, pasAr: RA_.deplacement, pose: 1, tangage: RA_.bascule, bob: RA_.rebond, lacetB: RA_.rotation, lacetE: RA_.rotation,
+      roulis: RA_.roulis, tete: RA_.tete, pasLev: RA_.hauteurPattes, pasArLev: RA_.hauteurPattes, armeG: RA_.hauteurPattes, poseLev: RA_.hauteurPattes, transfert: 1, tendu: 1, pointe: 1, tour: 1, piedLev: RA_.hauteurPattes, talonAr: 1 };
     const K = {
+      // 29/10 (user : « les attaques humaines manquent d'amplitude, d'agressivite et de deplacement ») : enchainement JAB (bras avant, 0,28) puis DIRECT
+      // (bras arriere, 0,48) en avancant : grand pas du pied avant (0,55 jambe), le corps avance d'un quart de sa hauteur, le pied arriere suit (0,56-0,66),
+      // rotation des epaules plus ample (jab = epaule avant en avant, direct = epaule arriere), retour en deux pas.
       direct: {
-        lacetB: [[0, 0], [0.30, -0.24], [0.40, 0.16], [0.52, 0.30], [0.74, 0.11], [1, 0]],
-        lacetE: [[0, 0], [0.30, -0.50], [0.44, 0.20], [0.56, 0.50], [0.76, 0.16], [1, 0]],
-        tangage: [[0, 0], [0.30, 0.04], [0.42, 0.16], [0.55, 0.12], [0.8, 0.03], [1, 0]], roulis: [[0, 0], [0.42, 0.05], [0.7, 0.01], [1, 0]],
-        avance: [[0, 0], [0.30, -0.035], [0.42, 0.10], [0.56, 0.12], [0.78, 0.04], [1, 0]], bob: [[0, 0], [0.30, -0.035], [0.44, -0.065], [0.60, -0.055], [0.85, -0.01], [1, 0]],
-        pasAv: [[0, 0], [0.16, 0], [0.38, 1], [0.74, 1], [0.92, 0], [1, 0]], pasLev: [[0, 0], [0.16, 0], [0.27, 1], [0.38, 0], [0.74, 0], [0.83, 0.6], [0.92, 0], [1, 0]],
-        talonAr: [[0, 0], [0.34, 0], [0.46, 1], [0.66, 0.9], [0.86, 0], [1, 0]],
+        lacetB: [[0, 0], [0.12, 0], [0.28, -0.14], [0.46, 0.40], [0.60, 0.30], [0.84, 0.06], [1, 0]],
+        lacetE: [[0, 0], [0.12, 0], [0.28, -0.34], [0.38, -0.20], [0.48, 0.72], [0.60, 0.56], [0.84, 0.10], [1, 0]],
+        tangage: [[0, 0], [0.12, 0.04], [0.28, 0.12], [0.48, 0.24], [0.62, 0.16], [0.86, 0.03], [1, 0]], roulis: [[0, 0], [0.28, -0.04], [0.48, 0.07], [0.7, 0.01], [1, 0]],
+        avance: [[0, 0], [0.08, -0.01], [0.28, 0.10], [0.48, 0.22], [0.66, 0.25], [0.86, 0.06], [1, 0]], bob: [[0, 0], [0.12, -0.02], [0.28, -0.035], [0.48, -0.07], [0.62, -0.06], [0.86, -0.01], [1, 0]],
+        pasAv: [[0, 0], [0.06, 0], [0.24, 1], [0.78, 1], [0.92, 0], [1, 0]], pasLev: [[0, 0], [0.06, 0], [0.15, 1], [0.24, 0], [0.78, 0], [0.85, 0.6], [0.92, 0], [1, 0]],
+        pasAr: [[0, 0], [0.55, 0], [0.66, 1], [0.84, 1], [0.95, 0], [1, 0]], pasArLev: [[0, 0], [0.54, 0], [0.60, 1], [0.67, 0], [0.84, 0], [0.90, 0.6], [0.96, 0], [1, 0]],
+        talonAr: [[0, 0], [0.26, 0], [0.40, 1], [0.54, 1], [0.66, 0], [1, 0]],
       },
       kick: {
         lacetB: [[0, 0], [0.30, 0.06], [0.45, 0.16], [0.62, 0.06], [1, 0]], lacetE: [[0, 0], [0.30, -0.06], [0.45, -0.12], [0.62, -0.04], [1, 0]],
-        tangage: [[0, 0], [0.18, 0.02], [0.32, -0.10], [0.46, -0.28], [0.58, -0.18], [0.78, -0.02], [1, 0]], roulis: [[0, 0], [0.18, 0.06], [0.46, 0.08], [0.78, 0.02], [1, 0]],
-        transfert: [[0, 0], [0.18, 1], [0.78, 1], [0.92, 0], [1, 0]], avance: [[0, 0], [0.46, -0.02], [0.7, 0.01], [1, 0]], bob: [[0, 0], [0.18, -0.02], [0.46, -0.03], [0.78, -0.02], [1, 0]],
-        armeG: [[0, 0], [0.22, 0], [0.34, 1], [0.44, 0.4], [0.52, 0.35], [0.62, 1], [0.78, 0], [1, 0]],   // genou arme (monte, tibia replie)
-        tendu: [[0, 0], [0.36, 0], [0.46, 1], [0.52, 1], [0.64, 0], [1, 0]],                             // extension
+        tangage: [[0, 0], [0.16, 0.02], [0.30, -0.14], [0.42, -0.38], [0.52, -0.26], [0.66, 0.08], [0.80, 0.04], [1, 0]], roulis: [[0, 0], [0.16, 0.06], [0.42, 0.10], [0.66, 0.02], [1, 0]],
+        transfert: [[0, 0], [0.16, 1], [0.60, 1], [0.72, 0.2], [0.90, 0.2], [1, 0]],
+        avance: [[0, 0], [0.30, 0.02], [0.42, 0.04], [0.58, 0.08], [0.72, 0.20], [0.86, 0.20], [1, 0]], bob: [[0, 0], [0.16, -0.02], [0.42, -0.03], [0.70, -0.05], [0.86, -0.02], [1, 0]],
+        armeG: [[0, 0], [0.18, 0], [0.30, 1], [0.38, 0.5], [0.46, 0.45], [0.56, 0.9], [0.66, 0], [1, 0]],  // genou arme (monte, tibia replie)
+        tendu: [[0, 0], [0.31, 0], [0.41, 1], [0.47, 1], [0.57, 0], [1, 0]],                             // extension plus seche
+        pose: [[0, 0], [0.56, 0], [0.68, 1], [0.86, 1], [0.97, 0], [1, 0]],                              // la jambe se repose DEVANT, puis revient
+        poseLev: [[0, 0], [0.86, 0], [0.91, 1], [0.97, 0], [1, 0]],
         pointe: [[0, 0], [0.3, -0.2], [0.46, -0.5], [0.6, -0.2], [0.8, 0], [1, 0]],
       },
       spin: {
@@ -4129,16 +4149,18 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     // directions bras (U) / avant-bras (F) dans le repere du thorax : x = vers l'exterieur du bras, y = haut, z = avant
     const GARDE_U = [0.30, -0.80, 0.50], GARDE_F = [-0.30, 0.75, 0.60];
     const BRAS = {
-      direct: { U: [[0, GARDE_U], [0.30, [0.35, -0.85, 0.15]], [0.42, [-0.12, 0.05, 0.99]], [0.50, [-0.05, -0.20, 0.98]], [0.72, GARDE_U], [1, GARDE_U]],
-        F: [[0, GARDE_F], [0.30, [-0.25, 0.85, 0.45]], [0.42, [-0.10, 0.03, 0.99]], [0.50, [-0.20, 0.35, 0.92]], [0.72, GARDE_F], [1, GARDE_F]],
-        Ug: [[0, GARDE_U], [0.42, [0.35, -0.85, 0.35]], [1, GARDE_U]], Fg: [[0, GARDE_F], [0.42, [-0.35, 0.80, 0.50]], [1, GARDE_F]] },
+      direct: { U: [[0, GARDE_U], [0.38, [0.35, -0.85, 0.15]], [0.48, [-0.12, 0.05, 0.99]], [0.56, [-0.05, -0.20, 0.98]], [0.74, GARDE_U], [1, GARDE_U]],
+        F: [[0, GARDE_F], [0.38, [-0.25, 0.85, 0.45]], [0.48, [-0.10, 0.03, 0.99]], [0.56, [-0.20, 0.35, 0.92]], [0.74, GARDE_F], [1, GARDE_F]],
+        Ug: [[0, GARDE_U], [0.18, GARDE_U], [0.28, [-0.08, 0.02, 0.99]], [0.36, [0.20, -0.60, 0.77]], [0.48, [0.35, -0.85, 0.35]], [0.70, GARDE_U], [1, GARDE_U]],
+        Fg: [[0, GARDE_F], [0.18, GARDE_F], [0.28, [-0.06, 0.02, 0.99]], [0.36, [-0.25, 0.60, 0.76]], [0.48, [-0.35, 0.80, 0.50]], [0.70, GARDE_F], [1, GARDE_F]] },
       kick: { U: [[0, GARDE_U], [0.46, [0.55, -0.75, -0.30]], [0.7, GARDE_U], [1, GARDE_U]], F: [[0, GARDE_F], [0.46, [0.10, 0.30, 0.95]], [0.7, GARDE_F], [1, GARDE_F]],
         Ug: [[0, GARDE_U], [0.46, [0.45, -0.60, 0.65]], [0.7, GARDE_U], [1, GARDE_U]], Fg: [[0, GARDE_F], [0.46, [-0.20, 0.55, 0.80]], [0.7, GARDE_F], [1, GARDE_F]] },
       spin: { U: [[0, GARDE_U], [0.30, [-0.20, -0.75, 0.62]], [0.50, [0.70, -0.20, 0.68]], [0.62, [0.98, 0.05, 0.15]], [0.72, [0.85, -0.30, 0.42]], [0.9, GARDE_U], [1, GARDE_U]],
         F: [[0, GARDE_F], [0.30, [-0.55, 0.45, 0.70]], [0.50, [0.80, 0.10, 0.58]], [0.62, [0.99, 0.08, -0.05]], [0.72, [0.40, 0.45, 0.80]], [0.9, GARDE_F], [1, GARDE_F]],
         Ug: [[0, GARDE_U], [0.45, [0.10, -0.95, 0.25]], [0.9, GARDE_U], [1, GARDE_U]], Fg: [[0, GARDE_F], [0.45, [-0.50, 0.70, 0.50]], [0.9, GARDE_F], [1, GARDE_F]] },
     }[geste];
-    const vcles = (u, ks) => { const v = [0, 1, 2].map((k) => cles(u, ks.map(([x, w]) => [x, w[k]]))); return mulS(v, 1 / (norm(v) + 1e-12)); };
+    // levier « bras » : ecart a la GARDE (1re cle) multiplie
+    const vcles = (u, ks) => { let v = [0, 1, 2].map((k) => cles(u, ks.map(([x, w]) => [x, w[k]]))); if (RA_.bras !== 1) v = add(ks[0][1], mulS(sub(v, ks[0][1]), RA_.bras)); return mulS(v, 1 / (norm(v) + 1e-12)); };
     const repos = bras.map((b) => {
       const ur = sub(P0[b.coude], P0[b.epaule]), fr = sub(P0[b.poignet], P0[b.coude]);
       const u_ = mulS(ur, 1 / norm(ur)), f_ = mulS(fr, 1 / norm(fr)), bas = [0, -1, 0], pr = sub(bas, mulS(f_, dot(bas, f_)));
@@ -4165,7 +4187,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     const A0v = P0[jAv.cheville], A0r = P0[jAr.cheville];
     for (let i = 0; i < nT_; i++) {
       const u = _frac(i / Tf_), Dm = new Map();
-      const kc = (n) => (K[n] ? cles(u, K[n]) : 0);
+      const kc = (n) => (K[n] ? cles(u, K[n]) * (LEV_[n] ?? 1) : 0);
       const tour = geste === 'spin' ? -c * kc('tour') : 0;              // tour vers le bras qui frappe (il arrive en fin de tour, deplie)
       const yB = -c * kV * kc('lacetB') + tour, yE = -c * kV * kc('lacetE') + tour + (geste === 'spin' ? -c * kc('tete') * 0.3 : 0);
       const pit = kV * kc('tangage'), rol = -c * kV * kc('roulis');
@@ -4179,14 +4201,16 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
       if (geste === 'direct') {
         ikJambe(jAv, add(A0v, [0, 0.06 * H * kc('pasLev'), 0.30 * jAv.L * kV * kc('pasAv')]), 0, Dm, f0);
         const pR = 22 * _deg * kc('talonAr'), oT = jAr.toe >= 0 ? mv(Ry(-0.8 * jAr.cap), jAr.pied) : [0, -jAr.ha, jAr.ft];
-        ikJambe(jAr, sub(add(A0r, oT), mv(Rx(pR), oT)), pR, Dm, f0);
+        const Ar_ = add(A0r, [0, 0.05 * H * kc('pasArLev'), 0.40 * jAr.L * kV * kc('pasAr')]);
+        ikJambe(jAr, sub(add(Ar_, oT), mv(Rx(pR), oT)), pR, Dm, f0);
       } else if (geste === 'kick') {
         ikJambe(jAv, A0v, 0, Dm, f0);
         const L = jAr.L, g = kc('armeG'), e = kc('tendu');
         const hz = f0.P[jAr.hanche];
         // genou arme : cheville sous le genou monte (genou a hauteur de hanche) ; extension : cheville devant, a hauteur de hanche
-        const arme_ = add(A0r, [0, 0.55 * L * g, 0.30 * L * g]), tendu_ = [hz[0], hz[1] - 0.12 * L, hz[2] + 0.94 * L];   // 95 % de la longueur : au-dela le genou se verrouillait d'un coup (a-coup de 64 deg)
-        ikJambe(jAr, add(mulS(arme_, 1 - e), mulS(tendu_, e)), kc('pointe'), Dm, f0, 0, true);
+        const arme_ = add(A0r, [0, 0.65 * L * g, 0.34 * L * g]), tendu_ = [hz[0], hz[1] - 0.02 * L, hz[2] + 0.94 * L];   // 95 % de la longueur : au-dela le genou se verrouillait d'un coup (a-coup de 64 deg)
+        const pose_ = add(A0r, [0, 0.06 * H * kc('poseLev'), 0.85 * L]), wP = kc('pose');
+        ikJambe(jAr, add(mulS(add(mulS(arme_, 1 - e), mulS(tendu_, e)), 1 - wP), mulS(pose_, wP)), kc('pointe') * (1 - wP), Dm, f0, 0, true);
       } else {
         // spin : pivot sur le pied avant (il tourne sur place), le pied arriere tourne autour, leve pendant le tour
         ikJambe(jAv, A0v, 0, Dm, f0, tour);
@@ -4916,7 +4940,12 @@ export function squeletteDe(glb) { return charger(glb); }
  * @param {{allures?: string[], cycles?: number, fps?: number}} options  allures : « walk » ou « walk__sneak » (variante)
  * @returns {{glb: ArrayBuffer, infos: Object<string, object>}}  GLB d'origine + une animation par allure
  */
-export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30, mode = 'auto', espece = 'generique' } = {}) {
+export function animerGLB(glb, { allures = Object.keys(ALLURES), cycles = 3, fps = 30, mode = 'auto', espece = 'generique', reglages = null } = {}) {
+  const reglagesAvant = globalThis.__reglagesAnim;
+  if (reglages) globalThis.__reglagesAnim = reglages;     // leviers d'action (relecture Qwen3.6) pour CET appel seulement
+  try { return _animerGLB(glb, { allures, cycles, fps, mode, espece }); } finally { globalThis.__reglagesAnim = reglagesAvant; }
+}
+function _animerGLB(glb, { allures, cycles, fps, mode, espece }) {
   const sq = charger(glb);
   const clips = [], infos = {};
   let peau = 0;
