@@ -10431,6 +10431,25 @@ ipcMain.handle('redacteur:decrire', async (_e, { name, notes, lang, type } = {})
   // 2026-10-13 (MODERATION-04, comme /api/describe-asset) : le nom et les notes passent le filtre AVANT le redacteur, et sa
   // description APRES ; un refus rend { ok:false, raison:'blocked' } (la fenetre garde ses mots-cles).
   if (refusTexteOutil(String(name || '').slice(0, 80), String(notes || '').slice(0, 400))) return { ok: false, raison: 'blocked' };
+  // 29/10 (decision du user) : en mode CLOUD, le site redige (Qwen3.6 sur GPU, repli 4B cote serveur : /api/describe-asset) ; rien de charge sur ce PC (le 4B local
+  // ne sert alors que de repli : site injoignable, pas de session, reponse vide). Interrupteur : FABMESH_REDACTEUR_CLOUD=0.
+  if (isCloudMode() && process.env.FABMESH_REDACTEUR_CLOUD !== '0' && cloudFallback && cloudFallback.authedFetch) {
+    try {
+      const a = await cloudFallback.authedFetch('/api/describe-asset', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: String(name || '').slice(0, 80), notes: String(notes || '').slice(0, 400), lang: String(lang || 'en').slice(0, 5), type: type || null }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (a && a.resp && a.resp.ok) {
+        const j = await a.resp.json().catch(() => null);
+        if (j && j.ok && typeof j.description === 'string' && j.description) {
+          if (refusTexteOutil(j.description)) return { ok: false, raison: 'blocked' };
+          return { ok: true, description: j.description, type: typeof j.type === 'string' ? j.type : null };
+        }
+        if (j && j.raison === 'blocked') return { ok: false, raison: 'blocked' };
+      }
+    } catch (_) { /* site injoignable ou lent : repli sur le 4B local ci-dessous */ }
+  }
   const r = await redacteurDemarrer();
   if (!r.ok || !redacteurProc) return r.ok ? { ok: false, raison: 'stopped' } : r;
   _redacteurRelancerMinuteur();

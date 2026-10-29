@@ -10,6 +10,7 @@ Meme contrat que modal_app/reglage_anim.py (Qwen3-4B CPU) : regler(utilisateur, 
 Essai : mesurer (1) le demarrage a froid, (2) la duree d'une reponse a chaud, (3) la qualite sur le prompt « liste des 52 os -> concevoir la course ».
 """
 import os
+import re
 import threading
 import time
 
@@ -28,6 +29,7 @@ image = (
         f"python -c \"from huggingface_hub import snapshot_download; snapshot_download('{_MODELE}')\""
     )
     .env({"HF_HUB_OFFLINE": "1"})
+    .add_local_file("modal_app/redacteur/redacteur.py", remote_path="/opt/redacteur/redacteur.py")
 )
 
 
@@ -42,7 +44,8 @@ def _check_auth(payload: dict) -> None:
 # d'instantane, puis RESTAURE au demarrage d'un conteneur froid, comme `MyFabmeshMesh` (modal_app/app.py). Meme regle que les autres classes :
 # un instantane est propre au type de machine (2-3 par type de GPU, crees aux premiers demarrages apres un deploiement).
 @app.cls(
-    image=image, gpu=_GPU, timeout=900, scaledown_window=120, enable_memory_snapshot=True,
+    image=image, gpu=_GPU, timeout=900, scaledown_window=30,   # 29/10 (user) : le conteneur s'eteint 30 s apres le dernier appel ; redemarrage a froid mesure : 20 s (snapshot GPU)
+     enable_memory_snapshot=True,
     experimental_options={"enable_gpu_snapshot": True},
     secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
 )
@@ -63,7 +66,7 @@ class ReglageGpu:
         """Methode vide : la lancer cree l'instantane tout de suite (comme build/rechauffer_apres_deploy.py)."""
         return {"ok": True, "s_chargement_pris_dans_l_instantane": self.s_chargement}
 
-    def _generer(self, utilisateur: str, max_jetons: int = 1100, systeme: str = None):
+    def _generer(self, utilisateur: str, max_jetons: int = 1100, systeme: str = None, temperature: float = 0.0):
         from vllm import SamplingParams
         messages = []
         if systeme:
@@ -71,7 +74,7 @@ class ReglageGpu:
         messages.append({"role": "user", "content": utilisateur})
         t0 = time.time()
         sortie = self.llm.chat(
-            messages, SamplingParams(temperature=0.0, max_tokens=max_jetons),
+            messages, SamplingParams(temperature=temperature, max_tokens=max_jetons),
             chat_template_kwargs={"enable_thinking": False},
         )[0]
         texte = sortie.outputs[0].text
@@ -108,3 +111,37 @@ class ReglageGpu:
             return {"ok": True, "pret": True}
         with self.verrou:
             return self._generer(str(payload.get("texte", ""))[:12000], int(payload.get("max_jetons", 1100)), payload.get("systeme"))
+
+    @modal.fastapi_endpoint(method="POST")
+    def decrire(self, payload: dict):
+        """PROMPT AUTOMATIQUE de « New project » (29/10, decision du user : Qwen3.6 sur le site et le bureau en mode Cloud, repli sur le 4B CPU cote worker).
+        Meme contrat et memes regles que `myfabmesh-redacteur` (modal_app/redacteur/redacteur.py : consigne, types, filtre de sortie), meme reponse
+        { ok, type, description }. Mesure du 29/10 sur 50 projets : 50/50 valides, 46/50 types justes, 3,4 s a chaud, 20 s a froid (snapshot GPU)."""
+        _check_auth(payload)
+        if payload.get("prechauffer"):
+            return {"ok": True, "pret": True}
+        import sys
+        sys.path.insert(0, "/opt/redacteur")
+        import redacteur as red
+        nom = re.sub(r"[\x00-\x1f]", " ", red.sans_balises(payload.get("name", ""))).strip()[:80]
+        notes = re.sub(r"[\x00-\x1f]", " ", red.sans_balises(payload.get("notes", ""))).strip()[:400]
+        lang = str(payload.get("lang") or "en").lower()[:2]
+        type_indice = payload.get("type")
+        if len(nom) < 2 and len(notes) < 3:
+            return {"ok": False, "error": "name required"}
+        langue = red.LANGUES.get(lang, "English")
+        u = f"Project name: {nom}"
+        if type_indice in red.TYPES:
+            u += f"\nType: {type_indice} ({red.TYPES[type_indice]})"
+        if notes:
+            u += f"\nNotes: {notes}"
+        # la langue demandee etait parfois ignoree (« T-rex » en anglais alors que le francais etait demande) : on la redit en dernier
+        u += f"\nLanguage: {langue}\nWrite the description in {langue}."
+        with self.verrou:
+            for temperature in (0.0, 0.6):
+                r = red._analyser(self._generer(u, 140, red.SYSTEME, temperature)["texte"])
+                if r:
+                    if type_indice in red.TYPES:
+                        r["type"] = type_indice
+                    return {"ok": True, **r}
+        return {"ok": False, "error": "no valid answer"}
