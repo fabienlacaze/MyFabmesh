@@ -3877,6 +3877,9 @@ const COURSE_DEFAUT = {
     talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.40, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
   jog: { vitesse: 1.4, cadence: 2.8, appui: 0.45, buste: 8, coude: 88, coudeVar: 8, ecartCoude: 18, mainsRentrees: 8, brasAvant: 28, brasArriere: 30,
     talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.40, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+  // marche (29/10) : double appui, jamais de vol ; rebond NEGATIF = bassin haut a mi-appui (le pas « enjambe »)
+  walk: { vitesse: 0.80, cadence: 2.0, appui: 0.62, buste: 2, coude: 22, coudeVar: 8, ecartCoude: 10, mainsRentrees: 4, brasAvant: 16, brasArriere: 14,
+    talon: 14, poussee: 36, rebond: -0.007, compTete: 0.0, levee: 0.05, genou: 0.03, plat: 0.40, largeurPas: 0.3, bassinLacet: 4, epaulesLacet: 5, bassinRoulis: 1.5, deport: 0.008, teteTangage: 0, paume: 0, jambe: 1.008, zlin: 0.1 },
   sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.31, buste: 22, coude: 105, coudeVar: 10, ecartCoude: 18, mainsRentrees: 8, brasAvant: 62, brasArriere: 48,
     talon: 0, poussee: 45, rebond: 0.010, compTete: 0.0, levee: 0.42, genou: 0.30, plat: 0.40, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
 };
@@ -3930,8 +3933,10 @@ function _brasCourse(sq, det) {
 }
 
 /** Calcule le clip de course anatomique ; rend null si le squelette n'est pas un bipede droit complet (le calcul d'origine prend alors le relais). */
-function courseAnatomique(sq, cycles, fps, variante = 'normal') {
+function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') {
   if (globalThis.__courseAnatomique === false) return null;
+  const marche = allure === 'walk';
+  if (marche && (globalThis.__marcheAnatomique === false || variante !== 'normal')) return null;
   const { par, P0 } = sq, J = par.length, E = enfantsDe(par), racine = sq.racine;
   const det = detecterPattes(par, P0, racine);
   if (det.pattes.length !== 2 || det.pattes[0].cote === det.pattes[1].cote) return null;
@@ -3973,11 +3978,13 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal') {
   for (const b of bras) { for (let k = b.moyeu; k >= 0; k = par[k]) { const q = voie.indexOf(k); if (q >= 0) { m = Math.max(m, q); break; } } }
   if (m < 1) m = Math.max(1, voie.length - 3);
   // --- reglages
-  const nomA = variante === 'sprint' ? 'sprint' : variante === 'jog' ? 'jog' : 'run';
+  const nomA = marche ? 'walk' : variante === 'sprint' ? 'sprint' : variante === 'jog' ? 'jog' : 'run';
+  // marche : si un avant-bras est deja bien plie au repos (flexion > 1,0 rad), la personne tient un objet (baton) : ancienne marche
+  if (marche) for (const b of bras) { const ru_ = sub(P0[b.coude], P0[b.epaule]), rf_ = sub(P0[b.poignet], P0[b.coude]); if (Math.acos(Math.max(-1, Math.min(1, dot(ru_, rf_) / (norm(ru_) * norm(rf_) + 1e-12)))) > 1.0) return null; }
   const Pm = { ...COURSE_DEFAUT[nomA], ...((globalThis.__reglagesCourse || {})[nomA] || {}) };
   const Tf = Math.max(8, Math.round((2 / Pm.cadence) * fps)), T = Tf / fps, nT = cycles * Tf + 1;
   const vit = Pm.vitesse * H;                              // unites du modele par seconde
-  const df = Math.min(Pm.appui, 0.48);
+  const df = Math.min(Pm.appui, marche ? 0.75 : 0.48);               // marche : double appui (appui > 50 % du cycle d'un pied)
   const g = 9.81 / 1.75 * H;                               // gravite en unites du modele (personnage de 1,75 m)
   const xMid = 0.5 * (P0[jambes[0].hanche][0] + P0[jambes[1].hanche][0]);
   const lat = Math.min(Pm.largeurPas * 0.5 * Math.abs(P0[jambes[0].hanche][0] - P0[jambes[1].hanche][0]), 0.058 * H);   // pieds sous la ligne du corps : ecart entre pieds <= ~12 % H
@@ -4047,7 +4054,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal') {
   for (let k = -2; k <= cycles + 2; k++) for (const jb of jambes) { const d0 = (k + decalPhase(jb.cote)) * T; fenetres.push({ d0, d1: d0 + df * T, jb }); }
   fenetres.sort((a, b) => a.d0 - b.d0);
   const fenetreA = (t) => fenetres.find((w) => t >= w.d0 - 1e-9 && t < w.d1 - 1e-9) || null;
-  const kCompr = () => 0.985;
+  const kCompr = () => (Pm.jambe || 0.985);
   function yRacineAppui(w, t, kFixe) {
     const sigma = (t - w.d0) / (df * T), jb = w.jb;
     const { A } = ankleAppui(jb, w.d0, Math.min(Math.max(sigma, 0), 1));
@@ -4066,7 +4073,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal') {
   const calcYR = () => {
     const A_ = Pm.rebond * H, forme = (t) => -Math.cos(4 * Math.PI * (t / T - df / 2));
     let y0 = Infinity;
-    for (const w of fenetres.filter((q) => q.d0 >= 0 && q.d0 < T)) for (let s = 0; s <= 24; s++) { const t = w.d0 + (s / 24) * df * T; y0 = Math.min(y0, yRacineAppui(w, t, 0.985) - A_ * forme(t)); }
+    for (const w of fenetres.filter((q) => q.d0 >= 0 && q.d0 < T)) for (let s = 0; s <= 24; s++) { const t = w.d0 + (s / 24) * df * T; y0 = Math.min(y0, yRacineAppui(w, t, Pm.jambe || 0.985) - A_ * forme(t)); }
     return tt.map((t) => y0 + A_ * forme(t));
   };
   const lis = (a) => a.map((_, i) => 0.25 * a[(i - 1 + nT - 1) % (nT - 1)] + 0.5 * a[i % (nT - 1)] + 0.25 * a[(i + 1) % (nT - 1)]);
@@ -4095,7 +4102,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal') {
     const a = ankleAppui(jb, w0.d0, 1), b = ankleAppui(jb, w1.d0, 0);
     const s = Math.min(Math.max((t - w0.d1) / (w1.d0 - w0.d1), 0), 1);
     const e = 0.5 * (1 - Math.cos(Math.PI * s));
-    const A = [a.A[0] + (b.A[0] - a.A[0]) * s, 0, a.A[2] + (b.A[2] - a.A[2]) * (0.7 * e + 0.3 * s)];
+    const A = [a.A[0] + (b.A[0] - a.A[0]) * s, 0, a.A[2] + (b.A[2] - a.A[2]) * ((1 - (Pm.zlin ?? 0.3)) * e + (Pm.zlin ?? 0.3) * s)];
     const bump = Math.pow(Math.sin(Math.PI * Math.pow(s, 0.72)), 2);
     const bump2 = s > 0.45 ? Math.pow(Math.sin(Math.PI * (s - 0.45) / 0.55), 2) : 0;
     A[1] = a.A[1] + (b.A[1] - a.A[1]) * e + jb.L * (Pm.levee * bump + Pm.genou * bump2);
@@ -4151,7 +4158,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal') {
     // jambes
     const f0 = fk(Dm, rootPos);
     for (const jb of jambes) {
-      const w = fenetreA(t);
+      const w = marche ? (fenetres.find((q) => q.jb === jb && t >= q.d0 - 1e-9 && t < q.d1 - 1e-9) || null) : fenetreA(t);
       let A, p;
       if (w && w.jb === jb) { const r_ = ankleAppui(jb, w.d0, (t - w.d0) / (df * T)); A = r_.A; p = r_.p; }
       else { const { prev, next } = appuiDe(jb, t); const r_ = ankleLibre(jb, prev, next, t); A = r_.A; p = r_.p; }
@@ -4193,7 +4200,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal') {
     racineMonde.push(rootPos);
     secs.forEach((r, k) => racinesSec[k].pos.push(D && add(rootPos, mv(D[racine], sub(P0[r], P0[racine])))));
   }
-  const clip = { nom: variante === 'normal' ? 'run' : `run__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
+  const clip = { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
   if (!R.every((Ri) => Ri.every((mt) => mt.every(Number.isFinite))) || !racineMonde.every((q) => q.every(Number.isFinite))) return null;
   const dc = _defautsClip(sq, clip, det);
   clip.infos.sous_sol_pct = +dc.sousSol.toFixed(2); clip.infos.glissement_appui_pct = +dc.glissement.toFixed(2); clip.infos.acoups_max_deg = +dc.acoups.toFixed(1);
@@ -4228,7 +4235,7 @@ function animerAllureSure0(sq, allure, cycles, fps, variante, mode = 'auto', esp
     const volPossible = mode === 'vol' && !!PROFILS_VOL[allure];
     // course anatomique (28/10) : bipede droit complet de la famille humain ; null -> calcul d'origine
     let c0 = null;
-    if (allure === 'run' && espece === 'humain' && !volPossible && mode !== 'nage' && mode !== 'reptation') { try { c0 = courseAnatomique(sq, cycles, fps, variante); } catch (e_) { c0 = null; if (globalThis.__debugCourse) console.error(e_); } }
+    if ((allure === 'run' || allure === 'walk') && espece === 'humain' && !volPossible && mode !== 'nage' && mode !== 'reptation') { try { c0 = courseAnatomique(sq, cycles, fps, variante, allure); } catch (e_) { c0 = null; if (globalThis.__debugCourse) console.error(e_); } }
     let c = c0 ? c0 : volPossible
       ? animerVol(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine))
       : mode === 'nage' || mode === 'reptation'
