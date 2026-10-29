@@ -145,7 +145,7 @@ def boucle(rigs, allure, leviers_depart, tours=6, demander=None, mesurer_=mesure
             return J
         mes_b, notes_b, pos_b = evaluer(meilleur_lev, True)
     J['depart'] = {'leviers': meilleur_lev, 'notes': notes_b}
-    refus, d_affilee = [], 0
+    refus, d_affilee, deja_refuses = [], 0, set()
 
     def ecrire():
         J['meilleur'] = {'leviers': meilleur_lev, 'notes': notes_b, 'moyenne': round(sum(notes_b.values()) / len(notes_b), 3)}
@@ -177,6 +177,11 @@ def boucle(rigs, allure, leviers_depart, tours=6, demander=None, mesurer_=mesure
         if not ch:
             T['resultat'] = 'aucun changement exploitable'; refus.append('(no usable change)'); d_affilee += 1
             J['tours'].append(T); ecrire(); continue
+        if N.cle_changement(ch) in deja_refuses:
+            # 29/10 : Qwen3.6 reproposait le changement refuse au tour precedent ; on ne le remesure pas
+            T.update(accepte=False, raison='changement deja refuse'); d_affilee += 1
+            refus.append(json.dumps(ch) + ' -> already rejected, propose something DIFFERENT')
+            J['tours'].append(T); ecrire(); continue
         cand = dict(meilleur_lev, **ch)
         mes_c, notes_c, pos_c = evaluer(cand, True)
         ok, raison = N.decider(notes_b, notes_c, mes_b, mes_c, allure)
@@ -184,7 +189,7 @@ def boucle(rigs, allure, leviers_depart, tours=6, demander=None, mesurer_=mesure
         if ok:
             meilleur_lev, mes_b, notes_b, pos_b, d_affilee = cand, mes_c, notes_c, pos_c, 0
         else:
-            refus.append(json.dumps(ch) + ' -> ' + raison); d_affilee += 1
+            refus.append(json.dumps(ch) + ' -> ' + raison); d_affilee += 1; deja_refuses.add(N.cle_changement(ch))
         J['tours'].append(T); ecrire()
     ecrire()
     return J

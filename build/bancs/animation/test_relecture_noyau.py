@@ -128,6 +128,19 @@ def test_boucle_refuse_ce_qui_fait_glisser_et_s_arrete_par_patience():
         assert 'ALREADY TRIED' in Q.N.texte_demande('run', {'buste': 14}, {'a': mesure()}, {'a': 0}, ['{"buste": 19} -> x'], 'a')
 
 
+def test_changement_deja_refuse_non_remesure_et_noms_anglais():
+    appels = []
+    def mes(r, a, l, p=None):
+        appels.append(1); return faux_mesurer(r, a, l, p)
+    with tempfile.TemporaryDirectory() as d:
+        J = Q.boucle(['x/a.glb', 'x/b.glb'], 'run', {'buste': 4}, tours=3, mesurer_=mes, dessiner_=lambda p: [], sortie=d,
+                     demander=lambda t, i: '{"changements": {"buste": 9}}')
+        assert J['tours'][1]['raison'] == 'changement deja refuse' and 'notes' not in J['tours'][1]
+        assert len(appels) == 2 * 2      # depart + 1 seul candidat mesure (2 rigs chacun)
+    t = Q.N.texte_demande('jog', {}, {'a': mesure(phase_aerienne_pct=0)}, {'a': 1}, [], 'a')
+    assert 'flight_phase_pct_of_cycle=0' in t and 'vol=' not in t
+
+
 def test_boucle_modele_injoignable_ne_plante_pas():
     def panne(t, i):
         raise RuntimeError('Qwen3.6 injoignable apres 3 essais')

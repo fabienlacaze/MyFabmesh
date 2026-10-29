@@ -198,12 +198,26 @@ def decider(notes_meilleur, notes_candidat, mesures_meilleur, mesures_candidat, 
     return False, f'pas de gain suffisant ({mb:.3f} -> {mc:.3f})'
 
 
+# noms ANGLAIS des normes dans la consigne : le 29/10, Qwen3.6 a lu « vol » (phase de vol) comme « volatilise »
+NOMS_EN = {
+    'vitesse': 'speed_body_heights_per_s', 'vol': 'flight_phase_pct_of_cycle', 'glissement': 'stance_foot_slide_pct_height', 'ecart_pieds': 'feet_lateral_gap_pct_height',
+    'tete_verticale': 'head_vertical_bob_pct_height', 'sous_sol': 'bones_below_ground_pct_height', 'acoups': 'max_joint_jump_deg_per_frame',
+    'buste': 'trunk_forward_lean_deg', 'tete_vs_buste': 'head_pitch_vs_trunk_deg', 'coude_min': 'elbow_flexion_min_deg', 'coude_max': 'elbow_flexion_max_deg',
+    'balancement': 'arm_swing_total_deg', 'abduction': 'upper_arm_away_from_body_deg', 'main_vs_yeux': 'hand_above_eyes_pct_height',
+}
+
+
+def cle_changement(ch):
+    """Forme canonique d'un changement (pour reconnaitre un changement deja refuse)."""
+    return json.dumps({k: round(float(v), 4) for k, v in sorted(ch.items())})
+
+
 def texte_demande(allure, leviers, mesures_par_rig, notes, refus, rig_images):
     """Consigne envoyee a Qwen3.6 (avec les images du rig rig_images)."""
     lignes = []
     for nom, m in mesures_par_rig.items():
         vio = violations(m, allure) if m else []
-        lignes.append(f'- {nom} (penalty {notes[nom]}): ' + ('; '.join(f'{k}={x} (target {lo}..{hi})' for k, x, lo, hi, _ in vio) or 'all targets met'))
+        lignes.append(f'- {nom} (penalty {notes[nom]}): ' + ('; '.join(f'{NOMS_EN.get(k, k)}={x} (target {lo}..{hi})' for k, x, lo, hi, _ in vio) or 'all targets met'))
     table = {k: {'current': leviers.get(k), 'min': lo, 'max': hi, 'max_step': pas, 'meaning': s} for k, (lo, hi, pas, s) in LEVIERS.items()}
     deja = ('\nALREADY TRIED AND REJECTED (do not repeat): ' + '; '.join(refus[-6:])) if refus else ''
     nom_allure = {'run': 'run', 'jog': 'jog', 'sprint': 'sprint'}[allure]
