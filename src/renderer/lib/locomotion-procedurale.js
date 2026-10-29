@@ -3803,7 +3803,417 @@ function ajouterFinesse(sq, c, allure, fps, etape) {
   return c;
 }
 
+// ------------------------------------------------------------------ orientation du corps (28/10, « le renne avance de cote »)
+// Le calcul suppose un rig « face +Z ». Un rig oriente autrement (renne : tete vers -X) avancait de cote. On determine l'AXE AVANT du corps a partir du squelette :
+//  - quadrupede (4 pieds au sol, etalement des pieds nettement allonge, rapport des ecarts-types >= 2) : axe = direction d'etalement des pieds (ACP en plan) ; sens = la
+//    ou se trouve le haut du corps (cou, tete) par rapport au centre des pieds ; sens indecidable (< 10 % H) -> on garde le sens le plus proche de +Z ;
+//  - bipede (2 pieds) : axe lateral = ligne des deux pieds, avant = sa perpendiculaire du cote le plus proche de +Z (le sens ne se lit pas sur le squelette : mesure
+//    sur humain, orc, gladiateur, poule : aucun indice fiable ; un bipede tourne de 180 deg n'est donc PAS corrige) ;
+//  - sinon (serpent, araignee, 3 / 6 / 8 pattes, tortue, vol, nage, reptation) : rien.
+// La detection des pattes depend elle-meme de l'orientation (lion tourne de 180 deg : 3 pattes sur 4) : on essaie 0, 180, +90, -90 deg et on garde le premier repere qui
+// donne une detection exploitable. Rien n'est fait si l'avant est a moins de 30 deg de +Z (les rigs orientes +Z restent identiques a l'octet).
+// Desactivable : globalThis.__orientationAxe = false.
+const SEUIL_ORIENTATION = 30 * Math.PI / 180;
+function analyseOrientation(par, P0, racine) {                 // -> { ok, phi } dans le repere P0 ; ok = detection exploitable
+  const det = detecterPattes(par, P0, racine);
+  const pieds = det.pattes.filter((p) => !p.levee).map((p) => P0[p.bout]);
+  if (pieds.length !== det.pattes.length || (pieds.length !== 4 && pieds.length !== 2)) return { ok: false, phi: 0 };
+  const cx = pieds.reduce((s, p) => s + p[0], 0) / pieds.length, cz = pieds.reduce((s, p) => s + p[2], 0) / pieds.length;
+  let sxx = 0, szz = 0, sxz = 0;
+  for (const p of pieds) { const a = p[0] - cx, c = p[2] - cz; sxx += a * a; szz += c * c; sxz += a * c; }
+  const th = 0.5 * Math.atan2(2 * sxz, sxx - szz), ux = Math.cos(th), uz = Math.sin(th);   // axe principal d'etalement des pieds
+  let fx, fz;
+  if (pieds.length === 4) {
+    const m = (sxx + szz) / 2, d = Math.hypot((sxx - szz) / 2, sxz), l1 = m + d, l2 = m - d;
+    if (!(l2 > 0) || Math.sqrt(l1 / l2) < 2) return { ok: true, phi: 0 };
+    const y0 = Math.min(...P0.map((p) => p[1])), H = Math.max(...P0.map((p) => p[1])) - y0;
+    const hauts = P0.filter((p) => p[1] > y0 + 0.7 * H);
+    if (!hauts.length) return { ok: true, phi: 0 };
+    const hx = hauts.reduce((s, p) => s + p[0], 0) / hauts.length - cx, hz = hauts.reduce((s, p) => s + p[2], 0) / hauts.length - cz;
+    const cue = (hx * ux + hz * uz) / H;
+    const sg = Math.abs(cue) >= 0.1 ? Math.sign(cue) : (uz >= 0 ? 1 : -1);
+    fx = sg * ux; fz = sg * uz;
+  } else {
+    const px = -uz, pz = ux, sg = pz >= 0 ? 1 : -1;            // bipede : avant = perpendiculaire a la ligne des pieds
+    fx = sg * px; fz = sg * pz;
+  }
+  if (Math.acos(Math.max(-1, Math.min(1, fz))) < SEUIL_ORIENTATION) return { ok: true, phi: 0 };
+  return { ok: true, phi: Math.atan2(-fx, fz) };               // Ry(phi) envoie l'avant sur +Z
+}
+function angleOrientation(sq, mode = 'auto') {
+  if (globalThis.__orientationAxe === false || (mode !== 'auto' && mode !== 'pattes')) return 0;
+  try {
+    for (const psi of [0, Math.PI, Math.PI / 2, -Math.PI / 2]) {
+      const Qp = Ry(psi), P = psi ? sq.P0.map((p) => mv(Qp, p)) : sq.P0;
+      const r = analyseOrientation(sq.par, P, sq.racine);
+      if (!r.ok) continue;
+      let phi = r.phi + psi;
+      if (Math.abs(phi) < 1e-9) return 0;
+      phi = Math.atan2(Math.sin(phi), Math.cos(phi));
+      const k90 = Math.round(phi / (Math.PI / 2)) * (Math.PI / 2);                // rig range le long d'un axe du repere (a 15 deg pres) : angle exact, pas l'ecart de l'ACP
+      if (Math.abs(phi - k90) < 15 * Math.PI / 180) phi = k90;
+      return Math.abs(phi) < 1e-6 ? 0 : phi;
+    }
+  } catch (_) { /* rig non analysable : inchange */ }
+  return 0;
+}
+
+/** Calcule dans le repere « face +Z » (rig tourne autour de Y) puis ramene le resultat dans le repere reel : R_reel = Q^T R Q, positions = Q^T p. */
+// ------------------------------------------------------------------ course ANATOMIQUE (28/10, groupe « course-anatomique »)
+// Le user a juge la course precedente « pas du tout realiste » : en crabe, paumes vers le haut, coudes colles au corps, tete qui bouge beaucoup, corps tout droit.
+// Cause : la course historique ajoute des courbes a des angles de repos du rig (bras en A ou en T, jambes ecartees) ; rien ne garantit la posture finale.
+// Ici la pose est decrite par la CIBLE (directions des segments dans le monde, pied d'appui pose au sol), puis les rotations locales en sont deduites :
+//  - jambes : cinematique inverse a deux os, genou vers l'AVANT ; le pied d'appui est verrouille (talon, a plat, puis pointe) ; phase aerienne ;
+//  - racine : hauteur = la jambe d'appui garde sa longueur (compression), vol balistique ; avance a vitesse constante ;
+//  - colonne : buste penche (inclinaison), bassin et epaules en contre-rotation, roulis et deport lateral faibles ;
+//  - tete et cou : orientation fixe dans le monde (contre-rotation complete) ;
+//  - bras : direction du bras et de l'avant-bras en fonction de la phase (ecart du coude, flexion, balancement en opposition avec les jambes) ; roulis de l'avant-bras
+//    calcule pour que la paume reste neutre (face a face).
+// Aucune regle par maillage : tout est derive des chaines detectees (jambes, colonne, bras) et de la pose de repos. Quelques reglages, proportionnels a la hauteur,
+// sont lisibles et modifiables dans globalThis.__reglagesCourse ({ run: {...}, jog: {...}, sprint: {...} }). Desactivable : globalThis.__courseAnatomique = false.
+const COURSE_DEFAUT = {
+  //          vitesse H/s | cadence pas/s | appui (part du cycle d'un pied) | buste deg | coude flexion deg | ecart du coude deg | bras avant / arriere deg
+  run: { vitesse: 1.95, cadence: 3.1, appui: 0.405, buste: 12, coude: 92, coudeVar: 10, ecartCoude: 20, mainsRentrees: 8, brasAvant: 40, brasArriere: 48,
+    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.40, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+  jog: { vitesse: 1.4, cadence: 2.8, appui: 0.45, buste: 8, coude: 88, coudeVar: 8, ecartCoude: 18, mainsRentrees: 8, brasAvant: 28, brasArriere: 30,
+    talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.40, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+  sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.31, buste: 22, coude: 105, coudeVar: 10, ecartCoude: 18, mainsRentrees: 8, brasAvant: 62, brasArriere: 48,
+    talon: 0, poussee: 45, rebond: 0.010, compTete: 0.0, levee: 0.42, genou: 0.30, plat: 0.40, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0 },
+};
+if (!globalThis.__reglagesCourse) globalThis.__reglagesCourse = JSON.parse(JSON.stringify(COURSE_DEFAUT));
+const _lisse3 = (x) => { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
+const _frac = (x) => x - Math.floor(x);
+const _deg = Math.PI / 180;
+function _cadre(s, a) {                                    // repere orthonormal dont l'axe 1 est `a` et dont l'axe 0 est `s` projete (colonnes s', a, s' x a)
+  a = mulS(a, 1 / (norm(a) + 1e-12));
+  let s2 = sub(s, mulS(a, dot(s, a)));
+  if (norm(s2) < 1e-6) s2 = Math.abs(a[0]) < 0.9 ? cross(a, [1, 0, 0]) : cross(a, [0, 0, 1]);
+  s2 = mulS(s2, 1 / norm(s2));
+  const c = cross(s2, a);
+  return [s2[0], a[0], c[0], s2[1], a[1], c[1], s2[2], a[2], c[2]];
+}
+const _viser = (restA, restS, cibleA, cibleS) => mm(_cadre(cibleS, cibleA), tr(_cadre(restS, restA)));   // rotation qui envoie (axe, cote) de repos sur (axe, cote) cibles
+
+/** Bras (epaule, coude, main) d'un bipede droit : meme detection que animerAllure, reprise ici pour ne pas en dependre. */
+function _brasCourse(sq, det) {
+  const { par, P0, racine } = sq, J = par.length, E = enfantsDe(par);
+  const xMid = median(P0.map((p) => p[0])), ext = etendue(P0);
+  const pris = new Set([...det.pattes.flatMap((q) => sousArbre(E, q.chaine[0])), ...det.tetes.flat()]);
+  const cote_ = (j) => Math.sign(P0[j][0] - xMid);
+  const estMain = (j) => E[j].length >= 2 && !pris.has(j) && Math.abs(P0[j][0] - xMid) >= 0.15 * ext && E[j].every((e) => cote_(e) === cote_(j));
+  const parEpaule = new Map();
+  for (let f = 0; f < J; f++) {
+    if (E[f].length || pris.has(f) || Math.abs(P0[f][0] - xMid) < 0.1 * ext) continue;
+    const c = [f];
+    let k = f, main = false;
+    for (;;) {
+      while (par[k] >= 0 && E[par[k]].length === 1) { k = par[k]; c.push(k); }
+      if (par[k] >= 0 && estMain(par[k])) { k = par[k]; c.push(k); main = true; continue; }
+      break;
+    }
+    c.reverse();
+    if (c.length < 3 || par[c[0]] < 0) continue;
+    let ep = -1;
+    for (let a = 0; a < c.length - 1; a++) { const b = sub(P0[c[a + 1]], P0[c[a]]); if (b[1] < -0.5 * norm(b)) { ep = a; break; } }
+    if (ep < 0) ep = c.length >= 4 && norm(sub(P0[c[1]], P0[c[0]])) < 0.7 * norm(sub(P0[c[2]], P0[c[1]])) ? 1 : 0;
+    const portee = Math.abs(P0[f][0] - xMid), deja = parEpaule.get(c[0]);
+    if (deja && deja.portee >= portee) continue;
+    parEpaule.set(c[0], { epaule: c[ep], coude: c[Math.min(ep + 1, c.length - 2)], cote: P0[f][0] > xMid ? 1 : -1, moyeu: par[c[0]], main, portee });
+  }
+  const bras = [...parEpaule.values()];
+  for (const b of bras) {                                  // main = enfant du coude qui porte le plus gros sous-arbre
+    let m = -1;
+    for (const k of E[b.coude]) if (m < 0 || sousArbre(E, k).length > sousArbre(E, m).length) m = k;
+    b.poignet = m;
+  }
+  return bras.filter((b) => b.poignet >= 0);
+}
+
+/** Calcule le clip de course anatomique ; rend null si le squelette n'est pas un bipede droit complet (le calcul d'origine prend alors le relais). */
+function courseAnatomique(sq, cycles, fps, variante = 'normal') {
+  if (globalThis.__courseAnatomique === false) return null;
+  const { par, P0 } = sq, J = par.length, E = enfantsDe(par), racine = sq.racine;
+  const det = detecterPattes(par, P0, racine);
+  if (det.pattes.length !== 2 || det.pattes[0].cote === det.pattes[1].cote) return null;
+  const H = ptpAxe(P0, 1), sol = Math.min(...P0.map((p) => p[1]));
+  // --- colonne : de la racine au point le plus haut ; droit = colonne verticale
+  let sommet = racine;
+  for (let j = 0; j < J; j++) if (!E[j].length && P0[j][1] > P0[sommet][1] && sousArbre(E, racine).includes(j)) sommet = j;
+  const voie = [];
+  for (let k = sommet; k >= 0; k = par[k]) { voie.push(k); if (k === racine) break; }
+  voie.reverse();
+  if (voie.length < 3 || voie[0] !== racine) return null;
+  { const mid = voie[Math.floor(voie.length / 2)], v_ = sub(P0[mid], P0[racine]); if (!(v_[1] > 2.0 * Math.hypot(v_[0], v_[2]))) return null; }
+  // --- jambes
+  const jambes = [];
+  for (const p of det.pattes) {
+    let ch = p.chaine, bout5 = -1;
+    if (ch.length === 5) { const s5 = sub(P0[ch[4]], P0[ch[3]]); if (Math.abs(s5[1]) <= Math.hypot(s5[0], s5[2])) { bout5 = ch[4]; ch = ch.slice(0, 4); } }   // orteil supplementaire (bout de pied) : il suit le pied
+    if (ch.length < 3 || ch.length > 4) return null;
+    let toe = -1, cheville = ch[ch.length - 1];
+    if (ch.length === 4) {
+      const s_ = sub(P0[ch[3]], P0[ch[2]]);
+      if (Math.abs(s_[1]) <= Math.hypot(s_[0], s_[2])) { toe = ch[3]; cheville = ch[2]; } else return null;
+    }
+    const hanche = ch[0], genou = ch[1];
+    if (cheville === genou) return null;
+    const v1 = sub(P0[genou], P0[hanche]), v2 = sub(P0[cheville], P0[genou]);
+    if (!(v1[1] < 0 && v2[1] < 0)) return null;
+    const dpied = toe >= 0 ? sub(P0[bout5 >= 0 ? bout5 : toe], P0[cheville]) : [0, 0, 0];
+    const cap = toe >= 0 ? Math.atan2(dpied[0], dpied[2]) : 0;
+    const ha = Math.max(P0[cheville][1] - sol, 0), ft = toe >= 0 ? Math.max(dpied[2], 0.02 * H) : 0.05 * H, hb = toe >= 0 ? 0.4 * ft : 0.03 * H;
+    jambes.push({ bout5, cote: p.cote, hanche, genou, cheville, toe, l1: norm(v1), l2: norm(v2), v1, v2, L: norm(v1) + norm(v2), cap, ha, ft, hb, pied: dpied });
+  }
+  const jc = (c) => jambes.find((q) => q.cote === c);
+  // --- bras
+  const bras = _brasCourse(sq, det);
+  if (bras.length !== 2 || bras[0].cote === bras[1].cote) return null;
+  // moyeu des epaules sur la colonne
+  let m = -1;
+  for (const b of bras) { for (let k = b.moyeu; k >= 0; k = par[k]) { const q = voie.indexOf(k); if (q >= 0) { m = Math.max(m, q); break; } } }
+  if (m < 1) m = Math.max(1, voie.length - 3);
+  // --- reglages
+  const nomA = variante === 'sprint' ? 'sprint' : variante === 'jog' ? 'jog' : 'run';
+  const Pm = { ...COURSE_DEFAUT[nomA], ...((globalThis.__reglagesCourse || {})[nomA] || {}) };
+  const Tf = Math.max(8, Math.round((2 / Pm.cadence) * fps)), T = Tf / fps, nT = cycles * Tf + 1;
+  const vit = Pm.vitesse * H;                              // unites du modele par seconde
+  const df = Math.min(Pm.appui, 0.48);
+  const g = 9.81 / 1.75 * H;                               // gravite en unites du modele (personnage de 1,75 m)
+  const xMid = 0.5 * (P0[jambes[0].hanche][0] + P0[jambes[1].hanche][0]);
+  const lat = Math.min(Pm.largeurPas * 0.5 * Math.abs(P0[jambes[0].hanche][0] - P0[jambes[1].hanche][0]), 0.058 * H);   // pieds sous la ligne du corps : ecart entre pieds <= ~12 % H
+  const sig1 = 0.18, sig2 = 0.62, sigFlat = 0.5 * (sig1 + sig2);
+  const Rcorps = (t, ph) => ph;
+  // inclinaison : `buste` est l'angle REEL de la racine au moyeu des epaules par rapport a la verticale (la colonne de repos peut deja etre cambree) ;
+  // on cherche l'angle ajoute qui donne cet angle reel (le bassin en prend 35 %, le reste est reparti sur la colonne)
+  const ordre = [], file = [racine, ...sq.racines.filter((r) => r !== racine)];
+  while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
+  let leanAdj = new Array(Tf).fill(0);
+  const leanAdjDe = (t) => { const x = _frac(t / T) * Tf, i0 = Math.floor(x) % Tf, i1 = (i0 + 1) % Tf, f = x - Math.floor(x); return leanAdj[i0] * (1 - f) + leanAdj[i1] * f; };
+  const DmLean = (L) => { const Dm = new Map(); for (let i = 0; i <= m; i++) { const f = i / m; Dm.set(voie[i], Rx(L * (0.35 + 0.65 * f))); } return Dm; };
+  const vTronc = (L) => { const F = fkLean(DmLean(L)); return sub(F.P[voie[m]], F.P[racine]); };
+
+  const fkLean = (Dm) => fk(Dm, [0, 0, 0]);
+  let lean = 0;
+  { let L = Pm.buste * _deg; for (let it = 0; it < 8; it++) { const v = vTronc(L), a = Math.atan2(v[2], v[1]), v2 = vTronc(L + 1e-3), a2 = Math.atan2(v2[2], v2[1]); const d = (a2 - a) / 1e-3; if (Math.abs(d) < 1e-6) break; L += (Pm.buste * _deg - a) / d; } lean = L; }
+  const dyTronc = (L) => vTronc(L)[1];
+  // --- tronc a l'instant t : orientations monde de la colonne, de la tete ; decalage hanche - racine
+  function tronc(t) {
+    const th = 2 * Math.PI * t / T, ph = th - Math.PI * df;
+    const yawP = -Pm.bassinLacet * _deg * Math.cos(th), yawS = Pm.epaulesLacet * _deg * Math.cos(th), roulis = Pm.bassinRoulis * _deg * Math.cos(ph);
+    const lean_ = lean + leanAdjDe(t) + 0.6 * _deg * Math.cos(2 * th + 0.5);
+    const Dm = new Map();
+    for (let i = 0; i <= m; i++) {
+      const f = i / m, w0 = 0.35;
+      Dm.set(voie[i], mm(mm(Ry(yawP + (yawS - yawP) * f), Rx(lean_ * (w0 + (1 - w0) * f))), Rz(roulis * (1 - f))));
+    }
+    const nTete = voie.length - 1 - m;
+    for (let i = m + 1; i < voie.length; i++) {
+      const w = (i - m) / nTete;
+      Dm.set(voie[i], Rx(Pm.teteTangage * _deg * w + lean_ * 0.5 * (1 - w)));
+    }
+    return { Dm, sway: Pm.deport * H * Math.cos(ph) };
+  }
+  // positions monde sans la racine (racine a l'origine) avec orientations connues
+  function fk(Dm, racinePos) {
+    const D = new Array(J), P = new Array(J);
+    for (const j of ordre) {
+      if (j === racine) { D[j] = Dm.get(j) || I3(); P[j] = racinePos.slice(); } else if (par[j] < 0) { D[j] = D[racine]; P[j] = add(racinePos, mv(D[racine], sub(P0[j], P0[racine]))); } else {
+        D[j] = Dm.has(j) ? Dm.get(j) : D[par[j]];
+        P[j] = add(P[par[j]], mv(D[par[j]], sub(P0[j], P0[par[j]])));
+      }
+    }
+    return { D, P };
+  }
+
+  // --- pied d'appui : cheville monde en fonction de l'instant de pose td, de la fraction d'appui sigma
+  const decalPhase = (c) => (c > 0 ? 0 : 0.5);
+  const poseTouche = (jb, td) => {
+    const xf = xMid + jb.cote * lat;
+    const zFlat = vit * (td + sigFlat * df * T) - 0.02 * H;
+    return { xf, zFlat };
+  };
+  const ankleAppui = (jb, td, sigma) => {
+    const { xf, zFlat } = poseTouche(jb, td);
+    const Rc = Ry(-0.8 * jb.cap), oH = mv(Rc, [0, -jb.ha, -jb.hb]), oT = jb.toe >= 0 ? mv(Rc, jb.pied) : mv(Rc, [0, -jb.ha, jb.ft]);
+    const kp = jb.toe >= 0 ? 1 : 0, pTD = Pm.talon * _deg * kp, pTO = Pm.poussee * _deg * kp;   // pied sans orteil : la rotation du pied ne s'appuie sur rien, on la reduit
+    let p = 0, A;
+    const aplat = [xf, sol + jb.ha, zFlat];
+    if (sigma < sig1) { p = -pTD * (1 - _lisse3(sigma / sig1)); const Wh = [xf, sol, zFlat - jb.hb]; A = sub(Wh, mv(Rx(p), oH)); }
+    else if (sigma <= sig2) { A = aplat; } else { p = pTO * _lisse3((sigma - sig2) / (1 - sig2)); const Wt = add(aplat, oT); A = sub(Wt, mv(Rx(p), oT)); }
+    return { A, p };
+  };
+  // fenetres d'appui : [debut, fin, jambe]
+  const fenetres = [];
+  for (let k = -2; k <= cycles + 2; k++) for (const jb of jambes) { const d0 = (k + decalPhase(jb.cote)) * T; fenetres.push({ d0, d1: d0 + df * T, jb }); }
+  fenetres.sort((a, b) => a.d0 - b.d0);
+  const fenetreA = (t) => fenetres.find((w) => t >= w.d0 - 1e-9 && t < w.d1 - 1e-9) || null;
+  const kCompr = () => 0.985;
+  function yRacineAppui(w, t, kFixe) {
+    const sigma = (t - w.d0) / (df * T), jb = w.jb;
+    const { A } = ankleAppui(jb, w.d0, Math.min(Math.max(sigma, 0), 1));
+    const { Dm, sway } = tronc(t);
+    const f0 = fk(Dm, [0, 0, 0]), rh = f0.P[jb.hanche];
+    const rx = P0[racine][0] + sway, rz = vit * t;
+    const dx = A[0] - (rx + rh[0]), dz = A[2] - (rz + rh[2]);
+    const kk = (kFixe || kCompr(Math.min(Math.max(sigma, 0), 1))) * jb.L;
+    const dy = Math.sqrt(Math.max(kk * kk - dx * dx - dz * dz, (0.3 * kk) ** 2));
+    return A[1] + dy - rh[1];
+  }
+  // hauteur de la racine a chaque image
+  const tt = Array.from({ length: nT }, (_, i) => i / fps);
+  // hauteur du bassin : oscillation douce (haute en plein vol, basse a mi-appui, amplitude `rebond` x H) ; son niveau moyen est le plus haut que les jambes d'appui
+  // permettent (jamais plus que leur longueur, 98,5 %) : la compression des jambes en decoule
+  const calcYR = () => {
+    const A_ = Pm.rebond * H, forme = (t) => -Math.cos(4 * Math.PI * (t / T - df / 2));
+    let y0 = Infinity;
+    for (const w of fenetres.filter((q) => q.d0 >= 0 && q.d0 < T)) for (let s = 0; s <= 24; s++) { const t = w.d0 + (s / 24) * df * T; y0 = Math.min(y0, yRacineAppui(w, t, 0.985) - A_ * forme(t)); }
+    return tt.map((t) => y0 + A_ * forme(t));
+  };
+  const lis = (a) => a.map((_, i) => 0.25 * a[(i - 1 + nT - 1) % (nT - 1)] + 0.5 * a[i % (nT - 1)] + 0.25 * a[(i + 1) % (nT - 1)]);
+  let yR = calcYR();
+  if (yR.some((v) => !Number.isFinite(v))) return null;
+  yR = lis(yR); yR[nT - 1] = yR[0];
+  // tete stable (4 passes) : le buste se redresse un peu quand le bassin est haut et se penche quand il est bas, de facon que le moyeu des epaules (donc la tete) reste a hauteur constante
+  if (Pm.compTete > 0) {
+    for (let pass = 0; pass < 2; pass++) {
+      const hm = yR.slice(0, Tf).map((y, i) => y + dyTronc(lean + leanAdj[i]));
+      const moy = hm.reduce((a, b) => a + b, 0) / Tf, nouv = [];
+      for (let i = 0; i < Tf; i++) {
+        const cible = moy + (1 - Pm.compTete) * (hm[i] - moy) - yR[i];
+        let lo = lean - 10 * _deg, hi = lean + 14 * _deg;
+        for (let k = 0; k < 30; k++) { const mid = 0.5 * (lo + hi); if (dyTronc(mid) > cible) lo = mid; else hi = mid; }
+        nouv.push(0.5 * (lo + hi) - lean);
+      }
+      const lissee = nouv.map((_, i) => 0.25 * nouv[(i - 1 + Tf) % Tf] + 0.5 * nouv[i] + 0.25 * nouv[(i + 1) % Tf]);
+      leanAdj = lissee;
+      yR = calcYR(); yR = lis(yR); yR[nT - 1] = yR[0];
+    }
+  }
+
+  // --- pied balance : trajectoire de la cheville entre decollage et pose suivante
+  function ankleLibre(jb, w0, w1, t) {                      // w0 = appui precedent (de cette jambe), w1 = suivant
+    const a = ankleAppui(jb, w0.d0, 1), b = ankleAppui(jb, w1.d0, 0);
+    const s = Math.min(Math.max((t - w0.d1) / (w1.d0 - w0.d1), 0), 1);
+    const e = 0.5 * (1 - Math.cos(Math.PI * s));
+    const A = [a.A[0] + (b.A[0] - a.A[0]) * s, 0, a.A[2] + (b.A[2] - a.A[2]) * (0.7 * e + 0.3 * s)];
+    const bump = Math.pow(Math.sin(Math.PI * Math.pow(s, 0.72)), 2);
+    const bump2 = s > 0.45 ? Math.pow(Math.sin(Math.PI * (s - 0.45) / 0.55), 2) : 0;
+    A[1] = a.A[1] + (b.A[1] - a.A[1]) * e + jb.L * (Pm.levee * bump + Pm.genou * bump2);
+    const p = a.p * (1 - _lisse3(s / 0.3)) + b.p * _lisse3((s - 0.55) / 0.45) - 0.22 * Math.sin(Math.PI * Math.min(s / 0.7, 1));   // la pointe se releve vite apres le decollage
+    return { A, p };
+  }
+  const appuiDe = (jb, t) => {                              // appui precedent et suivant de cette jambe autour de t
+    const ws = fenetres.filter((q) => q.jb === jb);
+    const prev = [...ws].reverse().find((q) => q.d1 <= t + 1e-9), next = ws.find((q) => q.d0 > t - 1e-9);
+    return { prev, next };
+  };
+
+  // --- bras : directions cibles
+  const brasT = (b, t) => {
+    const u = _frac(t / T + decalPhase(b.cote));
+    const av = Pm.brasAvant * _deg, ar = Pm.brasArriere * _deg, mid = 0.5 * (av - ar), amp = 0.5 * (av + ar);
+    const th = mid - amp * Math.cos(2 * Math.PI * (u + 0.03));
+    const phi = (Pm.coude + Pm.coudeVar * (th - mid) / Math.max(amp, 1e-6)) * _deg;
+    const alpha = Pm.ecartCoude * _deg, af = -Pm.mainsRentrees * _deg, be = th + phi;
+    const du = add(mulS([0, -Math.cos(th), Math.sin(th)], Math.cos(alpha)), [b.cote * Math.sin(alpha), 0, 0]);
+    const df_ = add(mulS([0, -Math.cos(be), Math.sin(be)], Math.cos(af)), [b.cote * Math.sin(af), 0, 0]);
+    return { du, df: df_, th, phi };
+  };
+  const reposBras = bras.map((b) => {
+    const ru = sub(P0[b.coude], P0[b.epaule]), rf = sub(P0[b.poignet], P0[b.coude]);
+    const ur = mulS(ru, 1 / norm(ru)), fr = mulS(rf, 1 / norm(rf));
+    const bas = [0, -1, 0], pr = sub(bas, mulS(fr, dot(bas, fr)));
+    const nrest = norm(pr) > 0.3 ? mulS(pr, 1 / norm(pr)) : [-b.cote, 0, 0];     // normale de la paume au repos : vers le bas pour un bras horizontal, vers le corps pour un bras pendant
+    // doigts presents (>= 3 enfants du poignet) : la paume est perpendiculaire a la rangee des doigts ; le sens se choisit du cote de l'heuristique (bas / corps)
+    let nr = nrest;
+    const ed = E[b.poignet];
+    if (ed.length >= 3 && globalThis.__paumeDoigts !== false) {
+      const w = P0[b.poignet], vs = ed.map((k) => { const v = sub(P0[k], w); return sub(v, mulS(fr, dot(v, fr))); });
+      const mean = vs.reduce((a, v) => add(a, v), [0, 0, 0]).map((x) => x / vs.length), dev = vs.map((v) => sub(v, mean));
+      // axe principal des ecarts (iteration de puissance)
+      let s = dev.reduce((a, v) => (norm(v) > norm(a) ? v : a), [0, 0, 0]);
+      if (norm(s) > 1e-9) {
+        for (let it = 0; it < 20; it++) { let q = [0, 0, 0]; for (const v of dev) q = add(q, mulS(v, dot(v, s))); if (norm(q) < 1e-12) break; s = mulS(q, 1 / norm(q)); }
+        let n2 = cross(fr, s); if (norm(n2) > 1e-9) { n2 = mulS(n2, 1 / norm(n2)); nr = dot(n2, nrest) >= 0 ? n2 : mulS(n2, -1); }
+      }
+    }
+    return { ur, fr, nrest: nr };
+  });
+
+  // --- assemblage image par image
+  const R = [], racineMonde = [], Dtous = [];
+  const secs = sq.racines.filter((r) => r !== racine);
+  const racinesSec = secs.map((r) => ({ j: r, pos: [] }));
+  const infoBras = [];
+  for (let i = 0; i < nT; i++) {
+    const t = tt[i], { Dm, sway } = tronc(t), rootPos = [xMid + sway - (P0[racine][0] - 0) * 0 + (P0[racine][0] - xMid) * 0, yR[i], vit * t];
+    rootPos[0] = P0[racine][0] + sway;
+    // jambes
+    const f0 = fk(Dm, rootPos);
+    for (const jb of jambes) {
+      const w = fenetreA(t);
+      let A, p;
+      if (w && w.jb === jb) { const r_ = ankleAppui(jb, w.d0, (t - w.d0) / (df * T)); A = r_.A; p = r_.p; }
+      else { const { prev, next } = appuiDe(jb, t); const r_ = ankleLibre(jb, prev, next, t); A = r_.A; p = r_.p; }
+      const Hh = f0.P[jb.hanche];
+      let dv = sub(A, Hh), d = norm(dv);
+      const dMax = (jb.l1 + jb.l2) * 0.9995, dMin = Math.abs(jb.l1 - jb.l2) * 1.05 + 1e-4;
+      const dc = Math.min(Math.max(d, dMin), dMax), a = mulS(dv, 1 / (d + 1e-12));
+      const cosA = (jb.l1 * jb.l1 + dc * dc - jb.l2 * jb.l2) / (2 * jb.l1 * dc), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+      const pole = [jb.cote * 0.04, 0, 1];
+      let perp = sub(pole, mulS(a, dot(pole, a))); perp = mulS(perp, 1 / (norm(perp) + 1e-12));
+      const K = add(Hh, add(mulS(a, jb.l1 * cosA), mulS(perp, jb.l1 * sinA)));
+      const Acible = add(Hh, mulS(a, dc));
+      const s0 = [0, 0, 1];
+      const Dth = _viser(jb.v1, s0, sub(K, Hh), pole), Dsh = _viser(jb.v2, s0, sub(Acible, K), pole);
+      Dm.set(jb.hanche, Dth); Dm.set(jb.genou, Dsh);
+      const Dpied = mm(Rx(p), Ry(-0.8 * jb.cap));
+      Dm.set(jb.cheville, Dpied);
+      if (jb.toe >= 0) Dm.set(jb.toe, Dpied);
+      if (jb.bout5 >= 0) Dm.set(jb.bout5, Dpied);
+    }
+    // bras
+    bras.forEach((b, q) => {
+      const bt = brasT(b, t), rr = reposBras[q];
+      const Du = aligner(rr.ur, bt.du);
+      const fm = aligner(rr.fr, bt.df);
+      // roulis de l'avant-bras : la paume neutre regarde vers l'interieur (face a face)
+      const fa = mulS(bt.df, 1 / norm(bt.df)), n0 = mv(fm, rr.nrest);
+      const proj = (v) => { const w = sub(v, mulS(fa, dot(v, fa))); return mulS(w, 1 / (norm(w) + 1e-12)); };
+      const nA = proj(n0), nB = proj([-b.cote, 0, 0]);
+      const ang = Math.atan2(dot(cross(nA, nB), fa), dot(nA, nB)) + b.cote * Pm.paume * _deg;
+      Dm.set(b.epaule, Du);
+      Dm.set(b.coude, mm(rotvec(fa, ang), fm));
+      if (i === 0 || true) infoBras[q] = { ang };
+    });
+    // assemblage
+    const { D } = fk(Dm, rootPos);
+    Dtous.push(D);
+    R.push(D.map((Dj, j) => (par[j] < 0 ? Dj : mm(tr(D[par[j]]), Dj))));
+    racineMonde.push(rootPos);
+    secs.forEach((r, k) => racinesSec[k].pos.push(D && add(rootPos, mv(D[racine], sub(P0[r], P0[racine])))));
+  }
+  const clip = { nom: variante === 'normal' ? 'run' : `run__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
+  if (!R.every((Ri) => Ri.every((mt) => mt.every(Number.isFinite))) || !racineMonde.every((q) => q.every(Number.isFinite))) return null;
+  const dc = _defautsClip(sq, clip, det);
+  clip.infos.sous_sol_pct = +dc.sousSol.toFixed(2); clip.infos.glissement_appui_pct = +dc.glissement.toFixed(2); clip.infos.acoups_max_deg = +dc.acoups.toFixed(1);
+  return clip;
+}
+
+
 function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espece = 'generique') {
+  const phi = angleOrientation(sq, mode);
+  if (!phi) return animerAllureSure0(sq, allure, cycles, fps, variante, mode, espece);
+  const Q = Ry(phi), Qt = tr(Q);
+  const sq2 = { ...sq, P0: sq.P0.map((p) => mv(Q, p)) };
+  const c = animerAllureSure0(sq2, allure, cycles, fps, variante, mode, espece);
+  const R = c.R.map((Ri) => Ri.map((m) => mm(mm(Qt, m), Q)));
+  const racineMonde = c.racineMonde.map((p) => mv(Qt, p));
+  const racinesSec = (c.racinesSec || []).map((r) => ({ ...r, pos: r.pos.map((p) => mv(Qt, p)) }));
+  return { ...c, R, racineMonde, racinesSec, infos: { ...c.infos, orientation_deg: +(phi * 180 / Math.PI).toFixed(1) } };
+}
+
+function animerAllureSure0(sq, allure, cycles, fps, variante, mode = 'auto', espece = 'generique') {
   const fini = (c) => c.R.every((Ri) => Ri.every((m) => m.every(Number.isFinite))) && c.racineMonde.every((p) => p.every(Number.isFinite));
   // nom du clip selon ce qu'il est vraiment : « swim » pour un poisson, « slither » pour un serpent
   const nommer = (c) => {
@@ -3816,7 +4226,10 @@ function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espe
   try {
     // vol : seulement les 5 allures de base (attente = vol stationnaire) ; les actions (attaque, mort, manger...) gardent le calcul a pattes
     const volPossible = mode === 'vol' && !!PROFILS_VOL[allure];
-    let c = volPossible
+    // course anatomique (28/10) : bipede droit complet de la famille humain ; null -> calcul d'origine
+    let c0 = null;
+    if (allure === 'run' && espece === 'humain' && !volPossible && mode !== 'nage' && mode !== 'reptation') { try { c0 = courseAnatomique(sq, cycles, fps, variante); } catch (e_) { c0 = null; if (globalThis.__debugCourse) console.error(e_); } }
+    let c = c0 ? c0 : volPossible
       ? animerVol(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine))
       : mode === 'nage' || mode === 'reptation'
       ? animerSansPattes(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine), 'reptation', mode === 'nage')
@@ -3833,12 +4246,12 @@ function animerAllureSure(sq, allure, cycles, fps, variante, mode = 'auto', espe
       }
     }
     // mouvement secondaire (queue, oreilles, chaines pendantes) : s'ajoute au calcul de la famille ; echec = clip inchange
-    if (fini(c) && allure !== 'death') { try { const c1 = ajouterFinesse(sq, c, allure, fps, 1); if (c1 && fini(c1)) c = c1; } catch (_) { /* clip de la famille conserve */ } }
-    if (fini(c) && allure !== 'death') { try { const c2 = appliquerSecondaire(sq, c, allure, fps); if (c2 && fini(c2)) c = c2; } catch (_) { /* clip de la famille conserve */ } }
-    if (fini(c) && allure !== 'death') { try { const c3 = ajouterFinesse(sq, c, allure, fps, 2); if (c3 && fini(c3)) c = c3; } catch (_) { /* clip de la famille conserve */ } }
+    if (!c0 && fini(c) && allure !== 'death') { try { const c1 = ajouterFinesse(sq, c, allure, fps, 1); if (c1 && fini(c1)) c = c1; } catch (_) { /* clip de la famille conserve */ } }
+    if (!c0 && fini(c) && allure !== 'death') { try { const c2 = appliquerSecondaire(sq, c, allure, fps); if (c2 && fini(c2)) c = c2; } catch (_) { /* clip de la famille conserve */ } }
+    if (!c0 && fini(c) && allure !== 'death') { try { const c3 = ajouterFinesse(sq, c, allure, fps, 2); if (c3 && fini(c3)) c = c3; } catch (_) { /* clip de la famille conserve */ } }
     if (fini(c)) {
       // polissage automatique (25/10) : lisse les a-coups SEULEMENT si les pieds ne glissent pas davantage et rien ne passe sous le sol
-      const poli = polirClip(sq, c);
+      const poli = c0 ? c : polirClip(sq, c);
       const fin = fini(poli) ? poli : c;
       if (fin.infos && fin.infos.mode === 'pattes' && allure !== 'death' && (fin.infos.sous_sol_pct || 0) > 0.5 && globalThis.__aplatirSousSol !== false) {
         try { const a = aplatirSousSol(sq, fin); if (a && fini(a)) return nommer(a); } catch (_) { /* clip non corrige conserve */ }
@@ -4204,4 +4617,4 @@ export function pattesDuSquelette(glb) {
 }
 
 // diagnostic (tests hors appli)
-export const __interne = { charger, detecterPattes, animerAllureSure };
+export const __interne = { charger, detecterPattes, animerAllureSure, courseAnatomique, _fkMonde };
