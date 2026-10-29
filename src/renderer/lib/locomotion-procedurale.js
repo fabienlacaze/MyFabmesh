@@ -3319,7 +3319,7 @@ function vecRot(m) {                                      // vecteur rotation (a
   const k = a / (2 * sn);
   return [(m[7] - m[5]) * k, (m[2] - m[6]) * k, (m[3] - m[1]) * k];
 }
-function classerSecondaire(sq, det, H) {
+function classerSecondaire(sq, det, H, descendre = false) {
   const { par, P0 } = sq, J = par.length, E = enfantsDe(par);
   const cls = new Array(J).fill(null);                    // os -> { type, pos, L }
   const exclus = new Set();
@@ -3339,11 +3339,13 @@ function classerSecondaire(sq, det, H) {
   det.queues.forEach((c) => chaine(c, 'queue'));
   det.tetes.forEach((c) => chaine(c, 'tete'));
   // appendices : sous-arbres hors colonne / pattes / queue / tete (oreilles, cheveux, bras, ailes, capes)
+  // descendre (course anatomique) : une chaine deja classee DANS le sous-arbre d'un os du tronc (pagne, cheveux) ne doit pas condamner tout le torse (bras, clavicules) ; on
+  // essaie alors les enfants de cet os comme racines d'appendice (les cas hors course gardent le comportement d'origine)
   for (let j = 0; j < J; j++) {
     if (cls[j] || exclus.has(j) || par[j] < 0) continue;
     if (!(exclus.has(par[j]) || cls[par[j]])) continue;                       // racine d'appendice : son parent est dans le tronc
     const sub_ = sousArbre(E, j);
-    if (sub_.some((k) => exclus.has(k) || cls[k])) continue;
+    if (sub_.some((k) => exclus.has(k) || cls[k])) { if (descendre) exclus.add(j); continue; }
     const reach = Math.max(...sub_.map((k) => norm(sub(P0[k], P0[par[j]]))));
     const type = reach < 0.15 * H ? 'leger' : 'membre';
     const prof = (k) => { let n = 0; for (let q = k; q !== par[j]; q = par[q]) n++; return n; };
@@ -3369,16 +3371,17 @@ function classerSecondaire(sq, det, H) {
 }
 /** Applique le mouvement secondaire a un clip calcule (periodique : la derniere image reboucle sur la premiere).
  *  Rend un NOUVEAU clip (le clip d'origine n'est jamais modifie), ou le clip lui-meme si rien a faire. */
-function appliquerSecondaire(sq, c, allure, fps, amplitude = SECONDAIRE.amplitude) {
+function appliquerSecondaire(sq, c, allure, fps, amplitude = SECONDAIRE.amplitude, opts = {}) {
   if (!(amplitude > 0) || allure === 'death' || !c || !c.R || c.R.length < 8) return c;
   if (['reptation', 'secours', 'rigide', 'nage'].includes(c.infos && c.infos.mode) || (c.infos && c.infos.actionVol)) return c;
   const { par, P0 } = sq, J = par.length, N = c.R.length, E = enfantsDe(par);
   const det = detecterPattes(par, P0, sq.racine);
   const sol = det.sol, H = Math.max(ptpAxe(P0, 1), 1e-6);
-  const cls = classerSecondaire(sq, det, H);
+  const cls = classerSecondaire(sq, det, H, !!opts.descendre);
   // vol (28/10) : queue et cou y sont deja ramenes vers l'horizontale par animerVol (position de repos du ressort = posture debout du rig, pendante) : le ressort les tirait
   // vers cette posture de repos et doublait les a-coups ; ils ne recoivent donc pas de mouvement secondaire de ressort (leur ondulation propre reste)
   if (c.infos && c.infos.chainesAplaties) for (const j of c.infos.chainesAplaties) cls[j] = null;
+  if (opts.exclure) for (const j of opts.exclure) cls[j] = null;          // course anatomique : jambes, colonne, bassin, cou, tete gardent leur stabilite
   if (!cls.some(Boolean)) return c;
   const ordre = [], file = [sq.racine, ...sq.racines.filter((r) => r !== sq.racine)];
   while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
@@ -3399,7 +3402,7 @@ function appliquerSecondaire(sq, c, allure, fps, amplitude = SECONDAIRE.amplitud
       const cj = cls[j];
       let Ej = null;
       if (cj && par[j] >= 0 && k > 0) {
-        const K = CLASSES_SEC[cj.type];
+        const K0 = CLASSES_SEC[cj.type], K = opts.amort && opts.amort !== 1 ? { ...K0, z: Math.min(0.95, K0.z * opts.amort) } : K0;
         // acceleration du pivot (monde) et acceleration angulaire du parent, lissees
         const pj = D.map((_, i) => add(Pw[i][par[j]], mv(D[i][par[j]], sub(P0[j], P0[par[j]]))));
         const lis = (V) => V.map((_, i) => { const a = V[W(i - 1)], b = V[i], d = V[W(i + 1)]; return [0.25 * a[0] + 0.5 * b[0] + 0.25 * d[0], 0.25 * a[1] + 0.5 * b[1] + 0.25 * d[1], 0.25 * a[2] + 0.5 * b[2] + 0.25 * d[2]]; });
@@ -3876,22 +3879,40 @@ function angleOrientation(sq, mode = 'auto') {
 //  bassinObliquite = roulis du bassin ; torseFlexionLaterale = flexion laterale RELATIVE bassin-epaules ; torseTangage = tangage du thorax (a chaque pas) ;
 //  teteSuivi / teteSuiviTangage = part du lacet-roulis / du tangage du thorax que la tete reprend (1 = la tete suit tout, 0 = fixe dans le monde) ; teteRetard = retard de la tete (part de cycle) ;
 //  clavicule = protraction des clavicules (deg, amplitude) avec le balancement du bras ; asymetrieBras = ecart relatif d'amplitude gauche/droite ; retardCoude = retard de l'avant-bras (part de cycle).
+// MAINS ET PROLONGEMENT (29/10, groupe « mains-prolongement ») : mainDoigts = flexion (deg) de la base des doigts (les phalanges suivantes : x mainDoigtsDist ; pouce : mainPouce ; mainDoigtsEtage = ecart de fermeture
+//  index -> auriculaire ; mainDoigtsVar = part de variation des doigts avec le balancement) ; mainPoignetAmp = amplitude crete-a-crete (deg) du poignet qui suit l'avant-bras ; mainPoignetRetard = retard du poignet (part de cycle) ;
+//  prolongement = amplitude du mouvement secondaire (ressorts d'ordre 2) sur bras, mains, clavicules et chaines libres (cheveux, vetements, queue) ; prolongementAmort = multiplicateur d'amortissement.
+//  Les jambes, la colonne, le bassin, le cou et la tete en sont exclus. Interrupteurs : globalThis.__mainsDetendues = false, globalThis.__prolongementCourse = false.
+// POIDS ET RYTHME (29/10, groupe « poids-rythme ») : poidsImpact = descente du bassin a l'attaque du pied (part de H, creux de forme gamma de pic poidsImpactTau secondes ; le genou d'appui se plie d'autant) ;
+//  poidsTronc = tangage (deg) du tronc qui encaisse l'impact (amorti sur ~1,6 x poidsImpactTau) ; formeBras = deformation non sinusoidale du balancement des bras (0 = sinus ; retournement plus sec aux extremes = aux appuis) ;
+//  variabilite (0-1) = variation lente de +/-25 % x variabilite de l'amplitude des bras et de la torsion et de +/-0,03 x variabilite de cycle de leur phase, a la periode du clip (boucle fermee ; sans effet si cycles < 2) ;
+//  respiration = bascule (deg crete-a-crete) de la cage thoracique, respirationFreq = souffles par cycle. Interrupteur : globalThis.__poidsRythme = false.
 //  Interrupteur : globalThis.__torseSouple = false (retour exact a l'etat precedent ; les anciens leviers bassinLacet / epaulesLacet / bassinRoulis ne servent alors que dans ce cas).
+// 29/10 soir : jambes de course et de jog = reglages d'avant l'ajustement sur les vrais coureurs (Fukuchi) : l'ajustement, fait sur un seul rig, faisait
+// glisser le pied d'appui ailleurs (fix_humain : 0 -> 2,6 % H en course, 1,7 -> 3,8 en jog ; vol du jog perdu sur le gladiateur). Le sprint garde l'ajustement (meilleur partout).
 const COURSE_DEFAUT = {
   //          vitesse H/s | cadence pas/s | appui (part du cycle d'un pied) | buste deg | coude flexion deg | ecart du coude deg | bras avant / arriere deg
-  run: { vitesse: 1.95, cadence: 3.1, appui: 0.405, buste: 12, coude: 92, coudeVar: 10, ecartCoude: 20, mainsRentrees: 8, brasAvant: 40, brasArriere: 48,
-    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.40, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
-    torseTorsion: 24, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 6.5, torseFlexionLaterale: 4.5, torseTangage: 4, teteSuivi: 0.27, teteSuiviTangage: 0.7, teteRetard: 0.04, clavicule: 5, asymetrieBras: 0.07, retardCoude: 0.07 },
-  jog: { vitesse: 1.4, cadence: 2.8, appui: 0.45, buste: 8, coude: 88, coudeVar: 8, ecartCoude: 18, mainsRentrees: 8, brasAvant: 28, brasArriere: 30,
-    talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.40, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
-    torseTorsion: 20, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 5.5, torseFlexionLaterale: 4, torseTangage: 3, teteSuivi: 0.3, teteSuiviTangage: 0.8, teteRetard: 0.04, clavicule: 4, asymetrieBras: 0.07, retardCoude: 0.07 },
+  run: { vitesse: 1.95, cadence: 3.1, appui: 0.405, buste: 8, coude: 90, coudeVar: 15, ecartCoude: 20, mainsRentrees: 8, brasAvant: 24, brasArriere: 55,
+    talon: 10, poussee: 38, rebond: 0.008, compTete: 0.0, levee: 0.30, genou: 0.10, plat: 0.4, largeurPas: 0.7, bassinLacet: 6, epaulesLacet: 9, bassinRoulis: 2, deport: 0.012, teteTangage: 14, paume: 0, jambe: 0.985,
+    torseTorsion: 24, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 6.5, torseFlexionLaterale: 4.5, torseTangage: 4, teteSuivi: 0.45, teteSuiviTangage: 0.7, teteRetard: 0.04, clavicule: 5, asymetrieBras: 0.07, retardCoude: 0.07,
+    mainDoigts: 30, mainDoigtsDist: 1.5, mainPouce: 15, mainDoigtsVar: 0.15, mainDoigtsEtage: 0.12, mainPoignetAmp: 12, mainPoignetRetard: 0.07, prolongement: 1.5, prolongementAmort: 1,
+    poidsImpact: 0.0035, poidsImpactTau: 0.045, poidsTronc: 2.0, formeBras: 0.12, variabilite: 0.3, respiration: 2.0, respirationFreq: 0.67 },
+  jog: { vitesse: 1.4, cadence: 2.8, appui: 0.45, buste: 6, coude: 88, coudeVar: 8, ecartCoude: 18, mainsRentrees: 8, brasAvant: 16, brasArriere: 40,
+    talon: 12, poussee: 32, rebond: 0.007, compTete: 0.0, levee: 0.22, genou: 0.06, plat: 0.4, largeurPas: 0.7, bassinLacet: 5, epaulesLacet: 7, bassinRoulis: 2, deport: 0.012, teteTangage: 12, paume: 0, jambe: 0.985,
+    torseTorsion: 20, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 5.5, torseFlexionLaterale: 4, torseTangage: 3, teteSuivi: 0.45, teteSuiviTangage: 0.8, teteRetard: 0.04, clavicule: 4, asymetrieBras: 0.07, retardCoude: 0.07,
+    mainDoigts: 28, mainDoigtsDist: 1.5, mainPouce: 14, mainDoigtsVar: 0.15, mainDoigtsEtage: 0.12, mainPoignetAmp: 10, mainPoignetRetard: 0.07, prolongement: 1.5, prolongementAmort: 1,
+    poidsImpact: 0.0035, poidsImpactTau: 0.05, poidsTronc: 1.5, formeBras: 0.1, variabilite: 0.3, respiration: 1.6, respirationFreq: 0.67 },
   // marche (29/10) : double appui, jamais de vol ; rebond NEGATIF = bassin haut a mi-appui (le pas « enjambe »)
   walk: { vitesse: 0.80, cadence: 2.0, appui: 0.62, buste: 2, coude: 22, coudeVar: 8, ecartCoude: 10, mainsRentrees: 4, brasAvant: 16, brasArriere: 14,
     talon: 14, poussee: 36, rebond: -0.007, compTete: 0.0, levee: 0.05, genou: 0.03, plat: 0.40, largeurPas: 0.3, bassinLacet: 4, epaulesLacet: 5, bassinRoulis: 1.5, deport: 0.008, teteTangage: 0, paume: 0, jambe: 1.008, zlin: 0.1,
-    torseTorsion: 11, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 4, torseFlexionLaterale: 3, torseTangage: 1.5, teteSuivi: 0.6, teteSuiviTangage: 1.0, teteRetard: 0.05, clavicule: 3, asymetrieBras: 0.07, retardCoude: 0.07 },
-  sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.31, buste: 22, coude: 105, coudeVar: 10, ecartCoude: 18, mainsRentrees: 8, brasAvant: 62, brasArriere: 48,
-    talon: 0, poussee: 45, rebond: 0.010, compTete: 0.0, levee: 0.42, genou: 0.30, plat: 0.40, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 0, paume: 0,
-    torseTorsion: 28, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 7, torseFlexionLaterale: 5, torseTangage: 5, teteSuivi: 0.23, teteSuiviTangage: 0.6, teteRetard: 0.04, clavicule: 6, asymetrieBras: 0.07, retardCoude: 0.07 },
+    torseTorsion: 11, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 4, torseFlexionLaterale: 3, torseTangage: 1.5, teteSuivi: 0.6, teteSuiviTangage: 1.0, teteRetard: 0.05, clavicule: 3, asymetrieBras: 0.07, retardCoude: 0.07,
+    mainDoigts: 22, mainDoigtsDist: 1.5, mainPouce: 10, mainDoigtsVar: 0.15, mainDoigtsEtage: 0.12, mainPoignetAmp: 8, mainPoignetRetard: 0.06, prolongement: 1.6, prolongementAmort: 1,
+    poidsImpact: 0.001, poidsImpactTau: 0.06, poidsTronc: 0.5, formeBras: 0.08, variabilite: 0.3, respiration: 1.2, respirationFreq: 0.34 },
+  sprint: { vitesse: 3.4, cadence: 4.2, appui: 0.33, buste: 15, coude: 72, coudeVar: 28, ecartCoude: 18, mainsRentrees: 8, brasAvant: 38, brasArriere: 65,
+    talon: 3, poussee: 35, rebond: 0.010, compTete: 0.0, levee: 0.3, genou: 0.12, plat: 0.4, largeurPas: 0.7, bassinLacet: 7, epaulesLacet: 11, bassinRoulis: 2, deport: 0.012, teteTangage: 20, paume: 0, jambe: 1.015,
+    torseTorsion: 28, torsionBassin: 0.4, torseOnde: 0.03, bassinObliquite: 7, torseFlexionLaterale: 5, torseTangage: 5, teteSuivi: 0.55, teteSuiviTangage: 0.6, teteRetard: 0.04, clavicule: 6, asymetrieBras: 0.07, retardCoude: 0.07,
+    mainDoigts: 36, mainDoigtsDist: 1.5, mainPouce: 20, mainDoigtsVar: 0.15, mainDoigtsEtage: 0.12, mainPoignetAmp: 14, mainPoignetRetard: 0.08, prolongement: 1.5, prolongementAmort: 1,
+    poidsImpact: 0.003, poidsImpactTau: 0.035, poidsTronc: 2.5, formeBras: 0.14, variabilite: 0.3, respiration: 2.4, respirationFreq: 0.67 },
 };
 if (!globalThis.__reglagesCourse) globalThis.__reglagesCourse = JSON.parse(JSON.stringify(COURSE_DEFAUT));
 const _lisse3 = (x) => { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
@@ -3977,7 +3998,11 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     const dpied = toe >= 0 ? sub(P0[bout5 >= 0 ? bout5 : toe], P0[cheville]) : [0, 0, 0];
     const cap = toe >= 0 ? Math.atan2(dpied[0], dpied[2]) : 0;
     const ha = Math.max(P0[cheville][1] - sol, 0), ft = toe >= 0 ? Math.max(dpied[2], 0.02 * H) : 0.05 * H, hb = toe >= 0 ? 0.4 * ft : 0.03 * H;
-    jambes.push({ bout5, cote: p.cote, hanche, genou, cheville, toe, l1: norm(v1), l2: norm(v2), v1, v2, L: norm(v1) + norm(v2), cap, ha, ft, hb, pied: dpied });
+    // axe de charniere du genou AU REPOS, calcule comme dans la boucle des images (meme pole) : la pose de repos est rendue a l'identique
+    const aR = mulS(add(v1, v2), 1 / (norm(add(v1, v2)) + 1e-12)), poleR = [p.cote * 0.04, 0, 1];
+    let perpR = sub(poleR, mulS(aR, dot(poleR, aR))); perpR = mulS(perpR, 1 / (norm(perpR) + 1e-12));
+    const charniere = cross(perpR, aR);
+    jambes.push({ bout5, cote: p.cote, hanche, genou, cheville, toe, l1: norm(v1), l2: norm(v2), v1, v2, L: norm(v1) + norm(v2), cap, ha, ft, hb, pied: dpied, charniere });
   }
   const jc = (c) => jambes.find((q) => q.cote === c);
   // --- bras
@@ -4014,11 +4039,20 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
   { let L = Pm.buste * _deg; for (let it = 0; it < 8; it++) { const v = vTronc(L), a = Math.atan2(v[2], v[1]), v2 = vTronc(L + 1e-3), a2 = Math.atan2(v2[2], v2[1]); const d = (a2 - a) / 1e-3; if (Math.abs(d) < 1e-6) break; L += (Pm.buste * _deg - a) / d; } lean = L; }
   const dyTronc = (L) => vTronc(L)[1];
   const TS = globalThis.__torseSouple !== false;
+  const PR = globalThis.__poidsRythme !== false;
+  const tClip = cycles * T, varK = PR && cycles >= 2 ? Math.max(0, Pm.variabilite ?? 0) : 0;
+  const vmod = (t, ph) => { const w = 2 * Math.PI * t / tClip; return 0.62 * Math.sin(w + ph) + (cycles >= 3 ? 0.38 * Math.sin(2 * w + 1.7 * ph + 0.9) : 0); };   // periode du clip : boucle fermee
+  const nbSouffle = PR && Pm.respiration ? Math.max(1, Math.round(cycles * (Pm.respirationFreq ?? 0.67))) : 0;
+  const respi = (t) => (nbSouffle ? 0.5 * Pm.respiration * _deg * Math.sin(2 * Math.PI * nbSouffle * t / tClip) : 0);
+  // impact : somme sur les appuis (fenetres) d'une impulsion de forme gamma (montee brusque en `a` secondes, retombee lente) ; periodique car les appuis le sont
+  const impG = (t, a) => { let r_ = 0; for (const w of fenetres) { const s_ = t - w.d0; if (s_ > 0 && s_ < 14 * a) r_ += (s_ / a) * Math.exp(1 - s_ / a); } return r_; };
   // --- tronc a l'instant t : orientations monde de la colonne, de la tete ; decalage hanche - racine
   function tronc(t) {
     const th = 2 * Math.PI * t / T, ph = th - Math.PI * df;
     if (TS) {
-      const w2 = 2 * Math.PI, aT = Pm.torseTorsion * _deg / 2, aP = aT * Pm.torsionBassin, aS = aT * (1 - Pm.torsionBassin);
+      const w2 = 2 * Math.PI, aT = Pm.torseTorsion * _deg / 2 * (1 + 0.25 * varK * vmod(t, 0.7)), aP = aT * Pm.torsionBassin, aS = aT * (1 - Pm.torsionBassin);
+      const thT = th + w2 * 0.03 * varK * vmod(t, 2.1);
+      const pitI = PR && Pm.poidsTronc ? Pm.poidsTronc * _deg * impG(t, 1.6 * Pm.poidsImpactTau) : 0, rsp = respi(t);
       const oblA = Pm.bassinObliquite * _deg / 2, rollS = oblA - Pm.torseFlexionLaterale * _deg / 2;
       const pitA = Pm.torseTangage * _deg / 2, sgn = Pm.rebond >= 0 ? 1 : -1, onde = Pm.torseOnde || 0, ret = Pm.teteRetard || 0;
       const pit = (x) => -pitA * sgn * Math.cos(2 * x - w2 * df);      // tronc plus penche quand le bassin est haut : le tronc absorbe le rebond, la tete reste calme
@@ -4026,15 +4060,15 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
       const Dm = new Map();
       for (let i = 0; i <= m; i++) {
         const f = i / m;
-        const yaw = -aP * Math.cos(th) * (1 - f) + aS * Math.cos(th - w2 * onde * f) * f;
+        const yaw = -aP * Math.cos(thT) * (1 - f) + aS * Math.cos(thT - w2 * onde * f) * f;
         const rol = oblA * Math.cos(ph) * (1 - f) + rollS * Math.cos(ph - w2 * onde * f) * f;
-        Dm.set(voie[i], mm(mm(Ry(yaw), Rx(lean0 * (0.35 + 0.65 * f) + pit(th))), Rz(rol)));
+        Dm.set(voie[i], mm(mm(Ry(yaw), Rx(lean0 * (0.35 + 0.65 * f) + pit(th) + pitI + rsp * f * f)), Rz(rol)));
       }
       const nTete = voie.length - 1 - m;
       for (let i = m + 1; i < voie.length; i++) {
         const w = (i - m) / nTete, lag = onde + ret * w, g = 1 - w * (1 - Pm.teteSuivi), gp = 1 - w * (1 - Pm.teteSuiviTangage);
-        const yaw = aS * Math.cos(th - w2 * lag) * g, rol = rollS * Math.cos(ph - w2 * lag) * g;
-        Dm.set(voie[i], mm(mm(Ry(yaw), Rx(Pm.teteTangage * _deg * w + lean0 * 0.5 * (1 - w) + pit(th - w2 * lag) * gp)), Rz(rol)));
+        const yaw = aS * Math.cos(thT - w2 * lag) * g, rol = rollS * Math.cos(ph - w2 * lag) * g;
+        Dm.set(voie[i], mm(mm(Ry(yaw), Rx(Pm.teteTangage * _deg * w + lean0 * 0.5 * (1 - w) + pit(th - w2 * lag) * gp + 0.35 * pitI)), Rz(rol)));
       }
       return { Dm, sway: Pm.deport * H * Math.cos(ph) };
     }
@@ -4129,6 +4163,7 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     }
   }
 
+  if (PR && Pm.poidsImpact) { for (let i = 0; i < nT; i++) yR[i] -= Pm.poidsImpact * H * impG(tt[i], Pm.poidsImpactTau); yR[nT - 1] = yR[0]; }
   // --- pied balance : trajectoire de la cheville entre decollage et pose suivante
   function ankleLibre(jb, w0, w1, t) {                      // w0 = appui precedent (de cette jambe), w1 = suivant
     const a = ankleAppui(jb, w0.d0, 1), b = ankleAppui(jb, w1.d0, 0);
@@ -4149,16 +4184,17 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
 
   // --- bras : directions cibles
   const brasT = (b, t) => {
-    const u = _frac(t / T + decalPhase(b.cote));
-    const asy = TS ? 1 + 0.5 * b.cote * Pm.asymetrieBras : 1;
+    const u = _frac(t / T + decalPhase(b.cote) + 0.03 * varK * vmod(t, 3.3 + b.cote));
+    const asy = (TS ? 1 + 0.5 * b.cote * Pm.asymetrieBras : 1) * (1 + 0.25 * varK * vmod(t, 1.3 + 1.1 * b.cote));
+    const fb = PR ? (Pm.formeBras || 0) / (4 * Math.PI) : 0, gw = (x) => x + fb * Math.sin(4 * Math.PI * x);       // deformation periodique de la phase : retournement plus sec aux extremes
     const av = Pm.brasAvant * _deg * asy, ar = Pm.brasArriere * _deg * asy, mid = 0.5 * (av - ar), amp = 0.5 * (av + ar);
-    const th = mid - amp * Math.cos(2 * Math.PI * (u + 0.03));
-    const thF = TS ? mid - amp * Math.cos(2 * Math.PI * (u + 0.03 - Pm.retardCoude)) : th;     // l'avant-bras plie et se deplie avec un retard
+    const th = mid - amp * Math.cos(2 * Math.PI * gw(u + 0.03));
+    const thF = TS ? mid - amp * Math.cos(2 * Math.PI * gw(u + 0.03 - Pm.retardCoude)) : th;     // l'avant-bras plie et se deplie avec un retard
     const phi = (Pm.coude + Pm.coudeVar * (thF - mid) / Math.max(amp, 1e-6)) * _deg;
     const alpha = Pm.ecartCoude * _deg, af = -Pm.mainsRentrees * _deg, be = th + phi;
     const du = add(mulS([0, -Math.cos(th), Math.sin(th)], Math.cos(alpha)), [b.cote * Math.sin(alpha), 0, 0]);
     const df_ = add(mulS([0, -Math.cos(be), Math.sin(be)], Math.cos(af)), [b.cote * Math.sin(af), 0, 0]);
-    return { du, df: df_, th, phi, sw: -Math.cos(2 * Math.PI * (u + 0.03)) };
+    return { du, df: df_, th, phi, sw: -Math.cos(2 * Math.PI * gw(u + 0.03)) };
   };
   for (const b of bras) {                                  // premier os entre le moyeu et l'epaule (clavicule) s'il existe
     let k = b.epaule;
@@ -4186,6 +4222,47 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     return { ur, fr, nrest: nr };
   });
 
+  // --- mains detendues (29/10) : doigts semi-fermes (flexion vers la paume) et poignet qui suit l'avant-bras avec retard ; tout est derive de la chaine fille du poignet
+  const MD = globalThis.__mainsDetendues !== false;
+  const mains = bras.map((b, q) => {
+    if (!MD) return null;
+    const rr = reposBras[q], w = b.poignet, doigts = [];
+    const nL = (v) => mulS(v, 1 / (norm(v) + 1e-12));
+    const bases = E[w].map((k) => ({ k, d: norm(sub(P0[k], P0[w])) }));
+    let pouce = -1;
+    const rang = new Map();
+    if (bases.length >= 4) {                                      // pouce = doigt dont la base est tres pres du poignet (< 0,55 x la mediane des autres)
+      const t_ = bases.slice().sort((x, y) => x.d - y.d), med = median(t_.slice(1).map((x) => x.d));
+      if (t_[0].d < 0.55 * med) pouce = t_[0].k;
+    }
+    const autres = bases.filter((x) => x.k !== pouce);
+    if (pouce >= 0 && autres.length > 1) {                        // rang : de l'index (pres du pouce, -0,5) a l'auriculaire (+0,5)
+      const dp = autres.map((x) => ({ k: x.k, e: norm(sub(P0[x.k], P0[pouce])) })).sort((x, y) => x.e - y.e);
+      dp.forEach((x, i) => rang.set(x.k, i / (dp.length - 1) - 0.5));
+    }
+    // l'auriculaire (rang +0,5) se ferme davantage que l'index (rang -0,5)
+    const marche_ = (k, prof, racineDoigt) => {
+      if (!E[k].length) return;                                   // dernier os : ne tourne rien
+      const d = nL(sub(P0[E[k][0]], P0[k])), ax = cross(d, rr.nrest);
+      if (norm(ax) > 0.15) doigts.push({ j: k, par: par[k], axe: nL(ax), prof, racineDoigt, pouce: racineDoigt === pouce, rang: rang.get(racineDoigt) ?? 0 });
+      for (const e of E[k]) marche_(e, prof + 1, racineDoigt);
+    };
+    for (const k of E[w]) marche_(k, 0, k);
+    return doigts.length ? { doigts, poignet: w } : null;
+  });
+  // signal du poignet : angle sagittal de l'avant-bras retarde, moins l'angle de l'avant-bras ; normalise a mainPoignetAmp (crete-a-crete)
+  const angSag = (v) => Math.atan2(v[2], -v[1]);
+  const poignetSerie = bras.map((b, q) => {
+    if (!MD) return null;
+    const ret = Pm.mainPoignetRetard || 0;
+    const d = tt.map((t) => { const a = brasT(b, t - ret * T).df, c = brasT(b, t).df; let x = angSag(a) - angSag(c); x -= 2 * Math.PI * Math.round(x / (2 * Math.PI)); return x; });
+    const pk = Math.max(...d) - Math.min(...d);
+    const k = pk > 1e-9 ? (Pm.mainPoignetAmp || 0) * _deg / pk : 0;
+    const moy = 0.5 * (Math.max(...d) + Math.min(...d));
+    return d.map((x) => k * (x - moy));                           // rotation du poignet (rad) ; centree
+  });
+  const poignetNorm = poignetSerie.map((s_) => { if (!s_) return null; const m_ = Math.max(...s_.map(Math.abs)) || 1; return s_.map((x) => x / m_); });
+
   // --- assemblage image par image
   const R = [], racineMonde = [], Dtous = [];
   const secs = sq.racines.filter((r) => r !== racine);
@@ -4210,8 +4287,18 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
       let perp = sub(pole, mulS(a, dot(pole, a))); perp = mulS(perp, 1 / (norm(perp) + 1e-12));
       const K = add(Hh, add(mulS(a, jb.l1 * cosA), mulS(perp, jb.l1 * sinA)));
       const Acible = add(Hh, mulS(a, dc));
-      const s0 = [0, 0, 1];
-      const Dth = _viser(jb.v1, s0, sub(K, Hh), pole), Dsh = _viser(jb.v2, s0, sub(Acible, K), pole);
+      // 29/10 : la cuisse et le tibia sont orientes par l'AXE DE CHARNIERE du genou (perpendiculaire au plan hanche-genou-cheville), plus par l'avant :
+      // quand le tibia passait a l'horizontale vers l'arriere (recuperation de course, genou plie a 110 deg), il devenait parallele a l'avant, le cote
+      // de reference n'etait plus defini et le genou et la cheville tournaient de 180 deg sur eux-memes en une image (fix_humain, gladiateur).
+      // Interrupteur : globalThis.__charniereGenou = false (ancien calcul).
+      let Dth, Dsh;
+      if (globalThis.__charniereGenou !== false) {
+        const h = cross(perp, a);
+        Dth = _viser(jb.v1, jb.charniere, sub(K, Hh), h); Dsh = _viser(jb.v2, jb.charniere, sub(Acible, K), h);
+      } else {
+        const s0 = [0, 0, 1];
+        Dth = _viser(jb.v1, s0, sub(K, Hh), pole); Dsh = _viser(jb.v2, s0, sub(Acible, K), pole);
+      }
       Dm.set(jb.hanche, Dth); Dm.set(jb.genou, Dsh);
       const Dpied = mm(Rx(p), Ry(-0.8 * jb.cap));
       Dm.set(jb.cheville, Dpied);
@@ -4234,6 +4321,22 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
       }
       Dm.set(b.epaule, Du);
       Dm.set(b.coude, mm(rotvec(fa, ang), fm));
+      if (MD && poignetSerie[q]) {                                     // poignet : suit l'avant-bras avec retard (rotation autour de l'axe lateral monde) ; doigts : flexion vers la paume
+        const Dc = Dm.get(b.coude);
+        let Dp = mm(Rx(-poignetSerie[q][i]), Dc);
+        Dm.set(b.poignet, Dp);
+        const mq = mains[q];
+        if (mq) {
+          const nv = poignetNorm[q][i], Dd = new Map([[b.poignet, Dp]]);
+          for (const f of mq.doigts) {
+            const racineF = f.racineDoigt, dist = f.prof === 0 ? 1 : Pm.mainDoigtsDist || 1.5;
+            const base = f.pouce ? Pm.mainPouce : Pm.mainDoigts * (1 + (Pm.mainDoigtsEtage || 0) * 2 * f.rang * 0.5);
+            const flex = base * dist * (1 + (Pm.mainDoigtsVar || 0) * nv) * _deg;
+            const Dn = mm(Dd.get(f.par) || Dp, rotvec(f.axe, flex));
+            Dd.set(f.j, Dn); Dm.set(f.j, Dn);
+          }
+        }
+      }
       if (i === 0 || true) infoBras[q] = { ang };
     });
     // assemblage
@@ -4243,7 +4346,8 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
     racineMonde.push(rootPos);
     secs.forEach((r, k) => racinesSec[k].pos.push(D && add(rootPos, mv(D[racine], sub(P0[r], P0[racine])))));
   }
-  const clip = { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote, clav: b.clav })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
+  const exclureSec = new Set([racine, ...voie, ...det.pattes.flatMap((q) => sousArbre(E, q.chaine[0])), ...det.tetes.flat()]);
+  const clip = { nom: variante === 'normal' ? allure : `${allure}__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', prolongement: { amplitude: Pm.prolongement ?? 1, amort: Pm.prolongementAmort ?? 1, exclure: [...exclureSec] }, diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote, clav: b.clav })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) }, periode: T, images: nT, pattes: 2, bras: 2, vitesse_H_s: Pm.vitesse } };
   if (!R.every((Ri) => Ri.every((mt) => mt.every(Number.isFinite))) || !racineMonde.every((q) => q.every(Number.isFinite))) return null;
   const dc = _defautsClip(sq, clip, det);
   clip.infos.sous_sol_pct = +dc.sousSol.toFixed(2); clip.infos.glissement_appui_pct = +dc.glissement.toFixed(2); clip.infos.acoups_max_deg = +dc.acoups.toFixed(1);
@@ -4298,6 +4402,11 @@ function animerAllureSure0(sq, allure, cycles, fps, variante, mode = 'auto', esp
     // mouvement secondaire (queue, oreilles, chaines pendantes) : s'ajoute au calcul de la famille ; echec = clip inchange
     if (!c0 && fini(c) && allure !== 'death') { try { const c1 = ajouterFinesse(sq, c, allure, fps, 1); if (c1 && fini(c1)) c = c1; } catch (_) { /* clip de la famille conserve */ } }
     if (!c0 && fini(c) && allure !== 'death') { try { const c2 = appliquerSecondaire(sq, c, allure, fps); if (c2 && fini(c2)) c = c2; } catch (_) { /* clip de la famille conserve */ } }
+    if (c0 && fini(c) && globalThis.__prolongementCourse !== false && c.infos.prolongement && c.infos.prolongement.amplitude > 0) { try { const pr = c.infos.prolongement, nn = c.R.length - 1;
+      // le clip course comporte une image de plus (la derniere = la premiere) : on calcule sur la boucle SANS doublon (periode exacte), puis on rajoute la premiere image a la fin (boucle fermee a l'identique)
+      const cT = { ...c, R: c.R.slice(0, nn), racineMonde: c.racineMonde.slice(0, nn), racinesSec: (c.racinesSec || []).map((x) => ({ ...x, pos: x.pos.slice(0, nn) })) };
+      const c2 = appliquerSecondaire(sq, cT, allure, fps, SECONDAIRE.amplitude * pr.amplitude, { exclure: pr.exclure, amort: pr.amort, descendre: true });
+      if (c2 && c2 !== cT && fini(c2)) c = { ...c2, R: [...c2.R, c2.R[0].map((m) => m.slice())], racineMonde: [...c.racineMonde], racinesSec: (c.racinesSec || []) }; } catch (e_) { if (globalThis.__debugCourse) console.error(e_); } }
     if (!c0 && fini(c) && allure !== 'death') { try { const c3 = ajouterFinesse(sq, c, allure, fps, 2); if (c3 && fini(c3)) c = c3; } catch (_) { /* clip de la famille conserve */ } }
     if (fini(c)) {
       // polissage automatique (25/10) : lisse les a-coups SEULEMENT si les pieds ne glissent pas davantage et rien ne passe sous le sol
