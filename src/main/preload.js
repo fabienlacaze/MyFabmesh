@@ -171,6 +171,7 @@ contextBridge.exposeInMainWorld('meshyAPI', {
   // Redacteur local de la fenetre New project (2026-09-30) : description + type, sur le processeur.
   redacteurPrechauffer: () => ipcRenderer.invoke('redacteur:prechauffer'),
   redacteurDecrire: (opts) => ipcRenderer.invoke('redacteur:decrire', opts),
+  reviewAnim: (corps) => ipcRenderer.invoke('anim:review', corps),   // 29/10 : relecture IA des animations (compte cloud)
   redacteurArreter: () => ipcRenderer.invoke('redacteur:arreter'),
   i18nAutoTranslate: (opts) => ipcRenderer.invoke('i18n-auto-translate', opts),
   setSpellcheckLang: (lang) => ipcRenderer.invoke('set-spellcheck-lang', lang),

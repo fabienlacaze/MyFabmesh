@@ -10427,6 +10427,21 @@ ipcMain.handle('redacteur:prechauffer', async () => {
   if (r.ok) _redacteurRelancerMinuteur();
   return r;
 });
+// 29/10 (decision du user : Qwen3.6 corrige le realisme des animations a chaque generation) : la relecture se fait SUR LE SERVEUR (route /api/anim-review,
+// credits du compte cloud). Pas de session cloud : { ok:false } et la page garde le clip du moteur. Images : JPEG base64 dessines par la page.
+ipcMain.handle('anim:review', async (_e, corps = {}) => {
+  if (!cloudFallback || !cloudFallback.authedFetch) return { ok: false, raison: 'cloud unavailable' };
+  try {
+    const a = await cloudFallback.authedFetch('/api/anim-review', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corps || {}), signal: AbortSignal.timeout(150000),
+    });
+    if (!a || !a.resp) return { ok: false, raison: 'not signed in' };
+    const j = await a.resp.json().catch(() => null);
+    return j && typeof j === 'object' ? j : { ok: false, raison: 'HTTP ' + a.resp.status };
+  } catch (e) {
+    return { ok: false, raison: String(e && e.message || e).slice(0, 200) };
+  }
+});
 ipcMain.handle('redacteur:decrire', async (_e, { name, notes, lang, type } = {}) => {
   // 2026-10-13 (MODERATION-04, comme /api/describe-asset) : le nom et les notes passent le filtre AVANT le redacteur, et sa
   // description APRES ; un refus rend { ok:false, raison:'blocked' } (la fenetre garde ses mots-cles).

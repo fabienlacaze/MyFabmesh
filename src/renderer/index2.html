@@ -1201,6 +1201,10 @@
                       </div>
                     </div>
                   </div>
+                  <!-- 29/10 : relecture du realisme par l'IA (Qwen3.6, sur le serveur : compte cloud requis) a chaque generation : actions seulement -->
+                  <label id="ws-anim-review-lab" title="The AI watches each action animation, then adjusts its amplitude, travel and timing until it looks more realistic (about 30-60 s per animation). Uses your MyFabmesh cloud account credits." style="display:flex; align-items:center; gap:8px; font-size:12px; margin:2px 0 8px; cursor:pointer;">
+                    <input type="checkbox" id="ws-anim-review" checked style="margin:0;" /> AI realism review (cloud credits) <span id="ws-anim-review-prix" style="color:var(--text-2);"></span>
+                  </label>
                   <button id="ws-generate-anim" class="primary-btn">Generate Animation</button>
                   <div id="ws-anim-status" style="margin-top:6px; font-size:13px; color:var(--text-2); min-height:14px;"></div>
                 </div>

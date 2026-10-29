@@ -1185,7 +1185,9 @@
     // navigateur puis envoye BRUT, en flux (un rig pese 60-70 Mo, au-dela des 50 Mo de
     // /api/animations/upload). GRATUIT. Nom <rig>_locomotion_<lot>_<ts>.glb : c'est lui qui
     // rattache l'animation au projet au rechargement.
-    uploadLocomotion: async ({ bytes, rigUrl, batchId } = {}) => {
+    // 29/10 : relecture du realisme d'une animation par Qwen3.6 (lib/relecture-anim.js) ; debut / appel / rembourser
+  reviewAnim: async (corps) => postJSON('/api/anim-review', corps || {}),
+  uploadLocomotion: async ({ bytes, rigUrl, batchId } = {}) => {
       try {
         let base = 'anim';
         try { base = new URL(rigUrl, location.href).pathname.split('/').pop().replace(/\.(glb|gltf)$/i, '') || 'anim'; } catch (_) {}

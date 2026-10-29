@@ -18,6 +18,7 @@ import { Viewer3D } from './lib/Viewer3D.js';
 import { centrerRotation } from './lib/centre-rotation.js';
 import { geometriePleine } from './lib/lod-maillage.js';
 import { animerGLB, VARIANTES, modeDepuisTexte, allureDeClip, especeDepuisTexte, ESPECES_LISTE, animationsPour } from './lib/locomotion-procedurale.js';
+import { relireClip, relisible } from './lib/relecture-anim.js';   // 29/10 : relecture du realisme par Qwen3.6 a chaque generation
 import { creerApercu } from './lib/apercu-animation.js';
 import { creerBarreVues3D } from './lib/barre-vues-3d.js';   // barre commune des visualiseurs des fenetres d'outils (25/10)
 import { normaleDepuis, anglesDepuis, matriceMiroir, centresDesFaces, appliquerTampon, regionFaces, coteDesFaces, ecrireFaces, echantillonnerSurfaceNormales, trouverPlanSymetrie, axeEtAnglesDepuis, tournerNormale } from './lib/symetrie-maillage.js';   // outil Symmetrize mesh (25/10)
@@ -24189,7 +24190,24 @@ document.getElementById('ws-generate-anim')?.addEventListener('click', async () 
       const brut = await API.readMeshFile(rig.url);
       if (!brut) throw new Error(_i18nT('Rig file not found.'));
       const t0 = performance.now();
-      const { glb, infos } = animerGLB(brut, { allures, mode: _modeAnim(), espece: _especeAnim() });
+      // 29/10 (decision du user : « Qwen3.6 corrige le realisme a chaque generation ») : chaque ACTION cochee est relue par l'IA (route /api/anim-review,
+      // 2 a 3 tours : proposition de leviers, garde-fous mesures, comparaison avant / apres) ; les leviers retenus servent a la generation. Echec = clip du moteur.
+      let reglages = null;
+      const aRelire = document.getElementById('ws-anim-review')?.checked && API.reviewAnim ? allures.filter(relisible) : [];
+      for (const cle of aRelire) {
+        const tuile = pushJob(`Animate AI review ${cle}: ${p.name}`, null, { Engine: 'MyFabmesh.AI review', Animation: cle }, 90000);
+        try {
+          const r = await relireClip(brut, cle, { mode: _modeAnim(), espece: _especeAnim(), appeler: (c) => API.reviewAnim(c),
+            etat: (t) => { const j = state.jobs.find((x) => x.id === tuile.id); if (j) { j.subtitle = t; renderJobs(); } } });
+          console.log('[relecture IA] ' + cle, JSON.stringify(r));
+          if (r && r.leviers && Object.keys(r.leviers).length) (reglages ||= {})[cle] = r.leviers;
+          completeJob(tuile.id, true);
+        } catch (e) {
+          console.warn('[relecture IA] ' + cle, e);
+          completeJob(tuile.id, false, String(e?.message || e));
+        }
+      }
+      const { glb, infos } = animerGLB(brut, { allures, mode: _modeAnim(), espece: _especeAnim(), reglages });
       console.log('[locomotion] ' + allures.join('+') + ' en ' + Math.round(performance.now() - t0) + ' ms', infos);
       const r = await API.uploadLocomotion({ bytes: glb, rigUrl: rig.url, batchId });
       if (!r?.success) throw new Error(r?.error || 'upload failed');
@@ -33669,3 +33687,14 @@ document.addEventListener('click', (e) => {
   if (sm) e.preventDefault();
 }, true);
 setInterval(_majVerrousEditSelected, 1000);
+
+// 29/10 : prix de la relecture IA des animations, lu dans la grille du site (cle anim_review) ; rien tant qu'il est inconnu (regle : aucun prix en dur)
+(function _prixRelectureAnim() {
+  let essais = 0;
+  const maj = () => {
+    const el = document.getElementById('ws-anim-review-prix'), v = typeof window._prixDe === 'function' ? window._prixDe('anim_review') : null;
+    if (el && v != null) { el.textContent = '(+' + v + ' ' + _i18nT('credits') + ' / ' + _i18nT('animation') + ')'; return; }
+    if (++essais < 60) setTimeout(maj, 2000);
+  };
+  setTimeout(maj, 1500);
+})();
