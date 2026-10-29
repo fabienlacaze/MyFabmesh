@@ -24985,12 +24985,12 @@ function prechauffeRedacteurDue(dernierTs: number | null | undefined, maintenant
 }
 /* RELECTURE DES ANIMATIONS PAR QWEN3.6 A CHAQUE GENERATION (29/10, decision du user). L'animation est calculee DANS la page (moteur
  * procedural) ; la page mesure, dessine les squelettes, puis appelle cette route en boucle :
- *  - { action:'debut', allure } : debite `anim_review` UNE fois, rend un jeton signe (10 min, 8 appels au plus) ;
+ *  - { action:'debut', allure } : debite `anim_review` UNE fois, rend un jeton signe (10 min, 10 appels au plus : 3 tours x 3) ;
  *  - { action:'appel', jeton, mode:'proposer'|'comparer', allure, espece, leviers, mesures, refus, images } : relaye a Modal (route `relire`
  *    de myfabmesh-reglage-gpu) ; chaque appel compte dans le budget GPU du jour et le compteur du jeton ;
  *  - { action:'rembourser', jeton } : rembourse si AUCUN appel n'a abouti (Qwen injoignable) ; une seule fois.
  * Coupure : RELECTURE_ANIM='0'. URL : MODAL_RELECTURE_URL, sinon deduite de la route « decrire » de Qwen3.6. */
-const RELECTURE_APPELS_MAX = 8, RELECTURE_DUREE_MS = 10 * 60_000, RELECTURE_USD_APPEL = 0.004;
+const RELECTURE_APPELS_MAX = 10, RELECTURE_DUREE_MS = 10 * 60_000, RELECTURE_USD_APPEL = 0.004;
 function _relectureUrl(env: Env): string | null {
   if (env.RELECTURE_ANIM === '0') return null;
   if (env.MODAL_RELECTURE_URL) return env.MODAL_RELECTURE_URL;

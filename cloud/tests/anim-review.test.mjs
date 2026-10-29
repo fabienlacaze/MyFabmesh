@@ -58,12 +58,13 @@ test("jeton falsifie ou d'un autre compte : 403", async () => {
   assert.equal(m.appels.length, 0);
 });
 
-test('au-dela de 8 appels par jeton : 429, Modal non appele', async () => {
+test('au-dela de RELECTURE_APPELS_MAX (10) appels par jeton : 429, Modal non appele', async () => {
   const m = monter();
   const d = await m.w.handleAnimReview(m.req({ action: 'debut', allure: 'attack' }), m.E);
-  for (let i = 0; i < 8; i++) await m.w.handleAnimReview(m.req({ action: 'appel', jeton: d.jeton, mode: 'comparer', images: [IMG, IMG, IMG, IMG] }), m.E);
+  assert.equal(m.w.RELECTURE_APPELS_MAX, 10);
+  for (let i = 0; i < 10; i++) await m.w.handleAnimReview(m.req({ action: 'appel', jeton: d.jeton, mode: 'comparer', images: [IMG, IMG, IMG, IMG] }), m.E);
   const r = await m.w.handleAnimReview(m.req({ action: 'appel', jeton: d.jeton, mode: 'comparer', images: [IMG, IMG, IMG, IMG] }), m.E);
-  assert.equal(r._status, 429); assert.equal(m.appels.length, 8);
+  assert.equal(r._status, 429); assert.equal(m.appels.length, 10);
 });
 
 test("Qwen injoignable : budget GPU rendu, puis remboursement des credits UNE fois si rien n'a abouti", async () => {

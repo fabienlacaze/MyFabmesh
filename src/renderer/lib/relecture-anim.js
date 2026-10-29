@@ -5,7 +5,7 @@
 // La page calcule l'animation (moteur procedural), la MESURE et DESSINE les squelettes (camera fixe), puis demande a Qwen3.6 (via le
 // serveur, route /api/anim-review) des LEVIERS (multiplicateurs du moteur, voir LEVIERS_ACTION dans locomotion-procedurale.js). Un candidat
 // n'est garde que s'il respecte les garde-fous mesures (sol, glissement des pieds, a-coups) ET gagne la COMPARAISON avec la version
-// courante (Qwen3.6 dit laquelle est la plus realiste ; l'ordre A / B alterne d'un tour a l'autre). 3 tours au plus (6 appels).
+// courante (Qwen3.6 dit laquelle est la plus realiste, DANS LES DEUX ORDRES : il doit gagner les deux fois). 3 tours au plus (9 appels).
 import { __interne } from './locomotion-procedurale.js';
 
 const { charger, detecterPattes, animerAllureSure, _fkMonde } = __interne;
@@ -131,13 +131,20 @@ export async function relireClip(brutOuSq, cle, { mode = 'auto', espece = 'gener
     const cand = { ...meilleur, ...ch }, mC = mesurer(sq, cle, { mode, espece, leviers: cand });
     const g = gardeFous(mB, mC);
     if (g) { T.resultat = 'rejected: ' + g; refus.push(JSON.stringify(ch) + ' -> ' + g); journal.push(T); continue; }
-    // comparaison : l'ordre alterne (tour impair : courant = A, candidat = B ; tour pair : l'inverse) pour ne pas favoriser une position
-    const inverse = tour % 2 === 0, iB = dessiner(mB, 4), iC = dessiner(mC, 4);
-    const c = await appeler({ action: 'appel', jeton, mode: 'comparer', allure: cle, espece, images: inverse ? [...iC, ...iB] : [...iB, ...iC] }).catch(() => null);
-    if (!c || !c.ok) { T.resultat = 'comparison failed'; journal.push(T); break; }
+    // comparaison DANS LES DEUX ORDRES (29/10 : sur 4 essais reels, le juge choisissait presque toujours « A », la version montree en premier ; avec un
+    // ordre alterne, un candidat « gagnait » simplement au tour ou il passait en premier). Le candidat n'est garde que s'il gagne LES DEUX fois.
+    const iB = dessiner(mB, 4), iC = dessiner(mC, 4);
+    const c1 = await appeler({ action: 'appel', jeton, mode: 'comparer', allure: cle, espece, images: [...iB, ...iC] }).catch(() => null);   // candidat = B
+    if (!c1 || !c1.ok) { T.resultat = 'comparison failed'; journal.push(T); break; }
     aboutis++;
-    const gagne = inverse ? c.meilleur === 'A' : c.meilleur === 'B';
-    T.resultat = gagne ? 'kept' : 'not better'; T.raison = c.raison;
+    let gagne = c1.meilleur === 'B', c2 = null;
+    if (gagne) {
+      c2 = await appeler({ action: 'appel', jeton, mode: 'comparer', allure: cle, espece, images: [...iC, ...iB] }).catch(() => null);        // candidat = A
+      if (!c2 || !c2.ok) { T.resultat = 'comparison failed'; journal.push(T); break; }
+      aboutis++;
+      gagne = c2.meilleur === 'A';
+    }
+    T.resultat = gagne ? 'kept' : 'not better'; T.raison = (c2 || c1).raison; T.juge = [c1.meilleur, c2 && c2.meilleur];
     if (gagne) { meilleur = cand; mB = mC; } else refus.push(JSON.stringify(ch) + ' -> judged not better');
     journal.push(T);
   }

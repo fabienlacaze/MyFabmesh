@@ -39,14 +39,15 @@ test('boucle complete sur un vrai rig : un candidat qui GAGNE la comparaison est
   assert.ok(m0.ok && m2.ok); assert.ok(m2.deplacement_avant_pctH > m0.deplacement_avant_pctH, 'le levier agit');
   globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => new Proxy({}, { get: () => () => {} }), toDataURL: () => 'data:image/jpeg;base64,QUJD' }) };
   const appels = [];
-  // tour 1 : propose deplacement 1,35 -> gagne (l'ordre est normal : candidat = B) ; tour 2 : propose bascule -> perd ; tour 3 : rien d'utilisable
-  const reps = [{ ok: true, jeton: 'j.s' }, { ok: true, changements: { deplacement: 1.35 } }, { ok: true, meilleur: 'B' },
-    { ok: true, changements: { bascule: 1.3 } }, { ok: true, meilleur: 'B' }, { ok: true, changements: {} }];
+  // tour 1 : deplacement 1,35 -> gagne DANS LES DEUX ORDRES (B puis A) ; tour 2 : bascule -> juge toujours « A » (biais de position) -> perd ; tour 3 : rien d'utilisable
+  const reps = [{ ok: true, jeton: 'j.s' }, { ok: true, changements: { deplacement: 1.35 } }, { ok: true, meilleur: 'B' }, { ok: true, meilleur: 'A' },
+    { ok: true, changements: { bascule: 1.3 } }, { ok: true, meilleur: 'A' }, { ok: true, changements: {} }];
   const r = await relireClip(sq, 'attack', { espece: 'humain', appeler: async (c) => { appels.push(c); return reps.shift(); } });
   assert.deepEqual(r.leviers, { deplacement: 1.35 });
-  assert.equal(r.journal[0].resultat, 'kept'); assert.equal(r.journal[1].resultat, 'not better', 'tour pair : ordre inverse, B = la version courante');
+  assert.equal(r.journal[0].resultat, 'kept'); assert.equal(r.journal[1].resultat, 'not better', 'un juge qui repond toujours A ne fait rien garder');
+  assert.deepEqual(r.journal[0].juge, ['B', 'A']); assert.deepEqual(r.journal[1].juge, ['A', null]);
   assert.equal(appels[0].action, 'debut'); assert.ok(appels.every((c, i) => i === 0 || c.jeton === 'j.s'));
-  assert.equal(appels[2].images.length, 4);
+  assert.equal(appels[2].images.length, 4); assert.equal(appels[3].mode, 'comparer');
 });
 
 test('Qwen injoignable des le 1er appel : remboursement demande, aucun levier', { skip: !existsSync(RIG) }, async () => {
