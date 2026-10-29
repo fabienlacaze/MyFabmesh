@@ -4802,6 +4802,18 @@ textarea.prompt-avec-miroir::selection { color: transparent; background: rgba(12
   border: 2px solid var(--bg-3); border-top-color: var(--accent); border-radius: 50%; animation: np-tourne .8s linear infinite;
 }
 @keyframes np-tourne { to { transform: rotate(360deg); } }
+/* 29/10 : calque de redaction sur la zone Type / Style / Description (voir _npCalque) */
+#np-calque-ia {
+  position: absolute; left: 16px; right: 16px; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--bg-1, #15171c) 78%, transparent); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  color: var(--text-0); font-size: 14px; font-weight: 600; text-align: center; padding: 12px; box-sizing: border-box; pointer-events: auto;
+}
+#np-calque-ia[hidden] { display: none; }
+#np-calque-ia .np-calque-rond {
+  width: 34px; height: 34px; box-sizing: border-box; border-radius: 50%; border: 3px solid var(--bg-3); border-top-color: var(--accent); animation: np-tourne .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { #np-calque-ia .np-calque-rond { animation-duration: 2.4s; } }
 @media (prefers-reduced-motion: reduce) { .np-auto-row.ecrit .np-auto-info::before { animation-duration: 2.4s; } }
 
 /* MENU « ... » DE LA BARRE DU HAUT (2026-10-01) : actualiser, historique, controle parental, a propos. */

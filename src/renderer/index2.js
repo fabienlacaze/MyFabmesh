@@ -2208,6 +2208,26 @@ function _npAutoInfo(texte, ecrit = false) {
   const info = document.getElementById('np-auto-info');
   if (info) info.textContent = texte;
   document.getElementById('np-auto-row')?.classList.toggle('ecrit', !!ecrit);
+  _npCalque(ecrit ? texte : null);
+}
+// 29/10 (user : « le circular progress et le texte doivent recouvrir toute cette zone pour montrer que c'est ca qui est mis a jour ») : pendant la
+// redaction, un calque couvre la zone que l'IA remplit (de la ligne Type / Style au bas de la description), cercle et texte au centre.
+function _npCalque(texte) {
+  const carte = document.querySelector('#modal-new-project .modal-card'), sel = document.getElementById('np-asset-type'), desc = document.getElementById('np-prompt');
+  let c = document.getElementById('np-calque-ia');
+  if (!texte || !carte || !sel || !desc) { if (c) c.hidden = true; return; }
+  if (!c) {
+    c = document.createElement('div'); c.id = 'np-calque-ia'; c.setAttribute('role', 'status'); c.setAttribute('aria-live', 'polite');
+    c.innerHTML = '<span class="np-calque-rond" aria-hidden="true"></span><span class="np-calque-texte"></span>';
+    carte.appendChild(c);
+  }
+  if (getComputedStyle(carte).position === 'static') carte.style.position = 'relative';
+  const rc = carte.getBoundingClientRect(), rz = (sel.closest('div[style*="display:flex"]') || sel).getBoundingClientRect(), rd = desc.getBoundingClientRect();
+  const haut = rz.top - 6, bas = rd.bottom + 6;   // de la ligne Type / Style (libelles compris) au bas de la description, a la largeur des champs
+  Object.assign(c.style, { top: Math.round(haut - rc.top + carte.scrollTop) + 'px', height: Math.max(40, Math.round(bas - haut)) + 'px',
+    left: Math.round(Math.min(rz.left, rd.left) - rc.left - 6) + 'px', right: Math.round(rc.right - Math.max(rz.right, rd.right) - 6) + 'px' });
+  c.querySelector('.np-calque-texte').textContent = texte;
+  c.hidden = false;
 }
 let _npIaMinuteur = null, _npIaJeton = 0, _npTypeMotsCles = null, _npIaType = null;
 let _npIaEnCours = false;   // 25/10 : l'IA rédige (ou va rédiger) : type et style restent GRISES, ils sont choisis pour toi
