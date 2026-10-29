@@ -266,7 +266,7 @@ export const VARIANTES = {
   eat: { normal: {} },
   drink: { normal: {} },
   lie_down: { normal: {} },
-  attack: { normal: {}, strong: { ampleur: 1.4, T: 1.15 }, quick: { T: 0.7 } },
+  attack: { normal: {}, strong: { ampleur: 1.4, T: 1.15 }, quick: { T: 0.7 }, kick: {}, spin: {} },   // kick / spin : gestes de bipede humain (attaque anatomique) ; ailleurs = normal
   hit: { normal: {}, strong: { ampleur: 1.6 } },
   death: { normal: {}, left: { cote: 1 } },
 };
@@ -4029,6 +4029,143 @@ function courseAnatomique(sq, cycles, fps, variante = 'normal', allure = 'run') 
   // on cherche l'angle ajoute qui donne cet angle reel (le bassin en prend 35 %, le reste est reparti sur la colonne)
   const ordre = [], file = [racine, ...sq.racines.filter((r) => r !== racine)];
   while (file.length) { const j = file.shift(); ordre.push(j); file.push(...E[j]); }
+  if (allure === 'attack') return _attaqueAnatomique();
+  // ATTAQUE ANATOMIQUE (29/10, demande du user : « attack beaucoup trop basique »). Bipede humain complet (memes detections que la course).
+  // Chaine proximo-distale (Putnam 1993, J Biomech 26 S1 ; Marshall et Elliott 2000, J Sports Sci 18) : le bassin tourne d'abord, les epaules
+  // suivent plus amples et en retard, puis le bras, puis l'avant-bras ; pas avant du pied OPPOSE au bras qui frappe (le pas precede la rotation),
+  // talon arriere qui se leve a la frappe, accompagnement puis retour en garde. Frappe ~0,17 s, armement ~2/3 du geste.
+  // Variantes kick (coup de pied) et spin (coup retourne) : voir _attaqueAnatomique. Desactivable : globalThis.__attaqueAnatomique = false (calcul d'origine).
+  function _attaqueAnatomique() {
+    if (globalThis.__attaqueAnatomique === false) return null;
+    // Gestes : normal / strong / quick = direct du bras droit (l'autre poing en garde) ; kick = coup de pied de face de la jambe arriere
+    // (genou arme haut, extension, buste en arriere, retour) ; spin = coup retourne (tour complet sur le pied avant, bras deplie en fin de tour,
+    // la tete part avant le corps). L'objet tenu n'a pas de geste a part (decision du user, 29/10 : « oublie l'histoire du baton »).
+    const geste = variante === 'kick' ? 'kick' : variante === 'spin' ? 'spin' : 'direct';
+    const bF = bras.find((b) => b.cote < 0) || bras[0], c = bF.cote;
+    const jAv = jambes.find((q) => q.cote !== c) || jambes[0], jAr = jambes.find((q) => q !== jAv) || jambes[1];
+    const kV = variante === 'strong' ? 1.25 : 1;
+    const Tc = geste === 'kick' ? 1.5 : geste === 'spin' ? 1.6 : 1.4 * (variante === 'quick' ? 0.7 : variante === 'strong' ? 1.15 : 1);
+    const Tf_ = Math.max(12, Math.round(Tc * fps)), nT_ = cycles * Tf_ + 1;
+    const K = {
+      direct: {
+        lacetB: [[0, 0], [0.30, -0.24], [0.40, 0.16], [0.52, 0.30], [0.74, 0.11], [1, 0]],
+        lacetE: [[0, 0], [0.30, -0.50], [0.44, 0.20], [0.56, 0.50], [0.76, 0.16], [1, 0]],
+        tangage: [[0, 0], [0.30, 0.04], [0.42, 0.16], [0.55, 0.12], [0.8, 0.03], [1, 0]], roulis: [[0, 0], [0.42, 0.05], [0.7, 0.01], [1, 0]],
+        avance: [[0, 0], [0.30, -0.035], [0.42, 0.10], [0.56, 0.12], [0.78, 0.04], [1, 0]], bob: [[0, 0], [0.30, -0.035], [0.44, -0.065], [0.60, -0.055], [0.85, -0.01], [1, 0]],
+        pasAv: [[0, 0], [0.16, 0], [0.38, 1], [0.74, 1], [0.92, 0], [1, 0]], pasLev: [[0, 0], [0.16, 0], [0.27, 1], [0.38, 0], [0.74, 0], [0.83, 0.6], [0.92, 0], [1, 0]],
+        talonAr: [[0, 0], [0.34, 0], [0.46, 1], [0.66, 0.9], [0.86, 0], [1, 0]],
+      },
+      kick: {
+        lacetB: [[0, 0], [0.30, 0.06], [0.45, 0.16], [0.62, 0.06], [1, 0]], lacetE: [[0, 0], [0.30, -0.06], [0.45, -0.12], [0.62, -0.04], [1, 0]],
+        tangage: [[0, 0], [0.18, 0.02], [0.32, -0.10], [0.46, -0.28], [0.58, -0.18], [0.78, -0.02], [1, 0]], roulis: [[0, 0], [0.18, 0.06], [0.46, 0.08], [0.78, 0.02], [1, 0]],
+        transfert: [[0, 0], [0.18, 1], [0.78, 1], [0.92, 0], [1, 0]], avance: [[0, 0], [0.46, -0.02], [0.7, 0.01], [1, 0]], bob: [[0, 0], [0.18, -0.02], [0.46, -0.03], [0.78, -0.02], [1, 0]],
+        armeG: [[0, 0], [0.22, 0], [0.34, 1], [0.44, 0.4], [0.52, 0.35], [0.62, 1], [0.78, 0], [1, 0]],   // genou arme (monte, tibia replie)
+        tendu: [[0, 0], [0.36, 0], [0.46, 1], [0.52, 1], [0.64, 0], [1, 0]],                             // extension
+        pointe: [[0, 0], [0.3, -0.2], [0.46, -0.5], [0.6, -0.2], [0.8, 0], [1, 0]],
+      },
+      spin: {
+        tour: [[0, 0], [0.22, -0.08], [0.62, 2 * Math.PI], [1, 2 * Math.PI]],                          // lacet du corps entier (prise d'elan puis tour)
+        tete: [[0, 0], [0.22, 0.05], [0.45, 0.55], [0.62, 0.15], [0.8, 0], [1, 0]],                     // la tete part avant le corps (regard)
+        tangage: [[0, 0], [0.22, 0.10], [0.45, 0.04], [0.62, 0.12], [0.8, 0.03], [1, 0]], roulis: [[0, 0], [0.5, -0.06], [0.62, -0.10], [0.85, 0], [1, 0]],
+        bob: [[0, 0], [0.22, -0.05], [0.45, -0.03], [0.62, -0.05], [0.85, -0.01], [1, 0]], piedLev: [[0, 0], [0.25, 0], [0.35, 1], [0.55, 1], [0.64, 0], [1, 0]],
+      },
+    }[geste];
+    // directions bras (U) / avant-bras (F) dans le repere du thorax : x = vers l'exterieur du bras, y = haut, z = avant
+    const GARDE_U = [0.30, -0.80, 0.50], GARDE_F = [-0.30, 0.75, 0.60];
+    const BRAS = {
+      direct: { U: [[0, GARDE_U], [0.30, [0.35, -0.85, 0.15]], [0.42, [-0.12, 0.05, 0.99]], [0.50, [-0.05, -0.20, 0.98]], [0.72, GARDE_U], [1, GARDE_U]],
+        F: [[0, GARDE_F], [0.30, [-0.25, 0.85, 0.45]], [0.42, [-0.10, 0.03, 0.99]], [0.50, [-0.20, 0.35, 0.92]], [0.72, GARDE_F], [1, GARDE_F]],
+        Ug: [[0, GARDE_U], [0.42, [0.35, -0.85, 0.35]], [1, GARDE_U]], Fg: [[0, GARDE_F], [0.42, [-0.35, 0.80, 0.50]], [1, GARDE_F]] },
+      kick: { U: [[0, GARDE_U], [0.46, [0.55, -0.75, -0.30]], [0.7, GARDE_U], [1, GARDE_U]], F: [[0, GARDE_F], [0.46, [0.10, 0.30, 0.95]], [0.7, GARDE_F], [1, GARDE_F]],
+        Ug: [[0, GARDE_U], [0.46, [0.45, -0.60, 0.65]], [0.7, GARDE_U], [1, GARDE_U]], Fg: [[0, GARDE_F], [0.46, [-0.20, 0.55, 0.80]], [0.7, GARDE_F], [1, GARDE_F]] },
+      spin: { U: [[0, GARDE_U], [0.30, [-0.20, -0.75, 0.62]], [0.50, [0.70, -0.20, 0.68]], [0.62, [0.98, 0.05, 0.15]], [0.72, [0.85, -0.30, 0.42]], [0.9, GARDE_U], [1, GARDE_U]],
+        F: [[0, GARDE_F], [0.30, [-0.55, 0.45, 0.70]], [0.50, [0.80, 0.10, 0.58]], [0.62, [0.99, 0.08, -0.05]], [0.72, [0.40, 0.45, 0.80]], [0.9, GARDE_F], [1, GARDE_F]],
+        Ug: [[0, GARDE_U], [0.45, [0.10, -0.95, 0.25]], [0.9, GARDE_U], [1, GARDE_U]], Fg: [[0, GARDE_F], [0.45, [-0.50, 0.70, 0.50]], [0.9, GARDE_F], [1, GARDE_F]] },
+    }[geste];
+    const vcles = (u, ks) => { const v = [0, 1, 2].map((k) => cles(u, ks.map(([x, w]) => [x, w[k]]))); return mulS(v, 1 / (norm(v) + 1e-12)); };
+    const repos = bras.map((b) => {
+      const ur = sub(P0[b.coude], P0[b.epaule]), fr = sub(P0[b.poignet], P0[b.coude]);
+      const u_ = mulS(ur, 1 / norm(ur)), f_ = mulS(fr, 1 / norm(fr)), bas = [0, -1, 0], pr = sub(bas, mulS(f_, dot(bas, f_)));
+      const nrest = norm(pr) > 0.3 ? mulS(pr, 1 / norm(pr)) : [-b.cote, 0, 0];
+      const doigts = [];
+      const marche_ = (k, prof) => { if (!E[k].length) return; const d = sub(P0[E[k][0]], P0[k]), ax = cross(mulS(d, 1 / (norm(d) + 1e-12)), nrest); if (norm(ax) > 0.15) doigts.push({ j: k, par: par[k], axe: mulS(ax, 1 / norm(ax)), prof }); for (const e of E[k]) marche_(e, prof + 1); };
+      if (E[b.poignet].length >= 3) for (const k of E[b.poignet]) marche_(k, 0);
+      return { ur: u_, fr: f_, nrest, doigts };
+    });
+    const nTete = voie.length - 1 - m;
+    const ikJambe = (jb, A, p, Dm, f0, lacetPied = 0, poleHaut = false) => {
+      const Hh = f0.P[jb.hanche], dv = sub(A, Hh), d = norm(dv);
+      const dc = Math.min(Math.max(d, Math.abs(jb.l1 - jb.l2) * 1.05 + 1e-4), (jb.l1 + jb.l2) * 0.9995), a = mulS(dv, 1 / (d + 1e-12));
+      const cosA = (jb.l1 * jb.l1 + dc * dc - jb.l2 * jb.l2) / (2 * jb.l1 * dc), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+      // jambe qui frappe (kick) : pliure vers l'avant ET le haut ; avec l'avant seul, la jambe tendue a l'horizontale lui devenait parallele et le genou basculait (a-coup de 77 deg)
+      const pole = mv(Ry(lacetPied), poleHaut ? [jb.cote * 0.04, 0.7, 0.7] : [jb.cote * 0.04, 0, 1]);
+      let perp = sub(pole, mulS(a, dot(pole, a))); perp = mulS(perp, 1 / (norm(perp) + 1e-12));
+      const Kg = add(Hh, add(mulS(a, jb.l1 * cosA), mulS(perp, jb.l1 * sinA))), Ac = add(Hh, mulS(a, dc)), h = cross(perp, a);
+      Dm.set(jb.hanche, _viser(jb.v1, jb.charniere, sub(Kg, Hh), h)); Dm.set(jb.genou, _viser(jb.v2, jb.charniere, sub(Ac, Kg), h));
+      const Dp = mm(Ry(lacetPied), mm(Rx(p), Ry(-0.8 * jb.cap)));
+      Dm.set(jb.cheville, Dp); if (jb.toe >= 0) Dm.set(jb.toe, Dp); if (jb.bout5 >= 0) Dm.set(jb.bout5, Dp);
+    };
+    const R = [], racineMonde = [], secs = sq.racines.filter((r) => r !== racine), racinesSec = secs.map((r) => ({ j: r, pos: [] }));
+    const A0v = P0[jAv.cheville], A0r = P0[jAr.cheville];
+    for (let i = 0; i < nT_; i++) {
+      const u = _frac(i / Tf_), Dm = new Map();
+      const kc = (n) => (K[n] ? cles(u, K[n]) : 0);
+      const tour = geste === 'spin' ? -c * kc('tour') : 0;              // tour vers le bras qui frappe (il arrive en fin de tour, deplie)
+      const yB = -c * kV * kc('lacetB') + tour, yE = -c * kV * kc('lacetE') + tour + (geste === 'spin' ? -c * kc('tete') * 0.3 : 0);
+      const pit = kV * kc('tangage'), rol = -c * kV * kc('roulis');
+      for (let s = 0; s <= m; s++) { const f = s / m; Dm.set(voie[s], mm(mm(Ry(yB * (1 - f) + yE * f), Rx(pit * (0.25 + 0.75 * f))), Rz(rol * f))); }
+      const yT = yE + (geste === 'spin' ? -c * kc('tete') : 0);
+      for (let s = m + 1; s < voie.length; s++) { const w = (s - m) / nTete; Dm.set(voie[s], mm(mm(Ry(yE + (yT - yE) * w - (geste === 'spin' ? 0 : yE * 0.85 * w)), Rx(pit * (1 - 0.5 * w))), Rz(rol * (1 - w)))); }
+      let rootPos = [P0[racine][0], P0[racine][1] + kV * kc('bob') * H, P0[racine][2] + kV * kc('avance') * H];
+      if (geste === 'kick') rootPos[0] += 0.85 * (A0v[0] - P0[racine][0]) * kc('transfert');        // poids sur la jambe d'appui
+      if (geste === 'spin') { const piv = [A0v[0], 0, A0v[2]], r0 = sub(rootPos, [piv[0], rootPos[1], piv[2]]), r1 = mv(Ry(tour), r0); rootPos = [piv[0] + r1[0], rootPos[1], piv[2] + r1[2]]; }
+      const f0 = fk(Dm, rootPos);
+      if (geste === 'direct') {
+        ikJambe(jAv, add(A0v, [0, 0.06 * H * kc('pasLev'), 0.30 * jAv.L * kV * kc('pasAv')]), 0, Dm, f0);
+        const pR = 22 * _deg * kc('talonAr'), oT = jAr.toe >= 0 ? mv(Ry(-0.8 * jAr.cap), jAr.pied) : [0, -jAr.ha, jAr.ft];
+        ikJambe(jAr, sub(add(A0r, oT), mv(Rx(pR), oT)), pR, Dm, f0);
+      } else if (geste === 'kick') {
+        ikJambe(jAv, A0v, 0, Dm, f0);
+        const L = jAr.L, g = kc('armeG'), e = kc('tendu');
+        const hz = f0.P[jAr.hanche];
+        // genou arme : cheville sous le genou monte (genou a hauteur de hanche) ; extension : cheville devant, a hauteur de hanche
+        const arme_ = add(A0r, [0, 0.55 * L * g, 0.30 * L * g]), tendu_ = [hz[0], hz[1] - 0.12 * L, hz[2] + 0.94 * L];   // 95 % de la longueur : au-dela le genou se verrouillait d'un coup (a-coup de 64 deg)
+        ikJambe(jAr, add(mulS(arme_, 1 - e), mulS(tendu_, e)), kc('pointe'), Dm, f0, 0, true);
+      } else {
+        // spin : pivot sur le pied avant (il tourne sur place), le pied arriere tourne autour, leve pendant le tour
+        ikJambe(jAv, A0v, 0, Dm, f0, tour);
+        const piv = [A0v[0], A0v[1], A0v[2]], rel = mv(Ry(tour), sub(A0r, piv));
+        ikJambe(jAr, add(add(piv, rel), [0, 0.10 * H * kc('piedLev'), 0]), 0, Dm, f0, tour);
+      }
+      const Dth = Dm.get(voie[m]);
+      for (const [q, b] of bras.entries()) {
+        const frappe = b === bF, rr = repos[q], loc = (v) => mv(Dth, [b.cote * v[0], v[1], v[2]]);
+        const dU = loc(vcles(u, frappe ? BRAS.U : BRAS.Ug)), dF = loc(vcles(u, frappe ? BRAS.F : BRAS.Fg));
+        const Du = aligner(rr.ur, dU), fm = aligner(rr.fr, dF);
+        const fa = dF, n0 = mv(fm, rr.nrest), proj = (v) => { const w = sub(v, mulS(fa, dot(v, fa))); return mulS(w, 1 / (norm(w) + 1e-12)); };
+        const nA = proj(n0), nB = proj(loc([-1, 0, 0]));
+        const ang = Math.atan2(dot(cross(nA, nB), fa), dot(nA, nB));
+        Dm.set(b.epaule, Du);
+        const Dc = mm(rotvec(fa, ang), fm);
+        Dm.set(b.coude, Dc); Dm.set(b.poignet, Dc);
+        const fl = 82 * _deg, Dd = new Map([[b.poignet, Dc]]);       // poings fermes
+        for (const f of rr.doigts) { const Dn = mm(Dd.get(f.par) || Dc, rotvec(f.axe, fl * (f.prof === 0 ? 0.7 : 1))); Dd.set(f.j, Dn); Dm.set(f.j, Dn); }
+      }
+      const { D } = fk(Dm, rootPos);
+      R.push(D.map((Dj, j) => (par[j] < 0 ? Dj : mm(tr(D[par[j]]), Dj))));
+      racineMonde.push(rootPos);
+      secs.forEach((r, k) => racinesSec[k].pos.push(add(rootPos, mv(D[racine], sub(P0[r], P0[racine])))));
+    }
+    const exclureSec = new Set([racine, ...voie, ...det.pattes.flatMap((q) => sousArbre(E, q.chaine[0])), ...det.tetes.flat()]);
+    const clip = { nom: variante === 'normal' ? 'attack' : `attack__${variante}`, R, racineMonde, racinesSec, infos: { mode: 'pattes', moteur_course: 'anatomique', action: 'attack', geste,
+      prolongement: { amplitude: Pm.prolongement ?? 1, amort: Pm.prolongementAmort ?? 1, exclure: [...exclureSec] },
+      diag: { voie, m, bras: bras.map((b) => ({ epaule: b.epaule, coude: b.coude, poignet: b.poignet, cote: b.cote })), jambes: jambes.map((q) => ({ hanche: q.hanche, genou: q.genou, cheville: q.cheville, toe: q.toe, cote: q.cote })) },
+      periode: Tf_ / fps, images: nT_, pattes: 2, bras: 2, foulee: 0 } };
+    if (!R.every((Ri) => Ri.every((mt) => mt.every(Number.isFinite))) || !racineMonde.every((q) => q.every(Number.isFinite))) return null;
+    const dc_ = _defautsClip(sq, clip, det);
+    clip.infos.sous_sol_pct = +dc_.sousSol.toFixed(2); clip.infos.glissement_appui_pct = +dc_.glissement.toFixed(2); clip.infos.acoups_max_deg = +dc_.acoups.toFixed(1);
+    return clip;
+  }
   let leanAdj = new Array(Tf).fill(0);
   const leanAdjDe = (t) => { const x = _frac(t / T) * Tf, i0 = Math.floor(x) % Tf, i1 = (i0 + 1) % Tf, f = x - Math.floor(x); return leanAdj[i0] * (1 - f) + leanAdj[i1] * f; };
   const DmLean = (L) => { const Dm = new Map(); for (let i = 0; i <= m; i++) { const f = i / m; Dm.set(voie[i], Rx(L * (0.35 + 0.65 * f))); } return Dm; };
@@ -4382,7 +4519,7 @@ function animerAllureSure0(sq, allure, cycles, fps, variante, mode = 'auto', esp
     const volPossible = mode === 'vol' && !!PROFILS_VOL[allure];
     // course anatomique (28/10) : bipede droit complet de la famille humain ; null -> calcul d'origine
     let c0 = null;
-    if ((allure === 'run' || allure === 'walk') && espece === 'humain' && !volPossible && mode !== 'nage' && mode !== 'reptation') { try { c0 = courseAnatomique(sq, cycles, fps, variante, allure); } catch (e_) { c0 = null; if (globalThis.__debugCourse) console.error(e_); } }
+    if ((allure === 'run' || allure === 'walk' || allure === 'attack') && espece === 'humain' && !volPossible && mode !== 'nage' && mode !== 'reptation') { try { c0 = courseAnatomique(sq, cycles, fps, variante, allure); } catch (e_) { c0 = null; if (globalThis.__debugCourse) console.error(e_); } }
     let c = c0 ? c0 : volPossible
       ? animerVol(sq, allure, cycles, fps, variante, detecterPattes(sq.par, sq.P0, sq.racine))
       : mode === 'nage' || mode === 'reptation'

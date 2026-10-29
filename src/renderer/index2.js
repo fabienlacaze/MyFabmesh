@@ -21948,7 +21948,7 @@ var TYPES_ANIM = [
   { v: 'attack', libelle: '⚔️ Attack' }, { v: 'hit', libelle: '💥 Hit' }, { v: 'death', libelle: '💀 Death' }, { v: 'fly', libelle: '✈️ Fly' },
 ];
 var NOMS_VARIANTES = { normal: 'Normal', alert: 'Alert', tired: 'Tired', slow: 'Slow', brisk: 'Brisk', sneak: 'Sneaky', proud: 'Proud', crawl: 'Crawl', jog: 'Jog', sprint: 'Sprint', tight: 'Tight', wide: 'Wide',
-  extended: 'Extended', big: 'Big', small: 'Small', strong: 'Strong', quick: 'Quick', left: 'Left side' };
+  extended: 'Extended', big: 'Big', small: 'Small', strong: 'Strong', quick: 'Quick', kick: 'Kick', spin: 'Spin', left: 'Left side' };
 var DESCRIPTIONS_ANIM = {
   idle: 'Standing still, calm breathing.', idle__alert: 'On guard: head up, looks around.', idle__tired: 'Heavy breathing, head low.',
   walk: 'Regular walk.', walk__slow: 'Slow, heavy steps.', walk__brisk: 'Quick, lively pace.', walk__sneak: 'Low body, slow and careful steps.', walk__proud: 'Head high, high steps.', walk__crawl: 'Very low body; a legless creature crawls in vertical waves.',
@@ -21959,7 +21959,7 @@ var DESCRIPTIONS_ANIM = {
   walk_back: 'Steps backwards.', walk_back__slow: 'Slow, careful steps backwards.',
   jump: 'Hops forward, all legs together.', jump__big: 'Big leaps.', jump__small: 'Small hops.',
   eat: 'Lowers the head to the ground, chews, looks up.', lie_down: 'Lies down and rests.',
-  attack: 'Crouches, then lunges forward (head or arm first).', attack__strong: 'Wider, heavier strike.', attack__quick: 'Fast strike.',
+  attack: 'Crouches, then lunges forward (head or arm first).', attack__strong: 'Wider, heavier strike.', attack__quick: 'Fast strike.', attack__kick: 'Front kick: knee up, leg extends, comes back (humanoids).', attack__spin: 'Spinning strike: full turn, arm out at the end (humanoids).',
   hit: 'Recoils from a blow, then recovers.', hit__strong: 'Hard blow, big recoil.',
   death: 'Collapses onto its right side.', death__left: 'Collapses onto its left side.',
 };
