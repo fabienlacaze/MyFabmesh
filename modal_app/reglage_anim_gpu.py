@@ -42,7 +42,8 @@ def _check_auth(payload: dict) -> None:
 # d'instantane, puis RESTAURE au demarrage d'un conteneur froid, comme `MyFabmeshMesh` (modal_app/app.py). Meme regle que les autres classes :
 # un instantane est propre au type de machine (2-3 par type de GPU, crees aux premiers demarrages apres un deploiement).
 @app.cls(
-    image=image, gpu=_GPU, timeout=900, scaledown_window=120, enable_memory_snapshot=True,
+    image=image, gpu=_GPU, timeout=900, scaledown_window=30,   # 29/10 (user) : le conteneur s'eteint 30 s apres le dernier appel ; redemarrage a froid mesure : 20 s (snapshot GPU)
+     enable_memory_snapshot=True,
     experimental_options={"enable_gpu_snapshot": True},
     secrets=[modal.Secret.from_name("myfabmesh-shared", required_keys=["SHARED_SECRET"])],
 )
