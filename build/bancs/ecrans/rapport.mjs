@@ -10,6 +10,8 @@ export function defauts(e, largeur) {
   const m = e.mesure || {}, d = [];
   if (m.debordeH) d.push(`page plus large que l'ecran (${m.largeurPage} px)`);
   if (m.horsEcran && m.horsEcran.length) d.push(`${m.horsEcran.length} element(s) hors ecran`);
+  if (m.coupes && m.coupes.length) d.push(`${m.coupes.length} element(s) coupe(s) : ${m.coupes[0]}`);
+  if (m.fenetre && m.fenetre.titreRecouvert) d.push(`titre recouvert par ${m.fenetre.titreRecouvert}`);
   if (largeur < 1100 && m.petits && m.petits.length >= 3) d.push(`${m.petits.length}+ cibles tactiles < 32 px`);
   const f = m.fenetre;
   if (f) {
@@ -28,7 +30,7 @@ export function ecrireRapport(sortie, tailles, ref) {
       const e = bilans[i].ecrans[n], d = defauts(e, t.w); nbDef += d.length ? 1 : 0;
       const img = e && e.ok ? `<a href="${t.dossier}/${n}.png" target="_blank"><img loading="lazy" src="${t.dossier}/${n}.png" alt=""></a>` : '<div class="vide">—</div>';
       const av = ref && fs.existsSync(path.join(ref, t.dossier, n + '.png')) ? `<a class="ref" href="${path.join(ref, t.dossier, n + '.png').replace(/\\/g, '/')}" target="_blank">capture precedente</a>` : '';
-      const det = e && e.ok && e.mesure ? esc(JSON.stringify({ horsEcran: e.mesure.horsEcran, petits: e.mesure.petits, fenetre: e.mesure.fenetre })) : '';
+      const det = e && e.ok && e.mesure ? esc(JSON.stringify({ horsEcran: e.mesure.horsEcran, coupes: e.mesure.coupes, petits: e.mesure.petits, fenetre: e.mesure.fenetre })) : '';
       return `<td class="${d.length ? 'ko' : 'ok'}">${img}<div class="def">${d.map(esc).join('<br>') || 'OK'}</div>${av}${det ? `<details><summary>mesures</summary><pre>${det}</pre></details>` : ''}</td>`;
     }).join('');
     const ko = tailles.some((t, i) => defauts(bilans[i].ecrans[n], t.w).length);

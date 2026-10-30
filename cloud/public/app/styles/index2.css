@@ -5611,3 +5611,19 @@ html[dir="rtl"] .me-w-link { text-align: start; }
 html[dir="rtl"] .me-w-head { text-align: start; }
 html[dir="rtl"] #me-wizard .me-w-big { text-align: start; }
 html[dir="rtl"] .me-w-card { text-align: start; }
+
+/* == PETITS ECRANS (30/10, banc des ecrans build/bancs/ecrans : telephone 360-390 px, tablette 768 px) ==
+   1. La barre des vues 3D (Iso ... Bottom) etait UN groupe insecable plus large qu'un telephone : coupee des deux cotes dans ~25 fenetres d'outils.
+   2. Les titres longs passaient SOUS la pastille du solde (posee en absolu en haut a droite de la carte) : Draw Mask, Explode, Resize...
+   3. Trois boutons en pied ne tenaient pas : « Cancel » coupe a gauche (Auto Inpaint). */
+@media (max-width: 600px) {
+  .mesh-toolbar.fen { max-width: calc(100% - 10px); padding: 4px 6px; }
+  .mesh-toolbar.fen .bv3-groupe { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
+  .mesh-toolbar.fen button { padding: 4px 6px; min-height: 30px; }
+  .modal-actions { flex-wrap: wrap; row-gap: 8px; }
+  .modal-actions > button, .modal-actions > .primary-btn, .modal-actions > .ghost-btn { flex: 1 1 auto; min-height: 40px; }
+}
+@media (max-width: 760px) {
+  .modal-card:has(> .modal-balance-badge) > .fen-tete h2, .modal-card:has(> .modal-balance-badge) > .fen-tete h3 { padding-right: 118px; }
+  .modal-card:has(> .modal-balance-badge) > h2, .modal-card:has(> .modal-balance-badge) > h3 { padding-right: 168px; }
+}

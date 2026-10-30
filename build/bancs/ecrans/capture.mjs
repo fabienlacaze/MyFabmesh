@@ -18,7 +18,16 @@ const vis=(e)=>{const r=e.getBoundingClientRect();const cs=getComputedStyle(e);r
 const vw=innerWidth, vh=innerHeight, nom=(e)=>(e.id?'#'+e.id:(e.className&&typeof e.className==='string'?'.'+e.className.trim().split(/\\s+/)[0]:e.tagName.toLowerCase()));
 const r={ largeurPage: document.documentElement.scrollWidth, debordeH: document.documentElement.scrollWidth>vw+1, horsEcran:[], petits:[], fenetre:null };
 // elements visibles qui sortent a droite (ou a gauche) de l'ecran, sans etre dans un conteneur qui defile horizontalement
-const defileH=(e)=>{for(let p=e.parentElement;p;p=p.parentElement){const s=getComputedStyle(p);if((s.overflowX==='auto'||s.overflowX==='scroll'||s.overflowX==='hidden')&&p.scrollWidth>p.clientWidth+1)return true;}return false;};
+const defileH=(e)=>{for(let p=e.parentElement;p;p=p.parentElement){const s=getComputedStyle(p);if((s.overflowX==='auto'||s.overflowX==='scroll')&&p.scrollWidth>p.clientWidth+1)return true;}return false;};
+// 30/10 : element COUPE par un parent qui masque (overflow hidden / clip) : la barre des vues 3D l'etait sans etre vue par la mesure
+r.coupes=[];
+for (const p of document.querySelectorAll('body *')) {
+  if (r.coupes.length>=8||!vis(p)) continue; const s=getComputedStyle(p);
+  if (!(s.overflowX==='hidden'||s.overflowX==='clip')||p.scrollWidth<=p.clientWidth+2) continue;
+  const pr=p.getBoundingClientRect(); if (pr.right<0||pr.left>vw||pr.bottom<0||pr.top>vh) continue;
+  const enfant=[...p.querySelectorAll('button,a,input,select,span,label')].find((c)=>{if(!vis(c))return false;const b=c.getBoundingClientRect();return b.width>4&&(b.left<pr.left-2||b.right>pr.right+2);});
+  if (enfant) r.coupes.push(nom(p)+' coupe '+nom(enfant));
+}
 for (const e of document.querySelectorAll('body *')) {
   if (!vis(e)) continue; const b=e.getBoundingClientRect();
   if ((b.right>vw+2||b.left<-2) && b.width<vw*3 && !defileH(e)) { if (r.horsEcran.length<8 && ![...e.children].some((c)=>vis(c)&&(c.getBoundingClientRect().right>vw+2))) r.horsEcran.push(nom(e)+' '+Math.round(b.left)+'..'+Math.round(b.right)); }
@@ -33,7 +42,12 @@ for (const ov of document.querySelectorAll('.modal:not(.hidden), .modal-overlay:
   const cr=c.getBoundingClientRect(); const pieds=[...c.querySelectorAll('.modal-actions')].filter(vis); const pied=pieds[pieds.length-1];
   let p=null; if (pied) { const pr=pied.getBoundingClientRect(); const bt=pied.querySelector('button')||pied; const q=bt.getBoundingClientRect(); const t=document.elementFromPoint(q.left+q.width/2,q.top+q.height/2);
     p={ visible: pr.top>=0&&pr.bottom<=vh+1, libre: !!(t&&(bt===t||bt.contains(t)||pied.contains(t))) }; }
-  r.fenetre={ id: ov.id||'', carte:[Math.round(cr.left),Math.round(cr.top),Math.round(cr.right),Math.round(cr.bottom)], deborde: cr.right>vw+1||cr.left<-1, hauteurPlusQueEcran: cr.height>vh+1, pied:p };
+  // titre recouvert (30/10 : les titres longs passaient sous la pastille du solde) : 5 points le long de la ligne du titre
+  let titreRecouvert=null; const ti=[...c.querySelectorAll('h1,h2,h3')].filter(vis)[0];
+  if (ti) { const tr=ti.getBoundingClientRect(); const rg=document.createRange(); rg.selectNodeContents(ti); const tx=rg.getBoundingClientRect();
+    for (const f of [0.15,0.35,0.55,0.75,0.95]) { const x=tx.left+f*tx.width, y=tx.top+Math.min(tx.height,30)/2; const t=document.elementFromPoint(x,y);
+      if (t && !(ti===t||ti.contains(t)||t.contains(ti))) { titreRecouvert=nom(t); break; } } }
+  r.fenetre={ id: ov.id||'', carte:[Math.round(cr.left),Math.round(cr.top),Math.round(cr.right),Math.round(cr.bottom)], deborde: cr.right>vw+1||cr.left<-1, hauteurPlusQueEcran: cr.height>vh+1, pied:p, titreRecouvert };
   break;
 }
 return r;`;
