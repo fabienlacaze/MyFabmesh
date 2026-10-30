@@ -5852,13 +5852,32 @@ html[dir="rtl"] .me-w-card { text-align: start; }
    2. Les titres longs passaient SOUS la pastille du solde (posee en absolu en haut a droite de la carte) : Draw Mask, Explode, Resize...
    3. Trois boutons en pied ne tenaient pas : « Cancel » coupe a gauche (Auto Inpaint). */
 @media (max-width: 600px) {
-  .mesh-toolbar.fen { max-width: calc(100% - 10px); padding: 4px 6px; }
-  .mesh-toolbar.fen .bv3-groupe { flex-wrap: wrap; justify-content: center; row-gap: 2px; }
-  .mesh-toolbar.fen button { padding: 4px 6px; min-height: 30px; }
+  /* barre des vues : UNE ligne qui defile au doigt, calee a gauche (sur plusieurs lignes elle recouvrait l'apercu 3D, centree elle cachait son debut) */
+  .mesh-toolbar.fen { left: 5px; right: 5px; width: auto; max-width: none; margin: 0; padding: 3px 6px; flex-wrap: nowrap; justify-content: flex-start;
+    overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .mesh-toolbar.fen::-webkit-scrollbar { display: none; }
+  .mesh-toolbar.fen .bv3-groupe { flex-wrap: nowrap; flex: none; }
+  .mesh-toolbar.fen button { padding: 4px 8px; min-height: 34px; flex: none; }
+  /* pied : les boutons se partagent UNE ligne (texte qui peut passer a la ligne DANS le bouton) ; au-dela de 3, ils passent a la ligne */
   .modal-actions { flex-wrap: wrap; row-gap: 8px; }
-  .modal-actions > button, .modal-actions > .primary-btn, .modal-actions > .ghost-btn { flex: 1 1 auto; min-height: 40px; }
+  /* !important : les regles d'harmonisation (.modal-card.fen-3d .modal-actions .ghost-btn { flex: 0 0 auto }, .primary-btn width 100 %) sont plus precises et renvoyaient le bouton principal seul sur une 2e ligne (banc : inspecter.mjs) */
+  .modal-actions > button, .modal-actions > .primary-btn, .modal-actions > .ghost-btn { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; min-height: 40px; white-space: normal; }
+  .modal-actions > button:has(> .generate-cost-pill) { flex: 1 1 0; min-width: 0; }   /* bouton avec pastille de prix : il refusait de retrecir (min-width: max-content) et passait seul sur une 2e ligne */
 }
 @media (max-width: 760px) {
   .modal-card:has(> .modal-balance-badge) > .fen-tete h2, .modal-card:has(> .modal-balance-badge) > .fen-tete h3 { padding-right: 118px; }
   .modal-card:has(> .modal-balance-badge) > h2, .modal-card:has(> .modal-balance-badge) > h3 { padding-right: 168px; }
+}
+
+/* == CIBLES TACTILES SUR TELEPHONE (30/10, banc des ecrans : boutons du haut 26-30 px, listes 31 px, curseurs 16 px, cases 16 px) ==
+   Un doigt demande ~40 px ; les champs en police < 16 px font ZOOMER l'iPhone sur toute la page au toucher. */
+@media (max-width: 600px) {
+  #cloud-brand-btn, #cloud-marketplace-btn, #cloud-credits-pill, .fab-lang-bouton, .home-view-btn, .topbar button, .ghost-btn, .icon-btn { min-height: 36px; }
+  .settings-close-x, #mt-close-x, #lct-fermer, #me-close-x { min-width: 36px; min-height: 36px; }
+  select, input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="search"], textarea { font-size: 16px !important; min-height: 40px; }
+  input[type="range"] { min-height: 28px; }
+  input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+  input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+  input[type="checkbox"]:not(.np-switch input), input[type="radio"] { width: 20px; height: 20px; }
+  #ws-image-expand-btn, #ws-img-prev, #ws-img-next { min-width: 36px; min-height: 36px; }
 }
