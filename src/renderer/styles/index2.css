@@ -5862,3 +5862,16 @@ html[dir="rtl"] .me-w-card { text-align: start; }
   .modal-card:has(> .modal-balance-badge) > .fen-tete h2, .modal-card:has(> .modal-balance-badge) > .fen-tete h3 { padding-right: 118px; }
   .modal-card:has(> .modal-balance-badge) > h2, .modal-card:has(> .modal-balance-badge) > h3 { padding-right: 168px; }
 }
+
+/* == CIBLES TACTILES SUR TELEPHONE (30/10, banc des ecrans : boutons du haut 26-30 px, listes 31 px, curseurs 16 px, cases 16 px) ==
+   Un doigt demande ~40 px ; les champs en police < 16 px font ZOOMER l'iPhone sur toute la page au toucher. */
+@media (max-width: 600px) {
+  #cloud-brand-btn, #cloud-marketplace-btn, #cloud-credits-pill, .fab-lang-bouton, .home-view-btn, .topbar button, .ghost-btn, .icon-btn { min-height: 36px; }
+  .settings-close-x { min-width: 36px; min-height: 36px; }
+  select, input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="search"], textarea { font-size: 16px !important; min-height: 40px; }
+  input[type="range"] { min-height: 28px; }
+  input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+  input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+  input[type="checkbox"]:not(.np-switch input), input[type="radio"] { width: 20px; height: 20px; }
+  #ws-image-expand-btn, #ws-img-prev, #ws-img-next { min-width: 36px; min-height: 36px; }
+}
