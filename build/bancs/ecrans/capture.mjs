@@ -132,6 +132,8 @@ export default async function run(page) {
       const existe = await page.evaluate((i) => { const e = document.getElementById(i); if (!e) return false; for (let p = e; p; p = p.parentElement) { if (p.classList && p.classList.contains('collapsed')) p.classList.remove('collapsed'); if (p.tagName === 'DETAILS') p.open = true; } return true; }, id);
       if (!existe) { res.ecrans[nom] = { ok: false, raison: 'absent' }; continue; }
       await page.waitForTimeout(250);
+      // Name parts n'ouvre sa fenetre que sur un maillage DECOUPE (nom en _segment_) : on le met en tete du faux projet (banc du 26/10, C:/tmp/rev_etroit)
+      if (id === 'ws-mesh-name-btn') await main(page, `const p=window.state.currentProject; const u=location.origin+'/app/t/mesh_segment_1.glb'; p.previewMeshPath=u; p.selectedMeshPath=u; p.meshes.unshift({path:u,url:u,filename:'mesh_segment_1.glb',name:'mesh_segment_1.glb'});`);
       await page.evaluate((i) => document.getElementById(i).click(), id);
       await page.waitForTimeout(3000);
       if (await fenetresOuvertes(page)) await capturer(nom); else res.ecrans[nom] = { ok: false, raison: 'aucune fenetre' };
