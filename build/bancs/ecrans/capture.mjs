@@ -33,7 +33,9 @@ for (const e of document.querySelectorAll('body *')) {
   if ((b.right>vw+2||b.left<-2) && b.width<vw*3 && !defileH(e)) { if (r.horsEcran.length<8 && ![...e.children].some((c)=>vis(c)&&(c.getBoundingClientRect().right>vw+2))) r.horsEcran.push(nom(e)+' '+Math.round(b.left)+'..'+Math.round(b.right)); }
 }
 // cibles tactiles trop petites (< 32 px de cote) parmi les controles visibles DANS l'ecran (telephone et tablette seulement)
-if (vw<1100) for (const e of document.querySelectorAll('button, a[href], input:not([type=hidden]), select, [role=button]')) {
+// fenetre ouverte : on mesure SES controles (avant : les 12 places etaient prises par l'espace de travail derriere)
+const portee=[...document.querySelectorAll('.modal:not(.hidden) .modal-card, .modal-overlay:not(.hidden) .modal-card')].filter(vis)[0]||document;
+if (vw<1100) for (const e of portee.querySelectorAll('button, a[href], input:not([type=hidden]), select, [role=button]')) {
   if (!vis(e)) continue; const b=e.getBoundingClientRect(); if (b.bottom<0||b.top>vh||b.right<0||b.left>vw) continue;
   if (Math.min(b.width,b.height)<32 && r.petits.length<12) r.petits.push(nom(e)+' '+Math.round(b.width)+'x'+Math.round(b.height));
 }
