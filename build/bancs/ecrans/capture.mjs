@@ -15,7 +15,7 @@ export const OUTILS = ['ws-modify-btn', 'ws-autoinpaint-btn', 'ws-removebg-btn',
 // --- mesures (executees dans la page) : page entiere, puis fenetre ouverte s'il y en a une
 const MESURE = `
 const vis=(e)=>{const r=e.getBoundingClientRect();const cs=getComputedStyle(e);return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none';};
-const vw=innerWidth, vh=innerHeight, nom=(e)=>(e.id?'#'+e.id:(e.className&&typeof e.className==='string'?'.'+e.className.trim().split(/\\s+/)[0]:e.tagName.toLowerCase()));
+const vw=innerWidth, vh=innerHeight, nom=(e)=>(e.id?'#'+e.id:(e.className&&typeof e.className==='string'&&e.className.trim()?'.'+e.className.trim().split(/\\s+/)[0]:e.tagName.toLowerCase()+(e.parentElement&&e.parentElement.id?' dans #'+e.parentElement.id:''))+((e.textContent||'').trim()?' «'+(e.textContent||'').trim().replace(/\\s+/g,' ').slice(0,24)+'»':''));
 const r={ largeurPage: document.documentElement.scrollWidth, debordeH: document.documentElement.scrollWidth>vw+1, horsEcran:[], petits:[], fenetre:null };
 // elements visibles qui sortent a droite (ou a gauche) de l'ecran, sans etre dans un conteneur qui defile horizontalement
 const defileH=(e)=>{for(let p=e.parentElement;p;p=p.parentElement){const s=getComputedStyle(p);if((s.overflowX==='auto'||s.overflowX==='scroll')&&p.scrollWidth>p.clientWidth+1)return true;}return false;};
