@@ -5646,3 +5646,19 @@ html[dir="rtl"] .me-w-card { text-align: start; }
   input[type="checkbox"]:not(.np-switch input), input[type="radio"] { width: 20px; height: 20px; }
   #ws-image-expand-btn, #ws-img-prev, #ws-img-next { min-width: 36px; min-height: 36px; }
 }
+
+/* == RELECTURE DU 30/10 (banc des ecrans + relecture par agents, 272 signalements) == */
+/* 1. Barre des vues 3D < 600 px : elle defile mais rien ne le montrait (a 390 px la coupe tombait entre Right et Top : Top, Bottom, zoom et Fit
+      introuvables, 69 signalements). Degrade au bord droit + espace final pour que le dernier bouton sorte du degrade en fin de defilement. */
+@media (max-width: 600px) {
+  .mesh-toolbar.fen { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 30px), transparent); }
+  .mesh-toolbar.fen::after { content: ''; flex: 0 0 26px; }
+}
+/* 2. Paint Mesh : le bouton « Emissive » de l'en-tete etait pose SUR la pastille du solde (toutes tailles) ; il passe sous la pastille, la croix reste en haut. */
+#modal-paint-mesh .fen-tete > div { align-items: flex-start; }
+#modal-paint-mesh #pm-toggle-emissive { margin-top: 42px; }
+/* 3. Champs de saisie sans style (Resize : largeur / hauteur / profondeur ; graine de Texture variant) : blancs, 18-19 px de haut, hors theme.
+      Style par defaut de specificite NULLE (:where) : toute regle existante l'emporte. */
+:where(.modal-card, .modal-content) :where(input[type="number"], input[type="text"]) {
+  background: var(--bg-1, #0f0f1a); color: var(--text, #e6e6f0); border: 1px solid var(--border, #2a2a3a); border-radius: 6px; padding: 6px 8px; min-height: 32px; box-sizing: border-box;
+}
